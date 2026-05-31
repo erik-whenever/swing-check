@@ -2,6 +2,41 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Environment variables
+
+Copy `.env.example` to `.env` and fill in the values.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VITE_API_URL` | yes | Cloudflare Worker that proxies the Anthropic API. |
+| `VITE_SUPABASE_URL` | no | Supabase project URL. Enables cross-device swing-history sync. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | no | Supabase publishable key. Required together with `VITE_SUPABASE_URL`. |
+
+### Supabase history sync (optional)
+
+When the two `VITE_SUPABASE_*` variables are set, each analysed swing's **metadata + results**
+are mirrored to a `swing_records` table (video blobs and frames stay local in IndexedDB).
+History reads then prefer Supabase and fall back to IndexedDB if it is unavailable. With the
+variables unset the app is unchanged and runs IndexedDB-only.
+
+Create the table in Supabase:
+
+```sql
+create table swing_records (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users,
+  created_at timestamptz default now(),
+  camera_angle text,
+  focus_rule_id text,
+  overall_assessment text,
+  frame_quality text,
+  results jsonb,
+  cannot_determine_reasons text[]
+);
+```
+
+Authentication is not implemented yet, so `user_id` is `null` for now.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
