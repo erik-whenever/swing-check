@@ -40,16 +40,24 @@ function createSilentWavUrl(): string {
  * buttons (play/pause) fire `onHeadsetButton`. Must be toggled from a user
  * gesture so the initial audio.play() is allowed.
  */
-export function useRangeMode(onHeadsetButton: () => void) {
+export function useRangeMode(
+  onHeadsetButton: () => void,
+  /** Secondary transport action (commonly a headset double-press → "nexttrack"); ends a session. */
+  onSecondaryAction?: () => void,
+) {
   const [rangeMode, setRangeMode] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
 
-  // Keep the latest handler so the Media Session callback never goes stale.
+  // Keep the latest handlers so the Media Session callbacks never go stale.
   const handlerRef = useRef(onHeadsetButton);
   useEffect(() => {
     handlerRef.current = onHeadsetButton;
   }, [onHeadsetButton]);
+  const secondaryRef = useRef(onSecondaryAction);
+  useEffect(() => {
+    secondaryRef.current = onSecondaryAction;
+  }, [onSecondaryAction]);
 
   const startLoop = useCallback(async () => {
     if (!audioRef.current) {
@@ -69,6 +77,13 @@ export function useRangeMode(onHeadsetButton: () => void) {
       const fire = () => handlerRef.current();
       navigator.mediaSession.setActionHandler('play', fire);
       navigator.mediaSession.setActionHandler('pause', fire);
+      // Secondary transport (e.g. headset double-press) ends the session, when wired up.
+      const fireSecondary = () => secondaryRef.current?.();
+      try {
+        navigator.mediaSession.setActionHandler('nexttrack', fireSecondary);
+      } catch {
+        /* not all browsers support every action */
+      }
       navigator.mediaSession.playbackState = 'playing';
     }
   }, []);
@@ -78,6 +93,11 @@ export function useRangeMode(onHeadsetButton: () => void) {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.setActionHandler('play', null);
       navigator.mediaSession.setActionHandler('pause', null);
+      try {
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+      } catch {
+        /* ignore */
+      }
       navigator.mediaSession.playbackState = 'none';
     }
   }, []);
