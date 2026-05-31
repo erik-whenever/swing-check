@@ -58,11 +58,25 @@ export async function analyzeSwing(
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
       max_tokens: 2000,
-      system: SYSTEM_PROMPT,
+      // Prompt caching: the system prompt is static across every request, so we mark it
+      // as an ephemeral cache breakpoint to earn cache reads on repeated analyses.
+      system: [
+        {
+          type: 'text' as const,
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' as const },
+        },
+      ],
       messages: [
         {
           role: 'user',
-          content: [...imageContent, { type: 'text', text: prompt }],
+          // The rules/instruction block is placed BEFORE the frame images and marked as a
+          // cache breakpoint. Caching only covers the prefix up to the breakpoint, so the
+          // static rules must precede the per-swing images for the cache to be hit.
+          content: [
+            { type: 'text' as const, text: prompt, cache_control: { type: 'ephemeral' as const } },
+            ...imageContent,
+          ],
         },
       ],
     }),
@@ -80,12 +94,21 @@ export async function analyzeSwing(
   }
 
   const data = await response.json();
+  const cacheReadTokens = data.usage?.cache_read_input_tokens ?? 0;
+  const cacheCreationTokens = data.usage?.cache_creation_input_tokens ?? 0;
   log.info('analyzeSwing response received', {
     responseMs,
     inputTokens: data.usage?.input_tokens,
     outputTokens: data.usage?.output_tokens,
+    cacheReadTokens,
+    cacheCreationTokens,
     stopReason: data.stop_reason,
   });
+  if (cacheReadTokens > 0) {
+    log.info(`Cache hit: ${cacheReadTokens} tokens`, { cacheReadTokens, cacheCreationTokens });
+  } else if (cacheCreationTokens > 0) {
+    log.info(`Cache miss: wrote ${cacheCreationTokens} tokens to cache`, { cacheCreationTokens });
+  }
 
   const text = data.content[0].text;
   const analysis = parseAndValidate(text, rules);
