@@ -1,9 +1,93 @@
 import type { RuleResult, SwingAnalysis } from '../types';
 import type { TtsMode } from '../store/settings';
+import { useSettingsStore } from '../store/settings';
 
-// All spoken strings are Swedish; use a Swedish voice/locale so the device's
-// default Swedish voice is selected (we don't pin a specific named voice).
+// All spoken strings are Swedish; fall back to this locale when no concrete voice
+// could be resolved (the selected voice's own lang is preferred otherwise).
 const TTS_LANG = 'sv-SE';
+
+// ── Voice selection ───────────────────────────────────────────────────────────
+// Web Speech exposes different voices per device, and getVoices() is often empty on
+// the first call (notably iOS cold start). We cache voices, refresh on voiceschanged,
+// and pick the best available Swedish voice unless the user pinned one in settings.
+
+let cachedVoices: SpeechSynthesisVoice[] = [];
+
+function refreshVoices(): SpeechSynthesisVoice[] {
+  const synth = getSynth();
+  if (!synth) return cachedVoices;
+  const voices = synth.getVoices();
+  if (voices.length) cachedVoices = voices;
+  return cachedVoices;
+}
+
+/** All Swedish voices currently available (lang starts with "sv"). */
+export function getSwedishVoices(): SpeechSynthesisVoice[] {
+  return refreshVoices().filter((v) => v.lang?.toLowerCase().startsWith('sv'));
+}
+
+/**
+ * Pick the best voice given an optional pinned voiceURI. Priority:
+ * pinned → sv-SE → Siri Swedish → any sv → first available voice.
+ */
+export function pickBestVoice(
+  voices: SpeechSynthesisVoice[],
+  preferredURI?: string | null
+): SpeechSynthesisVoice | null {
+  if (preferredURI) {
+    const pinned = voices.find((v) => v.voiceURI === preferredURI);
+    if (pinned) return pinned;
+  }
+  const swedish = voices.filter((v) => v.lang?.toLowerCase().startsWith('sv'));
+  const svSE = swedish.find((v) => v.lang.toLowerCase() === 'sv-se');
+  if (svSE) return svSE;
+  const siri = swedish.find((v) => /siri/i.test(v.name));
+  if (siri) return siri;
+  if (swedish[0]) return swedish[0];
+  return voices[0] ?? null;
+}
+
+/** The voice that will actually be used for speech, honouring the user's setting. */
+export function resolveVoice(): SpeechSynthesisVoice | null {
+  const preferred = useSettingsStore.getState().ttsVoiceURI;
+  return pickBestVoice(refreshVoices(), preferred);
+}
+
+/**
+ * Resolve the available voices, retrying for the iOS cold-start case where the first
+ * getVoices() returns an empty array. Waits for voiceschanged and retries up to 3 times
+ * (500ms apart). Used by the settings UI to populate the voice dropdown.
+ */
+export function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  const synth = getSynth();
+  if (!synth) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const settle = () => {
+      const voices = refreshVoices();
+      if (voices.length) {
+        resolve(voices);
+        return true;
+      }
+      return false;
+    };
+    if (settle()) return;
+    const onChanged = () => {
+      if (settle()) synth.removeEventListener?.('voiceschanged', onChanged);
+    };
+    synth.addEventListener?.('voiceschanged', onChanged);
+    const retry = () => {
+      attempts += 1;
+      if (settle() || attempts >= 3) {
+        synth.removeEventListener?.('voiceschanged', onChanged);
+        if (!cachedVoices.length) resolve([]);
+        return;
+      }
+      setTimeout(retry, 500);
+    };
+    setTimeout(retry, 500);
+  });
+}
 
 export const TTS_INTRO = 'Sving analyserat.';
 export const TTS_ANALYZING = 'Analyserar...';
@@ -47,9 +131,12 @@ export function speakSequence(parts: string[], opts: SpeakOptions = {}): void {
     return;
   }
 
+  const voice = resolveVoice();
+
   filtered.forEach((text, i) => {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = TTS_LANG;
+    if (voice) u.voice = voice;
+    u.lang = voice?.lang || TTS_LANG;
     if (i === 0 && opts.onStart) u.onstart = opts.onStart;
     if (i === filtered.length - 1) {
       u.onend = () => opts.onEnd?.();

@@ -26,6 +26,9 @@ interface SettingsState {
   /** Quick = short verdict per rule. Detailed = full observation + drill. */
   ttsMode: TtsMode;
   setTtsMode: (mode: TtsMode) => void;
+  /** voiceURI of the user-picked TTS voice. null = auto-select the best Swedish voice. */
+  ttsVoiceURI: string | null;
+  setTtsVoiceURI: (uri: string | null) => void;
   /** UI language. */
   language: Language;
   setLanguage: (lang: Language) => void;
@@ -61,6 +64,8 @@ export const useSettingsStore = create<SettingsState>()(
       setTtsEnabled: (v) => set({ ttsEnabled: v }),
       ttsMode: 'quick',
       setTtsMode: (mode) => set({ ttsMode: mode }),
+      ttsVoiceURI: null,
+      setTtsVoiceURI: (uri) => set({ ttsVoiceURI: uri }),
       language: detectLanguage(),
       setLanguage: (language) => set({ language, languageManual: true }),
       languageManual: false,

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useSettingsStore, ACCENTS } from '../../store/settings';
+import { loadVoices, getSwedishVoices, resolveVoice } from '../../lib/tts';
 import type { Theme, Accent } from '../../store/settings';
 import { useOnboardingStore } from '../../store/onboarding';
 import { useSessionStore } from '../../store/session';
@@ -107,6 +108,8 @@ export function SettingsView() {
                 onChange={setTtsMode}
               />
             </Row>
+            <Divider />
+            <VoicePicker />
           </>
         )}
       </Section>
@@ -150,6 +153,57 @@ export function SettingsView() {
 
       <p className="text-center text-xs text-faint pt-2">{t('settings.about')}</p>
     </div>
+  );
+}
+
+/**
+ * Lets the user pick among available Swedish TTS voices, defaulting to automatic
+ * best-Swedish selection. Voices load asynchronously (empty on iOS cold start), so we
+ * resolve them via loadVoices() which retries until the list is populated.
+ */
+function VoicePicker() {
+  const t = useT();
+  const ttsVoiceURI = useSettingsStore((s) => s.ttsVoiceURI);
+  const setTtsVoiceURI = useSettingsStore((s) => s.setTtsVoiceURI);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => getSwedishVoices());
+
+  useEffect(() => {
+    let active = true;
+    loadVoices().then(() => {
+      if (active) setVoices(getSwedishVoices());
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const activeVoice = resolveVoice();
+
+  return (
+    <Row label={t('settings.voice.voice')} stack>
+      {voices.length === 0 ? (
+        <p className="text-xs text-muted">{t('settings.voice.none')}</p>
+      ) : (
+        <>
+          <select
+            value={ttsVoiceURI ?? ''}
+            onChange={(e) => setTtsVoiceURI(e.target.value || null)}
+            className="w-full px-3 py-2 rounded-lg bg-raised text-fg border border-line text-sm
+                       focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            <option value="">{t('settings.voice.auto')}</option>
+            {voices.map((v) => (
+              <option key={v.voiceURI} value={v.voiceURI}>
+                {v.name} ({v.lang})
+              </option>
+            ))}
+          </select>
+          {activeVoice && (
+            <p className="text-xs text-muted">{t('settings.voice.voice')}: {activeVoice.name}</p>
+          )}
+        </>
+      )}
+    </Row>
   );
 }
 
