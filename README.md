@@ -10,7 +10,7 @@ Copy `.env.example` to `.env` and fill in the values.
 | --- | --- | --- |
 | `VITE_API_URL` | yes | Cloudflare Worker that proxies the Anthropic API. |
 | `VITE_SUPABASE_URL` | no | Supabase project URL. Enables cross-device swing-history sync. |
-| `VITE_SUPABASE_ANON_KEY` | no | Supabase anon key. Required together with `VITE_SUPABASE_URL`. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | no | Supabase publishable key. Required together with `VITE_SUPABASE_URL`. |
 
 ### Supabase history sync (optional)
 

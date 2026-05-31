@@ -13,7 +13,10 @@
       "PowerShell(npx tsc -b --force; \"EXIT=$LASTEXITCODE\")",
       "PowerShell(npx eslint src/lib/logger.ts src/components/DevLogPanel.tsx src/lib/api.ts src/lib/frameExtractor.ts src/hooks/useCamera.ts; \"EXIT=$LASTEXITCODE\")",
       "Bash(gh issue *)",
-      "Bash(gh repo *)"
+      "Bash(gh repo *)",
+      "Bash(git *)",
+      "Bash(git --no-pager diff --stat HEAD)",
+      "Read(//tmp/**)"
     ]
   }
 }
