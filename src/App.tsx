@@ -40,7 +40,13 @@ function App() {
   const t = useT();
   const view = useSessionStore((s) => s.view);
   const setView = useSessionStore((s) => s.setView);
+  const sessionActive = useSessionStore((s) => s.sessionActive);
   const onboarded = useOnboardingStore((s) => s.completed);
+
+  // During a hands-free session we keep the camera mounted underneath the analysis
+  // overlay so its stream, headset audio loop and Media Session handlers survive the
+  // round-trip and the next swing can auto-record without re-acquiring permissions.
+  const keepCameraMounted = view === 'camera' || (sessionActive && view === 'analysis');
 
   // Refine the language from the visitor's location once on startup. Browser-locale
   // detection runs synchronously in the store; this overrides it only when the user
@@ -61,7 +67,11 @@ function App() {
       {/* Content */}
       <div className="flex-1 min-h-0">
         {view === 'home' && <HomeView />}
-        {view === 'camera' && <CameraView />}
+        {keepCameraMounted && (
+          <div className={view === 'camera' ? 'h-full' : 'hidden'}>
+            <CameraView />
+          </div>
+        )}
         {view === 'rules' && <RuleEditor />}
         {view === 'preview' && <FramePreview />}
         {view === 'analysis' && <AnalysisView />}

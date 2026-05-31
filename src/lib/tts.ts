@@ -9,6 +9,8 @@ export const TTS_INTRO = 'Sving analyserat.';
 export const TTS_ANALYZING = 'Analyserar...';
 export const TTS_FAILED = 'Analysen misslyckades, försök igen';
 const TTS_NO_ISSUES = 'Inga fel hittades.';
+/** Spoken at the end of a session swing to signal the upcoming auto-restart (3s). */
+export const TTS_SESSION_NEXT = 'Startar nästa sving om tre sekunder.';
 
 function getSynth(): SpeechSynthesis | null {
   return typeof window !== 'undefined' && 'speechSynthesis' in window
@@ -76,10 +78,13 @@ function drillText(r: RuleResult): string {
 export function buildSpeechParts(
   analysis: SwingAnalysis,
   mode: TtsMode,
-  focusRuleId?: string | null
+  focusRuleId?: string | null,
+  opts: { swingNumber?: number } = {}
 ): string[] {
   const focusMode = !!focusRuleId && !!analysis.focus_rule;
-  const parts: string[] = [TTS_INTRO];
+  // In session mode the intro announces which swing just finished, e.g. "Sving 3 klart."
+  const intro = opts.swingNumber ? `Sving ${opts.swingNumber} klart.` : TTS_INTRO;
+  const parts: string[] = [intro];
 
   if (mode === 'quick') {
     if (focusMode) {

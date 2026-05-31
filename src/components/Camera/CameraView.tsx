@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
 import { extractFrames } from '../../lib/frameExtractor';
@@ -29,9 +29,20 @@ export function CameraView() {
   const setCurrentFrames = useSessionStore((s) => s.setCurrentFrames);
   const setCurrentFrameMeta = useSessionStore((s) => s.setCurrentFrameMeta);
   const setView = useSessionStore((s) => s.setView);
+  const view = useSessionStore((s) => s.view);
   const isAnalyzing = useSessionStore((s) => s.isAnalyzing);
   const setCurrentAnalysis = useSessionStore((s) => s.setCurrentAnalysis);
   const setIsAnalyzing = useSessionStore((s) => s.setIsAnalyzing);
+
+  // Session mode (hands-free multi-swing)
+  const sessionActive = useSessionStore((s) => s.sessionActive);
+  const swingNumber = useSessionStore((s) => s.swingNumber);
+  const beginSwing = useSessionStore((s) => s.beginSwing);
+  const startSession = useSessionStore((s) => s.startSession);
+  const endSession = useSessionStore((s) => s.endSession);
+  const autoRecordPending = useSessionStore((s) => s.autoRecordPending);
+  const clearAutoRecord = useSessionStore((s) => s.clearAutoRecord);
+  const requestAutoRecord = useSessionStore((s) => s.requestAutoRecord);
 
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
@@ -85,6 +96,12 @@ export function CameraView() {
     e.target.value = '';
   };
 
+  // Start a recording, incrementing the session counter first when in a session.
+  const startSwingRecording = useCallback(() => {
+    if (sessionActive) beginSwing();
+    startRecording(countdownSeconds);
+  }, [sessionActive, beginSwing, startRecording, countdownSeconds]);
+
   const handleToggleRecord = async () => {
     if (isRecording) {
       const blob = await stopRecording();
@@ -92,9 +109,26 @@ export function CameraView() {
     } else if (isCounting) {
       cancelCountdown();
     } else {
-      startRecording(countdownSeconds);
+      startSwingRecording();
     }
   };
+
+  // Auto-start the next swing's recording when the analysis view requests it.
+  useEffect(() => {
+    if (!autoRecordPending) return;
+    if (!isStreaming || isRecording || isCounting || isAnalyzing || progress !== null) return;
+    clearAutoRecord();
+    startSwingRecording();
+  }, [
+    autoRecordPending,
+    isStreaming,
+    isRecording,
+    isCounting,
+    isAnalyzing,
+    progress,
+    clearAutoRecord,
+    startSwingRecording,
+  ]);
 
   // Headset transport button (via Media Session in range mode).
   const handleHeadsetButton = () => {
@@ -105,11 +139,40 @@ export function CameraView() {
     }
     // Ignore presses during the countdown to avoid an accidental cancel.
     if (isCounting) return;
-    // Not recording -> start (countdown + record). Recording -> stop + analyze.
-    handleToggleRecord();
+    if (isRecording) {
+      handleToggleRecord(); // stop + analyze
+      return;
+    }
+    // In a session, a press from the results overlay jumps straight to the next swing,
+    // skipping the 3s auto-restart wait.
+    if (sessionActive && view === 'analysis') {
+      setCurrentAnalysis(null);
+      requestAutoRecord();
+      setView('camera');
+      return;
+    }
+    handleToggleRecord(); // normal start on the camera view
   };
 
-  const { rangeMode, toggleRangeMode } = useRangeMode(handleHeadsetButton);
+  // Double-press (Media Session "nexttrack") ends the session hands-free.
+  const handleSecondaryHeadset = () => {
+    if (sessionActive) endSession();
+  };
+
+  const { rangeMode, toggleRangeMode } = useRangeMode(
+    handleHeadsetButton,
+    handleSecondaryHeadset,
+  );
+
+  const toggleSession = () => {
+    if (sessionActive) {
+      endSession();
+    } else {
+      startSession();
+      // Ensure the headset loop is live so the session is truly hands-free.
+      if (!rangeMode) toggleRangeMode();
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -175,6 +238,15 @@ export function CameraView() {
           </div>
         )}
 
+        {/* Session swing counter */}
+        {sessionActive && (
+          <div className="absolute top-4 inset-x-0 flex justify-center pointer-events-none">
+            <span className="px-3 py-1 rounded-full bg-black/60 text-white text-sm font-semibold">
+              🎯 Sving {Math.max(1, swingNumber)}
+            </span>
+          </div>
+        )}
+
         {/* Persistent range-mode banner */}
         {rangeMode && (
           <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-accent/90
@@ -187,16 +259,28 @@ export function CameraView() {
 
       {/* Range mode + TTS controls */}
       <div className="flex-shrink-0 px-4 pt-3 flex items-center justify-between gap-2 bg-bg">
-        <button
-          onClick={toggleRangeMode}
-          className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-            rangeMode
-              ? 'bg-accent text-on-accent'
-              : 'bg-raised text-fg-dim hover:bg-raised-hi'
-          }`}
-        >
-          🎧 {rangeMode ? 'Hörlursläge på' : 'Hörlursläge'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleRangeMode}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              rangeMode
+                ? 'bg-accent text-on-accent'
+                : 'bg-raised text-fg-dim hover:bg-raised-hi'
+            }`}
+          >
+            🎧 {rangeMode ? 'Hörlursläge på' : 'Hörlursläge'}
+          </button>
+          <button
+            onClick={toggleSession}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              sessionActive
+                ? 'bg-accent text-on-accent'
+                : 'bg-raised text-fg-dim hover:bg-raised-hi'
+            }`}
+          >
+            🎯 {sessionActive ? 'Avsluta session' : 'Sessionsläge'}
+          </button>
+        </div>
 
         <div className="flex items-center gap-1.5">
           <button

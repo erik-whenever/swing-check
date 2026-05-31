@@ -52,6 +52,8 @@ export interface SwingRecord {
   overallAssessment: string;
   /** Camera angle selected when this swing was analyzed. */
   cameraAngle?: CameraAngle;
+  /** Groups swings recorded within the same hands-free session. */
+  sessionId?: string;
 }
 
 export const PHASES = [

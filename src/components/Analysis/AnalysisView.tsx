@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useSessionStore } from '../../store/session';
 import { useRulesStore } from '../../store/rules';
@@ -11,7 +11,11 @@ import {
   speak,
   speakSequence,
   TTS_FAILED,
+  TTS_SESSION_NEXT,
 } from '../../lib/tts';
+
+/** Delay after feedback before the next swing auto-records in a session. */
+const SESSION_RESTART_MS = 3000;
 import { RuleResultCard } from './RuleResult';
 import { FrameViewer } from './FrameViewer';
 import { ShareButton } from './ShareButton';
@@ -32,6 +36,32 @@ export function AnalysisView() {
   const setView = useSessionStore((s) => s.setView);
   const analysisAngle = useSessionStore((s) => s.analysisAngle);
   const setAnalysisAngle = useSessionStore((s) => s.setAnalysisAngle);
+  const sessionActive = useSessionStore((s) => s.sessionActive);
+  const sessionId = useSessionStore((s) => s.sessionId);
+  const swingNumber = useSessionStore((s) => s.swingNumber);
+  const requestAutoRecord = useSessionStore((s) => s.requestAutoRecord);
+  const endSession = useSessionStore((s) => s.endSession);
+
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearRestartTimer = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+  }, []);
+
+  // After feedback finishes, return to the camera and auto-record the next swing —
+  // unless the session was ended in the meantime.
+  const scheduleSessionRestart = useCallback(() => {
+    clearRestartTimer();
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      if (!useSessionStore.getState().sessionActive) return;
+      setCurrentAnalysis(null);
+      requestAutoRecord();
+      setView('camera');
+    }, SESSION_RESTART_MS);
+  }, [clearRestartTimer, requestAutoRecord, setCurrentAnalysis, setView]);
 
   const rules = useRulesStore((s) => s.rules);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
@@ -72,11 +102,22 @@ export function AnalysisView() {
         if (cancelled) return;
         setCurrentAnalysis(analysis);
 
+        const inSession = sessionActive;
         if (ttsEnabled) {
-          speakSequence(buildSpeechParts(analysis, ttsMode, focusRuleId), {
-            onStart: () => setSpeaking(true),
-            onEnd: () => setSpeaking(false),
+          const parts = buildSpeechParts(analysis, ttsMode, focusRuleId, {
+            swingNumber: inSession ? swingNumber : undefined,
           });
+          if (inSession) parts.push(TTS_SESSION_NEXT);
+          speakSequence(parts, {
+            onStart: () => setSpeaking(true),
+            onEnd: () => {
+              setSpeaking(false);
+              if (inSession) scheduleSessionRestart();
+            },
+          });
+        } else if (inSession) {
+          // No voice — still loop to the next swing after the standard delay.
+          scheduleSessionRestart();
         }
 
         if (currentVideoBlob) {
@@ -92,6 +133,7 @@ export function AnalysisView() {
             focusRuleId: focusRuleId ?? undefined,
             overallAssessment: analysis.overall_assessment,
             cameraAngle,
+            sessionId: sessionId ?? undefined,
           });
         }
         log.info('Lifecycle: rendered', {
@@ -120,12 +162,13 @@ export function AnalysisView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrames]);
 
-  // Stop any in-flight speech when leaving the analysis view.
+  // Stop any in-flight speech and pending auto-restart when leaving the analysis view.
   useEffect(() => {
     return () => {
       cancelSpeech();
+      clearRestartTimer();
     };
-  }, []);
+  }, [clearRestartTimer]);
 
   const stopSpeaking = () => {
     cancelSpeech();
@@ -199,6 +242,25 @@ export function AnalysisView() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-4 space-y-4">
+        {/* Session control: swing counter + end button (auto-restart loop is running) */}
+        {sessionActive && (
+          <div className="flex items-center justify-between gap-3 p-3 bg-accent/10 border border-accent/40 rounded-lg">
+            <span className="text-sm font-semibold text-accent-text">
+              🎯 Session · Sving {swingNumber}
+            </span>
+            <button
+              onClick={() => {
+                clearRestartTimer();
+                cancelSpeech();
+                endSession();
+              }}
+              className="px-3 py-1.5 rounded-md bg-raised hover:bg-raised-hi text-xs font-semibold transition-colors"
+            >
+              Avsluta session
+            </button>
+          </div>
+        )}
+
         {/* Stop speech */}
         {speaking && (
           <button
