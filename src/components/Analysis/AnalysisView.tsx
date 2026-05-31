@@ -14,6 +14,7 @@ import {
 } from '../../lib/tts';
 import { RuleResultCard } from './RuleResult';
 import { FrameViewer } from './FrameViewer';
+import { ShareButton } from './ShareButton';
 import { AnglePill } from '../AngleToggle';
 import { ruleMatchesAngle, ANGLE_TO_PROMPT } from '../../lib/cameraAngle';
 import { createLogger } from '../../lib/logger';
@@ -283,6 +284,9 @@ export function AnalysisView() {
             </ul>
           </div>
         )}
+
+        {/* Share the swing as a clip with feedback overlay */}
+        <ShareButton />
 
         {/* New swing button */}
         <button
