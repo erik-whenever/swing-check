@@ -227,25 +227,21 @@ export function CameraView() {
       </div>
 
       <div className="flex-shrink-0 py-6 flex items-center justify-center gap-6 bg-slate-900">
-        {DEV_PREVIEW && (
-          <>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isAnalyzing || progress !== null}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium
-                         disabled:opacity-30 transition-colors"
-            >
-              Upload Video
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </>
-        )}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isAnalyzing || progress !== null}
+          className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium
+                     disabled:opacity-30 transition-colors"
+        >
+          Upload Video
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
         <RecordButton
           isRecording={isRecording}
           isCounting={isCounting}

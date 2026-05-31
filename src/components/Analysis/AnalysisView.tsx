@@ -16,6 +16,9 @@ import { RuleResultCard } from './RuleResult';
 import { FrameViewer } from './FrameViewer';
 import { AnglePill } from '../AngleToggle';
 import { ruleMatchesAngle, ANGLE_TO_PROMPT } from '../../lib/cameraAngle';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('AnalysisView');
 
 export function AnalysisView() {
   const currentFrames = useSessionStore((s) => s.currentFrames);
@@ -50,12 +53,21 @@ export function AnalysisView() {
     async function run() {
       setIsAnalyzing(true);
       setAnalysisAngle(cameraAngle);
+      const startedAt = performance.now();
+      log.info('Lifecycle: sending', {
+        frames: currentFrames.length,
+        activeRules: activeRules.length,
+        cameraAngle,
+        focusRuleId: focusRuleId ?? null,
+      });
       try {
         const analysis = await analyzeSwing(currentFrames, activeRules, {
           focusRuleId: focusRuleId ?? undefined,
           cameraAngle: ANGLE_TO_PROMPT[cameraAngle],
           quickMode: ttsEnabled && ttsMode === 'quick',
         });
+        const receivedMs = Math.round(performance.now() - startedAt);
+        log.info('Lifecycle: received', { phaseMs: receivedMs });
         if (cancelled) return;
         setCurrentAnalysis(analysis);
 
@@ -81,10 +93,17 @@ export function AnalysisView() {
             cameraAngle,
           });
         }
+        log.info('Lifecycle: rendered', {
+          totalMs: Math.round(performance.now() - startedAt),
+          saved: !!currentVideoBlob,
+        });
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Analysis failed';
-          console.error('Analysis failed:', err);
+          log.error('Lifecycle: failed', {
+            error: msg,
+            elapsedMs: Math.round(performance.now() - startedAt),
+          });
           setError(msg);
           if (ttsEnabled) speak(TTS_FAILED);
         }

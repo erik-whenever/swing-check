@@ -1,13 +1,34 @@
 import type { Rule, SwingAnalysis } from '../types';
 import { SYSTEM_PROMPT, buildSwingPrompt } from './prompt';
+import { createLogger } from './logger';
+
+const log = createLogger('API');
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/analyze';
+
+/** Approximate decoded byte size of a base64 string, in KB. */
+function base64Kb(b64: string): number {
+  return Math.round((b64.length * 0.75) / 1024);
+}
 
 export async function analyzeSwing(
   frames: string[],
   rules: Rule[],
   options: { focusRuleId?: string | null; cameraAngle?: string; quickMode?: boolean }
 ): Promise<SwingAnalysis> {
+  const frameSizesKb = frames.map(base64Kb);
+  log.info('analyzeSwing request', {
+    frames: frames.length,
+    rules: rules.length,
+    focusRuleId: options.focusRuleId ?? null,
+    cameraAngle: options.cameraAngle ?? 'unknown',
+    quickMode: !!options.quickMode,
+  });
+  log.debug('Frame payload sizes (KB)', {
+    perFrameKb: frameSizesKb,
+    totalKb: frameSizesKb.reduce((a, b) => a + b, 0),
+  });
+
   const prompt = buildSwingPrompt({
     rules,
     focusRuleId: options.focusRuleId,
@@ -30,6 +51,7 @@ export async function analyzeSwing(
     ])
     .flat();
 
+  const startedAt = performance.now();
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -45,15 +67,45 @@ export async function analyzeSwing(
       ],
     }),
   });
+  const responseMs = Math.round(performance.now() - startedAt);
 
   if (!response.ok) {
     const errorText = await response.text();
+    log.error('analyzeSwing API error', {
+      status: response.status,
+      responseMs,
+      body: errorText.slice(0, 300),
+    });
     throw new Error(`API error ${response.status}: ${errorText}`);
   }
 
   const data = await response.json();
+  log.info('analyzeSwing response received', {
+    responseMs,
+    inputTokens: data.usage?.input_tokens,
+    outputTokens: data.usage?.output_tokens,
+    stopReason: data.stop_reason,
+  });
+
   const text = data.content[0].text;
-  return parseAndValidate(text, rules);
+  const analysis = parseAndValidate(text, rules);
+
+  const allResults = [
+    ...(analysis.focus_rule ? [analysis.focus_rule] : []),
+    ...analysis.rules,
+  ];
+  log.info('analyzeSwing parsed', {
+    frameQuality: analysis.frame_quality,
+    detectedAngle: analysis.camera_angle_detected,
+    cannotDetermineCount: allResults.filter((r) => r.verdict === 'cannot_determine').length,
+    verdicts: allResults.map((r) => ({
+      id: r.id,
+      verdict: r.verdict,
+      confidence: r.confidence,
+    })),
+  });
+
+  return analysis;
 }
 
 function parseAndValidate(text: string, rules: Rule[]): SwingAnalysis {
@@ -62,7 +114,11 @@ function parseAndValidate(text: string, rules: Rule[]): SwingAnalysis {
   let parsed: SwingAnalysis;
   try {
     parsed = JSON.parse(cleaned);
-  } catch {
+  } catch (err) {
+    log.error('JSON parse failed', {
+      error: err instanceof Error ? err.message : String(err),
+      rawSnippet: text.slice(0, 300),
+    });
     throw new Error(`Invalid JSON from Claude: ${text.slice(0, 200)}`);
   }
 

@@ -1,3 +1,7 @@
+import { createLogger } from './logger';
+
+const log = createLogger('FrameExtractor');
+
 export interface FrameMeta {
   b64: string;
   score: number;
@@ -71,6 +75,19 @@ export async function extractFrames(
   );
   const sampleInterval = scanEnd / frameCount;
 
+  log.info('Video loaded', {
+    durationSec: Number(duration.toFixed(2)),
+    videoWidth: video.videoWidth,
+    videoHeight: video.videoHeight,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    sampleFps: SAMPLE_FPS,
+    fpsEstimate: Number((1 / sampleInterval).toFixed(1)),
+    plannedSamples: frameCount,
+    scanEndSec: Number(scanEnd.toFixed(2)),
+    skipEndTrim: !!options?.skipEndTrim,
+  });
+
   const times: number[] = [];
   const scores: number[] = [];
   let prev: ImageData | null = null;
@@ -79,9 +96,15 @@ export async function extractFrames(
     await seekTo(video, time);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const score = prev ? pixelDiff(prev, data) : 0;
     times.push(time);
-    scores.push(prev ? pixelDiff(prev, data) : 0);
+    scores.push(score);
     prev = data;
+    log.debug(`Motion frame #${i}`, {
+      index: i,
+      timeSec: Number(time.toFixed(3)),
+      score: Number(score.toFixed(2)),
+    });
     reportPhase1(i + 1, frameCount);
   }
 
@@ -95,6 +118,12 @@ export async function extractFrames(
       impactIdx = i;
     }
   }
+
+  log.info('Impact frame detected', {
+    impactIdx,
+    timeSec: Number(times[impactIdx].toFixed(2)),
+    score: Number(impactScore.toFixed(2)),
+  });
 
   // ── Find swing start by scanning BACKWARDS from impact ──
   // The backswing shows moderate-to-high sustained motion leading up to impact.
@@ -132,7 +161,23 @@ export async function extractFrames(
   const usedFallback = swingStartIdx === -1;
   if (usedFallback) {
     swingStartIdx = Math.max(0, impactIdx - Math.round(4 * framesPerSecond));
+    log.warn('Swing-start fallback triggered', {
+      reason: 'no sustained quiet period (QUIET_RUN frames below threshold) within 8s before impact',
+      quietThreshold: Number(quietThreshold.toFixed(2)),
+      quietRunFrames: QUIET_RUN,
+      maxLookbackFrames,
+      impactIdx,
+      fallbackSwingStartIdx: swingStartIdx,
+    });
   }
+
+  log.info('Swing start detected', {
+    swingStartIdx,
+    timeSec: Number(times[swingStartIdx].toFixed(2)),
+    score: Number(scores[swingStartIdx].toFixed(2)),
+    quietThreshold: Number(quietThreshold.toFixed(2)),
+    usedFallback,
+  });
 
   const swingStartTime = times[swingStartIdx];
   const swingEndTime = times[impactIdx];
@@ -142,12 +187,12 @@ export async function extractFrames(
     swingEndTime + 2 * sampleInterval,
   );
 
-  console.log(
-    `[FrameExtractor] duration=${duration.toFixed(1)}s, sampled=${frameCount} frames @${SAMPLE_FPS}fps, ` +
-      `impact=#${impactIdx} (${swingEndTime.toFixed(2)}s, score=${impactScore.toFixed(1)}), ` +
-      `swingStart=#${swingStartIdx} (${swingStartTime.toFixed(2)}s)${usedFallback ? " [4s fallback]" : ""}, ` +
-      `quietThresh=${quietThreshold.toFixed(1)}, window=${(extractEndTime - swingStartTime).toFixed(2)}s, selecting ${count} frames`,
-  );
+  log.info('Swing window resolved', {
+    windowSec: Number((extractEndTime - swingStartTime).toFixed(2)),
+    swingStartSec: Number(swingStartTime.toFixed(2)),
+    extractEndSec: Number(extractEndTime.toFixed(2)),
+    requestedFrames: count,
+  });
 
   // ── Phase 2: Extract exactly `count` frames at evenly spaced timestamps from swing start to impact+2 ──
   const swingDuration = extractEndTime - swingStartTime;
@@ -185,6 +230,13 @@ export async function extractFrames(
     isSwingStart: i === 0,
     candidateIndex: i,
   }));
+
+  log.info('Frames selected', {
+    count: selected.length,
+    indices: meta.map((m) => m.candidateIndex),
+    timesSec: selectedFrames.map((f) => Number(f.time.toFixed(2))),
+    scores: meta.map((m) => m.score),
+  });
 
   return { selected, meta };
 }

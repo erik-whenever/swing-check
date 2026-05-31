@@ -1,4 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('useCamera');
 
 export function useCamera() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -28,11 +31,18 @@ export function useCamera() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      const settings = stream.getVideoTracks()[0]?.getSettings();
+      log.info('Camera stream acquired', {
+        width: settings?.width,
+        height: settings?.height,
+        frameRate: settings?.frameRate,
+        facingMode: settings?.facingMode,
+      });
       setIsStreaming(true);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not access camera'
-      );
+      const message = err instanceof Error ? err.message : 'Could not access camera';
+      log.error('Camera access failed', { error: message });
+      setError(message);
     }
   }, []);
 
@@ -62,8 +72,17 @@ export function useCamera() {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
+    recorder.onerror = (e) => {
+      const err = (e as unknown as { error?: DOMException }).error;
+      log.error('MediaRecorder error', {
+        name: err?.name,
+        message: err?.message ?? String(e),
+      });
+    };
+
     recorder.start(100);
     mediaRecorderRef.current = recorder;
+    log.info('Recording started', { mimeType, startedAt: Date.now() });
     setIsRecording(true);
   }, []);
 
@@ -106,6 +125,11 @@ export function useCamera() {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
         chunksRef.current = [];
+        log.info('Recording stopped', {
+          stoppedAt: Date.now(),
+          blobSizeKb: Math.round(blob.size / 1024),
+          mimeType: recorder.mimeType,
+        });
         setIsRecording(false);
         resolve(blob);
       };

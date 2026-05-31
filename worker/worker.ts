@@ -18,6 +18,11 @@ export default {
       });
     }
 
+    const { pathname } = new URL(request.url);
+    if (pathname.endsWith('/api/log')) {
+      return handleLog(request);
+    }
+
     const body = await request.json();
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -39,6 +44,22 @@ export default {
     });
   },
 };
+
+/**
+ * Receives client ERROR logs (POST /api/log) and stores them.
+ *
+ * For now "storage" is the Worker log stream (visible via `wrangler tail` and the
+ * Cloudflare dashboard). TODO: persist to KV/D1/Logpush for durable, queryable logs.
+ */
+async function handleLog(request: Request): Promise<Response> {
+  try {
+    const entry = await request.json();
+    console.error('[client-log]', JSON.stringify(entry));
+  } catch {
+    // Ignore malformed bodies — logging must never become a failure source.
+  }
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
 
 interface Env {
   ANTHROPIC_API_KEY: string;

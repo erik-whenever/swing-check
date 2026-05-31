@@ -13,6 +13,18 @@ import { NavBar } from './components/NavBar';
 import { OnboardingWizard } from './components/Onboarding/OnboardingWizard';
 import { useOnboardingStore } from './store/onboarding';
 import { useT } from './lib/i18n';
+import { DevLogPanel } from './components/DevLogPanel';
+
+const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
+
+/** Minimal 24×24 stroke icons (inherit currentColor) so each tab reads at a glance. */
+const icons = {
+  home: 'M3 11.5 12 4l9 7.5M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9',
+  camera: 'M4 8a2 2 0 0 1 2-2h1l1.2-1.6a1 1 0 0 1 .8-.4h6a1 1 0 0 1 .8.4L18 6h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  rules: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
+  analysis: 'M4 19V5M4 15l4-4 4 3 8-8',
+  history: 'M3.5 9a9 9 0 1 1-1 4M3 5v4h4M12 8v4l3 2',
+} as const;
 
 const tabs = [
   { key: 'home', labelKey: 'nav.home' },
@@ -55,25 +67,42 @@ function App() {
       </div>
 
       {/* Bottom nav */}
-      <nav className="flex-shrink-0 flex border-t border-slate-800 bg-slate-900 safe-bottom">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setView(tab.key)}
-            className={`flex-1 py-3 text-xs font-medium transition-colors ${
-              view === tab.key
-                ? 'text-emerald-400 border-t-2 border-emerald-400 -mt-px'
-                : 'text-slate-500'
-            }`}
-          >
-            {t(tab.labelKey)}
-          </button>
-        ))}
+      <nav className="flex-shrink-0 flex border-t border-slate-800 bg-slate-900/95 backdrop-blur safe-bottom">
+        {tabs.map((tab) => {
+          const active = view === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setView(tab.key)}
+              aria-current={active ? 'page' : undefined}
+              className={`group flex-1 flex flex-col items-center gap-1 pt-2 pb-1.5 text-[10px] font-medium
+                          transition-colors duration-150 ${
+                            active ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'
+                          }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={active ? 2.2 : 1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-6 h-6 transition-transform duration-150 group-active:scale-90"
+                aria-hidden
+              >
+                <path d={icons[tab.key]} />
+              </svg>
+              {t(tab.labelKey)}
+            </button>
+          );
+        })}
       </nav>
 
       <Toast />
 
       {!onboarded && <OnboardingWizard />}
+
+      {DEV_PREVIEW && <DevLogPanel />}
     </div>
   );
 }
