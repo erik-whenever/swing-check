@@ -7,6 +7,7 @@ import { CameraView } from './components/Camera/CameraView';
 import { RuleEditor } from './components/Rules/RuleEditor';
 import { AnalysisView } from './components/Analysis/AnalysisView';
 import { HistoryList } from './components/History/HistoryList';
+import { SettingsView } from './components/Settings/SettingsView';
 import { FramePreview } from './components/Analysis/FramePreview';
 import { Toast } from './components/Toast';
 import { NavBar } from './components/NavBar';
@@ -52,7 +53,7 @@ function App() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full max-w-[430px] mx-auto bg-slate-900">
+    <div className="flex flex-col h-full max-w-[430px] mx-auto bg-bg">
       {/* Persistent top nav: logo + DTL/Face-on toggle, visible on every screen */}
       <NavBar />
 
@@ -64,10 +65,11 @@ function App() {
         {view === 'preview' && <FramePreview />}
         {view === 'analysis' && <AnalysisView />}
         {view === 'history' && <HistoryList />}
+        {view === 'settings' && <SettingsView />}
       </div>
 
       {/* Bottom nav */}
-      <nav className="flex-shrink-0 flex border-t border-slate-800 bg-slate-900/95 backdrop-blur safe-bottom">
+      <nav className="flex-shrink-0 flex border-t border-line bg-bg/95 backdrop-blur safe-bottom">
         {tabs.map((tab) => {
           const active = view === tab.key;
           return (
@@ -77,7 +79,7 @@ function App() {
               aria-current={active ? 'page' : undefined}
               className={`group flex-1 flex flex-col items-center gap-1 pt-2 pb-1.5 text-[10px] font-medium
                           transition-colors duration-150 ${
-                            active ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'
+                            active ? 'text-accent-text' : 'text-faint hover:text-fg-dim'
                           }`}
             >
               <svg

@@ -11,7 +11,7 @@ export function RuleBadge({ phase }: { phase: string }) {
   return (
     <span
       className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-        phaseColors[phase] || 'bg-slate-700 text-slate-300'
+        phaseColors[phase] || 'bg-raised text-fg-dim'
       }`}
     >
       {phase}

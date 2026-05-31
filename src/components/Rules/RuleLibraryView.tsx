@@ -60,7 +60,7 @@ export function RuleLibraryView() {
         <div key={phase}>
           <div className="flex items-center gap-2 mb-3">
             <RuleBadge phase={phase} />
-            <span className="text-xs text-slate-500 uppercase tracking-wide">
+            <span className="text-xs text-faint uppercase tracking-wide">
               {rules.length} rules
             </span>
           </div>
@@ -77,7 +77,7 @@ export function RuleLibraryView() {
                   onAnimationEnd={(e) => {
                     if (e.animationName === 'fly-away') handleFlyAwayEnd(rule.id);
                   }}
-                  className={`p-3 bg-slate-800 rounded-lg border border-slate-700 text-left ${
+                  className={`p-3 bg-surface rounded-lg border border-line text-left ${
                     isFlyingAway ? 'animate-fly-away' : ''
                   } ${offAngle ? 'opacity-50' : ''}`}
                 >
@@ -87,11 +87,11 @@ export function RuleLibraryView() {
                         <span className="text-sm font-medium">{rule.title}</span>
                         <AngleTags angles={rule.angles} active={cameraAngle} />
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-muted mt-0.5">
                         {rule.description}
                       </p>
                       {offAngle && (
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-faint mt-0.5">
                           Not used at {ANGLE_LABEL[cameraAngle]} angle
                         </p>
                       )}
@@ -101,14 +101,14 @@ export function RuleLibraryView() {
                   <div className="flex items-center gap-2 mt-2">
                     <button
                       onClick={() => toggleDrills(rule.id)}
-                      className="px-2 py-1 text-[11px] bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+                      className="px-2 py-1 text-[11px] bg-raised hover:bg-raised-hi rounded transition-colors"
                     >
                       {showDrills ? 'Hide Drills' : 'View Drills'}
                     </button>
                     <button
                       onClick={() => handleAdd(rule)}
                       disabled={isFlyingAway}
-                      className="px-2 py-1 text-[11px] rounded transition-colors bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-60"
+                      className="px-2 py-1 text-[11px] rounded transition-colors bg-accent-press hover:bg-accent text-white disabled:opacity-60"
                     >
                       Add to My Rules
                     </button>
@@ -119,12 +119,12 @@ export function RuleLibraryView() {
                       {rule.drills.map((drill, i) => (
                         <div
                           key={i}
-                          className="p-2 bg-slate-900 rounded border border-slate-700/50"
+                          className="p-2 bg-bg rounded border border-line/50"
                         >
-                          <p className="text-xs font-medium text-emerald-400">
+                          <p className="text-xs font-medium text-accent-text">
                             {drill.title}
                           </p>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-muted mt-0.5">
                             {drill.description}
                           </p>
                         </div>

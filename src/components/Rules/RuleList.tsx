@@ -11,7 +11,7 @@ export function RuleList() {
 
   if (rules.length === 0) {
     return (
-      <p className="text-sm text-slate-500 text-center py-8">
+      <p className="text-sm text-faint text-center py-8">
         No rules yet. Add one above.
       </p>
     );
@@ -24,9 +24,9 @@ export function RuleList() {
           key={rule.id}
           className={`p-3 rounded-lg border text-left transition-colors ${
             rule.active
-              ? 'bg-slate-800 border-slate-700'
-              : 'bg-slate-800/50 border-slate-700/50 opacity-60'
-          } ${focusRuleId === rule.id ? 'ring-2 ring-emerald-500' : ''}`}
+              ? 'bg-surface border-line'
+              : 'bg-surface/50 border-line/50 opacity-60'
+          } ${focusRuleId === rule.id ? 'ring-2 ring-accent-hover' : ''}`}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
@@ -34,7 +34,7 @@ export function RuleList() {
                 <span className="text-sm font-medium truncate">{rule.title}</span>
                 <RuleBadge phase={rule.phase} />
               </div>
-              <p className="text-xs text-slate-400 line-clamp-2">
+              <p className="text-xs text-muted line-clamp-2">
                 {rule.description}
               </p>
             </div>
@@ -45,8 +45,8 @@ export function RuleList() {
                 }
                 className={`p-1.5 rounded text-xs ${
                   focusRuleId === rule.id
-                    ? 'bg-emerald-700 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-accent-press text-on-accent'
+                    : 'text-muted hover:text-fg'
                 }`}
                 title="Set as focus rule"
               >
@@ -54,7 +54,7 @@ export function RuleList() {
               </button>
               <button
                 onClick={() => toggleRule(rule.id)}
-                className="p-1.5 rounded text-xs text-slate-400 hover:text-white"
+                className="p-1.5 rounded text-xs text-muted hover:text-fg"
                 title={rule.active ? 'Disable' : 'Enable'}
               >
                 {rule.active ? 'ON' : 'OFF'}

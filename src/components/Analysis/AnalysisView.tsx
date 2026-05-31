@@ -134,12 +134,12 @@ export function AnalysisView() {
   if (activeRules.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <p className="text-slate-400 mb-4">
+        <p className="text-muted mb-4">
           No active rules. Add rules before analyzing.
         </p>
         <button
           onClick={() => setView('rules')}
-          className="px-4 py-2 bg-emerald-700 rounded-lg text-sm"
+          className="px-4 py-2 bg-accent-press rounded-lg text-sm"
         >
           Go to Rules
         </button>
@@ -150,9 +150,9 @@ export function AnalysisView() {
   if (isAnalyzing) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6">
-        <div className="w-10 h-10 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm text-slate-400">Analyzing your swing...</p>
-        <p className="text-xs text-slate-500 mt-1">
+        <div className="w-10 h-10 border-4 border-accent-press border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm text-muted">Analyzing your swing...</p>
+        <p className="text-xs text-faint mt-1">
           {currentFrames.length} frames sent to Claude Vision
         </p>
       </div>
@@ -163,14 +163,14 @@ export function AnalysisView() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
         <p className="text-red-400 mb-2">Analysis failed</p>
-        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <p className="text-sm text-muted mb-4">{error}</p>
         <button
           onClick={() => {
             setError(null);
             setCurrentAnalysis(null);
             setView('camera');
           }}
-          className="px-4 py-2 bg-emerald-700 rounded-lg text-sm"
+          className="px-4 py-2 bg-accent-press rounded-lg text-sm"
         >
           Try Again
         </button>
@@ -181,10 +181,10 @@ export function AnalysisView() {
   if (!currentAnalysis) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <p className="text-slate-400">No analysis yet. Record a swing first.</p>
+        <p className="text-muted">No analysis yet. Record a swing first.</p>
         <button
           onClick={() => setView('camera')}
-          className="mt-4 px-4 py-2 bg-emerald-700 rounded-lg text-sm"
+          className="mt-4 px-4 py-2 bg-accent-press rounded-lg text-sm"
         >
           Go to Camera
         </button>
@@ -202,7 +202,7 @@ export function AnalysisView() {
         {speaking && (
           <button
             onClick={stopSpeaking}
-            className="w-full py-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm
+            className="w-full py-2.5 bg-raised hover:bg-raised-hi rounded-lg text-sm
                        font-medium transition-colors flex items-center justify-center gap-2"
           >
             ⏹ Stoppa uppläsning
@@ -226,24 +226,24 @@ export function AnalysisView() {
             {frame_quality} quality
           </span>
           {analysisAngle && (
-            <span className="flex items-center gap-1 text-xs text-slate-400">
+            <span className="flex items-center gap-1 text-xs text-muted">
               Analyzed as <AnglePill angle={analysisAngle} />
             </span>
           )}
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-faint">
             detected: {currentAnalysis.camera_angle_detected}
           </span>
         </div>
 
         {/* Overall assessment */}
-        <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">
+        <div className="p-3 bg-surface rounded-lg border border-line">
           <p className="text-sm">{overall_assessment}</p>
         </div>
 
         {/* Focus rule result */}
         {focus_rule && (
           <div>
-            <h3 className="text-xs uppercase tracking-wide text-emerald-400 mb-2 font-semibold">
+            <h3 className="text-xs uppercase tracking-wide text-accent-text mb-2 font-semibold">
               Focus Rule
             </h3>
             <RuleResultCard
@@ -256,7 +256,7 @@ export function AnalysisView() {
 
         {/* Standard rule results */}
         <div>
-          <h3 className="text-xs uppercase tracking-wide text-slate-500 mb-2 font-semibold">
+          <h3 className="text-xs uppercase tracking-wide text-faint mb-2 font-semibold">
             Rules
           </h3>
           <div className="space-y-2">
@@ -272,11 +272,11 @@ export function AnalysisView() {
 
         {/* Cannot determine reasons */}
         {cannot_determine_reasons && cannot_determine_reasons.length > 0 && (
-          <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <h4 className="text-xs font-medium text-slate-400 mb-1">
+          <div className="p-3 bg-surface/50 rounded-lg border border-line/50">
+            <h4 className="text-xs font-medium text-muted mb-1">
               Could not determine
             </h4>
-            <ul className="text-xs text-slate-500 space-y-1">
+            <ul className="text-xs text-faint space-y-1">
               {cannot_determine_reasons.map((reason, i) => (
                 <li key={i}>- {reason}</li>
               ))}
@@ -290,7 +290,7 @@ export function AnalysisView() {
             setCurrentAnalysis(null);
             setView('camera');
           }}
-          className="w-full py-3 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors"
+          className="w-full py-3 bg-accent-press hover:bg-accent rounded-lg text-sm font-medium transition-colors"
         >
           Record New Swing
         </button>

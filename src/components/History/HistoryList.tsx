@@ -7,7 +7,7 @@ export function HistoryList() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-slate-500">Loading history...</p>
+        <p className="text-sm text-faint">Loading history...</p>
       </div>
     );
   }
@@ -15,7 +15,7 @@ export function HistoryList() {
   if (records.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-faint">
           No swings recorded yet. Start by recording one!
         </p>
       </div>

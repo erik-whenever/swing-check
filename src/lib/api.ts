@@ -119,7 +119,7 @@ function parseAndValidate(text: string, rules: Rule[]): SwingAnalysis {
       error: err instanceof Error ? err.message : String(err),
       rawSnippet: text.slice(0, 300),
     });
-    throw new Error(`Invalid JSON from Claude: ${text.slice(0, 200)}`);
+    throw new Error(`Invalid JSON from Claude: ${text.slice(0, 200)}`, { cause: err });
   }
 
   const returnedIds = new Set(parsed.rules.map((r) => r.id));

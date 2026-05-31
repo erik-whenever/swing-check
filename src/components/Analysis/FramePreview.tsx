@@ -30,12 +30,12 @@ export function FramePreview() {
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Frame Preview</h2>
-          <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">
+          <span className="text-xs text-faint bg-surface px-2 py-1 rounded">
             DEV MODE
           </span>
         </div>
 
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted">
           {meta.length} frames selected from recording. Swing start detected at
           candidate frame #{meta.find((m) => m.isSwingStart)?.candidateIndex ?? '?'}.
           Tap any frame to zoom and inspect.
@@ -61,7 +61,7 @@ export function FramePreview() {
                   ? 'border-amber-500'
                   : frame.isAddress
                     ? 'border-blue-500'
-                    : 'border-slate-700'
+                    : 'border-line'
               }`}
             >
               <div className="relative">
@@ -89,21 +89,21 @@ export function FramePreview() {
               </div>
 
               {/* Motion score bar */}
-              <div className="bg-slate-800 px-2 py-1.5">
+              <div className="bg-surface px-2 py-1.5">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] text-slate-400">motion</span>
-                  <span className="text-[10px] font-mono text-slate-300">
+                  <span className="text-[10px] text-muted">motion</span>
+                  <span className="text-[10px] font-mono text-fg-dim">
                     {frame.score.toFixed(1)}
                   </span>
                 </div>
-                <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-1 bg-raised rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full ${
                       frame.score / maxScore > 0.6
-                        ? 'bg-emerald-500'
+                        ? 'bg-accent-hover'
                         : frame.score / maxScore > 0.3
                           ? 'bg-yellow-500'
-                          : 'bg-slate-500'
+                          : 'bg-faint'
                     }`}
                     style={{ width: `${(frame.score / maxScore) * 100}%` }}
                   />
@@ -117,13 +117,13 @@ export function FramePreview() {
         <div className="flex gap-3 pt-2">
           <button
             onClick={handleDiscard}
-            className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 py-3 bg-raised hover:bg-raised-hi rounded-lg text-sm font-medium transition-colors"
           >
             Discard
           </button>
           <button
             onClick={handleSend}
-            className="flex-1 py-3 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 py-3 bg-accent-press hover:bg-accent rounded-lg text-sm font-medium transition-colors"
           >
             Send to Claude
           </button>

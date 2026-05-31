@@ -11,7 +11,7 @@ export function SwingCard({ record }: Props) {
   const naCount = record.results.filter((r) => r.verdict === 'cannot_determine').length;
 
   return (
-    <div className="p-3 bg-slate-800 rounded-lg border border-slate-700">
+    <div className="p-3 bg-surface rounded-lg border border-line">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">
           {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -43,7 +43,7 @@ export function SwingCard({ record }: Props) {
         </div>
       )}
 
-      <p className="text-xs text-slate-400 line-clamp-2">
+      <p className="text-xs text-muted line-clamp-2">
         {record.overallAssessment}
       </p>
     </div>

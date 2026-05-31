@@ -44,7 +44,7 @@ export function MyRules() {
   return (
     <div className="p-4 space-y-3">
       {rules.length === 0 && !showForm && (
-        <p className="text-sm text-slate-500 text-center py-8">
+        <p className="text-sm text-faint text-center py-8">
           No rules added yet. Browse the Rule Library or add a custom rule.
         </p>
       )}
@@ -56,10 +56,10 @@ export function MyRules() {
           key={rule.id}
           className={`p-3 rounded-lg border text-left transition-colors ${
             rule.active
-              ? 'bg-slate-800 border-slate-700'
-              : 'bg-slate-800/50 border-slate-700/50 opacity-60'
+              ? 'bg-surface border-line'
+              : 'bg-surface/50 border-line/50 opacity-60'
           } ${
-            focusRuleId === rule.id ? 'ring-2 ring-emerald-500' : ''
+            focusRuleId === rule.id ? 'ring-2 ring-accent-hover' : ''
           }`}
         >
           <div className="flex items-start justify-between gap-2">
@@ -69,10 +69,10 @@ export function MyRules() {
                 <RuleBadge phase={rule.phase} />
                 <AngleTags angles={rule.angles} active={cameraAngle} />
                 {rule.libraryId && (
-                  <span className="text-[10px] text-slate-600">LIB</span>
+                  <span className="text-[10px] text-faint-2">LIB</span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 line-clamp-2">
+              <p className="text-xs text-muted line-clamp-2">
                 {rule.description}
               </p>
             </div>
@@ -80,7 +80,7 @@ export function MyRules() {
 
           {/* Drill info for library rules */}
           {rule.drills && rule.drills.length > 0 && (
-            <div className="mt-1.5 text-[11px] text-emerald-600">
+            <div className="mt-1.5 text-[11px] text-accent">
               {rule.drills.length} drill{rule.drills.length > 1 ? 's' : ''} available
             </div>
           )}
@@ -90,8 +90,8 @@ export function MyRules() {
               onClick={() => setFocusRuleId(focusRuleId === rule.id ? null : rule.id)}
               className={`px-2 py-1 rounded text-[11px] ${
                 focusRuleId === rule.id
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:text-white'
+                  ? 'bg-accent-press text-on-accent'
+                  : 'bg-raised text-muted hover:text-fg'
               }`}
               title="Set as focus rule"
             >
@@ -99,7 +99,7 @@ export function MyRules() {
             </button>
             <button
               onClick={() => soloRule(rule.id)}
-              className="px-2 py-1 rounded text-[11px] bg-slate-700 text-slate-400 hover:text-amber-300"
+              className="px-2 py-1 rounded text-[11px] bg-raised text-muted hover:text-amber-300"
               title="Solo — deactivate all other rules"
             >
               Solo
@@ -108,15 +108,15 @@ export function MyRules() {
               onClick={() => toggleRule(rule.id)}
               className={`px-2 py-1 rounded text-[11px] ${
                 rule.active
-                  ? 'bg-emerald-700/30 text-emerald-400'
-                  : 'bg-slate-700 text-slate-500'
+                  ? 'bg-accent-press/30 text-accent-text'
+                  : 'bg-raised text-faint'
               }`}
             >
               {rule.active ? 'ON' : 'OFF'}
             </button>
             <button
               onClick={() => removeRule(rule.id)}
-              className="px-2 py-1 rounded text-[11px] bg-slate-700 text-red-400 hover:text-red-300 ml-auto"
+              className="px-2 py-1 rounded text-[11px] bg-raised text-red-400 hover:text-red-300 ml-auto"
             >
               Delete
             </button>
@@ -126,28 +126,28 @@ export function MyRules() {
 
       {/* Custom rule form */}
       {showForm ? (
-        <form onSubmit={handleSubmit} className="space-y-2 p-3 bg-slate-800 rounded-lg border border-slate-700">
+        <form onSubmit={handleSubmit} className="space-y-2 p-3 bg-surface rounded-lg border border-line">
           <input
             type="text"
             placeholder="Rule title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm
-                       placeholder:text-slate-500 focus:outline-none focus:border-emerald-600"
+            className="w-full px-3 py-2 bg-bg border border-line rounded-lg text-sm
+                       placeholder:text-faint focus:outline-none focus:border-accent"
           />
           <textarea
             placeholder="What to check..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm
-                       placeholder:text-slate-500 focus:outline-none focus:border-emerald-600 resize-none"
+            className="w-full px-3 py-2 bg-bg border border-line rounded-lg text-sm
+                       placeholder:text-faint focus:outline-none focus:border-accent resize-none"
           />
           <select
             value={phase}
             onChange={(e) => setPhase(e.target.value as Rule['phase'])}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm
-                       focus:outline-none focus:border-emerald-600"
+            className="w-full px-3 py-2 bg-bg border border-line rounded-lg text-sm
+                       focus:outline-none focus:border-accent"
           >
             {PHASES.map((p) => (
               <option key={p} value={p}>{p}</option>
@@ -158,14 +158,14 @@ export function MyRules() {
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors"
+              className="flex-1 py-2 bg-raised hover:bg-raised-hi rounded-lg text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!title.trim() || !description.trim()}
-              className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-medium
+              className="flex-1 py-2 bg-accent-press hover:bg-accent rounded-lg text-sm font-medium
                          disabled:opacity-30 transition-colors"
             >
               Add
@@ -175,8 +175,8 @@ export function MyRules() {
       ) : (
         <button
           onClick={() => setShowForm(true)}
-          className="w-full py-2.5 border border-dashed border-slate-700 rounded-lg text-sm text-slate-500
-                     hover:border-slate-500 hover:text-slate-300 transition-colors"
+          className="w-full py-2.5 border border-dashed border-line rounded-lg text-sm text-faint
+                     hover:border-line hover:text-fg-dim transition-colors"
         >
           + Add Custom Rule
         </button>

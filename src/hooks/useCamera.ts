@@ -86,10 +86,16 @@ export function useCamera() {
     setIsRecording(true);
   }, []);
 
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback((countdownSeconds = 5) => {
     if (!streamRef.current) return;
 
-    let remaining = 5;
+    // No countdown requested → start capturing immediately.
+    if (countdownSeconds <= 0) {
+      beginRecording();
+      return;
+    }
+
+    let remaining = countdownSeconds;
     setCountdown(remaining);
 
     countdownTimerRef.current = setInterval(() => {

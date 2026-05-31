@@ -1,0 +1,74 @@
+[
+  {
+    "title": "P0-3: Session-läge — multi-sving utan att öppna appen",
+    "body": "## Beskrivning\nIdag måste användaren navigera tillbaka till kameravyn manuellt mellan varje sving. På rangen är detta oacceptabelt — upplevelsen måste vara hands-free.\n\n## Beteende\n- Efter att en analys är klar och TTS-feedbacken spelats upp ska headset-knappen direkt starta en ny countdown + inspelning\n- En session-räknare visas i UI:t (\"Sving 3\" etc.)\n- Sekvens-TTS: \"Sving 3 klart. Rotation bättre. Startar nästa om 5 sekunder.\"\n- Användaren kan avsluta sessionen via en \"Avsluta session\"-knapp i UI:t eller genom att hålla in headset-knappen i 2 sekunder\n\n## Acceptanskriterier\n- [ ] Headset-knapp efter avslutat TTS startar ny inspelning automatiskt (med 3s fördröjning)\n- [ ] Session-räknare visas i kameravyn (\"Sving 3\")\n- [ ] TTS inkluderar sving-nummer i feedbacken\n- [ ] Håll in headset-knapp 2s = avsluta session\n- [ ] Session-historik sparas samlad i IndexedDB\n\n## Filer som troligen berörs\n- `src/hooks/useCamera.ts`\n- `src/hooks/useAnalysis.ts`\n- `src/components/Camera/CameraView.tsx`\n- `src/store/session.ts`\n\n## Inga ambiguiteteter\nFördröjningen innan nästa inspelning startar automatiskt är alltid 3 sekunder. Countdown är alltid 5 sekunder (oförändrat).",
+    "labels": [
+      "p0",
+      "ux",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "P0-4: TTS-röst konfiguration — välj bästa tillgängliga svenska röst",
+    "body": "## Beskrivning\nWeb Speech API returnerar olika röster på olika enheter. Appen bör automatiskt välja den bästa tillgängliga svenska rösten snarare än att falla tillbaka på enhetsstandard som kan vara en icke-svensk röst.\n\n## Beteende\n- Vid app-start: hämta alla tillgängliga röster via `speechSynthesis.getVoices()`\n- Prioritetsordning: (1) sv-SE röster, (2) sv röster, (3) Siri Svenska om tillgänglig, (4) första tillgängliga röst\n- Visa vald röst i inställningar med möjlighet att manuellt välja bland tillgängliga sv-röster\n- Spara vald röst i localStorage\n\n## Acceptanskriterier\n- [ ] Appen väljer automatiskt bästa svenska röst vid start\n- [ ] Inställningssida visar \"Röst: [namn på vald röst]\"\n- [ ] Dropdown med alla tillgängliga sv-röster att välja bland\n- [ ] Val sparas i localStorage och återställs vid nästa start\n- [ ] Fallback till första tillgängliga röst om ingen svensk finns\n\n## Filer som troligen berörs\n- `src/lib/tts.ts` (eller motsvarande TTS-utility)\n- `src/components/Settings/` (ny eller befintlig)\n- `src/store/` (spara röst-preferens)\n\n## Inga ambiguiteteter\nOm `speechSynthesis.getVoices()` returnerar tom array (händer ibland på iOS vid cold start) — vänta på `voiceschanged`-eventet och försök igen, max 3 försök med 500ms mellanrum.",
+    "labels": [
+      "p0",
+      "audio",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "P0-5: Träningsstatistik per regel — trend över tid",
+    "body": "## Beskrivning\nAnvändaren behöver kunna se om träningen ger resultat. En enkel statistikvy per regel som visar pass/fail-trend över de senaste svingarna.\n\n## Beteende\n- Ny flik eller sektion i Historik-vyn: \"Statistik\"\n- Per regel: visa en sparkline eller procent-indikator för pass-rate över senaste 10/20/50 svingar\n- Sortera regler efter \"mest förbättrade\" och \"mest problematiska\"\n- Visa totalt antal analyserade svingar\n\n## Acceptanskriterier\n- [ ] Statistik-vy tillgänglig från Historik\n- [ ] Varje aktiv regel visas med sin pass-rate (%) baserat på historik i IndexedDB\n- [ ] Sparkline eller stapeldiagram per regel (senaste 20 svingar)\n- [ ] Sortering: \"Behöver träning\" (lägst pass-rate) som default\n- [ ] Fungerar med befintlig IndexedDB-data utan migration\n\n## Filer som troligen berörs\n- `src/components/History/StatsView.tsx` (ny)\n- `src/hooks/useHistory.ts`\n- Recharts för graf-komponent (redan i projektet)\n\n## Inga ambiguiteteter\nAnvänd befintlig IndexedDB-data. Ingen backend krävs för detta issue. Om en regel inte har tillräckligt med data (< 3 svingar) — visa \"För lite data\" istället för en graf.",
+    "labels": [
+      "p0",
+      "analytics",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "TD-1: Migrera historik från IndexedDB till Supabase",
+    "body": "## Beskrivning\nHistorik lagras idag enbart i IndexedDB lokalt på enheten. Detta förhindrar cross-device sync och delning med instruktör. Supabase är redan valt som backend.\n\n## Förutsättningar\n- Supabase-projekt måste vara skapat och URL + anon key tillgängliga som env-variabler\n- `VITE_SUPABASE_URL` och `VITE_SUPABASE_ANON_KEY` läggs till i .env\n\n## Databasschema att skapa i Supabase\n```sql\ncreate table swing_records (\n  id uuid primary key default gen_random_uuid(),\n  user_id uuid references auth.users,\n  created_at timestamptz default now(),\n  camera_angle text,\n  focus_rule_id text,\n  overall_assessment text,\n  frame_quality text,\n  results jsonb,\n  cannot_determine_reasons text[]\n);\n```\n\nNotera: videoblobbar lagras INTE i Supabase i detta issue — endast metadata och results.\n\n## Beteende\n- Installera `@supabase/supabase-js`\n- Skapa `src/lib/supabase.ts` med klient-konfiguration\n- Efter varje analys: spara till Supabase (om inloggad) OCH IndexedDB (alltid, som cache)\n- Historik-vyn: läs från Supabase om inloggad, annars från IndexedDB\n- Ingen autentisering implementeras i detta issue — user_id är null för nu\n\n## Acceptanskriterier\n- [ ] `@supabase/supabase-js` installerat\n- [ ] `src/lib/supabase.ts` skapad med klient\n- [ ] SwingRecord sparas till Supabase efter varje analys (user_id = null)\n- [ ] Historik-vyn läser från Supabase om tillgängligt, IndexedDB som fallback\n- [ ] Befintlig IndexedDB-logik bryts inte\n\n## Filer som troligen berörs\n- `src/lib/supabase.ts` (ny)\n- `src/hooks/useHistory.ts`\n- `src/hooks/useAnalysis.ts`\n- `.env` (ny env-variabler, dokumentera i README)",
+    "labels": [
+      "tech-debt",
+      "backend",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "TD-3: Generera professionella app-ikoner med korrekt emoji-rendering",
+    "body": "## Beskrivning\nNuvarande ikoner genererades med Node canvas som inte kan rendera emoji korrekt. Ikonerna visar en suddig silhuett istället för 🏌️-emoji. Puppeteer-approachen var ett steg i rätt riktning men resulterade i felaktig rendering.\n\n## Specifikation\nBakgrund: mörk grön gradient från #0f3d2e (top-left) till #1a6645 (bottom-right)\nInnehåll: 🏌️ emoji centrerat, ca 75% av ikonhöjden\nRundade hörn: iOS-stil, radius = 22% av bredden\nSubtil mörkare ellips nedtill (#0a2e20) för markskugga\nTunn vit border (1.5px, 10% opacity)\n\n## Implementation\nAnvänd Puppeteer med en HTML-fil som renderar ikonen korrekt:\n1. Skapa temporär `icon.html` med emoji i korrekt storlek och bakgrund\n2. Puppeteer screenshotar vid exakt 512x512 → `public/icon-512.png`\n3. Puppeteer screenshotar vid exakt 192x192 → `public/icon-192.png`\n4. Skapa även `public/apple-touch-icon.png` (180x180)\n5. Ta bort temporära filer\n\n## Acceptanskriterier\n- [ ] `public/icon-192.png` existerar och visar tydlig 🏌️ emoji på grön bakgrund\n- [ ] `public/icon-512.png` existerar med samma design\n- [ ] `public/apple-touch-icon.png` (180x180) existerar\n- [ ] Ikonerna ser professionella ut i iPhone hemskärm-läge\n- [ ] Inga temporära filer kvar i projektet\n\n## Filer som berörs\n- `public/icon-192.png`\n- `public/icon-512.png`\n- `public/apple-touch-icon.png`\n- `index.html` (uppdatera apple-touch-icon länk om den saknas)",
+    "labels": [
+      "tech-debt",
+      "design",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "TD-2: API-kostnadskontroll — implementera prompt caching",
+    "body": "## Beskrivning\nSystem-prompten och regelbiblioteket skickas i sin helhet vid varje API-anrop. Anthropics prompt caching kan ge upp till 90% rabatt på upprepade system-prompts och regler.\n\n## Implementation\nAnthropic stödjer cache_control på message-innehåll. Lägg till cache-breakpoints på:\n1. System-prompten (ändras sällan)\n2. Regel-listan (ändras per session men inte per sving)\n\n```typescript\n// I API-anropet, lägg till cache_control på system-prompt:\nsystem: [\n  {\n    type: \"text\",\n    text: SYSTEM_PROMPT,\n    cache_control: { type: \"ephemeral\" }\n  }\n]\n\n// Och på regel-innehållet i user-meddelandet:\n{\n  type: \"text\",\n  text: rulesText,\n  cache_control: { type: \"ephemeral\" }\n}\n```\n\n## Acceptanskriterier\n- [ ] `cache_control: { type: \"ephemeral\" }` tillagt på system-prompt i API-anropet\n- [ ] `cache_control` tillagt på regel-texten i user-meddelandet\n- [ ] API-response loggas med cache-hit information (`usage.cache_read_input_tokens`)\n- [ ] Logger visar \"Cache hit: X tokens\" när cachen används\n- [ ] Inga funktionella förändringar i analysresultatet\n\n## Filer som troligen berörs\n- `src/lib/api.ts`\n- `src/lib/prompt.ts`\n- `src/lib/logger.ts`\n\n## Notering\nPrompt caching kräver att claude-sonnet-4-20250514 eller claude-opus-4-8 används — verifiera att modellnamnet i api.ts är korrekt.",
+    "labels": [
+      "tech-debt",
+      "performance",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "P0-4b: PWA update notification — visa 'Ny version tillgänglig'",
+    "body": "## Beskrivning\nNär en ny version av appen deployats ska användaren se en tydlig notis och kunna uppdatera med ett knapptryck, utan att manuellt stänga och öppna appen.\n\n## Implementation\nAnvänd `useRegisterSW` hook från `vite-plugin-pwa/react`:\n\n```typescript\nimport { useRegisterSW } from 'virtual:pwa-register/react';\n\nconst { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();\n```\n\nVisa en toast/banner högst upp på skärmen när `needRefresh` är true:\n- Text: \"Ny version tillgänglig 🔄\"\n- Knapp: \"Uppdatera nu\"\n- Klick: anropa `updateServiceWorker(true)`\n\n## Acceptanskriterier\n- [ ] `useRegisterSW` importerad och konfigurerad i App.tsx eller layout-komponent\n- [ ] Banner visas när ny service worker väntar\n- [ ] \"Uppdatera nu\"-knapp triggar `updateServiceWorker(true)`\n- [ ] Banner är dismissable (X-knapp) om användaren vill uppdatera senare\n- [ ] Banner visas överst i UI, påverkar inte kameravyn\n\n## Filer som troligen berörs\n- `src/App.tsx`\n- `src/components/UpdateBanner.tsx` (ny)\n- `vite.config.ts` (verifiera att registerType: 'prompt' är satt, INTE 'autoUpdate')",
+    "labels": [
+      "p0",
+      "pwa",
+      "agent-ready"
+    ]
+  },
+  {
+    "title": "P2-1: Dela sving som klipp — exportera video med feedback-overlay",
+    "body": "## Beskrivning\nAnvändaren ska kunna dela ett kort klipp av sin sving med AI-feedbacken overlaid som text. Viralt delningsformat för social media.\n\n## Beteende\n- På analys-vyn: \"Dela sving\"-knapp\n- Genererar ett 15-sekunders max klipp (det analyserade segmentet)\n- Overlay: regelresultat som text i nederkant (pass ✓ / fail ✗ per regel)\n- Watermark: \"SwingCheck\" logga i hörnet\n- Öppnar native share sheet via Web Share API (`navigator.share()`)\n\n## Implementation\nAnvänd Canvas API + MediaRecorder för att spela in canvas med video + text-overlay:\n1. Rita video frame-by-frame på canvas\n2. Rita text-overlay (regelresultat) på canvas\n3. Spela in canvas med MediaRecorder → ny videoblobb\n4. Dela via `navigator.share({ files: [videoFile] })`\n\n## Acceptanskriterier\n- [ ] \"Dela sving\"-knapp visas på analys-vyn\n- [ ] Klipp innehåller video + text-overlay med regelresultat\n- [ ] Web Share API används för delning\n- [ ] Fungerar på iOS Safari (testa navigator.canShare())\n- [ ] Fallback om Web Share API ej stöds: ladda ned klippet istället\n- [ ] Klippet är max 15 sekunder\n\n## Filer som troligen berörs\n- `src/components/Analysis/ShareButton.tsx` (ny)\n- `src/lib/videoExport.ts` (ny)\n- `src/components/Analysis/AnalysisView.tsx`\n\n## Notering\nWeb Share API med filer kräver HTTPS och stöds bra i Safari iOS 15+. Testa på fysisk enhet.",
+    "labels": [
+      "p2",
+      "social",
+      "agent-ready"
+    ]
+  }
+]

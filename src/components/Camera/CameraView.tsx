@@ -6,6 +6,7 @@ import { useSessionStore } from '../../store/session';
 import { useSettingsStore } from '../../store/settings';
 import { cancelSpeech, isSpeaking, speak, TTS_ANALYZING } from '../../lib/tts';
 import { RecordButton } from './RecordButton';
+import { CountdownStepper } from './CountdownStepper';
 import { AnglePill } from '../AngleToggle';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
@@ -37,6 +38,8 @@ export function CameraView() {
   const ttsMode = useSettingsStore((s) => s.ttsMode);
   const setTtsMode = useSettingsStore((s) => s.setTtsMode);
   const cameraAngle = useSettingsStore((s) => s.cameraAngle);
+  const countdownSeconds = useSettingsStore((s) => s.countdownSeconds);
+  const setCountdownSeconds = useSettingsStore((s) => s.setCountdownSeconds);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -89,7 +92,7 @@ export function CameraView() {
     } else if (isCounting) {
       cancelCountdown();
     } else {
-      startRecording();
+      startRecording(countdownSeconds);
     }
   };
 
@@ -114,10 +117,10 @@ export function CameraView() {
         {error ? (
           <div className="p-4 text-center">
             <p className="text-red-400 mb-2">Camera error</p>
-            <p className="text-sm text-slate-400">{error}</p>
+            <p className="text-sm text-muted">{error}</p>
             <button
               onClick={startStream}
-              className="mt-4 px-4 py-2 bg-emerald-700 rounded-lg text-sm"
+              className="mt-4 px-4 py-2 bg-accent-press rounded-lg text-sm"
             >
               Retry
             </button>
@@ -149,13 +152,13 @@ export function CameraView() {
         {progress !== null && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 px-8">
             <p className="text-sm font-medium text-white">Bearbetar film…</p>
-            <div className="w-full max-w-xs h-2 rounded-full bg-slate-700 overflow-hidden">
+            <div className="w-full max-w-xs h-2 rounded-full bg-raised overflow-hidden">
               <div
-                className="h-full bg-emerald-500 transition-[width] duration-150 ease-out"
+                className="h-full bg-accent-hover transition-[width] duration-150 ease-out"
                 style={{ width: `${Math.round(progress * 100)}%` }}
               />
             </div>
-            <p className="text-xs text-slate-300">{Math.round(progress * 100)}%</p>
+            <p className="text-xs text-fg-dim">{Math.round(progress * 100)}%</p>
           </div>
         )}
 
@@ -174,7 +177,7 @@ export function CameraView() {
 
         {/* Persistent range-mode banner */}
         {rangeMode && (
-          <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-emerald-600/90
+          <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-accent/90
                           text-xs font-semibold text-white shadow-lg flex items-center gap-1.5">
             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
             Hörlursläge aktivt 🎧
@@ -183,13 +186,13 @@ export function CameraView() {
       </div>
 
       {/* Range mode + TTS controls */}
-      <div className="flex-shrink-0 px-4 pt-3 flex items-center justify-between gap-2 bg-slate-900">
+      <div className="flex-shrink-0 px-4 pt-3 flex items-center justify-between gap-2 bg-bg">
         <button
           onClick={toggleRangeMode}
           className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
             rangeMode
-              ? 'bg-emerald-600 text-white'
-              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              ? 'bg-accent text-on-accent'
+              : 'bg-raised text-fg-dim hover:bg-raised-hi'
           }`}
         >
           🎧 {rangeMode ? 'Hörlursläge på' : 'Hörlursläge'}
@@ -200,22 +203,22 @@ export function CameraView() {
             onClick={() => setTtsEnabled(!ttsEnabled)}
             className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
               ttsEnabled
-                ? 'bg-slate-600 text-white'
-                : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+                ? 'bg-raised-hi text-fg'
+                : 'bg-surface text-faint hover:bg-raised'
             }`}
           >
             Röst {ttsEnabled ? 'på' : 'av'}
           </button>
           {ttsEnabled && (
-            <div className="flex rounded-lg overflow-hidden border border-slate-700 text-xs font-semibold">
+            <div className="flex rounded-lg overflow-hidden border border-line text-xs font-semibold">
               {(['quick', 'detailed'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setTtsMode(mode)}
                   className={`px-3 py-2 transition-colors ${
                     ttsMode === mode
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      ? 'bg-accent text-on-accent'
+                      : 'bg-surface text-muted hover:bg-raised'
                   }`}
                 >
                   {mode === 'quick' ? 'Kort' : 'Detalj'}
@@ -226,11 +229,11 @@ export function CameraView() {
         </div>
       </div>
 
-      <div className="flex-shrink-0 py-6 flex items-center justify-center gap-6 bg-slate-900">
+      <div className="flex-shrink-0 py-6 flex items-center justify-center gap-6 bg-bg">
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isAnalyzing || progress !== null}
-          className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium
+          className="px-3 py-2 bg-raised hover:bg-raised-hi rounded-lg text-xs font-medium
                      disabled:opacity-30 transition-colors"
         >
           Upload Video
@@ -248,6 +251,11 @@ export function CameraView() {
           isStreaming={isStreaming}
           disabled={!isStreaming || isAnalyzing}
           onToggle={handleToggleRecord}
+        />
+        <CountdownStepper
+          value={countdownSeconds}
+          onChange={setCountdownSeconds}
+          disabled={isRecording || isCounting || isAnalyzing || progress !== null}
         />
       </div>
     </div>

@@ -39,7 +39,7 @@ const STEPS: Step[] = [
     titleKey: 'onb.angle.title',
     bodyKey: 'onb.angle.body',
     points: [
-      { titleKey: 'onb.angle.dtl', bodyKey: 'onb.angle.dtlBody', accent: 'bg-emerald-400' },
+      { titleKey: 'onb.angle.dtl', bodyKey: 'onb.angle.dtlBody', accent: 'bg-accent-text' },
       { titleKey: 'onb.angle.faceOn', bodyKey: 'onb.angle.faceOnBody', accent: 'bg-sky-400' },
     ],
   },
@@ -48,8 +48,8 @@ const STEPS: Step[] = [
     titleKey: 'onb.camera.title',
     bodyKey: 'onb.camera.body',
     points: [
-      { titleKey: 'onb.camera.distance', bodyKey: 'onb.camera.distanceBody', accent: 'bg-emerald-400' },
-      { titleKey: 'onb.camera.height', bodyKey: 'onb.camera.heightBody', accent: 'bg-emerald-400' },
+      { titleKey: 'onb.camera.distance', bodyKey: 'onb.camera.distanceBody', accent: 'bg-accent-text' },
+      { titleKey: 'onb.camera.height', bodyKey: 'onb.camera.heightBody', accent: 'bg-accent-text' },
       { titleKey: 'onb.camera.light', bodyKey: 'onb.camera.lightBody', accent: 'bg-amber-400' },
     ],
   },
@@ -58,8 +58,8 @@ const STEPS: Step[] = [
     titleKey: 'onb.rules.title',
     bodyKey: 'onb.rules.body',
     points: [
-      { titleKey: 'onb.rules.library', bodyKey: 'onb.rulesBody1', accent: 'bg-emerald-400' },
-      { titleKey: 'onb.rules.custom', bodyKey: 'onb.rulesBody2', accent: 'bg-emerald-400' },
+      { titleKey: 'onb.rules.library', bodyKey: 'onb.rulesBody1', accent: 'bg-accent-text' },
+      { titleKey: 'onb.rules.custom', bodyKey: 'onb.rulesBody2', accent: 'bg-accent-text' },
     ],
   },
   {
@@ -67,8 +67,8 @@ const STEPS: Step[] = [
     titleKey: 'onb.record.title',
     bodyKey: 'onb.record.body',
     points: [
-      { titleKey: 'onb.record.voice', bodyKey: 'onb.recordBody1', accent: 'bg-emerald-400' },
-      { titleKey: 'onb.record.range', bodyKey: 'onb.recordBody2', accent: 'bg-emerald-400' },
+      { titleKey: 'onb.record.voice', bodyKey: 'onb.recordBody1', accent: 'bg-accent-text' },
+      { titleKey: 'onb.record.range', bodyKey: 'onb.recordBody2', accent: 'bg-accent-text' },
     ],
   },
 ];
@@ -123,7 +123,7 @@ export function OnboardingWizard() {
     >
       <div
         className={`relative w-full max-w-[420px] overflow-hidden rounded-3xl border border-white/10
-                    bg-slate-900 shadow-2xl shadow-emerald-950/40
+                    bg-slate-900 shadow-2xl shadow-accent-press/40
                     ${closing ? 'animate-onb-card-out' : 'animate-onb-card-in'}`}
       >
         {/* Skip */}
@@ -141,7 +141,7 @@ export function OnboardingWizard() {
         <div className="relative h-52 overflow-hidden bg-gradient-to-b from-slate-800/60 to-slate-900">
           <div
             className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2
-                       rounded-full bg-emerald-500/20 blur-3xl"
+                       rounded-full bg-accent-hover/20 blur-3xl"
           />
           <div key={index} className={dir >= 0 ? 'animate-onb-art-next h-full' : 'animate-onb-art-prev h-full'} aria-hidden="true">
             <div className="mx-auto h-full max-w-[280px] px-6 py-4">
@@ -150,8 +150,8 @@ export function OnboardingWizard() {
           </div>
           {step.tagKey && (
             <span
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-emerald-400/30
-                         bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-300"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-accent-text/30
+                         bg-accent-hover/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-accent-text"
             >
               {t(step.tagKey)}
             </span>
@@ -172,9 +172,9 @@ export function OnboardingWizard() {
                 aria-label={t('onb.stepOf', { current: i + 1, total })}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   i === index
-                    ? 'w-7 bg-emerald-400'
+                    ? 'w-7 bg-accent-text'
                     : i < index
-                      ? 'w-1.5 bg-emerald-700'
+                      ? 'w-1.5 bg-accent-press'
                       : 'w-1.5 bg-slate-700'
                 }`}
               />
@@ -182,7 +182,7 @@ export function OnboardingWizard() {
           </div>
 
           <div key={index} className={dir >= 0 ? 'animate-onb-text-next' : 'animate-onb-text-prev'}>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-emerald-400/80">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-accent-text/80">
               {t('onb.stepOf', { current: index + 1, total })}
             </p>
             <h2 className="text-2xl font-bold leading-tight text-white">{t(step.titleKey)}</h2>
@@ -216,8 +216,8 @@ export function OnboardingWizard() {
             )}
             <button
               onClick={() => (isLast ? finish() : go(1))}
-              className="ml-auto flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white
-                         shadow-lg shadow-emerald-900/40 transition-colors hover:bg-emerald-500
+              className="ml-auto flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-white
+                         shadow-lg shadow-accent-press/40 transition-colors hover:bg-accent-hover
                          active:scale-[0.99]"
             >
               {isLast ? t('onb.start') : t('onb.next')}

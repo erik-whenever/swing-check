@@ -10,8 +10,25 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>SwingCheck</title>
+    <script>
+      // Set theme/accent before first paint to avoid a flash of the wrong theme.
+      (function () {
+        try {
+          var s = (JSON.parse(localStorage.getItem('swingcheck-settings') || '{}').state) || {};
+          var theme = s.theme || 'system';
+          var resolved = theme === 'system'
+            ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : theme;
+          document.documentElement.dataset.theme = resolved;
+          document.documentElement.dataset.accent = s.accent || 'emerald';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.dataset.accent = 'emerald';
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-slate-900 text-white">
+  <body class="bg-bg text-fg">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

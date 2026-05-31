@@ -14,7 +14,7 @@ export function AngleTags({
 }) {
   if (!angles || angles.length === 0) {
     return (
-      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-slate-400">
+      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-raised text-muted">
         Any
       </span>
     );
@@ -26,8 +26,8 @@ export function AngleTags({
           key={a}
           className={`px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide ${
             a === active
-              ? 'bg-emerald-700/40 text-emerald-300'
-              : 'bg-slate-700 text-slate-500'
+              ? 'bg-accent-press/40 text-accent-text'
+              : 'bg-raised text-faint'
           }`}
         >
           {ANGLE_LABEL[a]}
@@ -53,7 +53,7 @@ export function AngleFormPicker({
 
   return (
     <div>
-      <p className="text-[11px] text-slate-500 mb-1">Verifiable from angle</p>
+      <p className="text-[11px] text-faint mb-1">Verifiable from angle</p>
       <div className="flex gap-2">
         {CAMERA_ANGLES.map((a) => (
           <button
@@ -63,8 +63,8 @@ export function AngleFormPicker({
             aria-pressed={angles.includes(a)}
             className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
               angles.includes(a)
-                ? 'bg-emerald-700 text-white'
-                : 'bg-slate-900 border border-slate-700 text-slate-400 hover:text-white'
+                ? 'bg-accent-press text-on-accent'
+                : 'bg-bg border border-line text-muted hover:text-fg'
             }`}
           >
             {ANGLE_LABEL[a]}

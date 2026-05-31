@@ -11,7 +11,7 @@ export function AngleToggle() {
     <div
       role="group"
       aria-label="Camera angle"
-      className="flex rounded-lg overflow-hidden border border-slate-700 text-xs font-semibold"
+      className="flex rounded-lg overflow-hidden border border-line text-xs font-semibold"
     >
       {CAMERA_ANGLES.map((angle) => (
         <button
@@ -20,8 +20,8 @@ export function AngleToggle() {
           aria-pressed={cameraAngle === angle}
           className={`px-3 py-1.5 transition-colors ${
             cameraAngle === angle
-              ? 'bg-emerald-600 text-white'
-              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              ? 'bg-accent text-white'
+              : 'bg-surface text-muted hover:bg-raised'
           }`}
         >
           {ANGLE_LABEL[angle]}
@@ -41,8 +41,8 @@ export function AnglePill({
 }) {
   return (
     <span
-      className={`px-2 py-0.5 rounded-full bg-slate-900/80 border border-emerald-500/60
-                  text-[11px] font-bold text-emerald-300 tracking-wide ${className}`}
+      className={`px-2 py-0.5 rounded-full bg-bg/80 border border-accent-hover/60
+                  text-[11px] font-bold text-accent-text tracking-wide ${className}`}
     >
       {ANGLE_LABEL[angle]}
     </span>

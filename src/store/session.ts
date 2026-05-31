@@ -3,7 +3,7 @@ import type { SwingAnalysis } from '../types';
 import type { FrameMeta } from '../lib/frameExtractor';
 import type { CameraAngle } from '../lib/cameraAngle';
 
-type View = 'home' | 'camera' | 'rules' | 'analysis' | 'history' | 'preview';
+type View = 'home' | 'camera' | 'rules' | 'analysis' | 'history' | 'preview' | 'settings';
 
 interface SessionState {
   view: View;

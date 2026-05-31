@@ -12,13 +12,13 @@ export function RuleEditor() {
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="flex border-b border-slate-800 flex-shrink-0">
+      <div className="flex border-b border-line flex-shrink-0">
         <button
           onClick={() => setTab('library')}
           className={`flex-1 py-3 text-sm font-medium transition-colors ${
             tab === 'library'
-              ? 'text-emerald-400 border-b-2 border-emerald-400'
-              : 'text-slate-500'
+              ? 'text-accent-text border-b-2 border-accent-text'
+              : 'text-faint'
           }`}
         >
           Rule Library
@@ -27,13 +27,13 @@ export function RuleEditor() {
           onClick={() => setTab('my-rules')}
           className={`flex-1 py-3 text-sm font-medium transition-colors ${
             tab === 'my-rules'
-              ? 'text-emerald-400 border-b-2 border-emerald-400'
-              : 'text-slate-500'
+              ? 'text-accent-text border-b-2 border-accent-text'
+              : 'text-faint'
           }`}
         >
           My Rules
           {ruleCount > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-emerald-700 text-white text-[10px] font-semibold">
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-accent-press text-white text-[10px] font-semibold">
               {ruleCount}
             </span>
           )}

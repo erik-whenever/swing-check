@@ -1,13 +1,16 @@
 import { AngleToggle } from './AngleToggle';
 import { useOnboardingStore } from '../store/onboarding';
+import { useSessionStore } from '../store/session';
 
 /** Persistent top bar shown on every screen: logo on the left, angle toggle on the right. */
 export function NavBar() {
   const resetOnboarding = useOnboardingStore((s) => s.reset);
+  const view = useSessionStore((s) => s.view);
+  const setView = useSessionStore((s) => s.setView);
 
   return (
     <header className="flex-shrink-0 flex items-center justify-between gap-2 px-4 py-2.5
-                       border-b border-slate-800 bg-slate-900 safe-top">
+                       border-b border-line bg-bg safe-top">
       <div className="flex items-center gap-1.5 select-none">
         {/* Dev-only: re-trigger the first-run onboarding wizard. */}
         {import.meta.env.DEV && (
@@ -15,7 +18,7 @@ export function NavBar() {
             onClick={resetOnboarding}
             title="Starta onboarding (dev)"
             aria-label="Starta onboarding"
-            className="text-slate-400 hover:text-emerald-400 transition-colors -ml-1 mr-0.5"
+            className="text-muted hover:text-accent-text transition-colors -ml-1 mr-0.5"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
                  strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden>
@@ -24,10 +27,28 @@ export function NavBar() {
             </svg>
           </button>
         )}
-        <span className="text-emerald-400 text-lg leading-none">⛳</span>
+        <span className="text-accent-text text-lg leading-none">⛳</span>
         <span className="font-bold tracking-tight">SwingCheck</span>
       </div>
-      <AngleToggle />
+      <div className="flex items-center gap-1.5">
+        <AngleToggle />
+        <button
+          onClick={() => setView('settings')}
+          aria-label="Inställningar"
+          aria-current={view === 'settings' ? 'page' : undefined}
+          className={`p-1.5 rounded-lg transition-colors ${
+            view === 'settings'
+              ? 'text-accent-text bg-raised'
+              : 'text-muted hover:text-fg hover:bg-raised'
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+               strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
     </header>
   );
 }

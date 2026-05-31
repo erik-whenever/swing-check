@@ -1,5 +1,83 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ *
+ * Theming
+ *
+ * Components use semantic color utilities (bg-surface, text-muted,
+ * bg-accent, …) instead of raw slate/emerald. Each maps — via @theme
+ * inline — to a CSS variable that is swapped at runtime by toggling the
+ * data-theme (light/dark) and data-accent (hue) attributes on <html>.
+ * ------------------------------------------------------------------ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-raised-hi: var(--raised-hi);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-fg-dim: var(--fg-dim);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-faint-2: var(--faint-2);
+  --color-on-accent: var(--on-accent);
+  --color-accent: var(--a-600);
+  --color-accent-hover: var(--a-500);
+  --color-accent-press: var(--a-700);
+  --color-accent-text: var(--accent-text);
+}
+
+/* Surfaces & text — dark is the default (also when no attribute is set). */
+:root,
+[data-theme="dark"] {
+  --bg: #0f172a;        /* slate-900 */
+  --surface: #1e293b;   /* slate-800 */
+  --raised: #334155;    /* slate-700 */
+  --raised-hi: #475569; /* slate-600 */
+  --line: #334155;      /* slate-700 */
+  --fg: #f8fafc;        /* slate-50  */
+  --fg-dim: #cbd5e1;    /* slate-300 */
+  --muted: #94a3b8;     /* slate-400 */
+  --faint: #64748b;     /* slate-500 */
+  --faint-2: #475569;   /* slate-600 */
+  --on-accent: #ffffff;
+  --accent-text: var(--a-400);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f8fafc;        /* slate-50  */
+  --surface: #ffffff;
+  --raised: #f1f5f9;    /* slate-100 */
+  --raised-hi: #e2e8f0; /* slate-200 */
+  --line: #e2e8f0;      /* slate-200 */
+  --fg: #0f172a;        /* slate-900 */
+  --fg-dim: #334155;    /* slate-700 */
+  --muted: #475569;     /* slate-600 */
+  --faint: #64748b;     /* slate-500 */
+  --faint-2: #94a3b8;   /* slate-400 */
+  --on-accent: #ffffff;
+  --accent-text: var(--a-700);
+  color-scheme: light;
+}
+
+/* Accent palettes — shade ramp consumed by the accent tokens above. */
+:root,
+[data-accent="emerald"] {
+  --a-300: #6ee7b7; --a-400: #34d399; --a-500: #10b981; --a-600: #059669; --a-700: #047857;
+}
+[data-accent="blue"] {
+  --a-300: #93c5fd; --a-400: #60a5fa; --a-500: #3b82f6; --a-600: #2563eb; --a-700: #1d4ed8;
+}
+[data-accent="violet"] {
+  --a-300: #c4b5fd; --a-400: #a78bfa; --a-500: #8b5cf6; --a-600: #7c3aed; --a-700: #6d28d9;
+}
+[data-accent="amber"] {
+  --a-300: #fcd34d; --a-400: #fbbf24; --a-500: #f59e0b; --a-600: #d97706; --a-700: #b45309;
+}
+[data-accent="rose"] {
+  --a-300: #fda4af; --a-400: #fb7185; --a-500: #f43f5e; --a-600: #e11d48; --a-700: #be123c;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;

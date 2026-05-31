@@ -38,7 +38,7 @@ export function RuleResultCard({ result, isFocus, detectedAngle }: Props) {
   return (
     <div
       className={`p-3 rounded-lg border ${style.bg} ${style.border} ${
-        isFocus ? 'ring-1 ring-emerald-500' : ''
+        isFocus ? 'ring-1 ring-accent-hover' : ''
       }`}
     >
       <div className="flex items-center justify-between mb-2">
@@ -46,7 +46,7 @@ export function RuleResultCard({ result, isFocus, detectedAngle }: Props) {
           {rule?.title || result.id}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-muted">
             {Math.round(result.confidence * 100)}%
           </span>
           <span
@@ -63,13 +63,13 @@ export function RuleResultCard({ result, isFocus, detectedAngle }: Props) {
         </p>
       ) : (
         <>
-          <p className="text-xs text-slate-300 mb-1">{result.visual_evidence}</p>
-          <p className="text-xs text-slate-400">{result.observation}</p>
+          <p className="text-xs text-fg-dim mb-1">{result.visual_evidence}</p>
+          <p className="text-xs text-muted">{result.observation}</p>
         </>
       )}
 
       {result.suggestion && (
-        <p className="text-xs text-emerald-400 mt-2">
+        <p className="text-xs text-accent-text mt-2">
           Tip: {result.suggestion}
         </p>
       )}

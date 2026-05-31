@@ -15,7 +15,7 @@ export function Toast() {
 
   return (
     <div className="fixed inset-x-0 bottom-20 z-50 flex justify-center px-4 pointer-events-none">
-      <div className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 bg-emerald-700 text-white
+      <div className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 bg-accent-press text-white
                       rounded-lg shadow-lg text-sm font-medium animate-[fadeIn_0.15s_ease-out]">
         <span>✓</span>
         <span>{message}</span>

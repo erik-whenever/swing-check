@@ -9,7 +9,11 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "Bash(npx wrangler:*)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "PowerShell(npx tsc -b --force; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(npx eslint src/lib/logger.ts src/components/DevLogPanel.tsx src/lib/api.ts src/lib/frameExtractor.ts src/hooks/useCamera.ts; \"EXIT=$LASTEXITCODE\")",
+      "Bash(gh issue *)",
+      "Bash(gh repo *)"
     ]
   }
 }
