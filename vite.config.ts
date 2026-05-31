@@ -12,7 +12,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      // 'prompt' (not 'autoUpdate') so the app can surface an explicit "new version" banner
+      // and let the user choose when to reload, via the UpdateBanner component.
+      registerType: "prompt",
       manifest: {
         name: "SwingCheck",
         short_name: "SwingCheck",

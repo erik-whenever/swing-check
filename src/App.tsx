@@ -15,6 +15,7 @@ import { OnboardingWizard } from './components/Onboarding/OnboardingWizard';
 import { useOnboardingStore } from './store/onboarding';
 import { useT } from './lib/i18n';
 import { DevLogPanel } from './components/DevLogPanel';
+import { UpdateBanner } from './components/UpdateBanner';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 
@@ -101,6 +102,8 @@ function App() {
       </nav>
 
       <Toast />
+
+      <UpdateBanner />
 
       {!onboarded && <OnboardingWizard />}
 
