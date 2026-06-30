@@ -47,4 +47,4 @@ Implementation: `src/lib/frameExtractor.ts`. Tunables överst i filen.
 - **Trigger för omprövning:** om verifiering på varierade klipp visar att metoden missar
   svingen → eskalera till pose-estimering. Se öppen fråga **F1** i
   [../oppna-fragor.md](../oppna-fragor.md) och sessionsanteckningarna i
-  [../swing-detection-handoff.md](../swing-detection-handoff.md).
+  [../swingcheck-handoff.md](../swingcheck-handoff.md).

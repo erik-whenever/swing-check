@@ -21,7 +21,7 @@ Nyligen mergat (PR #9–#15): prompt caching, TTS-röst, handsfri sessionsläge,
 
 ## Pågår
 
-- **Verifiera rörelsebaserad svingdetektering** på riktiga klipp av varierande längd/svingposition. Address-ankrad detektering är implementerad men **ännu inte bekräftad av användaren** på testklippet (se [docs/swing-detection-handoff.md](docs/swing-detection-handoff.md) och [ADR-0001](docs/adr/0001-motion-based-swing-detection.md)).
+- **Verifiera rörelsebaserad svingdetektering** på riktiga klipp av varierande längd/svingposition. Address-ankrad detektering är implementerad men **ännu inte bekräftad av användaren** på testklippet (se [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md) och [ADR-0001](docs/adr/0001-motion-based-swing-detection.md)).
 - **Okommitterade ändringar i working tree** på `main` (frameExtractor, CameraView, FramePreview, DevLogPanel m.fl.). Behöver branch + ärlig commit innan merge.
 - **Felsöknings-loggning kvar:** den konsoliderade `WARN "Swing detection summary"` + `curveDigest` + `topPeaks` lades till för tuning — bör nedgraderas till `debug` eller tas bort före merge.
 
