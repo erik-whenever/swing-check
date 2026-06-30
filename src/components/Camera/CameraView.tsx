@@ -62,12 +62,11 @@ export function CameraView() {
 
   const isCounting = countdown !== null;
 
-  const processVideo = async (blob: Blob, isUpload: boolean) => {
+  const processVideo = async (blob: Blob) => {
     setCurrentVideoBlob(blob);
     setProgress(0);
     try {
       const { selected, meta } = await extractFrames(blob, 10, 0.8, {
-        skipEndTrim: isUpload,
         onProgress: setProgress,
       });
       setCurrentAnalysis(null);
@@ -91,7 +90,7 @@ export function CameraView() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    processVideo(file, true);
+    processVideo(file);
     // Reset so the same file can be re-selected
     e.target.value = '';
   };
@@ -105,7 +104,7 @@ export function CameraView() {
   const handleToggleRecord = async () => {
     if (isRecording) {
       const blob = await stopRecording();
-      await processVideo(blob, false);
+      await processVideo(blob);
     } else if (isCounting) {
       cancelCountdown();
     } else {

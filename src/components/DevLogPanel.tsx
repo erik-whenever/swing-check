@@ -45,6 +45,25 @@ export function DevLogPanel() {
   }, [entries, levelFilter, moduleFilter]);
 
   const errorCount = entries.filter((e) => e.level === 'ERROR').length;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const text = filtered
+      .slice()
+      .reverse() // oldest first for readability
+      .map((e) => {
+        const head = `${formatTime(e.timestamp)} ${e.level} [${e.module}] ${e.message}`;
+        return e.data !== undefined ? `${head}\n${safeStringify(e.data)}` : head;
+      })
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard may be blocked; ignore */
+    }
+  };
 
   return (
     <>
@@ -65,11 +84,11 @@ export function DevLogPanel() {
         </button>
       )}
 
-      {/* Slide-up panel */}
+      {/* Slide-in side panel (full height so long entries are always scrollable) */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 max-h-[65vh] flex flex-col bg-slate-950/97
-                    border-t border-slate-700 shadow-2xl backdrop-blur transition-transform
-                    duration-300 ease-out ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col bg-slate-950/97
+                    border-l border-slate-700 shadow-2xl backdrop-blur transition-transform
+                    duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
         {/* Header + filters */}
         <div className="flex-shrink-0 p-2 border-b border-slate-800 space-y-2">
@@ -77,12 +96,20 @@ export function DevLogPanel() {
             <span className="text-xs font-mono font-semibold text-slate-300">
               Logs ({filtered.length})
             </span>
-            <button
-              onClick={() => setOpen(false)}
-              className="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300"
-            >
-              Close ✕
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleCopy}
+                className="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300"
+              >
+                {copied ? 'Copied ✓' : 'Copy 📋'}
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300"
+              >
+                Close ✕
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-1">

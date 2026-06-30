@@ -72,19 +72,20 @@ export function FramePreview() {
                 />
                 {/* Labels */}
                 <div className="absolute top-1 left-1 flex gap-1">
-                  {frame.isSwingStart && (
-                    <span className="px-1.5 py-0.5 bg-amber-600 rounded text-[10px] font-bold">
-                      SWING START
+                  {frame.phase && (
+                    <span className="px-1.5 py-0.5 bg-black/70 rounded text-[10px] font-bold uppercase tracking-wide">
+                      {frame.phase}
                     </span>
                   )}
-                  {frame.isAddress && !frame.isSwingStart && (
-                    <span className="px-1.5 py-0.5 bg-blue-600 rounded text-[10px] font-bold">
-                      ADDRESS
+                  {frame.isSwingStart && (
+                    <span className="px-1.5 py-0.5 bg-amber-600 rounded text-[10px] font-bold">
+                      START
                     </span>
                   )}
                 </div>
                 <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/70 rounded text-[10px] font-mono">
                   #{frame.candidateIndex}
+                  {frame.timeSec !== undefined && ` · ${frame.timeSec.toFixed(2)}s`}
                 </span>
               </div>
 
