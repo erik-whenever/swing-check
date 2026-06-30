@@ -1,25 +1,56 @@
-# React + TypeScript + Vite
+# SwingCheck
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Mobil-först PWA som analyserar en golfsving: filma svingen, appen extraherar nyckelbildrutor och
+låter Claude bedöma dem mot dina coaching-regler. Resultatet visas per regel (pass/fail/cannot_determine)
+med visuell evidens, förslag och drills — och kan läsas upp med röst för handsfri träning på range.
 
-## Environment variables
+- **Vad/varför (arkitektur, domänmodell, designbeslut):** [KONTEXT.md](KONTEXT.md)
+- **Aktuellt läge (gjort/pågår/horisont):** [STATUS.md](STATUS.md)
+- **Beslut & öppna frågor:** [docs/oppna-fragor.md](docs/oppna-fragor.md)
+- **Arkitekturbeslut:** [docs/adr/](docs/adr/)
 
-Copy `.env.example` to `.env` and fill in the values.
+## Kom igång
 
-| Variable | Required | Purpose |
+```bash
+npm install
+cp .env.example .env   # fyll i värdena (se nedan)
+npm run dev            # lokal utveckling — använd alltid detta för att verifiera
+```
+
+> Verifiera alltid via `npm run dev`, inte en build — PWA:ns service worker kan servera gammal cachad kod.
+
+## Skript
+
+| Kommando | Gör |
+| --- | --- |
+| `npm run dev` | Lokal utvecklingsserver (Vite). |
+| `npm run build` | `tsc -b && vite build`. |
+| `npm run lint` | ESLint. |
+| `npm run preview` | Bygger och kör Workern lokalt via `wrangler dev`. |
+| `npm run deploy` | Bygger och `wrangler deploy`. |
+
+## Miljövariabler
+
+| Variabel | Krävs | Syfte |
 | --- | --- | --- |
-| `VITE_API_URL` | yes | Cloudflare Worker that proxies the Anthropic API. |
-| `VITE_SUPABASE_URL` | no | Supabase project URL. Enables cross-device swing-history sync. |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | no | Supabase publishable key. Required together with `VITE_SUPABASE_URL`. |
+| `VITE_API_URL` | ja | Cloudflare Worker som proxar Anthropic-API:t. |
+| `VITE_SUPABASE_URL` | nej | Aktiverar cross-device-historik (tillsammans med nyckeln nedan). |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | nej | Publishable key för Supabase. |
+| `VITE_DEV_PREVIEW` | nej | Visar bildrute-preview + 🐞 Logs-panel under utveckling. |
+| `ANTHROPIC_API_KEY` | ja (Worker) | Sätts som secret i Workern — når aldrig klienten. |
+| `LOG_READ_KEY` | nej (Worker) | Skyddar `GET /api/log`. |
 
-### Supabase history sync (optional)
+## Backend
 
-When the two `VITE_SUPABASE_*` variables are set, each analysed swing's **metadata + results**
-are mirrored to a `swing_records` table (video blobs and frames stay local in IndexedDB).
-History reads then prefer Supabase and fall back to IndexedDB if it is unavailable. With the
-variables unset the app is unchanged and runs IndexedDB-only.
+En enda Cloudflare Worker (`worker/worker.ts`) med två ansvar: proxa Anthropic (så att API-nyckeln
+aldrig når klienten) och ta emot klientens ERROR-loggar på `/api/log` (lagras i D1).
 
-Create the table in Supabase:
+## Supabase-historik (valfritt)
+
+Sätts båda `VITE_SUPABASE_*` speglas varje analyserad svings **metadata + resultat** till tabellen
+`swing_records` (videoblobbar och frames stannar lokalt i IndexedDB). Historik läses då i första hand
+från Supabase och faller tillbaka till IndexedDB. Utan variablerna kör appen IndexedDB-only. Auth finns
+ännu inte, så `user_id` är `null`.
 
 ```sql
 create table swing_records (
@@ -35,74 +66,7 @@ create table swing_records (
 );
 ```
 
-Authentication is not implemented yet, so `user_id` is `null` for now.
+## Teknik
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+React 19 · TypeScript · Vite 8 · Tailwind v4 · Zustand · vite-plugin-pwa · Cloudflare Workers + D1 ·
+IndexedDB (idb-keyval) · Supabase (valfritt) · Claude Sonnet 4.5.
