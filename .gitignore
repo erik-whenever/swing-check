@@ -16,6 +16,9 @@ dist
 dist-ssr
 *.local
 
+# Pose model — binary asset fetched on demand via `npm run pose:model`
+public/models/*.task
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

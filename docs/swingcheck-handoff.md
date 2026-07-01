@@ -1,7 +1,7 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-06-30.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-07-01.
 
 ## Tech stack
 - **Frontend:** React 19 + TypeScript + Vite 8, Tailwind v4, Zustand (vissa stores `persist`:ade).
@@ -22,6 +22,9 @@
 - i18n (browser-/geo-detektering), tema + accentfärg, PWA-uppdateringsbanner.
 
 ## Pågående
+
+### Pågående: Pose-estimering (Ström D)
+- **Status:** D-1 pass 1 klart. `@mediapipe/tasks-vision` integrerat **vid sidan om** `frameExtractor.ts` (rör den ej). `lib/poseDetector.ts` (singleton, GPU→CPU-fallback, WASM från jsDelivr-CDN), `lib/poseTrajectory.ts` (seekar dold video ~15 fps, 33 punkter/sampel), `lib/poseConnections.ts`. `FramePreview.tsx` ritar skelett-overlay bakom `VITE_DEV_PREVIEW` (dynamisk import → lazy chunk). Modell hämtas via `npm run pose:model` (gitignorad). Laddnings-/inferenstid loggas. Ingen fasdetektion än. Bygger + lintar rent; **ej fältverifierad**. Nästa: självhosta WASM, härled svingfaser ur handled-/axelbanor, utvärdera mot `frameExtractor.ts`. Detaljer i [pose-detection.md](pose-detection.md).
 
 ### Pågående: Voice-start
 - **Ström A, status:** A-1 + A-2 klara. A-1 `useMicTrigger` gör mic-capture + normaliserad RMS-energiström (0–1). A-2 lägger `EnergyTrigger` (`src/lib/audioTrigger.ts`, ren/testbar) + `useEnergyTrigger` (`src/hooks/useEnergyTrigger.ts`) ovanpå: adaptiv baslinje-trigger på amplitud-spik, cooldown, kalibrering, TTS-ack "Startar inspelning" + puls, läs/skrivbar config (`thresholdFactor`/`cooldownMs`/`absoluteFloor`). Bygger + lintar rent; **ej enhets-/fältverifierad** (iOS-tap + range-brus mäts i A-5, kräver Eriks telefon via `npm run dev`). Nästa: A-3 (integrera röststart i session-läge + `swingStartTimestamp`). Detaljer i [voice-start.md](voice-start.md).
@@ -60,7 +63,8 @@ Tunables överst i filen: `SWING_PRE_SEC`, `SWING_POST_SEC`, `MIN_STILL_SEC`, `S
 **Status:** Address-ankrad detektering bygger + lintar rent, men är **inte verifierad** på testklipp
 av användaren. Förväntat resultat på testklippet (9.58 s, impact ≈ 6–7 s): frames ~5.8–8.2 s.
 Om den ändå missar svingen → **eskalera till pose-estimering** (MediaPipe Tasks Vision / MoveNet
-in-browser) för att spåra klubba/händer och hitta impact direkt.
+in-browser) för att spåra klubba/händer och hitta impact direkt. **Denna eskalering utforskas nu i
+Ström D** (byggs vid sidan om `frameExtractor.ts`); se [pose-detection.md](pose-detection.md).
 
 **Verifiering:** `npm run dev` (ej build — SW-cache). `VITE_DEV_PREVIEW=true` visar bildrute-preview +
 🐞 Logs. Ladda upp klipp, filtrera modul `FrameExtractor`, läs WARN `"Swing detection summary"`
@@ -87,7 +91,7 @@ _(Övriga kritiska/olösta punkter fylls i allteftersom de uppstår.)_
 - `src/App.tsx` — vy-routing via `session`-storens `view` (ingen router).
 - `src/store/` — `session`, `settings`, `rules`, `onboarding`, `toast` (Zustand).
 - `src/hooks/` — `useCamera`, `useHistory`, `useRangeMode`, `useMicTrigger` (Ström A, mic-capture + RMS-energiström), `useEnergyTrigger` (Ström A, energi-trigger ovanpå A-1).
-- `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`, `audioTrigger` (Ström A, `EnergyTrigger`).
+- `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`, `audioTrigger` (Ström A, `EnergyTrigger`), `poseDetector`/`poseTrajectory`/`poseConnections` (Ström D, pose-estimering).
 - `src/components/` — `Camera/`, `Analysis/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
 - `src/data/ruleLibrary.ts` — fördefinierade regler + drills.
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).
