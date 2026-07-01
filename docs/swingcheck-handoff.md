@@ -21,6 +21,11 @@
 - Handsfri sessionsläge (autospela in nästa sving).
 - i18n (browser-/geo-detektering), tema + accentfärg, PWA-uppdateringsbanner.
 
+## Pågående
+
+### Pågående: Voice-start
+- **Ström A, status:** A-1 klar — `useMicTrigger` (`src/hooks/useMicTrigger.ts`) gör mic-capture + normaliserad RMS-energiström (0–1), ingen trigger-logik än. Bygger + lintar rent; **ej enhetsverifierad på iOS** (kräver Eriks telefon via `npm run dev`). Nästa: A-2 (energi-trigger med adaptiv tröskel). Detaljer i [voice-start.md](voice-start.md).
+
 ## Kritiskt olöst
 
 ### Swing detection
@@ -81,6 +86,7 @@ _(Övriga kritiska/olösta punkter fylls i allteftersom de uppstår.)_
 
 - `src/App.tsx` — vy-routing via `session`-storens `view` (ingen router).
 - `src/store/` — `session`, `settings`, `rules`, `onboarding`, `toast` (Zustand).
+- `src/hooks/` — `useCamera`, `useHistory`, `useRangeMode`, `useMicTrigger` (Ström A, mic-capture + RMS-energiström).
 - `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`.
 - `src/components/` — `Camera/`, `Analysis/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
 - `src/data/ruleLibrary.ts` — fördefinierade regler + drills.
