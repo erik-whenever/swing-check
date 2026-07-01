@@ -28,6 +28,44 @@ getUserMedia({audio})            // rå mic, all processing AV
 `EnergyTrigger` / `useEnergyTrigger` (A-2) ovanpå. Separationen gör att wake-word (A-4) kan byta ut
 detekteringslagret utan att röra capture-lagret.
 
+## Energi-trigger (A-2)
+
+`EnergyTrigger` (`src/lib/audioTrigger.ts`) är en ren, testbar klass utan React/audio-beroenden —
+man matar den ett energi-sampel per frame via `push(energy, now)` och den returnerar `true` exakt
+den frame en trigger avfyras. `useEnergyTrigger(onTrigger, config?)` lägger den ovanpå A-1, matar
+`mic.energy` per frame, och vid trigger: kallar `onTrigger`, säger TTS-ack **"Startar inspelning"**
+(sv, quick-röst) och höjer en `pulse`-flagga i 600 ms för visuell puls.
+
+### Varför adaptiv tröskel
+
+En range är akustiskt bullrig: **träffljud liknar klapp**, vind ger brus och absoluta nivåer
+driver med mic-gain och avstånd. En fast tröskel skulle antingen missa "start" i en högljudd bås
+eller trigga konstant i en tyst. Därför spårar vi en **rullande baslinje** (EMA av energin) och
+triggar bara på en spik som är BÅDE ett stort multipel av baslinjen OCH över ett absolut golv.
+Baslinjen **fryses medan en spik pågår** — annars drar ett högt "start" upp baslinjen och dövar
+just den jämförelse vi förlitar oss på. EMA:n är frame-rate-oberoende (α härleds ur verklig
+förfluten tid mot `baselineTauMs`), så ~1.5 s minne håller vid 30 såväl som 120 fps.
+
+### Tröskelparametrar (defaults i `DEFAULT_ENERGY_TRIGGER_CONFIG`)
+
+| Parameter | Default | Syfte |
+| --- | --- | --- |
+| `thresholdFactor` | `3.5` | Trigga när momentan energi > baslinje × faktor. |
+| `absoluteFloor` | `0.02` | Hårt golv — spik under denna råa energi triggar aldrig (dödar tyst-rums-jitter). |
+| `cooldownMs` | `2500` | Debounce efter trigger: ignorera fler spikar så länge (ett ord + eko → en trigger). |
+| `baselineTauMs` | `1500` | Tidskonstant för baslinjens EMA (~1.5 s kontext). |
+| `calibrationMs` | `1000` | Startfönster där baslinjen lärs in men ingen trigger tillåts. |
+
+`thresholdFactor`, `cooldownMs` och `absoluteFloor` exponeras live via `config`/`setConfig` på
+hooken (och `EnergyTrigger.setConfig`) för A-5-trimning och en framtida settings-toggle (A-4).
+
+### Känd svaghet (mäts i A-5)
+
+Energi-triggern **kan inte skilja ett ord från ett träffljud eller en vindby** — den ser bara
+amplitud. Falska positiv i range-brus är därför förväntade; detta är en MVP för att komma till
+fälttest, inte slutlösningen. A-4 (Porcupine wake-word) adresserar precisionen och A-5 mäter
+false positive/negative på riktig range och trimmar defaults ovan.
+
 ### Varför all ljud-processing stängs AV
 
 `echoCancellation`, `noiseSuppression` och `autoGainControl` är designade för röstsamtal och
@@ -78,7 +116,9 @@ const { start, stop, energy, isListening, permission } = useMicTrigger();
 - [x] **A-1 — Mikrofon-capture-hook (`useMicTrigger`)**
       Capture + normaliserad RMS-energiström. Ingen trigger-logik. Bygger + lintar rent.
       Ej enhetsverifierad på iOS ännu (kräver Eriks telefon; verifiera via `npm run dev`).
-- [ ] **A-2 — Energi-trigger med adaptiv tröskel (MVP)** — `EnergyTrigger` + `useEnergyTrigger`.
+- [x] **A-2 — Energi-trigger med adaptiv tröskel (MVP)** — `EnergyTrigger` (`lib/audioTrigger.ts`) +
+      `useEnergyTrigger` (`hooks/useEnergyTrigger.ts`). Adaptiv baslinje, spik-detektering, cooldown,
+      kalibrering, TTS-ack + puls, läs/skrivbar config. Bygger + lintar rent; range-brus mäts i A-5.
 - [ ] **A-3 — Integrera röststart med session-läge + `swingStartTimestamp`**.
 - [ ] **A-4 — Wake-word "start" via Porcupine + settings-toggle**.
 - [ ] **A-5 — Range-validering + tröskeltrimning** (kräver Eriks fälttest).

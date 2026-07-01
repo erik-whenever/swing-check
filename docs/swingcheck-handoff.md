@@ -24,7 +24,7 @@
 ## Pågående
 
 ### Pågående: Voice-start
-- **Ström A, status:** A-1 klar — `useMicTrigger` (`src/hooks/useMicTrigger.ts`) gör mic-capture + normaliserad RMS-energiström (0–1), ingen trigger-logik än. Bygger + lintar rent; **ej enhetsverifierad på iOS** (kräver Eriks telefon via `npm run dev`). Nästa: A-2 (energi-trigger med adaptiv tröskel). Detaljer i [voice-start.md](voice-start.md).
+- **Ström A, status:** A-1 + A-2 klara. A-1 `useMicTrigger` gör mic-capture + normaliserad RMS-energiström (0–1). A-2 lägger `EnergyTrigger` (`src/lib/audioTrigger.ts`, ren/testbar) + `useEnergyTrigger` (`src/hooks/useEnergyTrigger.ts`) ovanpå: adaptiv baslinje-trigger på amplitud-spik, cooldown, kalibrering, TTS-ack "Startar inspelning" + puls, läs/skrivbar config (`thresholdFactor`/`cooldownMs`/`absoluteFloor`). Bygger + lintar rent; **ej enhets-/fältverifierad** (iOS-tap + range-brus mäts i A-5, kräver Eriks telefon via `npm run dev`). Nästa: A-3 (integrera röststart i session-läge + `swingStartTimestamp`). Detaljer i [voice-start.md](voice-start.md).
 
 ## Kritiskt olöst
 
@@ -86,8 +86,8 @@ _(Övriga kritiska/olösta punkter fylls i allteftersom de uppstår.)_
 
 - `src/App.tsx` — vy-routing via `session`-storens `view` (ingen router).
 - `src/store/` — `session`, `settings`, `rules`, `onboarding`, `toast` (Zustand).
-- `src/hooks/` — `useCamera`, `useHistory`, `useRangeMode`, `useMicTrigger` (Ström A, mic-capture + RMS-energiström).
-- `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`.
+- `src/hooks/` — `useCamera`, `useHistory`, `useRangeMode`, `useMicTrigger` (Ström A, mic-capture + RMS-energiström), `useEnergyTrigger` (Ström A, energi-trigger ovanpå A-1).
+- `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`, `audioTrigger` (Ström A, `EnergyTrigger`).
 - `src/components/` — `Camera/`, `Analysis/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
 - `src/data/ruleLibrary.ts` — fördefinierade regler + drills.
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).
