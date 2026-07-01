@@ -13,17 +13,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, '..', 'public');
 
 // size = output pixel dimension, name = output filename.
+// maskable = full-bleed square with the emoji pulled into the safe zone so
+// Android/iOS mask shapes (circle, squircle, …) never clip it or expose corners.
 const TARGETS = [
   { size: 512, name: 'icon-512.png' },
   { size: 192, name: 'icon-192.png' },
   { size: 180, name: 'apple-touch-icon.png' },
+  { size: 512, name: 'icon-maskable-512.png', maskable: true },
 ];
 
 /** Build the icon markup for a given pixel size. */
-function iconHtml(size) {
-  const radius = Math.round(size * 0.22); // iOS-style rounded corners
-  const emojiSize = Math.round(size * 0.75); // emoji ≈ 75% of icon height
-  const border = Math.max(1.5, size / 128); // thin white border, scaled to size
+function iconHtml(size, maskable = false) {
+  // Maskable icons must fill the whole square (the OS applies the mask), so no
+  // rounded corners; and the emoji shrinks to sit inside the ~80% safe zone.
+  const radius = maskable ? 0 : Math.round(size * 0.22); // iOS-style rounded corners
+  const emojiSize = Math.round(size * (maskable ? 0.55 : 0.75));
+  const border = maskable ? 0 : Math.max(1.5, size / 128); // thin white border, scaled to size
 
   return `<!doctype html>
 <html>
@@ -76,14 +81,15 @@ function iconHtml(size) {
 const browser = await puppeteer.launch({ headless: true });
 try {
   const page = await browser.newPage();
-  for (const { size, name } of TARGETS) {
+  for (const { size, name, maskable = false } of TARGETS) {
     await page.setViewport({ width: size, height: size, deviceScaleFactor: 1 });
-    await page.setContent(iconHtml(size), { waitUntil: 'domcontentloaded' });
+    await page.setContent(iconHtml(size, maskable), { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => document.fonts.ready);
     const el = await page.$('.icon');
-    // omitBackground keeps the area outside the rounded corners transparent.
-    await el.screenshot({ path: join(publicDir, name), omitBackground: true });
-    console.log(`wrote public/${name} (${size}x${size})`);
+    // omitBackground keeps the area outside the rounded corners transparent; a
+    // maskable icon must stay fully opaque so the OS mask has something to clip.
+    await el.screenshot({ path: join(publicDir, name), omitBackground: !maskable });
+    console.log(`wrote public/${name} (${size}x${size})${maskable ? ' [maskable]' : ''}`);
   }
 } finally {
   await browser.close();

@@ -72,7 +72,7 @@ _(Övriga kritiska/olösta punkter fylls i allteftersom de uppstår.)_
 
 - **RLS på `swing_records` är på men saknar policies** → alla läsningar nekas, faller tyst tillbaka till IndexedDB. (Ström B)
 - **Ingen autentisering** — Supabase-rader har `user_id = null`. (Ström B)
-- **App-ikon är emoji** (🏌️) med renderingsrisk per plattform. (Ström C)
+- ~~App-ikon är emoji (🏌️) med renderingsrisk per plattform.~~ **Löst (C-1):** emoji renderas till statiska PNG:er vid bygge (ingen runtime-varians); dedikerad full-bleed maskable-ikon tillagd. (Ström C)
 - **iOS Safari PWA ej verifierad** (installation/standalone/splash/safe-area). (Ström C)
 - **Okommitterad swingdetektering** i working tree + kvarvarande tuning-WARN-loggar (se ovan).
 
