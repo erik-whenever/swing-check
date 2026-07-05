@@ -22,6 +22,16 @@ export interface PoseSample {
   landmarks: NormalizedLandmark[];
 }
 
+// detectForVideo in VIDEO mode demands strictly increasing timestamps for the
+// WHOLE lifetime of the (singleton) PoseLandmarker — not just within one clip.
+// Resetting to 0 for each new video makes the graph reject frames ("current
+// minimum expected timestamp is N but received 0"). So we track the last
+// timestamp handed to the landmarker at module scope (same lifetime as the
+// singleton) and shift each new clip's timeline to start after it. Within a
+// clip the real frame spacing (~66 ms) is preserved so any temporal tracking
+// stays sane; the absolute offset between clips is irrelevant to detection.
+let lastGlobalTsMs = -1;
+
 export async function extractPoseTrajectory(
   videoBlob: Blob,
   options?: { onProgress?: (fraction: number) => void },
@@ -58,18 +68,19 @@ export async function extractPoseTrajectory(
     const samples: PoseSample[] = [];
     let detected = 0;
     let totalInferMs = 0;
-    // detectForVideo requires strictly increasing timestamps; we always seek
-    // forward, but guard against zero-width intervals collapsing two samples
-    // onto the same integer millisecond.
-    let lastTsMs = -1;
+    // Shift this clip so its first frame lands just after everything the
+    // landmarker has already seen (see lastGlobalTsMs above). +1 ms gap.
+    const clipBaseMs = lastGlobalTsMs + 1;
 
     const t0 = performance.now();
     for (let i = 0; i < count; i++) {
       const t = Math.min(duration - 0.001, i * interval);
       await seekTo(video, t);
-      let tsMs = Math.round(t * 1000);
-      if (tsMs <= lastTsMs) tsMs = lastTsMs + 1;
-      lastTsMs = tsMs;
+      // Real frame time offset onto the global timeline; force strictly
+      // increasing in case two samples round to the same millisecond.
+      let tsMs = clipBaseMs + Math.round(t * 1000);
+      if (tsMs <= lastGlobalTsMs) tsMs = lastGlobalTsMs + 1;
+      lastGlobalTsMs = tsMs;
 
       const inferStart = performance.now();
       const result = landmarker.detectForVideo(video, tsMs);
