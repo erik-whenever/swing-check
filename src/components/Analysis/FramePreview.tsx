@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '../../store/session';
 import { FrameLightbox } from './FrameLightbox';
-import { POSE_CONNECTIONS } from '../../lib/poseConnections';
+import { SkeletonOverlay } from './SkeletonOverlay';
+import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
-
-/** Landmark below this visibility is treated as unreliable and not drawn. */
-const MIN_VISIBILITY = 0.5;
 
 export function FramePreview() {
   const meta = useSessionStore((s) => s.currentFrameMeta);
@@ -129,6 +127,7 @@ export function FramePreview() {
                 {DEV_PREVIEW && poseSamples && (
                   <SkeletonOverlay
                     sample={nearestSample(poseSamples, frame.timeSec)}
+                    fit="cover"
                   />
                 )}
                 {/* Labels */}
@@ -196,73 +195,11 @@ export function FramePreview() {
         <FrameLightbox
           frames={meta}
           index={lightboxIndex}
+          poseSamples={DEV_PREVIEW ? poseSamples : null}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
         />
       )}
     </div>
-  );
-}
-
-/** The pose sample whose timestamp is closest to `timeSec` (undefined → none). */
-function nearestSample(
-  samples: PoseSample[],
-  timeSec: number | undefined,
-): PoseSample | null {
-  if (samples.length === 0 || timeSec === undefined) return null;
-  let best: PoseSample | null = null;
-  let bestDist = Infinity;
-  for (const s of samples) {
-    const d = Math.abs(s.t - timeSec);
-    if (d < bestDist) {
-      bestDist = d;
-      best = s;
-    }
-  }
-  return best;
-}
-
-/**
- * Draws the MediaPipe pose skeleton over a frame. Landmarks are normalized
- * (0–1) to the source video, so the SVG uses a 0–100 viewBox with
- * `xMidYMid slice` to match the img's `object-cover` cropping. Strokes/points
- * use non-scaling units so they stay crisp regardless of tile size.
- */
-function SkeletonOverlay({ sample }: { sample: PoseSample | null }) {
-  const landmarks = sample?.landmarks;
-  if (!landmarks || landmarks.length === 0) return null;
-
-  const visible = (i: number) => {
-    const p = landmarks[i];
-    return p && (p.visibility === undefined || p.visibility >= MIN_VISIBILITY);
-  };
-
-  return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      {POSE_CONNECTIONS.map(([a, b], i) =>
-        visible(a) && visible(b) ? (
-          <line
-            key={i}
-            x1={landmarks[a].x * 100}
-            y1={landmarks[a].y * 100}
-            x2={landmarks[b].x * 100}
-            y2={landmarks[b].y * 100}
-            stroke="#34d399"
-            strokeWidth={2}
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null,
-      )}
-      {landmarks.map((p, i) =>
-        visible(i) ? (
-          <circle key={i} cx={p.x * 100} cy={p.y * 100} r={0.9} fill="#fbbf24" />
-        ) : null,
-      )}
-    </svg>
   );
 }

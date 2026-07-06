@@ -31,10 +31,14 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
   pose). Loggar snitt-inferenstid/frame.
 - **`src/lib/poseConnections.ts`** — MediaPipes standard-topologi (33 leder) som `[start,end]`-par,
   lokalt definierad så overlayn slipper statiskt dra in hela tasks-vision-modulen i huvudbundlen.
+- **`src/components/Analysis/SkeletonOverlay.tsx`** — delad overlay-komponent (SVG, `0–100` viewBox).
+  `fit='cover'` → `xMidYMid slice` (grid), `fit='contain'` → `none` (lightbox). Bågar ritas som mörk
+  kontur + ljus topp så de syns mot valfri bakgrund. `lib/poseSampling.ts` → `nearestSample(t)`.
 - **`src/components/Analysis/FramePreview.tsx`** — bakom `VITE_DEV_PREVIEW`: kör trajektorian på
-  `currentVideoBlob` (dynamisk `import()` → egen lazy chunk), ritar skelett-overlay (SVG, `0–100`
-  viewBox, `xMidYMid slice` matchar `object-cover`) på varje frame via närmaste pose-sampel i tid.
-  Statusrad visar hur många frames som fick en pose.
+  `currentVideoBlob` (dynamisk `import()` → egen lazy chunk), ritar skelett-overlay på varje
+  grid-frame via närmaste pose-sampel i tid. Statusrad visar hur många frames som fick en pose.
+- **`src/components/Analysis/FrameLightbox.tsx`** — samma overlay vid inzoomad granskning
+  ("en och en"); wrappern sätts till bildens aspect-ratio så overlayn matchar `object-contain`.
 
 **Ingen fasdetektion i pass 1** — bara detektera + visualisera.
 
