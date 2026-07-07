@@ -23,6 +23,9 @@
 
 ## Pågående
 
+### Roadmap (2026-07-07)
+- [ROADMAP.md](ROADMAP.md) sekvenserar G1 (personligt rangebruk) → G2 (instruktörssamarbete) med explicita beslutsforkar: pose time-boxad till 2026-07-31 (annars trim-slider), G1-scopefrys vid fältverifierad fångst (senast 2026-08-15), E-1 resolution-cap villkorslöst, WASM-självhost in i D-2. Prioritetsordning: A-3 → A-5/C-2 → E-1 → D-2/D-3 → B → G2. Pose omklassad till primärt G2-tillgång; G1-fångsten ankras på rösttriggern.
+
 ### Pågående: Pose-estimering (Ström D)
 - **Status:** D-1 pass 1 klart. `@mediapipe/tasks-vision` integrerat **vid sidan om** `frameExtractor.ts` (rör den ej). `lib/poseDetector.ts` (singleton, GPU→CPU-fallback, WASM från jsDelivr-CDN), `lib/poseTrajectory.ts` (seekar dold video ~15 fps, 33 punkter/sampel), `lib/poseConnections.ts`. `FramePreview.tsx` ritar skelett-overlay bakom `VITE_DEV_PREVIEW` (dynamisk import → lazy chunk). Modell hämtas via `npm run pose:model` (gitignorad). Laddnings-/inferenstid loggas. Ingen fasdetektion än. Bygger + lintar rent; **ej fältverifierad**. Nästa: självhosta WASM, härled svingfaser ur handled-/axelbanor, utvärdera mot `frameExtractor.ts`. Detaljer i [pose-detection.md](pose-detection.md).
 
