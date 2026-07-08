@@ -1,11 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../../store/session';
 import { FrameLightbox } from './FrameLightbox';
 import { SkeletonOverlay } from './SkeletonOverlay';
 import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
+import type { FrameMeta } from '../../lib/frameExtractor';
+import { detectSwingPhases } from '../../lib/posePhases';
+import {
+  selectPhaseWeightedFrames,
+  type PhaseWeightedSelection,
+} from '../../lib/poseFrameSelection';
+import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
+import { createLogger } from '../../lib/logger';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
+const log = createLogger('PoseSelect');
+
+type Strategy = 'even' | 'phase-weighted';
 
 export function FramePreview() {
   const meta = useSessionStore((s) => s.currentFrameMeta);
@@ -21,6 +32,19 @@ export function FramePreview() {
   // skeleton on each extracted frame (nearest sample by timestamp).
   const [poseSamples, setPoseSamples] = useState<PoseSample[] | null>(null);
   const [poseStatus, setPoseStatus] = useState<'idle' | 'running' | 'done' | 'error'>(
+    'idle',
+  );
+
+  // Pass 2 A/B: selection strategy. EVEN (Pass 1, from the store) is the default;
+  // phase-weighted is the pose-driven experiment. This is preview-only — "Send to
+  // Claude" always ships the store's even frames until Pass 3 wires it up.
+  const [strategy, setStrategy] = useState<Strategy>('even');
+  // Cache the grabbed frames against the selection they were built from, so a new
+  // clip (which yields a fresh phaseSel) invalidates them without a reset effect.
+  const [pw, setPw] = useState<{ selRef: PhaseWeightedSelection; frames: FrameMeta[] } | null>(
+    null,
+  );
+  const [pwStatus, setPwStatus] = useState<'idle' | 'grabbing' | 'done' | 'error'>(
     'idle',
   );
 
@@ -48,8 +72,72 @@ export function FramePreview() {
     };
   }, [videoBlob, meta.length]);
 
-  const maxScore = Math.max(...meta.map((m) => m.score), 1);
-  const swingStartIndex = meta.findIndex((m) => m.isSwingStart);
+  // Pure phase read + allocation, recomputed when the trajectory changes. Cheap
+  // (no DOM), so we do it eagerly; frame grabbing is deferred until requested.
+  const phaseSel = useMemo<PhaseWeightedSelection | null>(() => {
+    if (!poseSamples || poseSamples.length === 0) return null;
+    const phases = detectSwingPhases(poseSamples);
+    const budget = meta.length || 10;
+    const spanStart = poseSamples[0].t;
+    const spanEnd = poseSamples[poseSamples.length - 1].t;
+    return selectPhaseWeightedFrames(phases, budget, spanStart, spanEnd);
+  }, [poseSamples, meta.length]);
+
+  // Grab the phase-weighted frames lazily, the first time the strategy is
+  // switched on for this clip. Logs the verification summary (checkpoint 2).
+  useEffect(() => {
+    if (strategy !== 'phase-weighted' || !phaseSel || !videoBlob) return;
+    if (pw?.selRef === phaseSel) return; // already grabbed for this selection
+    let cancelled = false;
+    (async () => {
+      setPwStatus('grabbing');
+      try {
+        const times = phaseSel.picks.map((p) => p.t);
+        const b64s = await grabFramesAtTimes(videoBlob, times);
+        if (cancelled) return;
+        const built: FrameMeta[] = phaseSel.picks.map((p, i) => ({
+          b64: b64s[i],
+          score: 0, // pose path has no pixel-diff score; bar is hidden below
+          isAddress: p.phase === 'address',
+          isSwingStart: i === 0,
+          candidateIndex: i,
+          phase: p.phase,
+          timeSec: Number(p.t.toFixed(2)),
+        }));
+        setPw({ selRef: phaseSel, frames: built });
+        setPwStatus('done');
+        const ph = phaseSel.phases;
+        log.warn('Phase-weighted selection', {
+          usedPhaseWeighting: phaseSel.usedPhaseWeighting,
+          fellBackToEven: phaseSel.fellBackToEven,
+          reason: phaseSel.reason,
+          trackedWrist: ph.trackedWrist,
+          visibleFrac: Number(ph.visibleFrac.toFixed(2)),
+          boundariesSec: {
+            addressRef: Number(ph.addressRef.toFixed(2)),
+            backswingStart: Number(ph.backswingStart.toFixed(2)),
+            top: Number(ph.top.toFixed(2)),
+            impact: Number(ph.impact.toFixed(2)),
+            followStart: Number(ph.followThroughStart.toFixed(2)),
+          },
+          allocation: phaseSel.allocation,
+          frameTimesSec: phaseSel.picks.map((p) => Number(p.t.toFixed(2))),
+        });
+      } catch {
+        if (!cancelled) setPwStatus('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [strategy, phaseSel, videoBlob, pw]);
+
+  const pwMeta = pw?.selRef === phaseSel ? pw.frames : null;
+  const activeMeta = strategy === 'phase-weighted' ? (pwMeta ?? []) : meta;
+  const showMotion = strategy === 'even';
+
+  const maxScore = Math.max(...activeMeta.map((m) => m.score), 1);
+  const swingStartIndex = activeMeta.findIndex((m) => m.isSwingStart);
 
   const handleSend = () => {
     setIsAnalyzing(true);
@@ -89,10 +177,36 @@ export function FramePreview() {
           </p>
         )}
 
+        {/* Pass 2 A/B: selection strategy toggle (dev only) */}
+        {DEV_PREVIEW && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              {(['even', 'phase-weighted'] as Strategy[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStrategy(s)}
+                  disabled={s === 'phase-weighted' && !phaseSel}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    strategy === s
+                      ? 'bg-accent-press text-white'
+                      : 'bg-raised hover:bg-raised-hi disabled:opacity-40'
+                  }`}
+                >
+                  {s === 'even' ? 'Even (Pass 1)' : 'Phase-weighted (Pass 2)'}
+                </button>
+              ))}
+            </div>
+            {strategy === 'phase-weighted' && (
+              <PhaseSummary sel={phaseSel} status={pwStatus} />
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-muted">
-          {meta.length} frames selected from recording. Swing start detected at
-          candidate frame #{meta.find((m) => m.isSwingStart)?.candidateIndex ?? '?'}.
-          Tap any frame to zoom and inspect.
+          {activeMeta.length} frames selected from recording. Swing start detected at
+          candidate frame #
+          {activeMeta.find((m) => m.isSwingStart)?.candidateIndex ?? '?'}. Tap any frame
+          to zoom and inspect.
         </p>
 
         {swingStartIndex >= 0 && (
@@ -106,7 +220,7 @@ export function FramePreview() {
 
         {/* Frame grid */}
         <div className="grid grid-cols-2 gap-2">
-          {meta.map((frame, i) => (
+          {activeMeta.map((frame, i) => (
             <button
               key={i}
               onClick={() => setLightboxIndex(i)}
@@ -149,27 +263,29 @@ export function FramePreview() {
                 </span>
               </div>
 
-              {/* Motion score bar */}
-              <div className="bg-surface px-2 py-1.5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] text-muted">motion</span>
-                  <span className="text-[10px] font-mono text-fg-dim">
-                    {frame.score.toFixed(1)}
-                  </span>
+              {/* Motion score bar (even/Pass 1 only — pose path has no pixel score) */}
+              {showMotion && (
+                <div className="bg-surface px-2 py-1.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-muted">motion</span>
+                    <span className="text-[10px] font-mono text-fg-dim">
+                      {frame.score.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-raised rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        frame.score / maxScore > 0.6
+                          ? 'bg-accent-hover'
+                          : frame.score / maxScore > 0.3
+                            ? 'bg-yellow-500'
+                            : 'bg-faint'
+                      }`}
+                      style={{ width: `${(frame.score / maxScore) * 100}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1 bg-raised rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      frame.score / maxScore > 0.6
-                        ? 'bg-accent-hover'
-                        : frame.score / maxScore > 0.3
-                          ? 'bg-yellow-500'
-                          : 'bg-faint'
-                    }`}
-                    style={{ width: `${(frame.score / maxScore) * 100}%` }}
-                  />
-                </div>
-              </div>
+              )}
             </button>
           ))}
         </div>
@@ -191,15 +307,55 @@ export function FramePreview() {
         </div>
       </div>
 
-      {lightboxIndex !== null && (
+      {lightboxIndex !== null && activeMeta[lightboxIndex] && (
         <FrameLightbox
-          frames={meta}
+          frames={activeMeta}
           index={lightboxIndex}
           poseSamples={DEV_PREVIEW ? poseSamples : null}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
         />
       )}
+    </div>
+  );
+}
+
+/** Dev verification surface for the phase-weighted read (checkpoint 2). */
+function PhaseSummary({
+  sel,
+  status,
+}: {
+  sel: PhaseWeightedSelection | null;
+  status: 'idle' | 'grabbing' | 'done' | 'error';
+}) {
+  if (!sel) return <p className="text-[10px] text-faint">pose read pending…</p>;
+  const alloc = Object.entries(sel.allocation)
+    .map(([k, v]) => `${k}:${v}`)
+    .join('  ');
+  const p = sel.phases;
+  const s = (n: number) => n.toFixed(2);
+  return (
+    <div className="rounded-lg bg-surface px-3 py-2 space-y-1 text-[10px] font-mono text-fg-dim">
+      <div>
+        {sel.usedPhaseWeighting ? (
+          <span className="text-emerald-400">phase-weighted</span>
+        ) : (
+          <span className="text-amber-400">
+            fell back to even ({sel.reason ?? 'ambiguous'})
+          </span>
+        )}
+        {status === 'grabbing' && <span className="text-sky-400"> · grabbing…</span>}
+        {status === 'error' && <span className="text-red-400"> · grab failed</span>}
+      </div>
+      <div>
+        bounds: bs {s(p.backswingStart)} · top {s(p.top)} ·{' '}
+        <span className="text-emerald-300">impact {s(p.impact)}</span> · ft{' '}
+        {s(p.followThroughStart)}
+      </div>
+      <div>
+        wrist: {p.trackedWrist} · vis {p.visibleFrac.toFixed(2)}
+      </div>
+      <div>alloc: {alloc || '—'}</div>
     </div>
   );
 }

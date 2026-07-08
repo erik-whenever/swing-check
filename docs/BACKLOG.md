@@ -245,7 +245,20 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 
 **Nästa pass:** D-2 och D-3 nedan (ersätter tidigare lösa "nästa pass"-rad).
 
-### [ ] D-2 — Självhosta WASM/modell + härled svingfaser
+### [~] D-2 — Självhosta WASM/modell + härled svingfaser
+
+> **Delvis (Pass 2, del b klar):** `lib/posePhases.ts` (`detectSwingPhases`) härleder
+> `{ addressRef, backswingStart, top, impact, followThroughStart }` ur handledsbanorna (landmärke
+> 15/16, väljer bäst spårad wrist, ocklusions-fallback, interpolering). `lib/poseFrameSelection.ts`
+> (`selectPhaseWeightedFrames`) lägger fas-viktad allokering (tunbara `PHASE_WEIGHTS`; impact får
+> resten, min 2, tätt kluster; graceful fallback till jämn fördelning + `usedPhaseWeighting`-flagga).
+> `lib/poseFrameGrab.ts` greppar frames för A/B-visualisering. `FramePreview.tsx`: A/B-toggle
+> Even↔Phase-weighted (default even), summary med fas-gränser/allokering/fallback + `PoseSelect`
+> WARN-logg. Pose körs INTE om (återanvänder previewens trajektoria). `frameExtractor.ts` orörd;
+> phase-weighting når EJ default-vägen (pass 3, gated på Eriks manuella verifiering). Bygger + lintar
+> rent (nya filer); **ej fältverifierad**. Se `docs/pose-detection.md` (Arkitektur pass 2).
+> **Återstår:** (a) självhosta WASM-runtime + modell i egen origin + SW-precache (offline-först);
+> enhetstest på platå-/vändpunkts-/impact-logiken.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 
