@@ -35,6 +35,13 @@ const IMPACT_MIN_FRAMES = 2;
 const MIN_FRAME_SPACING_SEC = 0.06;
 /** Merge picks closer than this (avoids grabbing the same source frame twice). */
 const DEDUPE_SEC = 0.03;
+/**
+ * If top → impact is shorter than this, the phase read has collapsed (top,
+ * impact and follow-through pile onto one instant). The per-phase windows are
+ * then meaningless — a proportional split would starve the zero-width impact/top
+ * windows to nothing. We refuse them entirely and fall back to uniform-in-time.
+ */
+const DEGENERATE_DOWNSWING_SEC = 0.12;
 
 export interface FramePick {
   t: number;
@@ -65,13 +72,26 @@ export function selectPhaseWeightedFrames(
   spanStart: number,
   spanEnd: number,
 ): PhaseWeightedSelection {
-  if (!phases.confident) {
+  // Fall back when the read is untrusted OR the top→impact window has collapsed.
+  // Either way the phase windows are unusable, so we THROW THEM OUT and spread
+  // the budget UNIFORMLY IN TIME over the swing window — never over the (possibly
+  // zero-width) phase windows. Even spacing over the active window is guaranteed
+  // to sample the impact region, which is the whole point of the fallback.
+  const degenerate = phases.impact - phases.top < DEGENERATE_DOWNSWING_SEC;
+  if (!phases.confident || degenerate) {
+    // Prefer [backswingStart, spanEnd] to skip the dead pre-swing address hold
+    // (which would otherwise waste half the budget on a static setup). Use the
+    // full span only when backswingStart isn't a usable interior time.
+    const bs = phases.backswingStart;
+    const winStart = bs > spanStart && bs < spanEnd ? bs : spanStart;
     return {
-      ...evenFallback(budget, spanStart, spanEnd),
+      ...evenFallback(budget, winStart, spanEnd),
       usedPhaseWeighting: false,
       fellBackToEven: true,
       phases,
-      reason: phases.reason ?? 'pose phases not confident',
+      reason:
+        phases.reason ??
+        (degenerate ? 'degenerate top→impact window' : 'pose phases not confident'),
     };
   }
 

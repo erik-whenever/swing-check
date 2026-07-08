@@ -29,6 +29,13 @@ const MIN_VERTICAL_EXCURSION = 0.08;
 const IMPACT_HEIGHT_TOL = 0.12;
 /** Need at least this fraction of samples with a usable wrist to trust the read. */
 const MIN_VISIBLE_FRAC = 0.5;
+/**
+ * A real downswing (top → impact) is ~0.2–0.3 s. If the detected impact lands
+ * sooner than this after top, the read has collapsed (e.g. "top" was actually the
+ * follow-through finish, where the hands also sit high) → not confident, fall back
+ * to uniform selection instead of emitting a garbage impact cluster.
+ */
+const MIN_DOWNSWING_SEC = 0.12;
 
 export interface PoseSwingPhases {
   /** Which wrist drove the read (better-tracked of 15/16). */
@@ -49,6 +56,20 @@ export interface PoseSwingPhases {
   addressY: number;
   apexY: number;
   peakSpeed: number;
+  /** Per-frame trace + picked indices (STEG 1 instrumentation), when available. */
+  debug?: PhaseDebug;
+}
+
+/** Per-sample instrumentation so the dev log can show WHERE the real speed peak
+ *  lies vs where the detector placed impact. `vy` is signed vertical speed
+ *  (normalized units/s), positive = moving DOWN toward address height. */
+export interface PhaseDebug {
+  frames: { t: number; y: number; vy: number; speed: number }[];
+  addrEndIdx: number;
+  bsIdx: number;
+  topIdx: number;
+  impactIdx: number;
+  impactReason: string;
 }
 
 interface Vec {
@@ -109,10 +130,14 @@ export function detectSwingPhases(samples: PoseSample[]): PoseSwingPhases {
   const pos = smoothVec(interpolate(raw), SMOOTH_HALF);
 
   // ── Speed (normalized units / second) ──────────────────────────────────────
+  // total = magnitude of wrist displacement; vy = signed vertical component
+  // (positive = descending toward address height, since y grows downward).
   const speed = new Array<number>(n).fill(0);
+  const vy = new Array<number>(n).fill(0);
   for (let i = 1; i < n; i++) {
     const dt = t[i] - t[i - 1] || sampleDt;
     speed[i] = dist(pos[i], pos[i - 1]) / dt;
+    vy[i] = (pos[i].y - pos[i - 1].y) / dt;
   }
   const speedSm = smooth(speed, SMOOTH_HALF);
   const peakSpeed = Math.max(...speedSm);
@@ -182,28 +207,63 @@ export function detectSwingPhases(samples: PoseSample[]): PoseSwingPhases {
     });
   }
 
-  // ── Impact: max hand speed after top, and back near address height ─────────
-  let impactIdx = topIdx;
+  // ── Impact: fastest wrist AFTER top while DESCENDING back toward address ────
+  // OSÄKER: the apex (min y) above can latch onto the follow-through FINISH, not
+  // the top of backswing, because a golf finish also puts the hands high. Gating
+  // the impact search on downward motion (vy > 0) keeps the search inside the
+  // real downswing; an unconstrained max-speed search would otherwise drift to a
+  // spurious peak at the clip end. If nothing descends after "top", the read is
+  // bogus → confident=false → uniform fallback. (Confirm which case via STEG 1.)
+  let impactIdx = -1;
   let maxSpeed = -1;
   for (let i = topIdx + 1; i < n; i++) {
+    if (vy[i] <= 0) continue; // not descending toward address height
     if (speedSm[i] > maxSpeed) {
       maxSpeed = speedSm[i];
       impactIdx = i;
     }
   }
-  const nearAddressHeight = Math.abs(pos[impactIdx].y - addressY) <= IMPACT_HEIGHT_TOL;
+
+  const buildDebug = (impactReason: string, chosen: number): PhaseDebug => ({
+    frames: pos.map((p, i) => ({ t: t[i], y: p.y, vy: vy[i], speed: speedSm[i] })),
+    addrEndIdx: addrEnd,
+    bsIdx,
+    topIdx,
+    impactIdx: chosen,
+    impactReason,
+  });
+
+  if (impactIdx < 0) {
+    // Never descended after the apex → "top" was almost certainly the finish.
+    return fail('no descending motion after top', {
+      trackedWrist,
+      visibleFrac,
+      addressY,
+      apexY,
+      peakSpeed,
+      top: t[topIdx],
+      backswingStart: t[bsIdx],
+      addressRef: t[addrEnd],
+      debug: buildDebug('no descending frame after top', topIdx),
+    });
+  }
 
   // ── Follow-through start: just after impact ────────────────────────────────
   const ftIdx = Math.min(impactIdx + 1, n - 1);
 
+  const nearAddressHeight = Math.abs(pos[impactIdx].y - addressY) <= IMPACT_HEIGHT_TOL;
+  const downswingSec = t[impactIdx] - t[topIdx];
+  const enoughDownswing = downswingSec >= MIN_DOWNSWING_SEC;
   const ordered =
     addrEnd < bsIdx && bsIdx < topIdx && topIdx < impactIdx && impactIdx < n - 1;
-  const confident = ordered && nearAddressHeight;
+  const confident = ordered && nearAddressHeight && enoughDownswing;
   const reason = confident
     ? undefined
     : !ordered
       ? 'phase ordering broke down'
-      : 'impact not near address height';
+      : !enoughDownswing
+        ? 'downswing too short (impact collapsed onto top)'
+        : 'impact not near address height';
 
   return {
     trackedWrist,
@@ -219,6 +279,11 @@ export function detectSwingPhases(samples: PoseSample[]): PoseSwingPhases {
     addressY,
     apexY,
     peakSpeed,
+    debug: buildDebug(
+      `max descending speed after top (dsSec=${downswingSec.toFixed(2)}, ` +
+        `nearAddr=${nearAddressHeight})`,
+      impactIdx,
+    ),
   };
 }
 

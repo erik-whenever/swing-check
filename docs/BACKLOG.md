@@ -257,8 +257,15 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > WARN-logg. Pose körs INTE om (återanvänder previewens trajektoria). `frameExtractor.ts` orörd;
 > phase-weighting når EJ default-vägen (pass 3, gated på Eriks manuella verifiering). Bygger + lintar
 > rent (nya filer); **ej fältverifierad**. Se `docs/pose-detection.md` (Arkitektur pass 2).
+> **Pass 2-buggfix (2026-07-08):** verkligt klipp visade `top`/`impact`/`ft` kollapsade till
+> klippslutet (ex: top 3.00 · impact 3.07 · ft 3.07) → impact-frames saknades i fallbacken.
+> Rot (leadhypotes, verifieras via ny `debug`-logg): apex-sökningen (min y) låste på
+> follow-through-**finishen** (händer högt), inte toppen av baksvingen. Fix: (STEG 1) per-sampel
+> `{t,y,vy,speed}`-trace i `PoseSelect`-loggen; (STEG 2) fallback kastar fas-fönstren och sprider
+> uniformt i tid över `[backswingStart, spanEnd]`; (STEG 3) impact-gate på nedåtrörelse (`vy>0`)
+> + minsta downswing-tid `MIN_DOWNSWING_SEC` 0.12 s. Bygger + lintar rent (ändrade filer).
 > **Återstår:** (a) självhosta WASM-runtime + modell i egen origin + SW-precache (offline-först);
-> enhetstest på platå-/vändpunkts-/impact-logiken.
+> enhetstest på platå-/vändpunkts-/impact-logiken; fältbekräfta finish-vs-top-roten via `debug`-loggen.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 

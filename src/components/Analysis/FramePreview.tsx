@@ -123,6 +123,31 @@ export function FramePreview() {
           allocation: phaseSel.allocation,
           frameTimesSec: phaseSel.picks.map((p) => Number(p.t.toFixed(2))),
         });
+        // STEG 1: per-sample dump so the REAL speed peak is visible vs where the
+        // detector placed impact. Read `impactReason` + scan `frames` for the max
+        // `spd` (and where `vy` flips from up to down) to locate true impact.
+        if (ph.debug) {
+          const d = ph.debug;
+          log.warn('Phase per-frame trace', {
+            addressY: Number(ph.addressY.toFixed(3)),
+            apexY: Number(ph.apexY.toFixed(3)),
+            peakSpeed: Number(ph.peakSpeed.toFixed(2)),
+            picked: {
+              addrEndIdx: d.addrEndIdx,
+              bsIdx: d.bsIdx,
+              topIdx: d.topIdx,
+              impactIdx: d.impactIdx,
+              impactReason: d.impactReason,
+            },
+            frames: d.frames.map((f, i) => ({
+              i,
+              t: Number(f.t.toFixed(2)),
+              y: Number(f.y.toFixed(3)),
+              vy: Number(f.vy.toFixed(2)),
+              spd: Number(f.speed.toFixed(2)),
+            })),
+          });
+        }
       } catch {
         if (!cancelled) setPwStatus('error');
       }
