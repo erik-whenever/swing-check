@@ -42,7 +42,46 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 
 **Ingen fasdetektion i pass 1** — bara detektera + visualisera.
 
-## Arkitektur (pass 2) — fas-viktad frame-selektion
+## Arkitektur (pass 3) — envelope-inversion *(ersätter pass 2 som primär pose-väg)*
+
+> **[ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md).** Tre rundor heuristik-patchning
+> visade att fas-viktad klustring som **primär** väg är skör: root cause är att global min-y låser på
+> follow-through-**finishen**, inte baksvingstoppen — och finishen är i själva verket den *mest*
+> tillförlitliga landmarken (globalt vertikalt apex i en fullföljd sving). Vi inverterar: robust
+> envelope + uniform-inom-svingen som baslinje, impact-kluster endast som **confident-only polish**.
+> Värsta fall blir "uniform över svingen" (användbart), inte "missad impact" (värdelöst).
+
+- **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
+  handledsbanan (landmärke 15/16, bäst spårade wristen):
+  - **`start`** = sustained wrist-motion-onset efter address-platån (samma som förr).
+  - **`finish`** = globalt min-y efter start **med settle-krav** (`SETTLE_SPEED_FRAC` av peak, i
+    `SETTLE_MIN_FRAMES` samplen efter apex). Finishen är ett *hållet* platå → tas som **tidigaste**
+    frame inom `APEX_PLATEAU_TOL` av globala min-y (rå argmin driver till sista platå-framen på
+    flyttalsbrus allena → död svans).
+  - **Avklippt-skydd:** ingen settle-finish (video slutar mitt i rörelse) → envelope-slut = sista
+    frame med signifikant wrist-rörelse (`clippedTail=true`), inte klippslut.
+  - **impact (confident-only)** = snabbaste **nedåtrörelse** (`vy>0`) tillbaka nära address-höjd
+    (`IMPACT_HEIGHT_TOL`), sökt inom envelopen före finishen; **top** = apex före den impacten
+    (follow-through ligger efter impact → förorenar ej). Confident kräver `MIN_VERTICAL_EXCURSION`
+    (verklig baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`. Annars `impact=null` + `impactReason`.
+  - Ren + testbar; returnerar `{valid, startSec, finishSec, clippedTail, impact|null, impactReason}` +
+    diagnostik (`trackedWrist`, `visibleFrac`, `addressY`, `apexY`, `finishY`, `peakSpeed`) + `debug`
+    (per-sampel `{t,y,vy,speed}` + valda index).
+- **`src/lib/poseEnvelopeSelection.ts`** — `selectEnvelopeFrames(envelope, budget, span…)`.
+  **STEG 2 (baslinje):** hela budgeten uniformt i **tid** över `[start, finish]` (endpoints →
+  address + finish täcks gratis). **STEG 3 (polish):** endast om `envelope.impact` är confident
+  omfördelas `IMPACT_CLUSTER_BUDGET_FRAC` (0.4) av budgeten till ett tätt kluster kring impact
+  (spacing `max(IMPACT_CLUSTER_SPACING_SEC 0.06, sampleDt)`), resten kvar som uniform baslinje så
+  address + finish förblir täckta. `impactClusterApplied` rapporterar vilket. `!envelope.valid` →
+  even-fallback över hela span (`fellBackToEven=true`). Tunbara konstanter överst.
+- **`FramePreview.tsx`** — A/B-toggle nu **Even (Pass 1)** ↔ **Envelope**, default **even**.
+  `EnvelopeSummary` visar envelope `[start→finish]`, impact/`impactReason`, `impactClusterApplied`,
+  `clippedTail`, allokering; `PoseSelect` WARN-logg `Envelope selection` + `Envelope per-frame trace`.
+- **Logik-sanity-testad** (esbuild-bundle + syntetiska banor: full sving/avklippt/statisk/endast-
+  baksving) — envelope, settle, avklippt-skydd, confident-only impact och baslinje-fallback beter sig
+  rätt. **Ej fältverifierad** (Eriks klipp + browser, checkpoint 2).
+
+## Arkitektur (pass 2) — fas-viktad frame-selektion *(historik — ersatt av pass 3, se ADR-002)*
 
 > **Premiss-rättelse (viktig):** pose driver *inte* frame-selektionen. `frameExtractor.ts`
 > (pixel-diff) väljer de 10 frames som skickas till Claude — jämnt spridda över svingfönstret —
@@ -102,8 +141,11 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
 - [x] **D-1 pass 1** — Installera tasks-vision, hämta modell, `poseDetector`/`poseTrajectory`,
   skelett-overlay i dev-preview, laddnings-/inferenstid loggad. **Ej fältverifierad** (kräver
   Eriks klipp + browser; overlay-alignment vid `object-cover` på porträttklipp kan behöva ses över).
-- [x] **D-2 (b) pass 2** — Härled svingfaser ur handledsbanor (`posePhases.ts`) + fas-viktad
-  allokering (`poseFrameSelection.ts`) + A/B-toggle i dev-preview. **Ej fältverifierad.**
+- [x] **D-2 (b) pass 2** — Härled svingfaser ur handledsbanor + fas-viktad allokering + A/B-toggle.
+  *(Ersatt som primär väg av pass 3, ADR-002.)*
+- [x] **D-2 pass 3 — envelope-inversion** — `poseEnvelope.ts` (envelope + confident-only impact) +
+  `poseEnvelopeSelection.ts` (uniform-inom-svingen + impact-polish) + toggle **even ↔ envelope**.
+  Logik-sanity-testad; **ej fältverifierad** (checkpoint 2). Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md).
 - [ ] Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN. *(D-2 (a))*
 - [ ] Enhetstest på platå-/vändpunkts-/impact-logiken.
 - [ ] Utvärdera mot `frameExtractor.ts` på riktiga klipp; besluta ersätta/komplettera *(D-3)*; vid

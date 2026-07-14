@@ -5,18 +5,18 @@ import { SkeletonOverlay } from './SkeletonOverlay';
 import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
 import type { FrameMeta } from '../../lib/frameExtractor';
-import { detectSwingPhases } from '../../lib/posePhases';
+import { detectSwingEnvelope } from '../../lib/poseEnvelope';
 import {
-  selectPhaseWeightedFrames,
-  type PhaseWeightedSelection,
-} from '../../lib/poseFrameSelection';
+  selectEnvelopeFrames,
+  type EnvelopeSelection,
+} from '../../lib/poseEnvelopeSelection';
 import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
 import { createLogger } from '../../lib/logger';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 const log = createLogger('PoseSelect');
 
-type Strategy = 'even' | 'phase-weighted';
+type Strategy = 'even' | 'envelope';
 
 export function FramePreview() {
   const meta = useSessionStore((s) => s.currentFrameMeta);
@@ -35,13 +35,14 @@ export function FramePreview() {
     'idle',
   );
 
-  // Pass 2 A/B: selection strategy. EVEN (Pass 1, from the store) is the default;
-  // phase-weighted is the pose-driven experiment. This is preview-only — "Send to
-  // Claude" always ships the store's even frames until Pass 3 wires it up.
+  // A/B: selection strategy. EVEN (Pass 1, from the store) is the default;
+  // ENVELOPE is the pose-driven strategy (uniform-in-swing + confident-only impact
+  // polish). This is preview-only — "Send to Claude" always ships the store's even
+  // frames until the D-3 cutover.
   const [strategy, setStrategy] = useState<Strategy>('even');
   // Cache the grabbed frames against the selection they were built from, so a new
-  // clip (which yields a fresh phaseSel) invalidates them without a reset effect.
-  const [pw, setPw] = useState<{ selRef: PhaseWeightedSelection; frames: FrameMeta[] } | null>(
+  // clip (which yields a fresh envSel) invalidates them without a reset effect.
+  const [pw, setPw] = useState<{ selRef: EnvelopeSelection; frames: FrameMeta[] } | null>(
     null,
   );
   const [pwStatus, setPwStatus] = useState<'idle' | 'grabbing' | 'done' | 'error'>(
@@ -72,30 +73,30 @@ export function FramePreview() {
     };
   }, [videoBlob, meta.length]);
 
-  // Pure phase read + allocation, recomputed when the trajectory changes. Cheap
+  // Pure envelope read + allocation, recomputed when the trajectory changes. Cheap
   // (no DOM), so we do it eagerly; frame grabbing is deferred until requested.
-  const phaseSel = useMemo<PhaseWeightedSelection | null>(() => {
+  const envSel = useMemo<EnvelopeSelection | null>(() => {
     if (!poseSamples || poseSamples.length === 0) return null;
-    const phases = detectSwingPhases(poseSamples);
+    const envelope = detectSwingEnvelope(poseSamples);
     const budget = meta.length || 10;
     const spanStart = poseSamples[0].t;
     const spanEnd = poseSamples[poseSamples.length - 1].t;
-    return selectPhaseWeightedFrames(phases, budget, spanStart, spanEnd);
+    return selectEnvelopeFrames(envelope, budget, spanStart, spanEnd);
   }, [poseSamples, meta.length]);
 
-  // Grab the phase-weighted frames lazily, the first time the strategy is
-  // switched on for this clip. Logs the verification summary (checkpoint 2).
+  // Grab the envelope frames lazily, the first time the strategy is switched on
+  // for this clip. Logs the verification summary (checkpoint 2).
   useEffect(() => {
-    if (strategy !== 'phase-weighted' || !phaseSel || !videoBlob) return;
-    if (pw?.selRef === phaseSel) return; // already grabbed for this selection
+    if (strategy !== 'envelope' || !envSel || !videoBlob) return;
+    if (pw?.selRef === envSel) return; // already grabbed for this selection
     let cancelled = false;
     (async () => {
       setPwStatus('grabbing');
       try {
-        const times = phaseSel.picks.map((p) => p.t);
+        const times = envSel.picks.map((p) => p.t);
         const b64s = await grabFramesAtTimes(videoBlob, times);
         if (cancelled) return;
-        const built: FrameMeta[] = phaseSel.picks.map((p, i) => ({
+        const built: FrameMeta[] = envSel.picks.map((p, i) => ({
           b64: b64s[i],
           score: 0, // pose path has no pixel-diff score; bar is hidden below
           isAddress: p.phase === 'address',
@@ -104,40 +105,40 @@ export function FramePreview() {
           phase: p.phase,
           timeSec: Number(p.t.toFixed(2)),
         }));
-        setPw({ selRef: phaseSel, frames: built });
+        setPw({ selRef: envSel, frames: built });
         setPwStatus('done');
-        const ph = phaseSel.phases;
-        log.warn('Phase-weighted selection', {
-          usedPhaseWeighting: phaseSel.usedPhaseWeighting,
-          fellBackToEven: phaseSel.fellBackToEven,
-          reason: phaseSel.reason,
-          trackedWrist: ph.trackedWrist,
-          visibleFrac: Number(ph.visibleFrac.toFixed(2)),
-          boundariesSec: {
-            addressRef: Number(ph.addressRef.toFixed(2)),
-            backswingStart: Number(ph.backswingStart.toFixed(2)),
-            top: Number(ph.top.toFixed(2)),
-            impact: Number(ph.impact.toFixed(2)),
-            followStart: Number(ph.followThroughStart.toFixed(2)),
-          },
-          allocation: phaseSel.allocation,
-          frameTimesSec: phaseSel.picks.map((p) => Number(p.t.toFixed(2))),
+        const env = envSel.envelope;
+        log.warn('Envelope selection', {
+          usedEnvelope: envSel.usedEnvelope,
+          fellBackToEven: envSel.fellBackToEven,
+          impactClusterApplied: envSel.impactClusterApplied,
+          reason: envSel.reason,
+          envelopeSec: [Number(env.startSec.toFixed(2)), Number(env.finishSec.toFixed(2))],
+          clippedTail: env.clippedTail,
+          impactSec: env.impact ? Number(env.impact.timeSec.toFixed(2)) : null,
+          impactReason: env.impactReason,
+          trackedWrist: env.trackedWrist,
+          visibleFrac: Number(env.visibleFrac.toFixed(2)),
+          allocation: envSel.allocation,
+          frameTimesSec: envSel.picks.map((p) => Number(p.t.toFixed(2))),
         });
         // STEG 1: per-sample dump so the REAL speed peak is visible vs where the
         // detector placed impact. Read `impactReason` + scan `frames` for the max
         // `spd` (and where `vy` flips from up to down) to locate true impact.
-        if (ph.debug) {
-          const d = ph.debug;
-          log.warn('Phase per-frame trace', {
-            addressY: Number(ph.addressY.toFixed(3)),
-            apexY: Number(ph.apexY.toFixed(3)),
-            peakSpeed: Number(ph.peakSpeed.toFixed(2)),
+        if (env.debug) {
+          const d = env.debug;
+          log.warn('Envelope per-frame trace', {
+            addressY: Number(env.addressY.toFixed(3)),
+            apexY: Number(env.apexY.toFixed(3)),
+            finishY: Number(env.finishY.toFixed(3)),
+            peakSpeed: Number(env.peakSpeed.toFixed(2)),
             picked: {
               addrEndIdx: d.addrEndIdx,
-              bsIdx: d.bsIdx,
+              startIdx: d.startIdx,
               topIdx: d.topIdx,
+              finishIdx: d.finishIdx,
               impactIdx: d.impactIdx,
-              impactReason: d.impactReason,
+              clippedTail: d.clippedTail,
             },
             frames: d.frames.map((f, i) => ({
               i,
@@ -155,10 +156,10 @@ export function FramePreview() {
     return () => {
       cancelled = true;
     };
-  }, [strategy, phaseSel, videoBlob, pw]);
+  }, [strategy, envSel, videoBlob, pw]);
 
-  const pwMeta = pw?.selRef === phaseSel ? pw.frames : null;
-  const activeMeta = strategy === 'phase-weighted' ? (pwMeta ?? []) : meta;
+  const pwMeta = pw?.selRef === envSel ? pw.frames : null;
+  const activeMeta = strategy === 'envelope' ? (pwMeta ?? []) : meta;
   const showMotion = strategy === 'even';
 
   const maxScore = Math.max(...activeMeta.map((m) => m.score), 1);
@@ -202,27 +203,27 @@ export function FramePreview() {
           </p>
         )}
 
-        {/* Pass 2 A/B: selection strategy toggle (dev only) */}
+        {/* A/B: selection strategy toggle (dev only) */}
         {DEV_PREVIEW && (
           <div className="space-y-2">
             <div className="flex gap-2">
-              {(['even', 'phase-weighted'] as Strategy[]).map((s) => (
+              {(['even', 'envelope'] as Strategy[]).map((s) => (
                 <button
                   key={s}
                   onClick={() => setStrategy(s)}
-                  disabled={s === 'phase-weighted' && !phaseSel}
+                  disabled={s === 'envelope' && !envSel}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     strategy === s
                       ? 'bg-accent-press text-white'
                       : 'bg-raised hover:bg-raised-hi disabled:opacity-40'
                   }`}
                 >
-                  {s === 'even' ? 'Even (Pass 1)' : 'Phase-weighted (Pass 2)'}
+                  {s === 'even' ? 'Even (Pass 1)' : 'Envelope'}
                 </button>
               ))}
             </div>
-            {strategy === 'phase-weighted' && (
-              <PhaseSummary sel={phaseSel} status={pwStatus} />
+            {strategy === 'envelope' && (
+              <EnvelopeSummary sel={envSel} status={pwStatus} />
             )}
           </div>
         )}
@@ -345,40 +346,49 @@ export function FramePreview() {
   );
 }
 
-/** Dev verification surface for the phase-weighted read (checkpoint 2). */
-function PhaseSummary({
+/** Dev verification surface for the envelope read (checkpoint 2). */
+function EnvelopeSummary({
   sel,
   status,
 }: {
-  sel: PhaseWeightedSelection | null;
+  sel: EnvelopeSelection | null;
   status: 'idle' | 'grabbing' | 'done' | 'error';
 }) {
   if (!sel) return <p className="text-[10px] text-faint">pose read pending…</p>;
   const alloc = Object.entries(sel.allocation)
     .map(([k, v]) => `${k}:${v}`)
     .join('  ');
-  const p = sel.phases;
+  const env = sel.envelope;
   const s = (n: number) => n.toFixed(2);
   return (
     <div className="rounded-lg bg-surface px-3 py-2 space-y-1 text-[10px] font-mono text-fg-dim">
       <div>
-        {sel.usedPhaseWeighting ? (
-          <span className="text-emerald-400">phase-weighted</span>
+        {sel.usedEnvelope ? (
+          <span className="text-emerald-400">envelope</span>
         ) : (
           <span className="text-amber-400">
             fell back to even ({sel.reason ?? 'ambiguous'})
           </span>
         )}
+        {sel.impactClusterApplied ? (
+          <span className="text-emerald-300"> · impact cluster</span>
+        ) : (
+          <span className="text-fg-dim"> · uniform baseline</span>
+        )}
+        {env.clippedTail && <span className="text-amber-400"> · clipped tail</span>}
         {status === 'grabbing' && <span className="text-sky-400"> · grabbing…</span>}
         {status === 'error' && <span className="text-red-400"> · grab failed</span>}
       </div>
       <div>
-        bounds: bs {s(p.backswingStart)} · top {s(p.top)} ·{' '}
-        <span className="text-emerald-300">impact {s(p.impact)}</span> · ft{' '}
-        {s(p.followThroughStart)}
+        envelope: [{s(env.startSec)} → {s(env.finishSec)}]{' '}
+        {env.impact ? (
+          <span className="text-emerald-300">· impact {s(env.impact.timeSec)}</span>
+        ) : (
+          <span className="text-amber-400">· no impact ({env.impactReason})</span>
+        )}
       </div>
       <div>
-        wrist: {p.trackedWrist} · vis {p.visibleFrac.toFixed(2)}
+        wrist: {env.trackedWrist} · vis {env.visibleFrac.toFixed(2)}
       </div>
       <div>alloc: {alloc || '—'}</div>
     </div>
