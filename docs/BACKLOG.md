@@ -322,6 +322,22 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > `poseEnvelope.ts` enbart; downswing/impact/finish orört. Build ren, poseEnvelope.ts lint-ren;
 > **ej fältverifierad** (checkpoint 2).
 >
+> **Pass 3 waggle-filter REVERT:AT (2026-08-02, ADR-002 *Uppföljning: waggle-filtret revert:as*):**
+> den toleranta lookaheaden gjorde starten katastrofalt sen igen (`[7.18→8.38]`, första framen mitt
+> i baksvingen). Root cause: i DTL rör sig händerna i take-away nästan rakt BAKÅT, inte uppåt → y
+> kryper knappt över `ADDRESS_DEPART_TOL`, så varje y-baserat waggle-test (sustain ELLER
+> lookahead-retur) läser den långsamma take-away:n som en waggle-retur och kapar den. Y-only är fel
+> signal för take-away-start i DTL. Fix: `WAGGLE_LOOKAHEAD_FRAMES` ut, inget filter — start = första
+> address-avfärden, ofiltrerad → `[1.60→8.38]` (hela svingen, ~3 tidiga adress-frames = accepterad
+> early-bias, princip #3). Känd svaghet: en verklig waggle kan ge några extra adress-frames — OK tills
+> en signal bättre än y finns. `poseEnvelope.ts` enbart. Build+lint rena; **ej fältverifierad**.
+>
+> **Pass 3 dev-preview frame-budget → 20 (2026-08-02):** envelope-selektionens frame-antal höjt 10→20
+> via EN exporterad konstant `ENVELOPE_FRAME_BUDGET` (poseEnvelopeSelection.ts), konsumerad av
+> `FramePreview` — sizer både selektion + grid-rendering (previewen visar alla 20). Allokeringen skalar
+> parametriskt; impact-klustret får fortsatt `IMPACT_CLUSTER_BUDGET_FRAC` (0.4 → 8/20 frames). Dev-preview
+> only; `frameExtractor.ts`/Vision-anropet orört. Build+lint rena.
+>
 > **Återstår i D-2:** enhetstest på envelope-/settle-/impact-logiken; Eriks manuella
 > checkpoint-2-verifiering (D-3-cutover).
 

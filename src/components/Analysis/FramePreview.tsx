@@ -8,6 +8,7 @@ import type { FrameMeta } from '../../lib/frameExtractor';
 import { detectSwingEnvelope } from '../../lib/poseEnvelope';
 import {
   selectEnvelopeFrames,
+  ENVELOPE_FRAME_BUDGET,
   type EnvelopeSelection,
 } from '../../lib/poseEnvelopeSelection';
 import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
@@ -78,11 +79,12 @@ export function FramePreview() {
   const envSel = useMemo<EnvelopeSelection | null>(() => {
     if (!poseSamples || poseSamples.length === 0) return null;
     const envelope = detectSwingEnvelope(poseSamples);
-    const budget = meta.length || 10;
+    // Dev preview selects a fixed budget (ENVELOPE_FRAME_BUDGET), independent of the
+    // Pass-1 even count — the preview grid renders all of these picks.
     const spanStart = poseSamples[0].t;
     const spanEnd = poseSamples[poseSamples.length - 1].t;
-    return selectEnvelopeFrames(envelope, budget, spanStart, spanEnd);
-  }, [poseSamples, meta.length]);
+    return selectEnvelopeFrames(envelope, ENVELOPE_FRAME_BUDGET, spanStart, spanEnd);
+  }, [poseSamples]);
 
   // Grab the envelope frames lazily, the first time the strategy is switched on
   // for this clip. Logs the verification summary (checkpoint 2).

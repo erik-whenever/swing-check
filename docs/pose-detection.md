@@ -64,21 +64,22 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 - **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
   handledsbanan (landmärke 15/16, bäst spårade wristen):
   - **`start` binds till address-AVFÄRDEN, inte till en hastighetströskel** *(start-fix,
-    2026-08-02)*, filtrerad mot waggle med en **tolerant lookahead** *(waggle-fix +
-    inversion, 2026-08-02)*. Start = **första** framen som avviker från platå-medel i
-    take-away-riktning (`addressY − y > ADDRESS_DEPART_TOL` 0.03; take-away är uppåt →
-    mindre y), **såvida inte** handleden är tillbaka på platå-nivå i slutet av ett kort
-    `WAGGLE_LOOKAHEAD_FRAMES`-fönster (3) — då är det en waggle-blip och skanningen
-    fortsätter. Hack/pauser inom fönstret tillåts; **inget krav på monoton uppåtrörelse**.
-    Tre buggar åtgärdade i följd: hastighetströskeln fyrade för *sent* (take-away långsam,
-    under tröskel); en enkel tröskel-passage fyrade för *tidigt* (waggle-jitter); och det
-    första waggle-botet (`START_MIN_SUSTAIN_FRAMES`, sustain-med-nollställning)
-    **överkorrigerade** — take-away är inte monoton vid 15 fps, så räknaren nollställdes
-    tills nära toppen → start ALLDELES för sent. Värsta-fall styr (ADR-002 princip #3):
-    för-sen start tappar hela take-away (katastrof) > för-tidig slösar billiga
-    adress-frames → bias:a starten TIDIGT; tolerant lookahead i st.f. strikt min-hold.
-    Se ADR-002 *Uppföljning: start-fyrar-för-sent* + *-för-tidigt (waggle)* +
-    *-för-sent igen*.
+    2026-08-02)*, **ofiltrerad** (inget waggle-filter) *(waggle-revert, 2026-08-02)*.
+    Start = **första** framen som avviker från platå-medel i take-away-riktning
+    (`addressY − y > ADDRESS_DEPART_TOL` 0.03; take-away är uppåt → mindre y).
+    Fyra buggar/varv i följd: hastighetströskeln fyrade för *sent* (take-away långsam,
+    under tröskel); en enkel tröskel-passage fyrade för *tidigt* (waggle-jitter);
+    `START_MIN_SUSTAIN_FRAMES` (sustain-med-nollställning) **överkorrigerade** (take-away
+    ej monoton vid 15 fps → start nära toppen); och `WAGGLE_LOOKAHEAD_FRAMES`
+    (tolerant lookahead-retur) gjorde det **igen** — i DTL rör sig take-away nästan rakt
+    BAKÅT, så y kryper knappt över tröskeln och varje **y-baserat** waggle-test läser den
+    som en waggle-retur och kapar take-away. **Känd svaghet:** utan filter kan en verklig
+    waggle ge några extra adress-frames i början av envelopen — accepterat. Värsta-fall
+    styr (ADR-002 princip #3): för-sen start tappar hela take-away (katastrof) > för-tidig
+    slösar billiga adress-frames → bias:a starten TIDIGT. Y-only är fel signal för att
+    filtrera waggle i DTL; en bättre signal (riktning/avstånd i planet) krävs innan filter
+    återinförs. Se ADR-002 *Uppföljning: start-fyrar-för-sent* → *-för-tidigt (waggle)* →
+    *-för-sent igen* → *waggle-filtret revert:as*.
   - **finish binds till SEKVENSEN, inte till globalt min-y** *(finish-kollaps-fix, 2026-08-02)*.
     Ordning: baksvingstopp → **downswing-passage** (wrists ned nära address-höjd) → **finish**.
     Downswing-passagen hittas FÖRST (snabbaste `vy>0` nära `addressY`, över hela post-start-spannet).
@@ -99,7 +100,11 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
   omfördelas `IMPACT_CLUSTER_BUDGET_FRAC` (0.4) av budgeten till ett tätt kluster kring impact
   (spacing `max(IMPACT_CLUSTER_SPACING_SEC 0.06, sampleDt)`), resten kvar som uniform baslinje så
   address + finish förblir täckta. `impactClusterApplied` rapporterar vilket. `!envelope.valid` →
-  even-fallback över hela span (`fellBackToEven=true`). Tunbara konstanter överst.
+  even-fallback över hela span (`fellBackToEven=true`). Tunbara konstanter överst. Allt skalar
+  parametriskt med `budget` — impact-klustret får alltid `IMPACT_CLUSTER_BUDGET_FRAC`.
+  **Dev-preview-budgeten är EN tunbar konstant** `ENVELOPE_FRAME_BUDGET` (20), exporterad härifrån
+  och konsumerad av `FramePreview` — sizer både selektionen och grid-renderingen (previewen visar
+  alla 20). Oberoende av Pass-1:s even-antal (som skickas till Claude).
 - **`FramePreview.tsx`** — A/B-toggle nu **Even (Pass 1)** ↔ **Envelope**, default **even**.
   `EnvelopeSummary` visar envelope `[start→finish]`, impact/`impactReason`, `impactClusterApplied`,
   `clippedTail`, allokering; `PoseSelect` WARN-logg `Envelope selection` + `Envelope per-frame trace`.
@@ -203,6 +208,19 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   för-sen tappar hela take-away > för-tidig slösar billiga adress-frames). `poseEnvelope.ts`
   enbart; downswing/impact/finish orört. Build ren, poseEnvelope.ts lint-ren; **ej
   fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: start-fyrar-för-sent igen*.
+- [x] **D-2 waggle-filter revert:at** *(2026-08-02)* — `WAGGLE_LOOKAHEAD_FRAMES` gjorde starten
+  katastrofalt sen igen (`[7.18→8.38]`, första framen mitt i baksvingen). I DTL rör sig take-away
+  nästan rakt bakåt → y kryper knappt över tröskeln, så varje y-baserat waggle-test (sustain ELLER
+  lookahead) läser take-away som waggle-retur och kapar den. `WAGGLE_LOOKAHEAD_FRAMES` ut, inget
+  filter: start = första address-avfärden, ofiltrerad → `[1.60→8.38]` (hela svingen, ~3 tidiga
+  adress-frames = accepterad early-bias). Y-only är fel signal för take-away-start i DTL.
+  `poseEnvelope.ts` enbart. Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002
+  *Uppföljning: waggle-filtret revert:as*.
+- [x] **D-2 dev-preview frame-budget → 20** *(2026-08-02)* — envelope-selektionens frame-antal höjt
+  10→20 via EN exporterad konstant `ENVELOPE_FRAME_BUDGET` (poseEnvelopeSelection.ts), konsumerad av
+  `FramePreview` (sizer både selektion + grid-rendering, previewen visar alla 20). Allokeringen skalar
+  parametriskt; impact-klustret får fortsatt `IMPACT_CLUSTER_BUDGET_FRAC` (0.4 → 8/20). Dev-preview
+  only; `frameExtractor.ts`/Vision-anropet orört. Build+lint rena.
 - [x] **D-2 (a)** — Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN:
   `scripts/copy-pose-wasm.mjs` → `public/wasm/`, `FilesetResolver.forVisionTasks('/wasm')`,
   SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,

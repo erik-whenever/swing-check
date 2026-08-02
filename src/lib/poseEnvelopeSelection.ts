@@ -26,9 +26,18 @@ import type { SwingEnvelope } from './poseEnvelope';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 /**
+ * ENVELOPE FRAME BUDGET (dev-preview only). The single source of truth for how many
+ * frames the envelope strategy selects AND renders — the FramePreview grid derives
+ * its tiles from these picks, so this one constant sizes both. Kept separate from
+ * the Pass-1 even budget (which ships to Claude); raising it only widens the local
+ * preview. The allocation scales parametrically: the impact cluster always takes
+ * IMPACT_CLUSTER_BUDGET_FRAC of the budget, the rest stays uniform over the swing.
+ */
+export const ENVELOPE_FRAME_BUDGET = 20;
+/**
  * IMPACT-CLUSTER BUDGET SHARE. Fraction of the frame budget reallocated into the
  * impact cluster when impact is confident. The rest stays uniform over the
- * envelope, so address + finish keep coverage. 0.4 → ~4 of 10 frames on impact.
+ * envelope, so address + finish keep coverage. 0.4 → ~8 of 20 frames on impact.
  */
 const IMPACT_CLUSTER_BUDGET_FRAC = 0.4;
 /** Impact cluster is at least this many frames when applied. */
