@@ -199,6 +199,34 @@ billigaste testet som räcker** — för starten är det "återvänder blippen t
 (en lookahead-retur), inte "håller rörelsen i N frames?". Bind till sekvensen, men låt
 värsta-fallet (princip #3) välja hur strikt gränsen dras: tidigt för start, hållet för finish.
 
+## Uppföljning: waggle-filtret revert:as — Y-only funkar inte i DTL (2026-08-02)
+
+Den toleranta lookaheaden ovan (`WAGGLE_LOOKAHEAD_FRAMES`) gjorde starten **katastrofalt
+sen igen** — envelope `[7.18→8.38]`, första framen mitt i baksvingen. Alltså tredje
+varvet av samma symptom, nu från waggle-filtrets *return-check* i st.f. sustain-räknaren.
+
+**Root cause (djupare än föregående varv):** i DTL rör sig händerna i take-away nästan
+rakt **BAKÅT**, inte uppåt. Y-ändringen är minimal och kryper knappt över
+`ADDRESS_DEPART_TOL`. **Vilket som helst Y-baserat waggle-test** — sustain ELLER
+lookahead-retur — läser då den långsamma, grunt-avvikande take-away:n som en
+waggle-retur (handleden ser ut att vara "tillbaka på platån" i fönstrets slut, eftersom
+den aldrig steg tydligt) och förkastar den. **Y-only är fel signal för take-away-start i
+DTL.** Ett bättre test skulle behöva en riktnings-/avstånds-signal i planet (t.ex.
+horisontell avfärd), inte bara y.
+
+**Beslut: revert:a filtret helt.** `WAGGLE_LOOKAHEAD_FRAMES` utgår; inget waggle-filter.
+Start = **första** address-avfärden (`addressY − y > ADDRESS_DEPART_TOL`), ofiltrerad.
+Det ger `[1.60→8.38]` = hela svingen med ~3 tidiga adress-frames — **accepterat** (princip
+#3: en tidig start slösar några billiga adress-frames; en sen tappar hela take-away).
+Den early-biasade oflitrerade starten är den antagna lösningen tills vi har en signal
+bättre än y. `poseEnvelope.ts` enbart; downswing/impact/finish orört.
+
+**Sensmoral (skärper princip #2):** att skilja waggle från take-away kräver rätt
+*signal*, inte bara rätt *filterform*. När den enda signalen (y) inte separerar de två
+skeendena är varje filter på den signalen antingen blint eller överkorrigerande — då är
+det ärligare att inte filtrera och låta värsta-fallet (princip #3) styra: bias:a starten
+tidigt och acceptera några adress-frames.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
@@ -218,10 +246,16 @@ värsta-fallet (princip #3) välja hur strikt gränsen dras: tidigt för start, 
    MEN med **det billigaste testet som räcker**, inte reflexmässigt ett min-hold.
    Ett min-hold antar att skeendet är monotont; det gäller finishen (sustained
    high-settle) men INTE take-away (hackig/pausande vid 15 fps → ett sustain-krav
-   fyrar för sent, nära toppen). För starten räcker en **tolerant lookahead**:
-   avfärden räknas om blippen inte är tillbaka på platån i fönstrets slut. Se
-   *Uppföljning: start-fyrar-för-tidigt (waggle)* + *start-fyrar-för-sent igen*.
-   Låt värsta-fallet (princip #3) välja hur strikt gränsen dras — tidigt för start
+   fyrar för sent, nära toppen). Se *Uppföljning: start-fyrar-för-tidigt (waggle)* +
+   *start-fyrar-för-sent igen*.
+   **Slutligen: ett filter är bara så bra som sin signal.** Både sustain och tolerant
+   lookahead byggde på handledens **y**. I DTL rör sig take-away nästan rakt bakåt →
+   y kryper knappt över tröskeln, och varje y-baserat waggle-test läser den långsamma
+   take-away:n som en waggle-retur och kapar den. När signalen inte separerar de två
+   skeendena: **filtrera inte** — bias:a starten tidigt (princip #3) och acceptera några
+   adress-frames tills en bättre signal (riktning/avstånd i planet) finns. Start =
+   **första** address-avfärden, ofiltrerad. Se *Uppföljning: waggle-filtret revert:as*.
+   Låt värsta-fallet (princip #3) välja hur gränsen dras — tidigt för start
    (för-sen tappar take-away), hållet för finish.
 3. **Värsta-fall > bästa-fall för heuristiker.** Designa selektionen så att
    degradering ger något användbart, inte intet. En heuristik som är fantastisk när
