@@ -36,6 +36,15 @@ const ADDRESS_SPEED_FRAC = 0.15;
 const MIN_ADDRESS_SEC = 0.3;
 /** Need at least this fraction of samples with a usable wrist to trust the read. */
 const MIN_VISIBLE_FRAC = 0.5;
+/**
+ * ADDRESS DEPARTURE TOLERANCE. Swing start = the frame where the wrist LEAVES the
+ * still address position — the first frame whose vertical position deviates from
+ * the address-plateau mean by more than this (normalized y). Take-away is slow and
+ * soft, so a SPEED threshold (backswing velocity) fires late, after the club has
+ * already lifted, clipping the take-away; anchoring start on DEPARTURE from the
+ * address plateau instead catches motion onset at the true start of the swing.
+ */
+const ADDRESS_DEPART_TOL = 0.03;
 
 // ── Finish / settle tunables ───────────────────────────────────────────────────
 /**
@@ -220,16 +229,28 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
   const addressY = median(pos.slice(addrStart, addrEnd + 1).map((p) => p.y));
 
-  // ── Swing start: motion onset after the address hold ───────────────────────
+  // ── Swing start: DEPARTURE from the address plateau ────────────────────────
+  // Not "onset of backswing speed": take-away is slow and soft, so wrist speed
+  // stays below the backswing threshold until the backswing accelerates, which
+  // places start AFTER the take-away (club already lifted — mirror image of the
+  // finish collapse at the other end). Instead start = the first frame whose
+  // wrist-Y leaves the still address position by more than ADDRESS_DEPART_TOL,
+  // i.e. the wrists departing the address plateau — the true motion onset. Same
+  // durable principle as the finish fix: bind the boundary to the swing STRUCTURE
+  // (address departure), never to a velocity threshold that slow swing phases
+  // (take-away, transition) sit beneath and get clipped by.
+  // OSÄKER: single-frame departure on the smoothed series; a lone jitter blip
+  // above ADDRESS_DEPART_TOL could trip start early. Smoothing (SMOOTH_HALF)
+  // guards against this; field-tune the tolerance if starts land before take-away.
   let startIdx = -1;
   for (let i = addrEnd + 1; i < n; i++) {
-    if (speedSm[i] >= speedThresh) {
+    if (Math.abs(pos[i].y - addressY) > ADDRESS_DEPART_TOL) {
       startIdx = i;
       break;
     }
   }
   if (startIdx < 0) {
-    return fail('no swing motion after address', {
+    return fail('no departure from address plateau', {
       trackedWrist,
       visibleFrac,
       addressY,

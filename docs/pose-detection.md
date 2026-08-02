@@ -63,7 +63,12 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 
 - **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
   handledsbanan (landmärke 15/16, bäst spårade wristen):
-  - **`start`** = sustained wrist-motion-onset efter address-platån (samma som förr).
+  - **`start` binds till address-AVFÄRDEN, inte till en hastighetströskel** *(start-fix,
+    2026-08-02)*. Start = första framen efter address-platån vars wrist-Y avviker mer än
+    `ADDRESS_DEPART_TOL` (0.03) från platå-medel-Y — handlederna *lämnar* adressen.
+    Hastighetströskeln (backsving-fart) fyrade för sent: take-away är långsam → låg
+    hastighet → starten hoppade in efter take-away (klubban redan lyft). Spegelbild av
+    finish-buggen. Se ADR-002 *Uppföljning: start-fyrar-för-sent*.
   - **finish binds till SEKVENSEN, inte till globalt min-y** *(finish-kollaps-fix, 2026-08-02)*.
     Ordning: baksvingstopp → **downswing-passage** (wrists ned nära address-höjd) → **finish**.
     Downswing-passagen hittas FÖRST (snabbaste `vy>0` nära `addressY`, över hela post-start-spannet).
@@ -170,6 +175,10 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   → high-settle) i st.f. globalt min-y; åtgärdar envelope-kollaps till baksvingen (`[6.98→7.38]`,
   "no descending pass"). `FINISH_MIN_HOLD_FRAMES` in, `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` ut.
   Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: finish-kollaps*.
+- [x] **D-2 start-fix** *(2026-08-02)* — start band till address-AVFÄRDEN (wrist-Y lämnar
+  platå-medel > `ADDRESS_DEPART_TOL` 0.03) i st.f. backsving-hastighetströskel; åtgärdar att
+  envelopen började mitt i baksvingen och missade take-away. Spegelbild av finish-buggen.
+  Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: start-fyrar-för-sent*.
 - [x] **D-2 (a)** — Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN:
   `scripts/copy-pose-wasm.mjs` → `public/wasm/`, `FilesetResolver.forVisionTasks('/wasm')`,
   SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,

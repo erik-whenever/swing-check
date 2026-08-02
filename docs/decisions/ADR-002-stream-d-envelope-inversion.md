@@ -112,6 +112,32 @@ Uppföljningen visar att global min-y är opålitlig även för *finish* — av 
 sving-SEKVENSEN, aldrig till ett geometriskt extremum** som har en tvilling någon
 annanstans i banan.
 
+## Uppföljning: start-fyrar-för-sent (2026-08-02)
+
+Efter finish-fixen visade samma DTL-klipp en **spegelbild-bugg i andra änden**:
+envelopen började mitt i baksvingen och missade take-away (första framen hade
+klubban redan lyft).
+
+**Root cause:** `start` = "onset av ihållande wrist-rörelse" använde en
+**hastighetströskel** (`speedSm[i] ≥ ADDRESS_SPEED_FRAC × peak`). Take-away är
+långsam och mjuk → wrist-hastigheten ligger under tröskeln tills baksvingen
+accelererar, så starten hoppade in *efter* take-away. Exakt samma klass av fel som
+finish-kollapsen: en långsam svingfas ligger under en hastighetströskel och kapas.
+
+**Fix (strukturell):** `start` = **avfärden från address-platån**, inte onset av
+snabb rörelse. Vi mäter address-platåns medel-Y (`addressY`) och sätter start till
+första framen efter platån vars wrist-Y avviker mer än `ADDRESS_DEPART_TOL` (0.03,
+normerad y) — handlederna *lämnar* den stilla adresspositionen. Ny tunbar konstant
+`ADDRESS_DEPART_TOL`; downswing/finish-logiken orörd. `// OSÄKER:` vid
+platå-avvikelse-heuristiken (enframs-avvikelse på den utjämnade serien).
+
+**Generaliserar durabel princip #2 till BÅDA ändarna:** både start OCH finish måste
+bindas till svingstrukturen (address-avfärd resp. downswing→settle), aldrig till
+hastighetströsklar. De långsamma svingfaserna — take-away i starten, transition vid
+toppen — ligger per definition under tröskel och kapas annars. En hastighetströskel
+mäter *hur snabbt* det rör sig, men svinggränserna handlar om *vad* som händer i
+sekvensen.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
@@ -122,6 +148,10 @@ annanstans i banan.
    före fasdetektion** och bind varje gräns till sving-**sekvensen** (top → downswing-
    passage → finish), aldrig till ett geometriskt extremum som har en tvilling i
    banan. Se *Uppföljning: finish-kollaps*.
+   **Motsvarande för hastighetströsklar:** bind aldrig en svinggräns till en
+   hastighetströskel — långsamma faser (take-away i starten, transition vid toppen)
+   ligger under tröskel och kapas. Start = address-avfärd, inte backsving-fart. Se
+   *Uppföljning: start-fyrar-för-sent*.
 3. **Värsta-fall > bästa-fall för heuristiker.** Designa selektionen så att
    degradering ger något användbart, inte intet. En heuristik som är fantastisk när
    den träffar men värdelös när den missar är sämre än en som alltid är hyfsad.

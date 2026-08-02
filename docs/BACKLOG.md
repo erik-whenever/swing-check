@@ -292,6 +292,14 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > enbart; `FINISH_MIN_HOLD_FRAMES` in, `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` ut. Build+lint rena;
 > **ej fältverifierad** (checkpoint 2).
 >
+> **Pass 3 start-fix (2026-08-02, ADR-002 *Uppföljning*):** spegelbild-bugg i andra änden — samma
+> DTL-klipp startade envelopen mitt i baksvingen och missade take-away (klubban redan lyft). Root
+> cause: `start` = backsving-hastighetströskel; take-away är långsam → under tröskel → start hoppade
+> in efter take-away. Fix (strukturell): start = address-AVFÄRDEN — första framen vars wrist-Y lämnar
+> platå-medel > `ADDRESS_DEPART_TOL` (0.03). `poseEnvelope.ts` enbart; downswing/finish orört.
+> Build+lint rena; **ej fältverifierad** (checkpoint 2). Generaliserar durabel princip: bind BÅDE
+> start och finish till svingsekvensen, aldrig till hastighetströsklar.
+>
 > **Återstår i D-2:** enhetstest på envelope-/settle-/impact-logiken; Eriks manuella
 > checkpoint-2-verifiering (D-3-cutover).
 
