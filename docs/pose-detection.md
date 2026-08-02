@@ -63,23 +63,23 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 
 - **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
   handledsbanan (landmärke 15/16, bäst spårade wristen):
-  - **`start` binds till address-AVFÄRDEN, inte till en hastighetströskel** *(start-fix,
-    2026-08-02)*, **ofiltrerad** (inget waggle-filter) *(waggle-revert, 2026-08-02)*.
-    Start = **första** framen som avviker från platå-medel i take-away-riktning
-    (`addressY − y > ADDRESS_DEPART_TOL` 0.03; take-away är uppåt → mindre y).
-    Fyra buggar/varv i följd: hastighetströskeln fyrade för *sent* (take-away långsam,
-    under tröskel); en enkel tröskel-passage fyrade för *tidigt* (waggle-jitter);
-    `START_MIN_SUSTAIN_FRAMES` (sustain-med-nollställning) **överkorrigerade** (take-away
-    ej monoton vid 15 fps → start nära toppen); och `WAGGLE_LOOKAHEAD_FRAMES`
-    (tolerant lookahead-retur) gjorde det **igen** — i DTL rör sig take-away nästan rakt
-    BAKÅT, så y kryper knappt över tröskeln och varje **y-baserat** waggle-test läser den
-    som en waggle-retur och kapar take-away. **Känd svaghet:** utan filter kan en verklig
-    waggle ge några extra adress-frames i början av envelopen — accepterat. Värsta-fall
-    styr (ADR-002 princip #3): för-sen start tappar hela take-away (katastrof) > för-tidig
-    slösar billiga adress-frames → bias:a starten TIDIGT. Y-only är fel signal för att
-    filtrera waggle i DTL; en bättre signal (riktning/avstånd i planet) krävs innan filter
-    återinförs. Se ADR-002 *Uppföljning: start-fyrar-för-sent* → *-för-tidigt (waggle)* →
-    *-för-sent igen* → *waggle-filtret revert:as*.
+  - **`start` = HASTIGHETSBASERAD onset backad till avfärd från stillhet** *(start-fix
+    slutlig, 2026-08-02)*. Onset = första framen `speedSm ≥ speedThresh`
+    (`ADDRESS_SPEED_FRAC × peak`), sedan **backad bakåt frame för frame** så länge
+    föregående frames `speedSm > START_QUIET_FLOOR` (0.04) → landar på första framen i den
+    sammanhängande rörelse-körningen. Diagnostik-verifierad på DTL (144 frames): onset
+    ~frame 104–105, backning → **frame 102–103 (`t≈6.78–6.85`)**; envelope-start korrekt.
+    **Wrist-Y-position mot platå-medel är RETIRERAD** (`ADDRESS_DEPART_TOL`): under en
+    lång adress *driftar* handleden (DTL: `0.380→0.425` över 6,9 s = 0.045 > TOL 0.03), så
+    bidirektionellt `|y−addressY|>TOL` fyrar på driften (`t=1.60`) och riktat `addressY−y>TOL`
+    fyrar mitt i baksvingen (`t=7.18`) — ingen TOL räddar en drift-signal, och inget
+    y-baserat waggle-filter (sustain/lookahead) heller. Fem varv i följd: enkel
+    hastighetströskel (för sent) → position bidir (drift) → position riktad + sustain →
+    lookahead → **åter hastighet, nu onset+backning**. Hastighet mäter *att handleden börjar
+    röra sig*; position mäter *var den är* — start är det förra. Early bias behållen (backa
+    hellre ett par frames för långt än in i baksvingen; princip #3). `START_QUIET_FLOOR` ny
+    tunbar. Se ADR-002 *Uppföljning: wrist-Y ... är oanvändbar för start* + uppdaterad
+    princip #2b.
   - **finish binds till SEKVENSEN, inte till globalt min-y** *(finish-kollaps-fix, 2026-08-02)*.
     Ordning: baksvingstopp → **downswing-passage** (wrists ned nära address-höjd) → **finish**.
     Downswing-passagen hittas FÖRST (snabbaste `vy>0` nära `addressY`, över hela post-start-spannet).
@@ -88,9 +88,13 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
     baksvingstoppen. `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` utgår.
   - **Avklippt-skydd:** ingen downswing-passage, eller ingen settle efter den (video slutar mitt i
     rörelse) → envelope-slut = sista frame med signifikant wrist-rörelse (`clippedTail=true`).
-  - **impact (confident-only)** = downswing-passagen (samma index); **top** = apex före passagen
-    (follow-through ligger efter impact → förorenar ej). Confident kräver `MIN_VERTICAL_EXCURSION`
-    (verklig baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`. Annars `impact=null` + `impactReason`.
+  - **impact (confident-only)** = framen där wrist-Y **korsar tillbaka ned genom `addressY`**
+    på nedåtpasset *(impact-crossing-fix, 2026-08-02)*, sökt framåt från `passIdx`. Tidigare
+    togs `passIdx` (snabbaste nedåtframen) rakt av, men den ligger mitt i passet några frames
+    *före* att händerna når address-höjd (DTL: `passIdx` idx 116 `y=0.288`, korsning idx 117–118).
+    `passIdx` behålls för finish-sekvenseringen. **top** = apex före impact (follow-through
+    ligger efter impact → förorenar ej). Confident kräver `MIN_VERTICAL_EXCURSION` (verklig
+    baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`. Annars `impact=null` + `impactReason`.
   - Ren + testbar; returnerar `{valid, startSec, finishSec, clippedTail, impact|null, impactReason}` +
     diagnostik (`trackedWrist`, `visibleFrac`, `addressY`, `apexY`, `finishY`, `peakSpeed`) + `debug`
     (per-sampel `{t,y,vy,speed}` + valda index).
@@ -216,6 +220,20 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   adress-frames = accepterad early-bias). Y-only är fel signal för take-away-start i DTL.
   `poseEnvelope.ts` enbart. Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002
   *Uppföljning: waggle-filtret revert:as*.
+- [x] **D-2 start-fix slutlig — hastighetsbaserad onset + backning** *(2026-08-02)* — diagnostik-
+  dump (DTL, 144 frames) avgjorde: wrist-Y mot platå-medel är oanvändbar (drift `0.380→0.425`
+  under 6,9 s adress > TOL 0.03; bidir fyrar `t=1.60`, riktat `t=7.18`). SPEED separerar rent.
+  Fix: `ADDRESS_DEPART_TOL`-logiken ut ur start; start = onset (`speedSm ≥ speedThresh`) backad
+  bakåt medan föregående `speedSm > START_QUIET_FLOOR` (ny tunbar 0.04) → frame 102–103 (`t≈6.78–6.85`).
+  Vänder tidigare "aldrig hastighet för start" — rätt slutsats: hastighet, men läs onset + backa.
+  `ADDRESS_DEPART_TOL` kvar tillfälligt endast för TEMP-diagnostiken. `poseEnvelope.ts` enbart;
+  downswing/finish orört. Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002
+  *Uppföljning: wrist-Y ... oanvändbar för start* + princip #2b.
+- [x] **D-2 impact = korsning genom addressY** *(2026-08-02)* — impact togs på `passIdx` (snabbaste
+  nedåtframen, mitt i passet) men händerna når address-höjd några frames senare (DTL: idx 116
+  `y=0.288` vs korsning idx 117–118). Impact omdefinierad till första nedåtframen där `y` korsar
+  tillbaka genom `addressY`, sökt framåt från `passIdx` (behållen för finish-sekvens). `poseEnvelope.ts`
+  enbart. Build+lint rena; **ej fältverifierad**.
 - [x] **D-2 dev-preview frame-budget → 20** *(2026-08-02)* — envelope-selektionens frame-antal höjt
   10→20 via EN exporterad konstant `ENVELOPE_FRAME_BUDGET` (poseEnvelopeSelection.ts), konsumerad av
   `FramePreview` (sizer både selektion + grid-rendering, previewen visar alla 20). Allokeringen skalar

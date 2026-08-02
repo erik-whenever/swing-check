@@ -37,23 +37,26 @@ const MIN_ADDRESS_SEC = 0.3;
 /** Need at least this fraction of samples with a usable wrist to trust the read. */
 const MIN_VISIBLE_FRAC = 0.5;
 /**
- * ADDRESS DEPARTURE TOLERANCE. Swing start = the frame where the wrist LEAVES the
- * still address position — the first frame whose vertical position deviates from
- * the address-plateau mean by more than this (normalized y). Take-away is slow and
- * soft, so a SPEED threshold (backswing velocity) fires late, after the club has
- * already lifted, clipping the take-away; anchoring start on DEPARTURE from the
- * address plateau instead catches motion onset at the true start of the swing.
+ * START QUIET FLOOR (normalized wrist speed). Start = speed-based motion onset backed
+ * up to the true departure from stillness: from the ADDRESS_SPEED_FRAC onset frame,
+ * walk BACK while the previous frame's smoothed speed is still above this floor,
+ * landing on the first frame of the contiguous moving run. Sits above dead-address
+ * jitter but below the take-away ramp, so it catches the onset a couple of frames
+ * before the ADDRESS_SPEED_FRAC threshold without reaching into the still address.
+ * OSÄKER: 0.04 assumes dead-address speed stays under it; if a clip's address jitter
+ * exceeds the floor the back-up could overshoot into the address hold. Field-tune.
+ */
+const START_QUIET_FLOOR = 0.04;
+/**
+ * ADDRESS DEPARTURE TOLERANCE — RETIRED from start detection (see ADR-002 follow-up
+ * "wrist-Y vs plateau mean is unusable for start"). Wrist-Y DRIFTS during a long
+ * address (this DTL clip: 0.380 → 0.425 over 6.9 s, > any sane TOL), so neither a
+ * bidirectional |y−addressY| > tol (fires on the drift, t=1.60) nor a directional
+ * addressY−y > tol (needs the hands to RISE → fires mid-backswing, t=7.18) marks the
+ * real start. Kept ONLY so the TEMP diagnostic below can report both failing
+ * conditions; delete together with the diagnostic.
  */
 const ADDRESS_DEPART_TOL = 0.03;
-// NOTE: no waggle filter. Two attempts to reject pre-swing waggle by requiring a
-// SUSTAINED (START_MIN_SUSTAIN_FRAMES) or lookahead-confirmed (WAGGLE_LOOKAHEAD_
-// FRAMES) departure both fired start catastrophically late in DTL clips: there the
-// take-away moves the hands almost straight BACK, not up, so the y-only departure
-// signal barely clears the tolerance and any y-based waggle test reads the slow
-// take-away as a waggle return and rejects it. Y-only is the wrong signal for
-// take-away start. Per ADR-002 (a late start loses the whole take-away; a few
-// early address frames are cheap), start is the FIRST address departure, unfiltered
-// — early-biased by design. See ADR-002 follow-up + docs/pose-detection.md.
 
 // ── Finish / settle tunables ───────────────────────────────────────────────────
 /**
@@ -238,28 +241,90 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
   const addressY = median(pos.slice(addrStart, addrEnd + 1).map((p) => p.y));
 
-  // ── Swing start: FIRST departure from the address plateau (early-biased) ─────
-  // Not "onset of backswing speed": take-away is slow and soft, so wrist speed
-  // stays below the backswing threshold until the backswing accelerates, which
-  // places start AFTER the take-away (club already lifted). Instead start = the
-  // FIRST frame whose wrist departs the address plateau in the take-away direction
-  // (above address by > tol). No waggle filter: in DTL the take-away moves the
-  // hands almost straight BACK, so the y-only departure barely clears the tolerance
-  // and any y-based waggle test (sustain OR lookahead-return) misreads the slow
-  // take-away as a waggle and rejects it, firing start near the backswing top —
-  // catastrophically late. Per ADR-002 a late start loses the whole take-away
-  // whereas a few early address frames are cheap, so we bias EARLY and accept that
-  // a real waggle may add a handful of leading address frames.
+  // ── Swing start: SPEED-based motion onset, backed up to departure from stillness ─
+  // Wrist-Y vs the address-plateau mean is UNUSABLE as the start signal (ADR-002
+  // follow-up): during a long address the wrist-Y DRIFTS more than any sane tolerance
+  // (this DTL clip drifts 0.380→0.425 over 6.9 s > ADDRESS_DEPART_TOL 0.03), so a
+  // bidirectional |y−addressY|>tol fires on the drift (t=1.60) and a directional
+  // addressY−y>tol needs the hands to RISE and only trips mid-backswing (t=7.18).
+  // SPEED separates cleanly: wrist speed sits in the noise floor through the dead
+  // address, then ramps monotonically at the true take-away. So: (1) onset = first
+  // frame at/above speedThresh (ADDRESS_SPEED_FRAC×peak) — the original read that gave
+  // ~6.98, which lands slightly INTO the take-away; (2) back up frame-by-frame while
+  // the previous frame is still moving above START_QUIET_FLOOR, landing on the first
+  // frame of the contiguous moving run = the real departure from stillness. Early-
+  // biased by design: prefer a couple of frames early over reaching into the backswing.
   let startIdx = -1;
   for (let i = addrEnd + 1; i < n; i++) {
-    // departed in the take-away direction (above address by > tol)?
-    if (addressY - pos[i].y > ADDRESS_DEPART_TOL) {
+    if (speedSm[i] >= speedThresh) {
       startIdx = i;
       break;
     }
   }
+  const speedOnsetIdx = startIdx; // pre-backup onset (for the TEMP diagnostic)
+  if (startIdx >= 0) {
+    while (startIdx > addrEnd + 1 && speedSm[startIdx - 1] > START_QUIET_FLOOR) {
+      startIdx--;
+    }
+  }
+
+  // ── TEMP DIAGNOSTIC (remove after start-detection inventory) ─────────────────
+  // No logic change: only reports WHY start lands where it does. Compares the two
+  // candidate conditions — directional (addressY − y > tol, take-away UP only, the
+  // current test) vs bidirectional (|y − addressY| > tol, the 0aaf8bb test that
+  // gave [1.60→8.38]) — plus the full wrist-Y trace and the address plateau.
+  if (import.meta.env.VITE_DEV_PREVIEW === 'true') {
+    let firstUpIdx = -1; // directional (current): addressY − y > tol
+    let firstAbsIdx = -1; // bidirectional (0aaf8bb): |y − addressY| > tol
+    for (let i = addrEnd + 1; i < n; i++) {
+      const up = addressY - pos[i].y; // >0 = above address (take-away up)
+      if (firstUpIdx < 0 && up > ADDRESS_DEPART_TOL) firstUpIdx = i;
+      if (firstAbsIdx < 0 && Math.abs(pos[i].y - addressY) > ADDRESS_DEPART_TOL) firstAbsIdx = i;
+    }
+    const at = (idx: number) => (idx >= 0 ? Number(t[idx].toFixed(2)) : null);
+    console.warn('[START-DIAG] start signal comparison', {
+      addrStartIdx: addrStart,
+      addrEndIdx: addrEnd,
+      addressY: Number(addressY.toFixed(4)),
+      // SPEED path (now used):
+      speedThresh: Number(speedThresh.toFixed(4)),
+      START_QUIET_FLOOR,
+      speedOnsetIdx,
+      speedOnsetSec: at(speedOnsetIdx),
+      startIdx,
+      startSecChosen: at(startIdx),
+      // Y-vs-plateau path (RETIRED — both wrong):
+      ADDRESS_DEPART_TOL,
+      firstDirectionalUp: { idx: firstUpIdx, sec: at(firstUpIdx) },
+      firstBidirectionalAbs: { idx: firstAbsIdx, sec: at(firstAbsIdx) },
+      note:
+        firstAbsIdx !== firstUpIdx
+          ? 'Y-vs-plateau DIVERGENCE (both wrong): abs fires on address drift, directional fires mid-backswing; speed onset backed up to quiet floor is the pick'
+          : 'Y conditions agree (still wrong vs speed)',
+    });
+    console.warn(
+      '[START-DIAG] per-frame wrist-Y + speed (post-plateau)',
+      Array.from({ length: n }, (_, i) => i)
+        .filter((i) => i > addrEnd - 3) // a few plateau frames for context
+        .map((i) => {
+          const dev = pos[i].y - addressY; // signed: <0 = above address (up)
+          return {
+            i,
+            t: Number(t[i].toFixed(2)),
+            y: Number(pos[i].y.toFixed(4)),
+            dev: Number(dev.toFixed(4)),
+            spd: Number(speedSm[i].toFixed(4)),
+            aboveFloor: speedSm[i] > START_QUIET_FLOOR ? 1 : 0,
+            depUp: addressY - pos[i].y > ADDRESS_DEPART_TOL ? 1 : 0,
+            depAbs: Math.abs(dev) > ADDRESS_DEPART_TOL ? 1 : 0,
+          };
+        }),
+    );
+  }
+  // ── END TEMP DIAGNOSTIC ──────────────────────────────────────────────────────
+
   if (startIdx < 0) {
-    return fail('no departure from address plateau', {
+    return fail('no swing motion after address', {
       trackedWrist,
       visibleFrac,
       addressY,
@@ -332,10 +397,26 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   const finishY = pos[finishIdx].y;
 
   // ── Impact (confident-only polish) ─────────────────────────────────────────
-  // The downswing pass IS the impact candidate (bottom of the downswing, back near
-  // address height). Backswing top = highest point (min y) BEFORE that pass — the
-  // follow-through, which is after impact, cannot contaminate it.
-  const impactIdx = passIdx;
+  // Impact = the wrists crossing back DOWN through address height on the downswing —
+  // NOT the fastest-descending frame. passIdx (max descending speed) is the MIDDLE of
+  // the down pass, a few frames before the hands actually reach address height again:
+  // on this DTL clip it picks idx 116 (y=0.288, still above addressY≈0.38) while the
+  // wrists only cross addressY at idx 117-118. So scan forward from the pass for the
+  // first descending frame where y crosses back through addressY.
+  // OSÄKER: if the smoothed y never quite reaches addressY (shallow/low finish) no
+  // crossing exists → keep passIdx (fastest descending) as the best estimate.
+  let impactIdx = passIdx;
+  if (passIdx >= 0) {
+    const bound = finishIdx > passIdx ? finishIdx : n;
+    for (let i = passIdx; i < bound; i++) {
+      if (vy[i] > 0 && pos[i].y >= addressY && pos[i - 1].y < addressY) {
+        impactIdx = i; // wrists just crossed back down through address height
+        break;
+      }
+    }
+  }
+  // Backswing top = highest point (min y) BEFORE impact — the follow-through, which is
+  // after impact, cannot contaminate it.
   let topIdx = startIdx;
   let topY = pos[startIdx].y;
   for (let i = startIdx; i < Math.max(startIdx + 1, impactIdx); i++) {

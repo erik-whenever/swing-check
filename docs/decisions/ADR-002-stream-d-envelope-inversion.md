@@ -227,6 +227,49 @@ skeendena är varje filter på den signalen antingen blint eller överkorrigeran
 det ärligare att inte filtrera och låta värsta-fallet (princip #3) styra: bias:a starten
 tidigt och acceptera några adress-frames.
 
+## Uppföljning: wrist-Y mot platå-medel är OANVÄNDBAR för start — hastighet är rätt signal (2026-08-02)
+
+Diagnostik-dump på DTL-klippet (144 frames) avgjorde vad fyra gissningar inte kunde. Datan:
+
+- Svingen börjar `t≈6.85`. Före det: **6,9 s stillastående adress** där wrist-Y **DRIFTAR**
+  `0.380 → 0.425` — en drift på 0.045, **större än `ADDRESS_DEPART_TOL` (0.03)** och större
+  än varje rimlig TOL.
+- Bidirektionellt `|y − addressY| > TOL` fyrar på **driften** vid `t=1.60` (fel).
+- Riktat `addressY − y > TOL` kräver att händerna **STIGER** 0.03 → sker först `t=7.18`,
+  mitt i baksvingen (fel).
+- Wrist-**SPEED** separerar rent: `spd < 0.07` hela den döda perioden, sedan en monoton
+  ramp `0.06 → 0.10 → 0.15 → 0.24 → 0.39` vid frames 102–107 (`t=6.78–7.12`).
+
+**Root cause:** wrist-Y-**position** mot ett platå-*medel* är oanvändbar som start-signal —
+under en lång adress vandrar handleden (hållnings-mikrojustering, kroppssvaj, MediaPipe-
+brus) mer än varje TOL som är snäv nog att fånga take-away:n. Positionströskeln mäter *var*
+handleden är; men "svingen börjar" handlar om att handleden **börjar RÖRA sig**, inte om att
+den nått en viss höjd. Det är en hastighets-egenskap, inte en positions-egenskap.
+
+**Fix:** `ADDRESS_DEPART_TOL`-logiken (både riktad och bidirektionell) utgår ur start-
+detektionen. Start = **hastighetsbaserad onset** (den ursprungliga logiken som gav 6.98:
+första framen ≥ `speedThresh` = `ADDRESS_SPEED_FRAC × peak`) **backad bakåt frame för frame**
+så länge föregående frames `speedSm` > `START_QUIET_FLOOR` (ny tunbar, 0.04) — landar på
+första framen i den sammanhängande rörelse-körningen = verklig avfärd från stillhet. På detta
+klipp: onset ~frame 104–105, backning till **frame 102–103 (`t≈6.78–6.85`)**. Early bias
+behållen (hellre ett par frames för tidigt än in i baksvingen). `poseEnvelope.ts` enbart;
+downswing/finish orört. `ADDRESS_DEPART_TOL` behålls temporärt **enbart** för TEMP-
+diagnostiken (som visar båda de felande Y-villkoren); tas bort med den.
+
+**Bonus (samma pass): impact = korsning genom `addressY`, inte max-vy.** Impact-picket satt
+på snabbaste nedåtframen (`passIdx`, idx 116, `y=0.288`) — mitt i nedåtpasset, några frames
+*före* att händerna når address-höjd. Handlederna korsar `addressY` (0.38) först vid idx
+117–118. Impact omdefinieras till första nedåtframen där `y` korsar tillbaka genom `addressY`
+(från ovan), sökt framåt från `passIdx`. `passIdx` behålls för finish-sekvenseringen.
+
+**Detta VÄNDER en tidigare formulering av princip #2 — medvetet.** Start-fixen (0aaf8bb) sa
+"bind aldrig start till en hastighetströskel; take-away ligger under tröskel och kapas".
+Det var rätt *observation* (en enkel hastighetströskel fyrar för sent) men fel *slutsats*
+(byt till position). Rätt slutsats: **hastighet är rätt signal, men läs onset:en och backa
+till rörelsens början** i st.f. att ta tröskel-passagen rakt av. Position mot platå-medel
+misslyckas av en grundläggande orsak (drift), inte en avstämbar — ingen TOL räddar den.
+Se uppdaterad princip #2.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
@@ -237,26 +280,28 @@ tidigt och acceptera några adress-frames.
    före fasdetektion** och bind varje gräns till sving-**sekvensen** (top → downswing-
    passage → finish), aldrig till ett geometriskt extremum som har en tvilling i
    banan. Se *Uppföljning: finish-kollaps*.
-   **Motsvarande för hastighetströsklar:** bind aldrig en svinggräns till en
-   hastighetströskel — långsamma faser (take-away i starten, transition vid toppen)
-   ligger under tröskel och kapas. Start = address-avfärd, inte backsving-fart. Se
-   *Uppföljning: start-fyrar-för-sent*.
-   **Och: bind aldrig en gräns till en enkel tröskel-passage** — transient jitter
-   (waggle) uppfyller den. Skilj det äkta skeendet från dess kortvariga tvilling —
-   MEN med **det billigaste testet som räcker**, inte reflexmässigt ett min-hold.
-   Ett min-hold antar att skeendet är monotont; det gäller finishen (sustained
-   high-settle) men INTE take-away (hackig/pausande vid 15 fps → ett sustain-krav
-   fyrar för sent, nära toppen). Se *Uppföljning: start-fyrar-för-tidigt (waggle)* +
-   *start-fyrar-för-sent igen*.
-   **Slutligen: ett filter är bara så bra som sin signal.** Både sustain och tolerant
-   lookahead byggde på handledens **y**. I DTL rör sig take-away nästan rakt bakåt →
-   y kryper knappt över tröskeln, och varje y-baserat waggle-test läser den långsamma
-   take-away:n som en waggle-retur och kapar den. När signalen inte separerar de två
-   skeendena: **filtrera inte** — bias:a starten tidigt (princip #3) och acceptera några
-   adress-frames tills en bättre signal (riktning/avstånd i planet) finns. Start =
-   **första** address-avfärden, ofiltrerad. Se *Uppföljning: waggle-filtret revert:as*.
-   Låt värsta-fallet (princip #3) välja hur gränsen dras — tidigt för start
-   (för-sen tappar take-away), hållet för finish.
+   **Finish** binds till sekvensen (top → downswing-passage → settle), aldrig till
+   globalt min-y. Se *Uppföljning: finish-kollaps*.
+2b. **START: hastighet är rätt signal — men läs ONSET:en och backa till rörelsens
+   början.** Detta korsades fram genom fyra fellösningar och en diagnostik-dump;
+   slutsatsen motsäger mellansteg som står kvar i historiken ovan. Kedjan:
+   - En **enkel hastighetströskel** (`speedThresh`) fyrar några frames *in* i take-away
+     (den mjuka starten ligger under tröskel). Rätt observation.
+   - **Fel slutsats då:** "byt till POSITION — start = wrist-Y-avfärd från platå-medel."
+     Wrist-Y-position mot ett platå-medel är **fundamentalt** oanvändbar: under en lång
+     adress **driftar** handleden (mikrojustering/svaj/brus) mer än varje TOL snäv nog att
+     fånga take-away:n (DTL: drift 0.045 > TOL 0.03). Bidirektionellt fyrar på driften
+     (`t=1.60`), riktat (kräver att händerna stiger) fyrar mitt i baksvingen (`t=7.18`).
+     **Ingen TOL räddar en drift-signal** — och därför inte heller något filter ovanpå den
+     (sustain/lookahead byggde alla på y). Det var därför de tre waggle-varven aldrig
+     kunde funka.
+   - **Rätt slutsats:** behåll hastighet, men ta inte tröskel-passagen rakt av — **backa
+     bakåt frame för frame från onset:en så länge rörelsen är över `START_QUIET_FLOOR`**,
+     och landa på första framen i den sammanhängande rörelse-körningen = avfärd från
+     stillhet. "Svingen börjar" = handleden börjar RÖRA sig (hastighet), inte når en viss
+     höjd (position). Se *Uppföljning: wrist-Y ... är oanvändbar för start*.
+   Låt värsta-fallet (princip #3) välja hur gränsen dras — tidigt för start (för-sen tappar
+   take-away, så backa hellre ett par frames för långt), hållet för finish.
 3. **Värsta-fall > bästa-fall för heuristiker.** Designa selektionen så att
    degradering ger något användbart, inte intet. En heuristik som är fantastisk när
    den träffar men värdelös när den missar är sämre än en som alltid är hyfsad.

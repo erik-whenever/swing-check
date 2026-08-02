@@ -338,8 +338,23 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > parametriskt; impact-klustret får fortsatt `IMPACT_CLUSTER_BUDGET_FRAC` (0.4 → 8/20 frames). Dev-preview
 > only; `frameExtractor.ts`/Vision-anropet orört. Build+lint rena.
 >
-> **Återstår i D-2:** enhetstest på envelope-/settle-/impact-logiken; Eriks manuella
-> checkpoint-2-verifiering (D-3-cutover).
+> **Pass 3 start-fix SLUTLIG — hastighet, inte Y (2026-08-02, ADR-002 *Uppföljning: wrist-Y ... oanvändbar
+> för start* + princip #2b):** TEMP-diagnostik (bakom `VITE_DEV_PREVIEW`) på DTL-klippet (144 frames)
+> avgjorde efter fyra gissningar. Data: 6,9 s adress där wrist-Y **driftar** `0.380→0.425` (0.045 > TOL
+> 0.03) → bidir fyrar på driften (`t=1.60`), riktat kräver att händerna stiger (`t=7.18`, mitt i
+> baksvingen). Wrist-SPEED separerar rent (`<0.07` död period, ramp `0.06→0.39` frames 102–107). Fix:
+> hela `ADDRESS_DEPART_TOL`-logiken ut ur start; start = hastighetsbaserad onset (`speedSm ≥ speedThresh`)
+> **backad bakåt** medan föregående `speedSm > START_QUIET_FLOOR` (ny tunbar 0.04) → frame 102–103
+> (`t≈6.78–6.85`). Vänder tidigare "aldrig hastighet för start" (rätt observation, fel slutsats): position
+> mot platå-medel misslyckas fundamentalt (drift), hastighet är rätt signal — läs onset + backa. Early
+> bias behållen. `ADDRESS_DEPART_TOL` kvar tillfälligt ENDAST för diagnostiken (tas bort efter Eriks
+> verifiering). Bonus (samma fil): impact omdefinierad till framen där y **korsar tillbaka genom addressY**
+> på nedåtpasset (ej `passIdx`/max-vy, som satt några frames före address-höjd; DTL idx 116→117-118).
+> `poseEnvelope.ts` enbart; downswing/finish orört. Build+lint rena; **ej fältverifierad** (checkpoint 2).
+>
+> **Återstår i D-2:** Eriks checkpoint-2-verifiering av start/impact på DTL-klippet (läs `[START-DIAG]`-
+> loggarna) → ta bort TEMP-diagnostiken + `ADDRESS_DEPART_TOL`; enhetstest på envelope-/settle-/impact-
+> logiken; D-3-cutover.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 
