@@ -64,11 +64,15 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 - **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
   handledsbanan (landmärke 15/16, bäst spårade wristen):
   - **`start` binds till address-AVFÄRDEN, inte till en hastighetströskel** *(start-fix,
-    2026-08-02)*. Start = första framen efter address-platån vars wrist-Y avviker mer än
-    `ADDRESS_DEPART_TOL` (0.03) från platå-medel-Y — handlederna *lämnar* adressen.
-    Hastighetströskeln (backsving-fart) fyrade för sent: take-away är långsam → låg
-    hastighet → starten hoppade in efter take-away (klubban redan lyft). Spegelbild av
-    finish-buggen. Se ADR-002 *Uppföljning: start-fyrar-för-sent*.
+    2026-08-02)*, och avfärden måste vara **IHÅLLANDE OCH RIKTAD**, inte en enkel
+    tröskel-passage *(waggle-fix, 2026-08-02)*. Start = första framen i en körning av
+    `START_MIN_SUSTAIN_FRAMES` (3) frames där wrist-Y ligger *över* platå-medel (take-away
+    är uppåt → mindre y) med mer än `ADDRESS_DEPART_TOL` (0.03). En waggle-blip som återgår
+    till platån inom fönstret nollställer körningen → räknas inte som start. Två buggar
+    åtgärdade: hastighetströskeln fyrade för *sent* (take-away långsam, under tröskel),
+    och en enkel tröskel-passage fyrade för *tidigt* (waggle-jitter vid adress). Spegel av
+    finish-fixen (min-hold), riktad i st.f. settlad. Se ADR-002 *Uppföljning:
+    start-fyrar-för-sent* + *start-fyrar-för-tidigt (waggle)*.
   - **finish binds till SEKVENSEN, inte till globalt min-y** *(finish-kollaps-fix, 2026-08-02)*.
     Ordning: baksvingstopp → **downswing-passage** (wrists ned nära address-höjd) → **finish**.
     Downswing-passagen hittas FÖRST (snabbaste `vy>0` nära `addressY`, över hela post-start-spannet).
@@ -179,6 +183,12 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   platå-medel > `ADDRESS_DEPART_TOL` 0.03) i st.f. backsving-hastighetströskel; åtgärdar att
   envelopen började mitt i baksvingen och missade take-away. Spegelbild av finish-buggen.
   Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: start-fyrar-för-sent*.
+- [x] **D-2 start-fix (waggle)** *(2026-08-02)* — start kräver nu en IHÅLLANDE+RIKTAD
+  address-avfärd (`START_MIN_SUSTAIN_FRAMES` 3 frames över platån i take-away-riktning) i
+  st.f. en enkel `ADDRESS_DEPART_TOL`-passage; åtgärdar att starten fyrade ~3 waggle-frames
+  före take-away på DTL-klippet `[1.60→8.38]`. Spegel av finish-fixens min-hold, riktad i
+  st.f. settlad. Build rena, poseEnvelope.ts lint-ren; **ej fältverifierad** (checkpoint 2).
+  Se ADR-002 *Uppföljning: start-fyrar-för-tidigt (waggle)*.
 - [x] **D-2 (a)** — Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN:
   `scripts/copy-pose-wasm.mjs` → `public/wasm/`, `FilesetResolver.forVisionTasks('/wasm')`,
   SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,

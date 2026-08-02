@@ -45,6 +45,21 @@ const MIN_VISIBLE_FRAC = 0.5;
  * address plateau instead catches motion onset at the true start of the swing.
  */
 const ADDRESS_DEPART_TOL = 0.03;
+/**
+ * MINIMUM START SUSTAIN (consecutive departed+upward frames). A bare
+ * ADDRESS_DEPART_TOL crossing also fires on pre-swing WAGGLE — a brief club
+ * jitter at address that departs the plateau for a frame or two and then
+ * returns. To reject it we require the departure to be SUSTAINED AND DIRECTED:
+ * the wrist must stay above the address plateau by more than ADDRESS_DEPART_TOL
+ * (take-away is UPWARD → smaller y) for this many consecutive frames. A blip
+ * that falls back within the window resets the run, so start lands on the first
+ * REAL take-away, not on the waggle. Mirror of FINISH_MIN_HOLD_FRAMES at the
+ * other end — the same min-hold spirit, directed instead of settled.
+ * OSÄKER: 3 frames ≈ 0.2 s at ~15 fps; a very slow take-away that only creeps
+ * above the tolerance could delay start by a frame or two. Field-tune if starts
+ * land slightly late; lower it toward the club-movement onset.
+ */
+const START_MIN_SUSTAIN_FRAMES = 3;
 
 // ── Finish / settle tunables ───────────────────────────────────────────────────
 /**
@@ -229,28 +244,41 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
   const addressY = median(pos.slice(addrStart, addrEnd + 1).map((p) => p.y));
 
-  // ── Swing start: DEPARTURE from the address plateau ────────────────────────
+  // ── Swing start: SUSTAINED, DIRECTED departure from the address plateau ─────
   // Not "onset of backswing speed": take-away is slow and soft, so wrist speed
   // stays below the backswing threshold until the backswing accelerates, which
   // places start AFTER the take-away (club already lifted — mirror image of the
-  // finish collapse at the other end). Instead start = the first frame whose
-  // wrist-Y leaves the still address position by more than ADDRESS_DEPART_TOL,
-  // i.e. the wrists departing the address plateau — the true motion onset. Same
-  // durable principle as the finish fix: bind the boundary to the swing STRUCTURE
-  // (address departure), never to a velocity threshold that slow swing phases
-  // (take-away, transition) sit beneath and get clipped by.
-  // OSÄKER: single-frame departure on the smoothed series; a lone jitter blip
-  // above ADDRESS_DEPART_TOL could trip start early. Smoothing (SMOOTH_HALF)
-  // guards against this; field-tune the tolerance if starts land before take-away.
+  // finish collapse at the other end). Instead start = the wrists DEPARTING the
+  // address plateau. But a bare ADDRESS_DEPART_TOL crossing also fires on pre-
+  // swing WAGGLE: a brief club jitter at address that departs the plateau for a
+  // frame or two and then returns, tripping start a few frames before the real
+  // take-away. So we require the departure to be SUSTAINED AND DIRECTED — the
+  // wrist must stay above the address plateau (take-away is UPWARD → smaller y)
+  // by more than ADDRESS_DEPART_TOL for START_MIN_SUSTAIN_FRAMES consecutive
+  // frames; a blip that falls back within the window resets the run. Start =
+  // the first frame of that sustained run. Same durable principle as the finish
+  // fix: bind the boundary to the swing STRUCTURE (a held, directed departure),
+  // never to a single threshold passage that transient jitter can satisfy.
   let startIdx = -1;
-  for (let i = addrEnd + 1; i < n; i++) {
-    if (Math.abs(pos[i].y - addressY) > ADDRESS_DEPART_TOL) {
-      startIdx = i;
-      break;
+  {
+    let run = 0;
+    let runStart = addrEnd + 1;
+    for (let i = addrEnd + 1; i < n; i++) {
+      // departed AND in the take-away direction (above address by > tol).
+      if (addressY - pos[i].y > ADDRESS_DEPART_TOL) {
+        if (run === 0) runStart = i;
+        run++;
+        if (run >= START_MIN_SUSTAIN_FRAMES) {
+          startIdx = runStart; // start = first frame of the sustained take-away
+          break;
+        }
+      } else {
+        run = 0; // waggle blip returned to the plateau — not the start
+      }
     }
   }
   if (startIdx < 0) {
-    return fail('no departure from address plateau', {
+    return fail('no sustained departure from address plateau', {
       trackedWrist,
       visibleFrac,
       addressY,

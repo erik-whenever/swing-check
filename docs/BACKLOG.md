@@ -300,6 +300,16 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > Build+lint rena; **ej fältverifierad** (checkpoint 2). Generaliserar durabel princip: bind BÅDE
 > start och finish till svingsekvensen, aldrig till hastighetströsklar.
 >
+> **Pass 3 start-fix waggle (2026-08-02, ADR-002 *Uppföljning*):** efter start-fixen fyrade starten
+> för TIDIGT — fångade ~3 waggle-frames före take-away på samma DTL-klipp `[1.60→8.38]`. Root cause:
+> `ADDRESS_DEPART_TOL` är en enkel tröskel-passage → kortvarig pre-sving-jitter triggade start. Fix
+> (samma min-hold-anda som finish-fixen): start = första framen i en körning av
+> `START_MIN_SUSTAIN_FRAMES` (3) frames där wrist-Y ligger över platån i take-away-riktning (uppåt) med
+> > `ADDRESS_DEPART_TOL`; en blip som återgår nollställer körningen. `poseEnvelope.ts` enbart;
+> downswing/impact/finish orört. Build ren, poseEnvelope.ts lint-ren; **ej fältverifierad** (checkpoint
+> 2). Skärper durabel princip: bind aldrig en gräns till en enkel tröskel-passage — kräv ett ihållande,
+> riktat skeende (min-hold i båda ändar).
+>
 > **Återstår i D-2:** enhetstest på envelope-/settle-/impact-logiken; Eriks manuella
 > checkpoint-2-verifiering (D-3-cutover).
 

@@ -138,6 +138,31 @@ toppen — ligger per definition under tröskel och kapas annars. En hastighetst
 mäter *hur snabbt* det rör sig, men svinggränserna handlar om *vad* som händer i
 sekvensen.
 
+## Uppföljning: start-fyrar-för-tidigt (waggle) (2026-08-02)
+
+Efter start-fixen ovan visade samma DTL-klipp (envelope `[1.60→8.38]`) att starten nu
+fyrade för **TIDIGT**: de första ~3 framesen var waggle/småjustering vid adress, inte
+take-away. **Root cause:** `ADDRESS_DEPART_TOL` (0.03) är en **enkel tröskel-passage** —
+en kortvarig pre-sving-jitter som lämnar platån ett par frames och sedan återgår
+triggade start. Exakt samma klass som finish-kollapsen: en enskild geometrisk händelse
+(en tröskelpassage) är tvetydig när banan har en tvilling-händelse (waggle-blip vs äkta
+take-away) i närheten.
+
+**Fix (samma min-hold-anda som finish-fixen, andra änden):** kräv att avfärden är
+**IHÅLLANDE OCH RIKTAD**, inte en blip. Start = första framen i en körning av
+`START_MIN_SUSTAIN_FRAMES` på varandra följande frames där handleden ligger *över*
+address-platån (take-away är uppåt → mindre y) med mer än `ADDRESS_DEPART_TOL`. En blip
+som återgår inom fönstret nollställer körningen → räknas inte som start. Ny tunbar
+konstant `START_MIN_SUSTAIN_FRAMES` (spegel av `FINISH_MIN_HOLD_FRAMES`); riktad i
+stället för settlad. `// OSÄKER:` vid sustain-längden (mycket långsam take-away kan
+fördröjas ett par frames).
+
+**Stärker durabel princip #2 ytterligare:** en svinggräns får inte bindas till en enkel
+tröskel-passage som transient jitter kan uppfylla — den måste bindas till ett *ihållande,
+riktat* sving-skeende. Både start (sustained+riktad address-avfärd) och finish (sustained
+high-settle efter downswing-passagen) kräver nu ett min-hold för att skilja det äkta
+skeendet från dess kortvariga tvilling.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
@@ -152,6 +177,10 @@ sekvensen.
    hastighetströskel — långsamma faser (take-away i starten, transition vid toppen)
    ligger under tröskel och kapas. Start = address-avfärd, inte backsving-fart. Se
    *Uppföljning: start-fyrar-för-sent*.
+   **Och: bind aldrig en gräns till en enkel tröskel-passage** — transient jitter
+   (waggle) uppfyller den. Kräv ett *ihållande, riktat* skeende (min-hold): start =
+   sustained+riktad address-avfärd, finish = sustained high-settle. Se *Uppföljning:
+   start-fyrar-för-tidigt (waggle)*.
 3. **Värsta-fall > bästa-fall för heuristiker.** Designa selektionen så att
    degradering ger något användbart, inte intet. En heuristik som är fantastisk när
    den träffar men värdelös när den missar är sämre än en som alltid är hyfsad.
