@@ -14,12 +14,22 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 [`@mediapipe/tasks-vision`](https://www.npmjs.com/package/@mediapipe/tasks-vision) (v0.10.35),
 `PoseLandmarker`, lite-modellen. In-browser, ingen serverkostnad, ingen API-nyckel.
 
-## Modell-asset
-- **Fil:** `public/models/pose_landmarker_lite.task` (~5.5 MB, float16 lite).
-- **Hämtas med:** `npm run pose:model` (`scripts/download-pose-model.mjs`, idempotent, `--force` för omhämtning).
-- **Committas ej** — gitignorad (`public/models/*.task`); source of truth är Googles modell-bucket.
-- **WASM-runtime:** laddas i detta skede från jsDelivr-CDN (`FilesetResolver.forVisionTasks`).
-  Självhosting (offline-först) är ett senare pass.
+## Modell- & WASM-assets *(självhostade — offline-först, D-2 (a))*
+- **Modell:** `public/models/pose_landmarker_lite.task` (~5.5 MB, float16 lite).
+  Hämtas med `npm run pose:model` (`scripts/download-pose-model.mjs`, idempotent, `--force`).
+- **WASM-runtime:** `public/wasm/` — kopieras från `node_modules/@mediapipe/tasks-vision/wasm`
+  med `npm run pose:wasm` (`scripts/copy-pose-wasm.mjs`). `FilesetResolver.forVisionTasks('/wasm')`
+  pekar på egen origin — **inga jsDelivr-requests**. Kopierar SIMD-bygget (används på alla
+  moderna/mål-browsers) + nosimd-fallbacken; ES-modulvarianten (`*_module_*`) skippas (ej i
+  FilesetResolvers default-väg).
+- **Båda committas ej** — gitignorade (`public/models/*.task`, `public/wasm/`); source of truth är
+  Googles modell-bucket resp. den installerade paketversionen (WASM + JS-bindings kan aldrig driva isär).
+- **Kör `npm run pose:assets`** (= model + wasm) en gång innan `npm run build`/`dev`, annars saknas
+  assets och SW-precachen blir tom.
+- **SW-precache** (`vite.config.ts` → `workbox`): modell + SIMD-`.js`/`.wasm` precachas
+  (`maximumFileSizeToCacheInBytes` höjd till 12 MB för den ~11 MB stora binären). nosimd-`.wasm`
+  (~10 MB) hålls **ur** precachen och runtime-cachas (`CacheFirst`, cache `pose-wasm`) same-origin
+  vid behov → även no-SIMD-browsers stannar offline efter första laddning utan att blåsa upp installen.
 
 ## Arkitektur (pass 1)
 - **`src/lib/poseDetector.ts`** — singleton. `getPoseLandmarker()` bygger `PoseLandmarker` en gång
@@ -146,7 +156,11 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
 - [x] **D-2 pass 3 — envelope-inversion** — `poseEnvelope.ts` (envelope + confident-only impact) +
   `poseEnvelopeSelection.ts` (uniform-inom-svingen + impact-polish) + toggle **even ↔ envelope**.
   Logik-sanity-testad; **ej fältverifierad** (checkpoint 2). Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md).
-- [ ] Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN. *(D-2 (a))*
+- [x] **D-2 (a)** — Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN:
+  `scripts/copy-pose-wasm.mjs` → `public/wasm/`, `FilesetResolver.forVisionTasks('/wasm')`,
+  SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,
+  19 entries; noll CDN-referenser i koden). **Ej browser-/offline-fältverifierad** (kräver `npm run
+  dev` på Eriks enhet — SW-cache serverar annars gammal kod).
 - [ ] Enhetstest på platå-/vändpunkts-/impact-logiken.
 - [ ] Utvärdera mot `frameExtractor.ts` på riktiga klipp; besluta ersätta/komplettera *(D-3)*; vid
   grönt: wire:a phase-weighting till default-vägen *(pass 3)*.

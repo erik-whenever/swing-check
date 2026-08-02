@@ -19,6 +19,9 @@ dist-ssr
 # Pose model — binary asset fetched on demand via `npm run pose:model`
 public/models/*.task
 
+# Pose WASM runtime — copied from node_modules via `npm run pose:wasm`
+public/wasm/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

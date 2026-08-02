@@ -5,26 +5,26 @@
 // same instance to every caller. runningMode is 'VIDEO' because we drive it by
 // seeking a hidden <video> frame-by-frame (see poseTrajectory.ts).
 //
-// This pass loads the WASM runtime from the jsDelivr CDN; self-hosting it (so
-// the app works fully offline) is a later pass. The model itself is served
-// locally from /models (fetched via `npm run pose:model`).
+// Both the WASM runtime and the model are served from our own origin so pose
+// detection works fully offline (no jsDelivr requests). The WASM is copied from
+// node_modules via `npm run pose:wasm` and precached by the service worker; the
+// model is fetched via `npm run pose:model` (see BACKLOG D-2). Because the WASM
+// comes straight from the installed package, the runtime and JS bindings can
+// never drift apart.
 
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { createLogger } from './logger';
 
 const log = createLogger('PoseDetector');
 
-// Pin the CDN version to the installed package version so the WASM runtime and
-// the JS bindings never drift apart.
-const TASKS_VISION_VERSION = '0.10.35';
-const WASM_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
+const WASM_PATH = '/wasm';
 const MODEL_URL = '/models/pose_landmarker_lite.task';
 
 let instance: PoseLandmarker | null = null;
 let loading: Promise<PoseLandmarker> | null = null;
 
 async function build(delegate: 'GPU' | 'CPU'): Promise<PoseLandmarker> {
-  const fileset = await FilesetResolver.forVisionTasks(WASM_CDN);
+  const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
   return PoseLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: MODEL_URL, delegate },
     runningMode: 'VIDEO',

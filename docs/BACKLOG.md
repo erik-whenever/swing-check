@@ -276,8 +276,16 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > **even ↔ envelope** (default even). Konsekvens: värsta fall = "uniform över svingen", inte "missad impact".
 > Tunbara konstanter överst i båda filerna. Bygger + lintar rent; logik-sanity-testad på syntetiska
 > banor (full/avklippt/statisk/endast-baksving); **ej fältverifierad** (Eriks checkpoint 2).
-> **Återstår:** (a) självhosta WASM-runtime + modell i egen origin + SW-precache (offline-först);
-> enhetstest på envelope-/settle-/impact-logiken; Eriks manuella checkpoint-2-verifiering (D-3-cutover).
+>
+> **Pass (a) — WASM-självhost + SW-precache klar (2026-08-02):** WASM-runtimen kopieras nu från
+> `node_modules` till `public/wasm/` (`scripts/copy-pose-wasm.mjs`, `npm run pose:wasm`; gitignorad);
+> `FilesetResolver.forVisionTasks('/wasm')` pekar på egen origin — **inga jsDelivr-requests**.
+> `vite.config.ts` → `workbox` precachar modell + SIMD-`.js`/`.wasm` (`maximumFileSizeToCacheInBytes`
+> 12 MB) och runtime-cachar nosimd-`.wasm` (`CacheFirst`, `pose-wasm`) same-origin. `npm run pose:assets`
+> (= model + wasm) körs en gång före build. Byggverifierat: precache 17.7 MB / 19 entries, noll
+> CDN-referenser kvar; **ej browser-/offline-fältverifierad** (kräver `npm run dev` på Eriks enhet).
+> **Återstår i D-2:** enhetstest på envelope-/settle-/impact-logiken; Eriks manuella
+> checkpoint-2-verifiering (D-3-cutover).
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 

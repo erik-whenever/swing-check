@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "icons": "node scripts/generate-icons.mjs",
     "pose:model": "node scripts/download-pose-model.mjs",
+    "pose:wasm": "node scripts/copy-pose-wasm.mjs",
+    "pose:assets": "npm run pose:model && npm run pose:wasm",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy"
   },
