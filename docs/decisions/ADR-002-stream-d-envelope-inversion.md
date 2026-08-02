@@ -82,14 +82,46 @@ confident.
   `frameExtractor.ts` orörd. Cutover till default-vägen = D-3, gated på Eriks
   manuella checkpoint-2-verifiering.
 
+## Uppföljning: finish-kollaps (2026-08-02)
+
+Fältkörning på ett verkligt DTL-klipp visade en ny kollaps: envelopen krympte till
+`[6.98→7.38]` (0.40 s) — **bara baksvingen** — med loggen *"no descending pass near
+address height"*.
+
+**Root cause (djupare än ADR:ns ursprungliga formulering):** globalt min-y är inte
+*ett* landmärke. En fullföljd sving har **TVÅ jämförbara hand-höjd-maxima** —
+baksvingstoppen och follow-through-finishen (händerna uppe vid huvudet i båda).
+Regeln "tidigaste frame inom `APEX_PLATEAU_TOL` av globalt min-y + kort settle"
+snappade därför finishen **bakåt i tiden** till baksvingstoppen (inom höjd-tol, kort
+settle i transitionen). Det bundna impact-sökfönstret (`i < finishIdx`) blev då tomt
+→ ingen nedåtpassage → hela impact-detektionen dog.
+
+**Fix (strukturell, inte geometrisk):** finishen definieras av **sekvensen**, inte av
+att vara högst. Rätt ordning: baksvingstopp → **downswing-passage** (wrists ned nära
+address-höjd) → **finish** (ihållande high-settle *efter* passagen). Vi hittar därför
+downswing-passagen FÖRST (över hela post-start-spannet, ej bundet av finishen), och
+sätter finish = första `FINISH_MIN_HOLD_FRAMES`-långa low-settle efter passagen.
+Baksvingstoppen har bara en kort transition på ett fåtal frames och rensas ut av
+hold-kravet; finishen poseras och hålls. Ingen downswing-passage → avklippt-skydd som
+förut. `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` utgår; `FINISH_MIN_HOLD_FRAMES` införs.
+
+**Detta STÄRKER durabel princip #2, inte motsäger den.** Principen sa "härled
+envelopen (start→finish) före fasdetektion; global min-y är opålitlig för *top*".
+Uppföljningen visar att global min-y är opålitlig även för *finish* — av samma skäl
+(två jämförbara maxima). Slutsatsen generaliseras: **bind fasgränser till
+sving-SEKVENSEN, aldrig till ett geometriskt extremum** som har en tvilling någon
+annanstans i banan.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
    tills nyligen — `frameExtractor.ts` (pixel-diff) valde de frames som gick till
    Claude. Anta aldrig att den kod du felsöker är den som kör.
-2. **Global `min-y` är opålitlig för "top" i golf** — finishen är högre. Härled
-   **envelopen (start→finish) före fasdetektion**; fasgränser inuti envelopen, aldrig
-   globalt över klippet.
+2. **Global `min-y` är opålitlig för BÅDE "top" och "finish" i golf** — baksvingstopp
+   och finish är två jämförbara hand-höjd-maxima. Härled **envelopen (start→finish)
+   före fasdetektion** och bind varje gräns till sving-**sekvensen** (top → downswing-
+   passage → finish), aldrig till ett geometriskt extremum som har en tvilling i
+   banan. Se *Uppföljning: finish-kollaps*.
 3. **Värsta-fall > bästa-fall för heuristiker.** Designa selektionen så att
    degradering ger något användbart, inte intet. En heuristik som är fantastisk när
    den träffar men värdelös när den missar är sämre än en som alltid är hyfsad.

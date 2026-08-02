@@ -64,14 +64,15 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 - **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
   handledsbanan (landmärke 15/16, bäst spårade wristen):
   - **`start`** = sustained wrist-motion-onset efter address-platån (samma som förr).
-  - **`finish`** = globalt min-y efter start **med settle-krav** (`SETTLE_SPEED_FRAC` av peak, i
-    `SETTLE_MIN_FRAMES` samplen efter apex). Finishen är ett *hållet* platå → tas som **tidigaste**
-    frame inom `APEX_PLATEAU_TOL` av globala min-y (rå argmin driver till sista platå-framen på
-    flyttalsbrus allena → död svans).
-  - **Avklippt-skydd:** ingen settle-finish (video slutar mitt i rörelse) → envelope-slut = sista
-    frame med signifikant wrist-rörelse (`clippedTail=true`), inte klippslut.
-  - **impact (confident-only)** = snabbaste **nedåtrörelse** (`vy>0`) tillbaka nära address-höjd
-    (`IMPACT_HEIGHT_TOL`), sökt inom envelopen före finishen; **top** = apex före den impacten
+  - **finish binds till SEKVENSEN, inte till globalt min-y** *(finish-kollaps-fix, 2026-08-02)*.
+    Ordning: baksvingstopp → **downswing-passage** (wrists ned nära address-höjd) → **finish**.
+    Downswing-passagen hittas FÖRST (snabbaste `vy>0` nära `addressY`, över hela post-start-spannet).
+    `finish` = första `FINISH_MIN_HOLD_FRAMES`-långa low-settle (`< SETTLE_SPEED_FRAC` av peak)
+    **efter** passagen. Hold-kravet skiljer den hållna finishen från den korta transitionen på
+    baksvingstoppen. `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` utgår.
+  - **Avklippt-skydd:** ingen downswing-passage, eller ingen settle efter den (video slutar mitt i
+    rörelse) → envelope-slut = sista frame med signifikant wrist-rörelse (`clippedTail=true`).
+  - **impact (confident-only)** = downswing-passagen (samma index); **top** = apex före passagen
     (follow-through ligger efter impact → förorenar ej). Confident kräver `MIN_VERTICAL_EXCURSION`
     (verklig baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`. Annars `impact=null` + `impactReason`.
   - Ren + testbar; returnerar `{valid, startSec, finishSec, clippedTail, impact|null, impactReason}` +
@@ -90,6 +91,15 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 - **Logik-sanity-testad** (esbuild-bundle + syntetiska banor: full sving/avklippt/statisk/endast-
   baksving) — envelope, settle, avklippt-skydd, confident-only impact och baslinje-fallback beter sig
   rätt. **Ej fältverifierad** (Eriks klipp + browser, checkpoint 2).
+
+**Kända svagheter (`// OSÄKER:` i koden):**
+- **Downswing-passagen söks över hela klippet.** En sänkning av klubban *efter* finishen är också en
+  nedåtpassage nära address-höjd; fastest-wins räddar oss så länge den passagen är långsammare än
+  impact — svagt om ett klipp har en andra, snabbare nära-address-dipp efter svingen.
+- **`FINISH_MIN_HOLD_FRAMES` (3 ≈ 0.2 s @ 15 fps)** kan missa en mycket snabb, knappt hållen finish →
+  faller då till avklippt-skydd. Tunbar; fältkalibreras.
+- **Finish-vs-baksvingstopp-diskrimineringen** vilar helt på hold-längd. Ett klipp där golfaren
+  pausar länge på toppen (ovanligt) kan lura den — inte observerat, men ej uteslutet.
 
 ## Arkitektur (pass 2) — fas-viktad frame-selektion *(historik — ersatt av pass 3, se ADR-002)*
 
@@ -156,6 +166,10 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
 - [x] **D-2 pass 3 — envelope-inversion** — `poseEnvelope.ts` (envelope + confident-only impact) +
   `poseEnvelopeSelection.ts` (uniform-inom-svingen + impact-polish) + toggle **even ↔ envelope**.
   Logik-sanity-testad; **ej fältverifierad** (checkpoint 2). Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md).
+- [x] **D-2 finish-kollaps-fix** *(2026-08-02)* — finish band till svingsekvensen (downswing-passage
+  → high-settle) i st.f. globalt min-y; åtgärdar envelope-kollaps till baksvingen (`[6.98→7.38]`,
+  "no descending pass"). `FINISH_MIN_HOLD_FRAMES` in, `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` ut.
+  Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: finish-kollaps*.
 - [x] **D-2 (a)** — Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN:
   `scripts/copy-pose-wasm.mjs` → `public/wasm/`, `FilesetResolver.forVisionTasks('/wasm')`,
   SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,

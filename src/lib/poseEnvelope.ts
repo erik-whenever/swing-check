@@ -39,21 +39,23 @@ const MIN_VISIBLE_FRAC = 0.5;
 
 // ── Finish / settle tunables ───────────────────────────────────────────────────
 /**
- * SETTLE VELOCITY THRESHOLD. After the follow-through finish the hands are held
- * high and (nearly) still. We confirm a genuine settle-finish when wrist speed
- * drops below this fraction of peak speed for a short run AFTER the vertical apex.
- * If it never settles, the swing was clipped mid-motion → clip-cutoff protection.
+ * SETTLE VELOCITY THRESHOLD. In the held follow-through finish the hands are high
+ * and (nearly) still. We confirm the finish when wrist speed drops below this
+ * fraction of peak speed AFTER the downswing pass. If it never settles, the swing
+ * was clipped mid-motion → clip-cutoff protection.
  */
 const SETTLE_SPEED_FRAC = 0.2;
-/** Consecutive low-speed samples after the apex that confirm a settle-finish. */
-const SETTLE_MIN_FRAMES = 2;
 /**
- * The finish is HELD, so min-y is a flat plateau, not a single point. Treat any
- * frame within this (normalized y) tolerance of the global min as "at the finish"
- * and take the EARLIEST such frame as the finish onset — the raw argmin drifts to
- * the last plateau frame on float noise alone and buries the finish in a dead tail.
+ * MINIMUM FINISH HOLD (consecutive low-speed samples). Structural discriminator:
+ * the follow-through finish is posed and HELD across many frames, whereas the
+ * backswing top is a brief transition of only a few frames. Requiring a longer
+ * hold stops a short low-speed dwell at the top from being read as the finish —
+ * the exact collapse this replaces (finish snapping back to the backswing top,
+ * because backswing-top and finish are near-equal wrist-height maxima).
+ * OSÄKER: 3 frames ≈ 0.2 s at ~15 fps; a very fast finish that is barely held
+ * could still fall through to clip-cutoff protection. Field-tune on real clips.
  */
-const APEX_PLATEAU_TOL = 0.02;
+const FINISH_MIN_HOLD_FRAMES = 3;
 
 // ── Impact tunables (confident-only polish) ────────────────────────────────────
 /** Wrists must rise at least this far (normalized y) above address to be a swing. */
@@ -235,36 +237,48 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
     });
   }
 
-  // ── Finish: the vertical apex (min y) after start, WITH a settle ────────────
-  // The follow-through finish puts the hands highest in a completed swing, so the
-  // global min y after motion onset IS the finish — the very landmark the earlier
-  // phase read mistook for the backswing "top". We use it correctly here. Because
-  // the finish is HELD (a flat min-y plateau), we take the EARLIEST frame within a
-  // small tolerance of the global min, not the raw argmin: a raw argmin drifts to
-  // the last plateau frame (float noise in the moving average alone is enough) and
-  // lands the finish deep in a dead tail, defeating the settle check.
-  let globalApexY = pos[startIdx].y;
-  for (let i = startIdx; i < n; i++) {
-    if (pos[i].y < globalApexY) globalApexY = pos[i].y;
-  }
-  let apexIdx = startIdx;
-  for (let i = startIdx; i < n; i++) {
-    if (pos[i].y <= globalApexY + APEX_PLATEAU_TOL) {
-      apexIdx = i; // finish ONSET = first frame reaching the held-high plateau
-      break;
+  // ── Downswing pass (impact) — found FIRST; the finish is defined by SEQUENCE ──
+  // The finish is NOT "the highest point": in a completed swing the backswing top
+  // and the follow-through finish are near-equal wrist-height maxima (hands up by
+  // the head in both), so global min-y is ambiguous and snaps the finish back to
+  // the earlier top — the collapse this replaces (envelope shrinks to the backswing
+  // only, and the impact search, bounded by that false finish, finds no descending
+  // pass). Instead we anchor on the swing ORDER: backswing top → DOWNSWING PASS
+  // (wrists descend back near address height) → finish (held high-settle AFTER the
+  // pass). So we locate the downswing pass first: the fastest DESCENDING wrist
+  // (vy > 0) back near address height, over the whole post-start range.
+  // OSÄKER: searches the full clip, not up to a (now pass-derived) finish. A
+  // post-finish lowering of the club is also a descending pass near address height,
+  // but slower than impact, so fastest-wins still lands on the real downswing —
+  // weak only if a clip contains a second, faster near-address dip after the swing.
+  let passIdx = -1;
+  let maxDescSpeed = -1;
+  for (let i = startIdx + 1; i < n; i++) {
+    if (vy[i] <= 0) continue; // must be descending toward address height
+    if (Math.abs(pos[i].y - addressY) > IMPACT_HEIGHT_TOL) continue; // near address
+    if (speedSm[i] > maxDescSpeed) {
+      maxDescSpeed = speedSm[i];
+      passIdx = i;
     }
   }
 
-  // Settle check: a short low-speed run AFTER the apex confirms a held finish.
+  // ── Finish: first sustained high-settle AFTER the downswing pass ───────────────
+  // Walk forward from the pass; the finish onset is the start of the first run of
+  // FINISH_MIN_HOLD_FRAMES low-speed samples (the held follow-through pose). The
+  // hold-length requirement is what separates the finish from the brief low-speed
+  // dwell at the backswing top — a top would clear a 1–2 frame settle but not this.
   const settleThresh = peakSpeed * SETTLE_SPEED_FRAC;
-  let settled = false;
-  {
+  let finishIdx = -1;
+  let clippedTail = false;
+  if (passIdx >= 0) {
     let quiet = 0;
-    for (let i = apexIdx + 1; i < n; i++) {
+    let runStart = passIdx + 1;
+    for (let i = passIdx + 1; i < n; i++) {
       if (speedSm[i] < settleThresh) {
+        if (quiet === 0) runStart = i;
         quiet++;
-        if (quiet >= SETTLE_MIN_FRAMES) {
-          settled = true;
+        if (quiet >= FINISH_MIN_HOLD_FRAMES) {
+          finishIdx = runStart; // finish ONSET = first frame of the held-high run
           break;
         }
       } else {
@@ -273,42 +287,25 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
     }
   }
 
-  // Clip-cutoff protection: if the apex never settles (video ends mid-motion),
-  // set the envelope end to the LAST frame with significant wrist motion, not the
-  // literal clip end — avoids a dead tail of the golfer walking out of frame.
-  let finishIdx = apexIdx;
-  let clippedTail = false;
-  if (!settled) {
+  // Clip-cutoff protection: no downswing pass found, or the follow-through never
+  // settles (video ends mid-motion) → set the envelope end to the LAST frame with
+  // significant wrist motion, not the literal clip end (avoids a dead tail of the
+  // golfer walking out of frame).
+  if (finishIdx < 0) {
     clippedTail = true;
     let lastMotion = startIdx;
     for (let i = startIdx; i < n; i++) {
       if (speedSm[i] > speedThresh) lastMotion = i;
     }
-    finishIdx = Math.max(apexIdx, lastMotion);
+    finishIdx = Math.max(passIdx >= 0 ? passIdx : startIdx, lastMotion);
   }
   const finishY = pos[finishIdx].y;
 
   // ── Impact (confident-only polish) ─────────────────────────────────────────
-  // Impact is the fastest DESCENDING wrist (vy > 0, moving back DOWN toward
-  // address height) that is back NEAR address height — the bottom of the
-  // downswing. We find it directly rather than via a "min-y before finish" top:
-  // in a real swing the follow-through rises HIGHER than the backswing top, so the
-  // min-y before the finish sits in the follow-through, not at the top. The top is
-  // then simply the apex (min y) BEFORE this impact — the follow-through, which is
-  // after impact, cannot contaminate it.
-  let impactIdx = -1;
-  let maxDescSpeed = -1;
-  for (let i = startIdx + 1; i < finishIdx; i++) {
-    if (vy[i] <= 0) continue; // must be descending toward address height
-    if (Math.abs(pos[i].y - addressY) > IMPACT_HEIGHT_TOL) continue; // near address
-    if (speedSm[i] > maxDescSpeed) {
-      maxDescSpeed = speedSm[i];
-      impactIdx = i;
-    }
-  }
-
-  // Backswing top = highest point (min y) BEFORE impact. Kept for diagnostics /
-  // confidence even when impact is ultimately rejected.
+  // The downswing pass IS the impact candidate (bottom of the downswing, back near
+  // address height). Backswing top = highest point (min y) BEFORE that pass — the
+  // follow-through, which is after impact, cannot contaminate it.
+  const impactIdx = passIdx;
   let topIdx = startIdx;
   let topY = pos[startIdx].y;
   for (let i = startIdx; i < Math.max(startIdx + 1, impactIdx); i++) {

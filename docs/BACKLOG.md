@@ -284,6 +284,14 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > 12 MB) och runtime-cachar nosimd-`.wasm` (`CacheFirst`, `pose-wasm`) same-origin. `npm run pose:assets`
 > (= model + wasm) körs en gång före build. Byggverifierat: precache 17.7 MB / 19 entries, noll
 > CDN-referenser kvar; **ej browser-/offline-fältverifierad** (kräver `npm run dev` på Eriks enhet).
+> **Pass 3 finish-kollaps-fix (2026-08-02, ADR-002 *Uppföljning*):** verkligt DTL-klipp kollapsade
+> envelopen till `[6.98→7.38]` (bara baksvingen), "no descending pass". Root cause: globalt min-y har
+> TVÅ jämförbara maxima (baksvingstopp + finish) → tidigaste-inom-tol snappade finishen bakåt till
+> toppen, vilket tömde det bundna impact-fönstret. Fix (strukturell): finish binds till SEKVENSEN —
+> downswing-passagen hittas FÖRST (över hela spannet), finish = high-settle EFTER den. `poseEnvelope.ts`
+> enbart; `FINISH_MIN_HOLD_FRAMES` in, `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` ut. Build+lint rena;
+> **ej fältverifierad** (checkpoint 2).
+>
 > **Återstår i D-2:** enhetstest på envelope-/settle-/impact-logiken; Eriks manuella
 > checkpoint-2-verifiering (D-3-cutover).
 
