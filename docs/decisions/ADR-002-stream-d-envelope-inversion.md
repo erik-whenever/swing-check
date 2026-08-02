@@ -163,6 +163,42 @@ riktat* sving-skeende. Både start (sustained+riktad address-avfärd) och finish
 high-settle efter downswing-passagen) kräver nu ett min-hold för att skilja det äkta
 skeendet från dess kortvariga tvilling.
 
+## Uppföljning: start-fyrar-för-sent igen (waggle-fixen överkorrigerade) (2026-08-02)
+
+Waggle-fixen ovan (`START_MIN_SUSTAIN_FRAMES`) **överkorrigerade**. Starten fyrar nu
+ALLDELES för sent — envelope-start ligger nära **toppen** av baksvingen (verifierat på
+samma DTL-klipp: första framen har händerna nästan uppe vid toppen). Sämre än
+waggle-buggen den skulle laga.
+
+**Root cause:** kravet "sustained + riktad uppåt, nollställ vid varje avbrott" är för
+strikt. Take-away vid 15 fps är **inte monoton frame-för-frame** — händerna
+hackar/pausar tidigt — så sustain-räknaren nollställs upprepat tills den *snabba* delen
+av baksvingen, nära toppen. Samma klass av fel som hastighetströskeln (långsam fas kapas),
+men nu via en monotoni-inbyggd i sustain-kravet.
+
+**Värsta-fall styr designen (durabel princip #3):** för STARTEN är för-tidig **billig**
+(några adress-frames slösas, försvinner i frame-budgeten) men för-sen **KATASTROFAL**
+(hela take-away tappas). Alltså: bias:a starten **TIDIGT**. Den strikta symmetrin med
+finish-fixens min-hold var fel — start och finish har olika värsta-fall (finishen tål
+ett hold-krav; starten gör det inte, eftersom take-away inte är monoton).
+
+**Fix (tolerant lookahead i st.f. strikt sustain):** `START_MIN_SUSTAIN_FRAMES` utgår;
+`WAGGLE_LOOKAHEAD_FRAMES` (3) införs. Start = **första** framen som avviker från platån
+i take-away-riktning (`addressY − y > ADDRESS_DEPART_TOL`), **såvida inte** handleden är
+tillbaka på platå-nivå vid *slutet* av ett kort lookahead-fönster. Hack och pauser inom
+fönstret tillåts — inget krav på monoton uppåtrörelse — så en långsam, hackig take-away
+räknas. Bara en verklig **återgång-till-adress** (waggle-blip som är tillbaka på platån i
+fönstrets slut) filtreras bort. Fönstret hålls kort så att bara en äkta waggle-retur,
+inte en pausande take-away, avvisas. `poseEnvelope.ts` enbart; downswing/impact/finish
+orört.
+
+**Nyansering av durabel princip #2:** min-hold är rätt för finishen men fel för starten.
+Att kräva ett *ihållande* skeende antog att skeendet är monotont; take-away är det inte.
+Rätt formulering: skilj det äkta skeendet från dess kortvariga tvilling med **det
+billigaste testet som räcker** — för starten är det "återvänder blippen till adress?"
+(en lookahead-retur), inte "håller rörelsen i N frames?". Bind till sekvensen, men låt
+värsta-fallet (princip #3) välja hur strikt gränsen dras: tidigt för start, hållet för finish.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
@@ -178,9 +214,15 @@ skeendet från dess kortvariga tvilling.
    ligger under tröskel och kapas. Start = address-avfärd, inte backsving-fart. Se
    *Uppföljning: start-fyrar-för-sent*.
    **Och: bind aldrig en gräns till en enkel tröskel-passage** — transient jitter
-   (waggle) uppfyller den. Kräv ett *ihållande, riktat* skeende (min-hold): start =
-   sustained+riktad address-avfärd, finish = sustained high-settle. Se *Uppföljning:
-   start-fyrar-för-tidigt (waggle)*.
+   (waggle) uppfyller den. Skilj det äkta skeendet från dess kortvariga tvilling —
+   MEN med **det billigaste testet som räcker**, inte reflexmässigt ett min-hold.
+   Ett min-hold antar att skeendet är monotont; det gäller finishen (sustained
+   high-settle) men INTE take-away (hackig/pausande vid 15 fps → ett sustain-krav
+   fyrar för sent, nära toppen). För starten räcker en **tolerant lookahead**:
+   avfärden räknas om blippen inte är tillbaka på platån i fönstrets slut. Se
+   *Uppföljning: start-fyrar-för-tidigt (waggle)* + *start-fyrar-för-sent igen*.
+   Låt värsta-fallet (princip #3) välja hur strikt gränsen dras — tidigt för start
+   (för-sen tappar take-away), hållet för finish.
 3. **Värsta-fall > bästa-fall för heuristiker.** Designa selektionen så att
    degradering ger något användbart, inte intet. En heuristik som är fantastisk när
    den träffar men värdelös när den missar är sämre än en som alltid är hyfsad.

@@ -64,15 +64,21 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
 - **`src/lib/poseEnvelope.ts`** — `detectSwingEnvelope(samples)` härleder sving-envelopen ur
   handledsbanan (landmärke 15/16, bäst spårade wristen):
   - **`start` binds till address-AVFÄRDEN, inte till en hastighetströskel** *(start-fix,
-    2026-08-02)*, och avfärden måste vara **IHÅLLANDE OCH RIKTAD**, inte en enkel
-    tröskel-passage *(waggle-fix, 2026-08-02)*. Start = första framen i en körning av
-    `START_MIN_SUSTAIN_FRAMES` (3) frames där wrist-Y ligger *över* platå-medel (take-away
-    är uppåt → mindre y) med mer än `ADDRESS_DEPART_TOL` (0.03). En waggle-blip som återgår
-    till platån inom fönstret nollställer körningen → räknas inte som start. Två buggar
-    åtgärdade: hastighetströskeln fyrade för *sent* (take-away långsam, under tröskel),
-    och en enkel tröskel-passage fyrade för *tidigt* (waggle-jitter vid adress). Spegel av
-    finish-fixen (min-hold), riktad i st.f. settlad. Se ADR-002 *Uppföljning:
-    start-fyrar-för-sent* + *start-fyrar-för-tidigt (waggle)*.
+    2026-08-02)*, filtrerad mot waggle med en **tolerant lookahead** *(waggle-fix +
+    inversion, 2026-08-02)*. Start = **första** framen som avviker från platå-medel i
+    take-away-riktning (`addressY − y > ADDRESS_DEPART_TOL` 0.03; take-away är uppåt →
+    mindre y), **såvida inte** handleden är tillbaka på platå-nivå i slutet av ett kort
+    `WAGGLE_LOOKAHEAD_FRAMES`-fönster (3) — då är det en waggle-blip och skanningen
+    fortsätter. Hack/pauser inom fönstret tillåts; **inget krav på monoton uppåtrörelse**.
+    Tre buggar åtgärdade i följd: hastighetströskeln fyrade för *sent* (take-away långsam,
+    under tröskel); en enkel tröskel-passage fyrade för *tidigt* (waggle-jitter); och det
+    första waggle-botet (`START_MIN_SUSTAIN_FRAMES`, sustain-med-nollställning)
+    **överkorrigerade** — take-away är inte monoton vid 15 fps, så räknaren nollställdes
+    tills nära toppen → start ALLDELES för sent. Värsta-fall styr (ADR-002 princip #3):
+    för-sen start tappar hela take-away (katastrof) > för-tidig slösar billiga
+    adress-frames → bias:a starten TIDIGT; tolerant lookahead i st.f. strikt min-hold.
+    Se ADR-002 *Uppföljning: start-fyrar-för-sent* + *-för-tidigt (waggle)* +
+    *-för-sent igen*.
   - **finish binds till SEKVENSEN, inte till globalt min-y** *(finish-kollaps-fix, 2026-08-02)*.
     Ordning: baksvingstopp → **downswing-passage** (wrists ned nära address-höjd) → **finish**.
     Downswing-passagen hittas FÖRST (snabbaste `vy>0` nära `addressY`, över hela post-start-spannet).
@@ -189,6 +195,14 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   före take-away på DTL-klippet `[1.60→8.38]`. Spegel av finish-fixens min-hold, riktad i
   st.f. settlad. Build rena, poseEnvelope.ts lint-ren; **ej fältverifierad** (checkpoint 2).
   Se ADR-002 *Uppföljning: start-fyrar-för-tidigt (waggle)*.
+- [x] **D-2 start-fix inverterad** *(2026-08-02)* — waggle-botet överkorrigerade (start nära
+  baksvingstoppen — take-away ej monoton vid 15 fps, sustain-räknaren nollställdes tills nära
+  toppen). `START_MIN_SUSTAIN_FRAMES` ut → `WAGGLE_LOOKAHEAD_FRAMES` (3) in: tolerant lookahead,
+  start = första avfärden såvida inte handleden är tillbaka på platån i fönstrets slut (bara
+  äkta waggle-retur filtreras; hack/pauser tillåts). Bias:ar starten TIDIGT (värsta-fall:
+  för-sen tappar hela take-away > för-tidig slösar billiga adress-frames). `poseEnvelope.ts`
+  enbart; downswing/impact/finish orört. Build ren, poseEnvelope.ts lint-ren; **ej
+  fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: start-fyrar-för-sent igen*.
 - [x] **D-2 (a)** — Självhosta WASM-runtimen (offline-först) i stället för jsDelivr-CDN:
   `scripts/copy-pose-wasm.mjs` → `public/wasm/`, `FilesetResolver.forVisionTasks('/wasm')`,
   SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,

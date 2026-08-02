@@ -46,20 +46,26 @@ const MIN_VISIBLE_FRAC = 0.5;
  */
 const ADDRESS_DEPART_TOL = 0.03;
 /**
- * MINIMUM START SUSTAIN (consecutive departed+upward frames). A bare
- * ADDRESS_DEPART_TOL crossing also fires on pre-swing WAGGLE — a brief club
- * jitter at address that departs the plateau for a frame or two and then
- * returns. To reject it we require the departure to be SUSTAINED AND DIRECTED:
- * the wrist must stay above the address plateau by more than ADDRESS_DEPART_TOL
- * (take-away is UPWARD → smaller y) for this many consecutive frames. A blip
- * that falls back within the window resets the run, so start lands on the first
- * REAL take-away, not on the waggle. Mirror of FINISH_MIN_HOLD_FRAMES at the
- * other end — the same min-hold spirit, directed instead of settled.
- * OSÄKER: 3 frames ≈ 0.2 s at ~15 fps; a very slow take-away that only creeps
- * above the tolerance could delay start by a frame or two. Field-tune if starts
- * land slightly late; lower it toward the club-movement onset.
+ * WAGGLE LOOKAHEAD (frames). A bare ADDRESS_DEPART_TOL crossing also fires on
+ * pre-swing WAGGLE — a brief club jitter at address that departs the plateau for
+ * a frame or two and then RETURNS to it. The earlier fix required a SUSTAINED,
+ * directed run (reset on every break) — but that over-corrected: at ~15 fps a
+ * real take-away is NOT monotonic frame-to-frame (the hands hack/pause early), so
+ * the run kept resetting until the FAST part of the backswing near the top,
+ * firing start catastrophically late (envelope near the top of the backswing).
+ * Worst-case reasoning (ADR-002): for START a few wasted address frames are cheap
+ * (they vanish in the frame budget) but a late start is CATASTROPHIC (the whole
+ * take-away is lost) — so bias start EARLY. Instead of a strict sustain we use a
+ * tolerant lookahead: a departure counts as start unless the wrist is back ON the
+ * plateau at the END of this window. Hacks/pauses inside the window are allowed;
+ * only a genuine return-to-address (waggle) is filtered. No monotonic-upward
+ * requirement. Keep this SHORT so only a real waggle return is rejected, not a
+ * slow take-away that merely pauses.
+ * OSÄKER: too short and a very brief waggle whose return lags past the window
+ * could slip through; too long and a slow take-away that dips briefly could be
+ * skipped. 3 frames ≈ 0.2 s at ~15 fps. Field-tune on real clips.
  */
-const START_MIN_SUSTAIN_FRAMES = 3;
+const WAGGLE_LOOKAHEAD_FRAMES = 3;
 
 // ── Finish / settle tunables ───────────────────────────────────────────────────
 /**
@@ -244,38 +250,36 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
   const addressY = median(pos.slice(addrStart, addrEnd + 1).map((p) => p.y));
 
-  // ── Swing start: SUSTAINED, DIRECTED departure from the address plateau ─────
+  // ── Swing start: TOLERANT departure from the address plateau ────────────────
   // Not "onset of backswing speed": take-away is slow and soft, so wrist speed
   // stays below the backswing threshold until the backswing accelerates, which
-  // places start AFTER the take-away (club already lifted — mirror image of the
-  // finish collapse at the other end). Instead start = the wrists DEPARTING the
-  // address plateau. But a bare ADDRESS_DEPART_TOL crossing also fires on pre-
-  // swing WAGGLE: a brief club jitter at address that departs the plateau for a
-  // frame or two and then returns, tripping start a few frames before the real
-  // take-away. So we require the departure to be SUSTAINED AND DIRECTED — the
-  // wrist must stay above the address plateau (take-away is UPWARD → smaller y)
-  // by more than ADDRESS_DEPART_TOL for START_MIN_SUSTAIN_FRAMES consecutive
-  // frames; a blip that falls back within the window resets the run. Start =
-  // the first frame of that sustained run. Same durable principle as the finish
-  // fix: bind the boundary to the swing STRUCTURE (a held, directed departure),
-  // never to a single threshold passage that transient jitter can satisfy.
+  // places start AFTER the take-away (club already lifted). Instead start = the
+  // wrists DEPARTING the address plateau. A bare ADDRESS_DEPART_TOL crossing also
+  // fires on pre-swing WAGGLE (a brief jitter that departs and returns), so we
+  // must reject that — but the earlier "sustained, directed run, reset on every
+  // break" cure over-corrected: at ~15 fps a real take-away is NOT monotonic
+  // frame-to-frame (the hands hack/pause early), so the run kept resetting until
+  // the FAST part of the backswing near the top → start fired catastrophically
+  // late. Worst-case (ADR-002): an early start wastes a few cheap address frames;
+  // a late start loses the whole take-away — so bias EARLY. We use a TOLERANT
+  // lookahead: the first departed frame counts as start UNLESS the wrist is back
+  // on the plateau at the END of a short WAGGLE_LOOKAHEAD_FRAMES window. Hacks and
+  // pauses inside the window are allowed (no monotonic-upward requirement); only a
+  // genuine return-to-address (waggle) is filtered out.
+  // OSÄKER: single-frame departure test on the smoothed series; the lookahead
+  // return check is what guards it against transient jitter.
   let startIdx = -1;
-  {
-    let run = 0;
-    let runStart = addrEnd + 1;
-    for (let i = addrEnd + 1; i < n; i++) {
-      // departed AND in the take-away direction (above address by > tol).
-      if (addressY - pos[i].y > ADDRESS_DEPART_TOL) {
-        if (run === 0) runStart = i;
-        run++;
-        if (run >= START_MIN_SUSTAIN_FRAMES) {
-          startIdx = runStart; // start = first frame of the sustained take-away
-          break;
-        }
-      } else {
-        run = 0; // waggle blip returned to the plateau — not the start
-      }
+  for (let i = addrEnd + 1; i < n; i++) {
+    // departed in the take-away direction (above address by > tol)?
+    if (addressY - pos[i].y <= ADDRESS_DEPART_TOL) continue;
+    // Look ahead: a waggle returns to the plateau within the window; a real
+    // take-away is still departed at the window's end. Clamp to the last sample.
+    const j = Math.min(i + WAGGLE_LOOKAHEAD_FRAMES, n - 1);
+    if (addressY - pos[j].y > ADDRESS_DEPART_TOL) {
+      startIdx = i; // still departed at end of window → real take-away, not waggle
+      break;
     }
+    // returned to the plateau within the window → waggle blip, keep scanning
   }
   if (startIdx < 0) {
     return fail('no sustained departure from address plateau', {
