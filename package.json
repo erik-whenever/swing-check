@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
     "icons": "node scripts/generate-icons.mjs",
     "pose:model": "node scripts/download-pose-model.mjs",
     "pose:wasm": "node scripts/copy-pose-wasm.mjs",
@@ -43,6 +44,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
+    "vitest": "^4.1.10",
     "wrangler": "^4.95.0"
   }
 }

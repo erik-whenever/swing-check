@@ -268,6 +268,11 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   SW-precache av modell + SIMD-wasm + runtime-cache av nosimd. Byggverifierat (precache 17.7 MB,
   19 entries; noll CDN-referenser i koden). **Ej browser-/offline-fältverifierad** (kräver `npm run
   dev` på Eriks enhet — SW-cache serverar annars gammal kod).
-- [ ] Enhetstest på platå-/vändpunkts-/impact-logiken.
+- [x] **Enhetstest på platå-/vändpunkts-/impact-logiken** *(2026-08-05)* — `poseEnvelope.test.ts` (vitest,
+  `npm test`): full sving, avklippt (`clippedTail`/no impact), drift-adress (start fyrar ej på driften),
+  face-on (impact via nearest-approach), statisk/endast-baksving (degradering utan krasch), för-få-samples.
+  Fångade latent bugg: statiskt klipp gav `valid=true` (flyttalsbrus `peakSpeed~1e-16` passerade `<=0`) →
+  ny konstant `MIN_PEAK_SPEED` (1e-6). Samtidigt: TEMP-diagnostiken + `ADDRESS_DEPART_TOL` borttagna
+  (checkpoint 2 godkänd på DTL/DTL-avklippt/face-on). Build+lint+test rena.
 - [ ] Utvärdera mot `frameExtractor.ts` på riktiga klipp; besluta ersätta/komplettera *(D-3)*; vid
   grönt: wire:a phase-weighting till default-vägen *(pass 3)*.

@@ -372,10 +372,19 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > nu impact, avklippt → no impact, avklippt-inom-tolerans → no impact via clippedTail. `poseEnvelope.ts`
 > enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint rena; **ej fältverifierad**.
 >
-> **Återstår i D-2:** Eriks checkpoint-2-verifiering på **tre klipp** (läs `[START-DIAG]`-loggarna): face-on
-> `[3.35→4.83]` ska nu ge impact + impact cluster; DTL oavklippt `[6.72→8.38]` impact 7.78 oförändrat; DTL
-> avklippt uniform baslinje · clipped tail · no impact oförändrat → ta bort TEMP-diagnostiken +
-> `ADDRESS_DEPART_TOL`; enhetstest på envelope-/settle-/impact-logiken; D-3-cutover.
+> **Pass 3 STÄDNING + inlåsning (2026-08-05) — checkpoint 2 godkänd på tre klipp (DTL, DTL avklippt,
+> face-on):** (1) TEMP-diagnostiken (`[START-DIAG]` + per-frame-trace) borttagen; (2) `ADDRESS_DEPART_TOL`
+> + all död kod runt den borttagen; (3) **enhetstest** `poseEnvelope.test.ts` (vitest, `npm test`) mot
+> syntetiska banor: full sving (start vid speed-onset, finish efter downswing-passage, impact hittad),
+> avklippt (`clippedTail=true`, `impact=null`), lång drift-adress (start fyrar EJ på driften), face-on
+> (impact via nearest-approach utan exakt korsning), statisk/endast-baksving (ingen krasch, degradering),
+> för-få-samples. Enhetstestet fångade en latent bugg: statiskt klipp gav `valid=true` p.g.a.
+> flyttalsbrus (`peakSpeed ~1e-16` passerade `<= 0`) → ny konstant `MIN_PEAK_SPEED` (1e-6). Alla tunbara
+> konstanter samlade + kommenterade överst. `poseEnvelope.ts` + ny testfil + `package.json` (test-script +
+> vitest devDep); `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint+test rena.
+>
+> **Återstår i D-2:** D-3-cutover (envelope → default-vägen, gated på ROADMAP-metriken). Envelope-logiken
+> är nu fältverifierad (checkpoint 2) + enhetstestad.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 

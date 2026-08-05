@@ -37,6 +37,14 @@ const MIN_ADDRESS_SEC = 0.3;
 /** Need at least this fraction of samples with a usable wrist to trust the read. */
 const MIN_VISIBLE_FRAC = 0.5;
 /**
+ * MINIMUM PEAK SPEED (normalized units/s). Below this the clip carries no real wrist
+ * motion → no swing. A hard `<= 0` test is not enough: smoothing a perfectly still
+ * clip leaves floating-point roundoff (~1e-16) in the speed series, which sneaks past
+ * zero and yields a degenerate "valid" envelope. This epsilon rejects that noise while
+ * sitting far below any genuine motion (real swing peaks are ~0.5–5).
+ */
+const MIN_PEAK_SPEED = 1e-6;
+/**
  * START QUIET FLOOR (normalized wrist speed). Start = speed-based motion onset backed
  * up to the true departure from stillness: from the ADDRESS_SPEED_FRAC onset frame,
  * walk BACK while the previous frame's smoothed speed is still above this floor,
@@ -47,16 +55,6 @@ const MIN_VISIBLE_FRAC = 0.5;
  * exceeds the floor the back-up could overshoot into the address hold. Field-tune.
  */
 const START_QUIET_FLOOR = 0.04;
-/**
- * ADDRESS DEPARTURE TOLERANCE — RETIRED from start detection (see ADR-002 follow-up
- * "wrist-Y vs plateau mean is unusable for start"). Wrist-Y DRIFTS during a long
- * address (this DTL clip: 0.380 → 0.425 over 6.9 s, > any sane TOL), so neither a
- * bidirectional |y−addressY| > tol (fires on the drift, t=1.60) nor a directional
- * addressY−y > tol (needs the hands to RISE → fires mid-backswing, t=7.18) marks the
- * real start. Kept ONLY so the TEMP diagnostic below can report both failing
- * conditions; delete together with the diagnostic.
- */
-const ADDRESS_DEPART_TOL = 0.03;
 
 // ── Finish / settle tunables ───────────────────────────────────────────────────
 /**
@@ -235,7 +233,9 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
   const speedSm = smooth(speed, SMOOTH_HALF);
   const peakSpeed = Math.max(...speedSm);
-  if (peakSpeed <= 0) return fail('no wrist motion', { trackedWrist, visibleFrac });
+  if (peakSpeed < MIN_PEAK_SPEED) {
+    return fail('no wrist motion', { trackedWrist, visibleFrac });
+  }
   const speedThresh = peakSpeed * ADDRESS_SPEED_FRAC;
 
   // ── Address plateau: first sustained low-speed run ─────────────────────────
@@ -266,14 +266,13 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
 
   // ── Swing start: SPEED-based motion onset, backed up to departure from stillness ─
   // Wrist-Y vs the address-plateau mean is UNUSABLE as the start signal (ADR-002
-  // follow-up): during a long address the wrist-Y DRIFTS more than any sane tolerance
-  // (this DTL clip drifts 0.380→0.425 over 6.9 s > ADDRESS_DEPART_TOL 0.03), so a
-  // bidirectional |y−addressY|>tol fires on the drift (t=1.60) and a directional
-  // addressY−y>tol needs the hands to RISE and only trips mid-backswing (t=7.18).
-  // SPEED separates cleanly: wrist speed sits in the noise floor through the dead
-  // address, then ramps monotonically at the true take-away. So: (1) onset = first
-  // frame at/above speedThresh (ADDRESS_SPEED_FRAC×peak) — the original read that gave
-  // ~6.98, which lands slightly INTO the take-away; (2) back up frame-by-frame while
+  // follow-up "wrist-Y ... oanvändbar för start"): during a long address the wrist-Y
+  // DRIFTS more than any sane tolerance (drift observed 0.380→0.425 over ~6.9 s), so a
+  // bidirectional |y−addressY|>tol fires on the drift and a directional addressY−y>tol
+  // needs the hands to RISE and only trips mid-backswing. SPEED separates cleanly:
+  // wrist speed sits in the noise floor through the dead address, then ramps at the
+  // true take-away. So: (1) onset = first frame at/above speedThresh (ADDRESS_SPEED_FRAC
+  // ×peak), which lands slightly INTO the take-away; (2) back up frame-by-frame while
   // the previous frame is still moving above START_QUIET_FLOOR, landing on the first
   // frame of the contiguous moving run = the real departure from stillness. Early-
   // biased by design: prefer a couple of frames early over reaching into the backswing.
@@ -284,67 +283,11 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
       break;
     }
   }
-  const speedOnsetIdx = startIdx; // pre-backup onset (for the TEMP diagnostic)
   if (startIdx >= 0) {
     while (startIdx > addrEnd + 1 && speedSm[startIdx - 1] > START_QUIET_FLOOR) {
       startIdx--;
     }
   }
-
-  // ── TEMP DIAGNOSTIC (remove after start-detection inventory) ─────────────────
-  // No logic change: only reports WHY start lands where it does. Compares the two
-  // candidate conditions — directional (addressY − y > tol, take-away UP only, the
-  // current test) vs bidirectional (|y − addressY| > tol, the 0aaf8bb test that
-  // gave [1.60→8.38]) — plus the full wrist-Y trace and the address plateau.
-  if (import.meta.env.VITE_DEV_PREVIEW === 'true') {
-    let firstUpIdx = -1; // directional (current): addressY − y > tol
-    let firstAbsIdx = -1; // bidirectional (0aaf8bb): |y − addressY| > tol
-    for (let i = addrEnd + 1; i < n; i++) {
-      const up = addressY - pos[i].y; // >0 = above address (take-away up)
-      if (firstUpIdx < 0 && up > ADDRESS_DEPART_TOL) firstUpIdx = i;
-      if (firstAbsIdx < 0 && Math.abs(pos[i].y - addressY) > ADDRESS_DEPART_TOL) firstAbsIdx = i;
-    }
-    const at = (idx: number) => (idx >= 0 ? Number(t[idx].toFixed(2)) : null);
-    console.warn('[START-DIAG] start signal comparison', {
-      addrStartIdx: addrStart,
-      addrEndIdx: addrEnd,
-      addressY: Number(addressY.toFixed(4)),
-      // SPEED path (now used):
-      speedThresh: Number(speedThresh.toFixed(4)),
-      START_QUIET_FLOOR,
-      speedOnsetIdx,
-      speedOnsetSec: at(speedOnsetIdx),
-      startIdx,
-      startSecChosen: at(startIdx),
-      // Y-vs-plateau path (RETIRED — both wrong):
-      ADDRESS_DEPART_TOL,
-      firstDirectionalUp: { idx: firstUpIdx, sec: at(firstUpIdx) },
-      firstBidirectionalAbs: { idx: firstAbsIdx, sec: at(firstAbsIdx) },
-      note:
-        firstAbsIdx !== firstUpIdx
-          ? 'Y-vs-plateau DIVERGENCE (both wrong): abs fires on address drift, directional fires mid-backswing; speed onset backed up to quiet floor is the pick'
-          : 'Y conditions agree (still wrong vs speed)',
-    });
-    console.warn(
-      '[START-DIAG] per-frame wrist-Y + speed (post-plateau)',
-      Array.from({ length: n }, (_, i) => i)
-        .filter((i) => i > addrEnd - 3) // a few plateau frames for context
-        .map((i) => {
-          const dev = pos[i].y - addressY; // signed: <0 = above address (up)
-          return {
-            i,
-            t: Number(t[i].toFixed(2)),
-            y: Number(pos[i].y.toFixed(4)),
-            dev: Number(dev.toFixed(4)),
-            spd: Number(speedSm[i].toFixed(4)),
-            aboveFloor: speedSm[i] > START_QUIET_FLOOR ? 1 : 0,
-            depUp: addressY - pos[i].y > ADDRESS_DEPART_TOL ? 1 : 0,
-            depAbs: Math.abs(dev) > ADDRESS_DEPART_TOL ? 1 : 0,
-          };
-        }),
-    );
-  }
-  // ── END TEMP DIAGNOSTIC ──────────────────────────────────────────────────────
 
   if (startIdx < 0) {
     return fail('no swing motion after address', {
