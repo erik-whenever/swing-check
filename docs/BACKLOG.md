@@ -245,7 +245,7 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 
 **Nästa pass:** D-2 och D-3 nedan (ersätter tidigare lösa "nästa pass"-rad).
 
-### [~] D-2 — Självhosta WASM/modell + härled svingfaser
+### [x] D-2 — Självhosta WASM/modell + härled svingfaser
 
 > **Delvis (Pass 2, del b klar):** `lib/posePhases.ts` (`detectSwingPhases`) härleder
 > `{ addressRef, backswingStart, top, impact, followThroughStart }` ur handledsbanorna (landmärke
@@ -383,8 +383,9 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > konstanter samlade + kommenterade överst. `poseEnvelope.ts` + ny testfil + `package.json` (test-script +
 > vitest devDep); `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint+test rena.
 >
-> **Återstår i D-2:** D-3-cutover (envelope → default-vägen, gated på ROADMAP-metriken). Envelope-logiken
-> är nu fältverifierad (checkpoint 2) + enhetstestad.
+> **KLAR:** Envelope-logiken fältverifierad (checkpoint 2: DTL, DTL avklippt, face-on) + enhetstestad.
+> D-3-cutover genomförd (2026-08-05) — envelope är nu produktionens primära frame-selektor i
+> `frameExtractor.ts`, pixel-diff är fallback. Se D-3 nedan.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 
@@ -398,9 +399,27 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 
 **Dokumentkrav:** bocka av här + i `docs/pose-detection.md` (heuristik + kända svagheter); uppdatera `swingcheck-handoff.md` (Pågående: Pose).
 
-### [ ] D-3 — Utvärdering på 20 klipp + beslut (pose vs trim-slider)
+### [x] D-3 — Cutover: envelope som primär frame-selektor
 
-**Mål:** Avgör beslutsfork 1 i [ROADMAP.md](ROADMAP.md) med data. Dev-utvärderingsläge: kör posePhases på 20 riktiga klipp (Eriks), jämför pose-impact mot manuellt etiketterad impact.
+> **Klart (2026-08-05) — cutover genomförd.** `frameExtractor.ts`: pose/envelope-selektionen är
+> nu produktionens PRIMÄRA väg (`selectViaPose` → `detectSwingEnvelope` + `selectEnvelopeFrames`
+> med produktionens `count`=10). Pixel-diff (`selectViaMotion`, orörd logik) är FALLBACK — körs
+> endast när pose ej kan köra (dynamisk import/inferens-fel) eller `envelope.valid===false`.
+> Fallbacken är tyst för användaren men loggad: `log.warn('Frame selection', {path:'pose'|'motion', …})`
+> (WARN surfar även i prod) → fält-fallback-frekvens mätbar. A/B-toggeln (even↔envelope) + "even"-vägen
+> borttagna ur `FramePreview.tsx`; selektionen sker nu i `extractFrames` → **flagg-oberoende by
+> construction** (dev-preview visar samma selektion som produktion). `ENVELOPE_FRAME_BUDGET` (dev-only)
+> borttagen — selektionen använder `count`. Vision-anropet + `SwingRecord`-formatet **orörda**.
+> @mediapipe stannar i egen lazy chunk (dynamisk import; byggverifierat). Build + lint (ändrade filer)
+> + test (7/7) rena. Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md) → *Cutover (D-3)*.
+>
+> **Avvikelse (ärlig):** cutovern gjordes på **checkpoint 2** (3 klipp: DTL, DTL avklippt, face-on) +
+> gröna enhetstester — INTE den formella ROADMAP-metriken (≥80 % av 20 klipp inom ±150 ms). Den
+> 20-klipps-utvärderingen ersätts i praktiken av **fält-instrumenteringen**: `path`-loggen mäter nu
+> pose-vs-motion-fallback-frekvens i skarp drift, vilket är den verkliga kvalitetssignalen. Om
+> fält-fallback visar sig hög → återöppna som ny uppgift (trim-slider-forken, ROADMAP beslutsfork 1).
+
+**Ursprunglig spec (utvärderingsläge — ej byggt; ersatt av fält-instrumentering ovan):** Avgör beslutsfork 1 i [ROADMAP.md](ROADMAP.md) med data. Dev-utvärderingsläge: kör posePhases på 20 riktiga klipp (Eriks), jämför pose-impact mot manuellt etiketterad impact.
 
 **Acceptans/beslut:** ≥ 80 % inom ±150 ms → pose blir frame-valets ankare för icke-sessionsklipp (nytt pass specas). Annars, eller om ej fältkört 2026-07-31 → ny uppgift F-1 (manuell trim-slider, ~1 pass) och pose degraderas till overlay. Utfallet skrivs in i ROADMAP (beslutsfork 1) + `docs/oppna-fragor.md` (stänger F1-komplexet).
 

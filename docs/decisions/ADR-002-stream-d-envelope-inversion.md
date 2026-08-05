@@ -1,7 +1,8 @@
 # ADR-002 — Ström D: envelope-inversion av pose-selektionen
 
-- **Status:** Antagen
-- **Datum:** 2026-07-14
+- **Status:** Antagen — **cutover genomförd (D-3, 2026-08-05)**: envelope-vägen är nu
+  produktionens primära frame-selektor i `frameExtractor.ts`; pixel-diff är fallback.
+- **Datum:** 2026-07-14 (cutover 2026-08-05)
 - **Ström:** D (pose-estimering)
 - **Ersätter:** fas-viktad-klustring som **primär** selektionsväg (commit 0c29f47).
   Se även [ADR-0001](../adr/0001-motion-based-swing-detection.md) (pixel-diff-vägen,
@@ -339,6 +340,40 @@ tröskel-passage, exakt korsning — är genomgående för sköra på 2D-pose vi
 varierande kameravinkel. Rätt form är nästan alltid **närmande/sekvens inom tolerans**, med
 värsta-fallet (princip #3) som väljer hur strikt: här hellre en missad polish (uniform baslinje
 duger) än en falsk impact, men en ren face-on-sving ska inte tappa polishen på en hårsmån.
+
+## Cutover (D-3, 2026-08-05) — envelope blir produktionens primära selektor
+
+Checkpoint 2 godkänd (DTL, DTL avklippt, face-on) + enhetstest gröna → envelope-vägen
+görs till produktionsvägen i `frameExtractor.ts` (D-3). Detta upphäver den tidigare
+regeln *"Ström D rör INTE `frameExtractor.ts`"* — pose var isolerad tills den bevisat sig;
+nu är den bevisad.
+
+**Vad ändrades:**
+
+- **`frameExtractor.ts` — pose/envelope PRIMÄR, pixel-diff FALLBACK.** `extractFrames`
+  försöker först `selectViaPose` (dynamisk `import('./poseTrajectory')` → håller
+  @mediapipe ur huvudbundeln; verifierat: `poseTrajectory` byggs som egen lazy chunk,
+  huvud-index-chunken oförändrad). Den kör pose, `detectSwingEnvelope`, `selectEnvelopeFrames`
+  med produktionens `count` (10). **Fallback (`selectViaMotion`, den orörda pixel-diff-logiken)
+  körs endast när** (a) pose ej kan köra (dynamisk import / inferens-fel) **eller** (b)
+  `envelope.valid === false` (låg visibilitet, ingen address-platå, ingen rörelse). Fallbacken
+  är **tyst för användaren men loggad**: `log.warn('Frame selection', { path: 'pose'|'motion', … })`
+  (WARN surfar även i prod) → fält-fallback-frekvens mätbar.
+- **`selectEnvelopeFrames` anropas med produktionens `count`, inte dev-budgeten.**
+  `ENVELOPE_FRAME_BUDGET` (20, dev-preview-only) borttagen — selektionen använder samma
+  `count` (10) som skickas till Claude. Vision-anropet + `SwingRecord`-formatet **orörda**.
+- **A/B-toggeln (even ↔ envelope) + "even"-vägen borttagna ur `FramePreview.tsx`.** Selektionen
+  sker nu i `extractFrames` och är därmed **flagg-oberoende by construction**: `CameraView`
+  kallar `extractFrames(blob, 10)` oavsett `VITE_DEV_PREVIEW`; flaggan avgör bara om
+  preview-skärmen visas. Dev-previewen renderar produktionens frames (store-meta) + skelett-overlay
+  + en **read-only** `EnvelopeSummary` (recomputad `detectSwingEnvelope`, driver inte selektion) —
+  samma envelope produktionen byggde på (eller `valid=false` → motion-fallback). `poseFrameGrab.ts`
+  (dev A/B-grabbern) inte längre konsumerad.
+
+**Verifiering (Eriks):** samma tre klipp genom NORMALA flödet (utan `VITE_DEV_PREVIEW`) ger
+samma envelopes som dev-previewen — läs `[FrameExtractor] Frame selection`-WARN (`path`,
+`envelopeSec`, `impactSec`) i konsolen och jämför med previewens `EnvelopeSummary`. Identiska
+by construction (samma `extractFrames`). Build + lint (ändrade filer) + test rena.
 
 ## Durabla principer (gäller bortom denna ADR)
 

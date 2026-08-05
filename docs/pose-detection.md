@@ -8,7 +8,9 @@
 Pixel-diff-metriken i `frameExtractor.ts` **kan inte se ballträffen** (tunn snabb klubba → få
 pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 leder direkt, vilket
 öppnar för att härleda svingfaser från handled-/axelbanor i stället för global pixelrörelse.
-**Ström D rör inte `frameExtractor.ts`** — den byggs vid sidan om tills den bevisat sig.
+**~~Ström D rör inte `frameExtractor.ts`~~ — GÄLLDE tills D-3-cutovern (2026-08-05).** Pose byggdes
+vid sidan om tills den bevisat sig; efter checkpoint 2 + enhetstest är envelope-vägen nu
+`frameExtractor.ts`s **primära** selektor (pixel-diff = fallback). Se *Cutover (D-3)* nedan.
 
 ## Bibliotek
 [`@mediapipe/tasks-vision`](https://www.npmjs.com/package/@mediapipe/tasks-vision) (v0.10.35),
@@ -111,14 +113,17 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
   omfördelas `IMPACT_CLUSTER_BUDGET_FRAC` (0.4) av budgeten till ett tätt kluster kring impact
   (spacing `max(IMPACT_CLUSTER_SPACING_SEC 0.06, sampleDt)`), resten kvar som uniform baslinje så
   address + finish förblir täckta. `impactClusterApplied` rapporterar vilket. `!envelope.valid` →
-  even-fallback över hela span (`fellBackToEven=true`). Tunbara konstanter överst. Allt skalar
-  parametriskt med `budget` — impact-klustret får alltid `IMPACT_CLUSTER_BUDGET_FRAC`.
-  **Dev-preview-budgeten är EN tunbar konstant** `ENVELOPE_FRAME_BUDGET` (20), exporterad härifrån
-  och konsumerad av `FramePreview` — sizer både selektionen och grid-renderingen (previewen visar
-  alla 20). Oberoende av Pass-1:s even-antal (som skickas till Claude).
-- **`FramePreview.tsx`** — A/B-toggle nu **Even (Pass 1)** ↔ **Envelope**, default **even**.
-  `EnvelopeSummary` visar envelope `[start→finish]`, impact/`impactReason`, `impactClusterApplied`,
-  `clippedTail`, allokering; `PoseSelect` WARN-logg `Envelope selection` + `Envelope per-frame trace`.
+  even-fallback över hela span (`fellBackToEven=true`) — men efter D-3-cutovern anropas den från
+  `frameExtractor.ts` bara när `envelope.valid`, så `fellBackToEven`-grenen nås ej i produktion
+  (invalid envelope → motion-fallback i stället). Tunbara konstanter överst. Allt skalar parametriskt
+  med `budget`, som nu är produktionens `count` (10, skickas till Claude). `ENVELOPE_FRAME_BUDGET`
+  (dev-only 20) **borttagen** vid cutovern — selektionen använder `count`, en enda budget för både
+  preview och produktion.
+- **`FramePreview.tsx`** *(efter D-3-cutover)* — **ingen A/B-toggle**. Previewen renderar
+  produktionens frames (store-meta, valda i `frameExtractor.ts`) + skelett-overlay + en **read-only**
+  `EnvelopeSummary` (recomputad `detectSwingEnvelope`, driver INTE selektion): `valid`/`reason`,
+  envelope `[start→finish]`, impact/`impactReason`, `clippedTail`, `trackedWrist`/`visibleFrac`.
+  Selektionen är flagg-oberoende by construction — se *Cutover (D-3)* nedan.
 - **Logik-sanity-testad** (esbuild-bundle + syntetiska banor: full sving/avklippt/statisk/endast-
   baksving) — envelope, settle, avklippt-skydd, confident-only impact och baslinje-fallback beter sig
   rätt. **Ej fältverifierad** (Eriks klipp + browser, checkpoint 2).
@@ -131,6 +136,36 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
   faller då till avklippt-skydd. Tunbar; fältkalibreras.
 - **Finish-vs-baksvingstopp-diskrimineringen** vilar helt på hold-längd. Ett klipp där golfaren
   pausar länge på toppen (ovanligt) kan lura den — inte observerat, men ej uteslutet.
+
+## Cutover (D-3, 2026-08-05) — envelope blir produktionens primära selektor
+
+Checkpoint 2 godkänd (DTL, DTL avklippt, face-on) + enhetstest gröna → envelope-vägen görs till
+produktionsvägen i `frameExtractor.ts`. Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md)
+→ *Cutover (D-3)* för fullständig motivering.
+
+- **`frameExtractor.ts` — pose PRIMÄR, pixel-diff FALLBACK.** `extractFrames`:
+  - `selectViaPose` (primär): dynamisk `import('./poseTrajectory')` (håller @mediapipe ur
+    huvudbundeln — byggverifierat: egen lazy chunk) → `detectSwingEnvelope` → `selectEnvelopeFrames`
+    med produktionens `count` (10). Returnerar `null` (→ fallback) när pose ej kan köra eller
+    `envelope.valid===false`.
+  - `selectViaMotion` (fallback): den **orörda** pixel-diff-logiken (coarse-scan → address-ankring →
+    bracket → `buildAnchorTimes`), nu utbruten till egen funktion. Körs bara när pose faller.
+  - Delad grabbning: båda vägar producerar `AnchorTime[]` (`{time, phase}`) → samma seek-and-draw +
+    meta-bygge. `log.warn('Frame selection', {path:'pose'|'motion', envelopeSec, impactSec, …})` —
+    WARN surfar även i prod → **fält-fallback-frekvens mätbar**. Tyst för användaren.
+- **`FramePreview.tsx`:** A/B-toggle + "even"-väg borttagna; renderar store-meta (= produktionens
+  selektion) + read-only `EnvelopeSummary`. Selektionen sker i `extractFrames`, som `CameraView`
+  kallar oavsett `VITE_DEV_PREVIEW` → **dev-preview och produktion ger identisk selektion by
+  construction** (flaggan avgör bara om preview-skärmen visas).
+- **Orört:** Vision-anropet (`api.ts`/`prompt.ts`), `SwingRecord`-formatet, envelope-/selektions-logiken
+  (`poseEnvelope.ts`/`poseEnvelopeSelection.ts`, bortsett från borttagen `ENVELOPE_FRAME_BUDGET`).
+  `poseFrameGrab.ts` inte längre konsumerad (dev A/B-grabbern).
+- **Verifiering (Erik):** samma tre klipp genom NORMALA flödet (utan `VITE_DEV_PREVIEW`) → läs
+  `[FrameExtractor] Frame selection`-WARN i konsolen (`path`, `envelopeSec`, `impactSec`) och jämför
+  med dev-previewens `EnvelopeSummary`. Identiska. Build + lint (ändrade filer) + test (7/7) rena.
+- **Avvikelse:** cutover på checkpoint 2 (3 klipp) + enhetstest, **inte** den formella
+  ROADMAP-metriken (≥80 % av 20 klipp inom ±150 ms). Den ersätts av fält-instrumenteringen
+  (`path`-loggen). Hög fält-fallback → återöppna trim-slider-forken (ROADMAP beslutsfork 1).
 
 ## Arkitektur (pass 2) — fas-viktad frame-selektion *(historik — ersatt av pass 3, se ADR-002)*
 
@@ -274,5 +309,9 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   Fångade latent bugg: statiskt klipp gav `valid=true` (flyttalsbrus `peakSpeed~1e-16` passerade `<=0`) →
   ny konstant `MIN_PEAK_SPEED` (1e-6). Samtidigt: TEMP-diagnostiken + `ADDRESS_DEPART_TOL` borttagna
   (checkpoint 2 godkänd på DTL/DTL-avklippt/face-on). Build+lint+test rena.
-- [ ] Utvärdera mot `frameExtractor.ts` på riktiga klipp; besluta ersätta/komplettera *(D-3)*; vid
-  grönt: wire:a phase-weighting till default-vägen *(pass 3)*.
+- [x] **D-3 cutover** *(2026-08-05)* — envelope-vägen wire:ad som `frameExtractor.ts`s **primära**
+  selektor (`selectViaPose`); pixel-diff (`selectViaMotion`) är fallback, körs vid pose-otillgänglighet
+  eller `envelope.valid===false`, tyst för användaren men loggad (`path`). A/B-toggle + "even"-väg
+  borttagna; dev-preview = produktion. Vision-anropet + `SwingRecord` orörda; @mediapipe i egen lazy
+  chunk. Build+lint+test (7/7) rena. Avvikelse: cutover på checkpoint 2 (3 klipp), ej 20-klipp/±150 ms-
+  metriken (ersatt av fält-`path`-instrumentering). Se *Cutover (D-3)* ovan + ADR-002.

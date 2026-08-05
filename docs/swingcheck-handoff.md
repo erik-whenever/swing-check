@@ -13,7 +13,7 @@
 ## Fungerar
 > Funktionerna finns i kod och är mergade (PR #9–#15). Fält-/enhetsverifiering spåras i [BACKLOG.md](BACKLOG.md).
 
-- Kamera/inspelning, rörelsebaserad bildruteval (`frameExtractor.ts`).
+- Kamera/inspelning, **pose/envelope-baserad** bildruteval (`frameExtractor.ts`, D-3-cutover); pixel-diff-rörelse är fallback.
 - Claude-analys via Worker-proxy med prompt caching (`api.ts`, `prompt.ts`).
 - Regler: egna + regelbibliotek med drills, kameravinkel-filtrering.
 - Historik i IndexedDB + valfri Supabase-spegling av metadata.
@@ -41,7 +41,7 @@
 - **Pass 3 falsk impact på avklippt klipp (2026-08-05, ADR-002 *Uppföljning: falsk impact på avklippt klipp*):** avklippt DTL-klipp (slutar före träff) gav `[3.53→4.27] · clipped tail · impact 4.27` — impact pinnad till sista framen. Root cause: impact-crossing-fixen hade kvar fallback `impactIdx = passIdx`. Fix (3 lager → `impact=null` → uniform baslinje): (1) ingen fallback (`impactIdx` startar `-1`, sätts bara av faktisk korsning inom envelopen); (2) `clippedTail=true` ⇒ aldrig verifierad impact; (3) slut-marginal `IMPACT_END_MARGIN_FRAMES` (2). Verifierat syntetiskt (esbuild+node): full → confident impact, avklippt → `clippedTail`, `impact=null`. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint rena; **ej fältverifierad**.
 - **Pass 3 impact nearest-approach — face-on-fix (2026-08-05, ADR-002 *Uppföljning: impact missar på face-on*):** face-on-klipp gav `[3.35→4.83] · uniform baseline · no impact` — envelopen rätt, bara impact-polishen uteblev. Root cause: exakt korsning genom `addressY` för strikt (face-on återvänder ej exakt till address-höjd vid träff, annan kameravinkel). Fix: exakt korsning → **nearest-approach inom `IMPACT_ADDRESS_TOL`** (ny tunbar 0.05, snävare än `IMPACT_HEIGHT_TOL` 0.12). Alla skydd oförändrade (`clippedTail` överrider toleransen/slut-marginal/inget pass → `impact=null`). Verifierat syntetiskt: full → impact, face-on → nu impact, avklippt (även inom tolerans) → no impact. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint rena; **ej fältverifierad**.
 - **Pass 3 STÄDNING + inlåsning (2026-08-05) — checkpoint 2 godkänd (DTL, DTL avklippt, face-on):** TEMP-diagnostiken (`[START-DIAG]` + per-frame-trace) och `ADDRESS_DEPART_TOL` + död kod borttagna. **Enhetstest** `poseEnvelope.test.ts` (vitest, `npm test`) mot syntetiska banor: full sving (start@onset, finish efter downswing, impact), avklippt (`clippedTail`/no impact), drift-adress (start fyrar EJ på driften), face-on (impact via nearest-approach), statisk/endast-baksving (degradering utan krasch), för-få-samples. Testet fångade latent bugg: statiskt klipp gav `valid=true` (flyttalsbrus `peakSpeed~1e-16` > `0`) → ny konstant `MIN_PEAK_SPEED` (1e-6). Alla tunbara konstanter samlade + kommenterade överst. `package.json`: `test`-script + vitest devDep. `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint+test rena. Envelope-logiken nu **fältverifierad + enhetstestad**.
-- **Nästa:** D-3 — envelope → default-vägen (cutover), gated på ROADMAP-metriken (≥80 % av 20 klipp inom ±150 ms); utvärderingsläge kör pose-impact mot manuell etikett på 20 klipp. Detaljer i [pose-detection.md](pose-detection.md) + [BACKLOG.md](BACKLOG.md) D-3.
+- **D-3 CUTOVER KLAR (2026-08-05):** envelope-vägen är nu produktionens **primära** frame-selektor i `frameExtractor.ts` (`selectViaPose` → `detectSwingEnvelope` + `selectEnvelopeFrames`, `count`=10). Pixel-diff (`selectViaMotion`, orörd) är **fallback** — endast vid pose-otillgänglighet (dynamisk import/inferens-fel) eller `envelope.valid===false`. Fallback tyst för användaren men loggad: `log.warn('Frame selection', {path:'pose'|'motion', …})` (WARN surfar även i prod) → fält-fallback-frekvens mätbar. A/B-toggeln + "even"-vägen borttagna ur `FramePreview.tsx`; selektionen är nu **flagg-oberoende by construction** (dev-preview = produktion). Vision-anropet + `SwingRecord` orörda; @mediapipe i egen lazy chunk. Build+lint+test (7/7) rena. **Avvikelse:** cutover på checkpoint 2 (3 klipp) + enhetstest, ej den formella 20-klipp/±150 ms-metriken — ersatt av `path`-fält-instrumentering. Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md) → *Cutover (D-3)* + [BACKLOG.md](BACKLOG.md) D-3.
 
 ### Pågående: Voice-start
 - **Ström A, status:** A-1 + A-2 klara. A-1 `useMicTrigger` gör mic-capture + normaliserad RMS-energiström (0–1). A-2 lägger `EnergyTrigger` (`src/lib/audioTrigger.ts`, ren/testbar) + `useEnergyTrigger` (`src/hooks/useEnergyTrigger.ts`) ovanpå: adaptiv baslinje-trigger på amplitud-spik, cooldown, kalibrering, TTS-ack "Startar inspelning" + puls, läs/skrivbar config (`thresholdFactor`/`cooldownMs`/`absoluteFloor`). Bygger + lintar rent; **ej enhets-/fältverifierad** (iOS-tap + range-brus mäts i A-5, kräver Eriks telefon via `npm run dev`). Nästa: A-3 (integrera röststart i session-läge + `swingStartTimestamp`). Detaljer i [voice-start.md](voice-start.md).
@@ -50,6 +50,12 @@
 
 ### Swing detection
 > Tidigare egen handoff (`swing-detection-handoff.md`), nu inlemmad här. Senast uppdaterad: 2026-06-01.
+>
+> **UPPDATERING (2026-08-05, D-3-cutover):** eskaleringsvägen (pose) är genomförd. `frameExtractor.ts`
+> väljer nu frames via pose-envelopen (Ström D); pixel-diff-approachen nedan lever kvar men **enbart som
+> fallback** (pose otillgänglig eller envelope invalid). Address-ankringen beskriven nedan gäller alltså
+> fortfarande — men bara för fallback-vägen. Kvar att bekräfta i fält: hur ofta fallbacken triggar
+> (`path`-loggen mäter det).
 
 **Mål:** `src/lib/frameExtractor.ts` ska välja 10 bildrutor som faktiskt täcker svingen
 (address → backswing → top → downswing → impact → follow-through). För klipp längre än
