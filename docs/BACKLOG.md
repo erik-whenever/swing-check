@@ -362,9 +362,20 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > `clippedTail`, `impact=null`. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts`
 > orörda. Build+lint rena; **ej fältverifierad** (checkpoint 2).
 >
-> **Återstår i D-2:** Eriks checkpoint-2-verifiering av start/impact på DTL-klippet (läs `[START-DIAG]`-
-> loggarna; avklippt klipp ska ge uniform baslinje utan impact, oavklippt `[6.72→8.38]` impact 7.78) → ta
-> bort TEMP-diagnostiken + `ADDRESS_DEPART_TOL`; enhetstest på envelope-/settle-/impact-logiken; D-3-cutover.
+> **Pass 3 impact nearest-approach — face-on-fix (2026-08-05, ADR-002 *Uppföljning: impact missar på
+> face-on*):** face-on-klipp gav `[3.35→4.83] · uniform baseline · no impact` — envelopen rätt, bara
+> impact-polishen uteblev. Root cause: exakt korsning genom `addressY` för strikt; i face-on återvänder
+> handlederna ej exakt till address-höjd vid träff (annan kameravinkel → annan wrist-bana i Y). Fix: exakt
+> korsning → **nearest-approach inom `IMPACT_ADDRESS_TOL`** (ny tunbar 0.05, snävare än `IMPACT_HEIGHT_TOL`
+> 0.12). Alla skydd oförändrade → `impact=null`: inget pass/utanför tolerans, `clippedTail` (överrider
+> toleransen), slut-marginal. Verifierat syntetiskt (esbuild+node): full → impact, face-on (närmar 0.03) →
+> nu impact, avklippt → no impact, avklippt-inom-tolerans → no impact via clippedTail. `poseEnvelope.ts`
+> enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint rena; **ej fältverifierad**.
+>
+> **Återstår i D-2:** Eriks checkpoint-2-verifiering på **tre klipp** (läs `[START-DIAG]`-loggarna): face-on
+> `[3.35→4.83]` ska nu ge impact + impact cluster; DTL oavklippt `[6.72→8.38]` impact 7.78 oförändrat; DTL
+> avklippt uniform baslinje · clipped tail · no impact oförändrat → ta bort TEMP-diagnostiken +
+> `ADDRESS_DEPART_TOL`; enhetstest på envelope-/settle-/impact-logiken; D-3-cutover.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 

@@ -84,6 +84,20 @@ const MIN_VERTICAL_EXCURSION = 0.08;
 /** At impact the wrists must be back within this y-distance of address height. */
 const IMPACT_HEIGHT_TOL = 0.12;
 /**
+ * IMPACT ADDRESS TOLERANCE (normalized y). Impact = the frame on the downswing where
+ * the wrists come NEAREST address height, accepted only if that closest approach is
+ * within this tolerance. An exact crossing back THROUGH addressY is too strict: face-on
+ * clips (different camera angle → different wrist Y-path) don't return exactly to the
+ * address plateau at contact, so a strict crossing misses by a hair even on a clean
+ * swing. Tighter than IMPACT_HEIGHT_TOL (which only gates the descending pass): the
+ * nearest approach must be genuinely close, so a clip that never brings the wrists back
+ * near address (e.g. clipped before contact) still yields no impact — the tolerance
+ * must NOT make impact "always true".
+ * OSÄKER: 0.05 assumes the wrists return to within ~0.05 of address at real contact;
+ * a very steep/flat face-on path could need a touch more. Field-tune on real clips.
+ */
+const IMPACT_ADDRESS_TOL = 0.05;
+/**
  * MINIMUM DOWNSWING TIME. A real top → impact is ~0.2–0.3 s. If the detected
  * impact lands sooner than this after the (local) top, the read has collapsed →
  * impact is rejected (null), leaving the pure uniform-in-envelope baseline.
@@ -406,30 +420,34 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   const finishY = pos[finishIdx].y;
 
   // ── Impact (confident-only polish) ─────────────────────────────────────────
-  // Impact = the wrists crossing back DOWN through address height on the downswing —
-  // NOT the fastest-descending frame, and NEVER a fallback. passIdx (max descending
-  // speed) is the MIDDLE of the down pass, a few frames before the hands actually
-  // reach address height again (DTL: passIdx idx 116 y=0.288 while the wrists only
-  // cross addressY at 117-118), so we scan forward from the pass for the first
-  // descending frame where y crosses back through addressY, BOUNDED BY the envelope
-  // end. If no crossing completes before the envelope ends there is no verified hit —
-  // impactIdx stays -1 (no fallback to passIdx / max-vy / the last frame). This is the
-  // clip-cutoff case: a clip that stops before contact leaves the wrists still
-  // descending and never crosses back, so impact must be null → pure uniform baseline.
+  // Impact = the frame on the downswing where the wrists come NEAREST address height —
+  // NOT an exact crossing back THROUGH addressY, and NEVER a fallback. A strict crossing
+  // is too tight: face-on clips (different camera angle → different wrist Y-path) don't
+  // return exactly to the address plateau at contact, so a clean swing misses the
+  // crossing by a hair. Instead, over the descending pass [passIdx, finishIdx), take the
+  // frame of closest approach to addressY and accept it only if that approach is within
+  // IMPACT_ADDRESS_TOL. If the wrists never come that close (e.g. a clip that stops
+  // before contact) there is no verified hit — impactIdx stays -1 (no fallback to
+  // passIdx / max-vy / the last frame). passIdx (max descending speed) only anchors the
+  // pass; it is NOT taken as impact.
   let impactIdx = -1;
-  for (let i = Math.max(passIdx, startIdx + 1); i < finishIdx; i++) {
-    if (passIdx < 0) break; // no descending pass at all → no impact
-    if (vy[i] > 0 && pos[i].y >= addressY && pos[i - 1].y < addressY) {
-      impactIdx = i; // wrists just crossed back down through address height
-      break;
+  let nearestDist = Infinity;
+  if (passIdx >= 0) {
+    for (let i = Math.max(passIdx, startIdx + 1); i < finishIdx; i++) {
+      const d = Math.abs(pos[i].y - addressY);
+      if (d < nearestDist) {
+        nearestDist = d;
+        impactIdx = i; // closest approach to address height so far
+      }
     }
+    if (nearestDist > IMPACT_ADDRESS_TOL) impactIdx = -1; // never came near address
   }
-  // Reject a crossing pinned to (or within IMPACT_END_MARGIN_FRAMES of) the envelope
-  // end — that is a cutoff artifact, not a hit. And a clipped-tail clip can never carry
-  // a verified impact: if the tail is clipped the swing did not complete, so any
-  // near-end crossing is untrustworthy. Either way impactIdx → -1 (impact stays null).
+  const tooFar = passIdx >= 0 && nearestDist > IMPACT_ADDRESS_TOL;
+  // Reject an impact pinned to (or within IMPACT_END_MARGIN_FRAMES of) the envelope end
+  // — a cutoff artifact, not a hit. And a clipped-tail clip can never carry a verified
+  // impact: if the tail is clipped the swing did not complete, so any near-end approach
+  // is untrustworthy. Either way impactIdx → -1 (impact stays null → uniform baseline).
   const atEnvelopeEnd = impactIdx >= 0 && finishIdx - impactIdx < IMPACT_END_MARGIN_FRAMES;
-  const clippedNoCrossing = clippedTail && impactIdx < 0;
   if (impactIdx >= 0 && (atEnvelopeEnd || clippedTail)) {
     impactIdx = -1;
   }
@@ -449,13 +467,16 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   let impact: EnvelopeImpact | null = null;
   let impactReason: string;
   if (impactIdx < 0) {
-    impactReason = clippedNoCrossing
-      ? 'clipped tail: swing ends before the wrists cross back through address (no impact)'
-      : clippedTail
-        ? 'clipped tail: near-end crossing is a cutoff artifact, not a verified hit'
-        : atEnvelopeEnd
-          ? 'crossing pinned to envelope end (cutoff artifact, no verified impact)'
-          : 'no crossing back through address height before envelope end (no clear impact)';
+    impactReason =
+      passIdx < 0
+        ? 'no descending pass near address height (no clear impact)'
+        : clippedTail
+          ? 'clipped tail: swing did not complete, impact unverifiable (no impact)'
+          : atEnvelopeEnd
+            ? 'nearest approach pinned to envelope end (cutoff artifact, no verified impact)'
+            : tooFar
+              ? `wrists never returned within ${IMPACT_ADDRESS_TOL} of address (nearest ${nearestDist.toFixed(3)}; no impact)`
+              : 'no impact';
   } else if (addressY - topY < MIN_VERTICAL_EXCURSION) {
     impactReason = 'insufficient vertical excursion (no real backswing top)';
   } else {

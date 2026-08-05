@@ -88,19 +88,20 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
     baksvingstoppen. `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` utgår.
   - **Avklippt-skydd:** ingen downswing-passage, eller ingen settle efter den (video slutar mitt i
     rörelse) → envelope-slut = sista frame med signifikant wrist-rörelse (`clippedTail=true`).
-  - **impact (confident-only)** = framen där wrist-Y **korsar tillbaka ned genom `addressY`**
-    på nedåtpasset *(impact-crossing-fix, 2026-08-02)*, sökt framåt från `passIdx` inom
-    envelopen. Tidigare togs `passIdx` (snabbaste nedåtframen) rakt av, men den ligger mitt i
-    passet några frames *före* att händerna når address-höjd (DTL: `passIdx` idx 116 `y=0.288`,
-    korsning idx 117–118). `passIdx` behålls för finish-sekvenseringen. **INGEN fallback**
-    *(falsk-impact-fix, 2026-08-05)*: `impactIdx` startar `-1` och sätts bara av en faktisk
-    korsning — sker ingen korsning före envelope-slutet finns ingen verifierad impact (ingen
-    fallback till `passIdx`/max-vy/sista frame). Tre spärrar → `impact=null`: (1) ingen korsning,
-    (2) `clippedTail=true` (avklippt sving kan aldrig ha verifierad impact — nära-slutet-korsning
-    förkastas), (3) `IMPACT_END_MARGIN_FRAMES` (2): korsning på/inom marginalen från envelope-slutet
-    = cutoff-artefakt. **top** = apex före impact (follow-through ligger efter impact → förorenar ej).
-    Confident kräver `MIN_VERTICAL_EXCURSION` (verklig baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`.
-    Annars `impact=null` + `impactReason`.
+  - **impact (confident-only)** = framen på nedåtpasset där wrist-Y kommer **NÄRMAST `addressY`**,
+    accepterad om närmandet är inom `IMPACT_ADDRESS_TOL` (0.05) *(nearest-approach-fix, 2026-08-05)*.
+    Ersätter kravet på **exakt korsning** genom `addressY` *(impact-crossing-fix, 2026-08-02)*, som
+    var för strikt för **face-on**: annan kameravinkel → handlederna återvänder inte exakt till
+    address-höjd vid träff, så korsningen missar knappt trots en ren sving. `IMPACT_ADDRESS_TOL`
+    (0.05) är snävare än `IMPACT_HEIGHT_TOL` (0.12, grindar bara nedåtpasset) → närmandet måste vara
+    genuint nära, så toleransen inte gör impact "alltid sann". `passIdx` (snabbaste nedåtframen)
+    ankrar bara passet, tas ej som impact. **INGEN fallback** *(falsk-impact-fix, 2026-08-05)*: sätts
+    bara av ett tillräckligt nära närmande. Tre spärrar → `impact=null` (uniform baslinje): (1)
+    inget nedåtpass / närmande utanför tolerans, (2) `clippedTail=true` (avklippt sving kan aldrig ha
+    verifierad impact — överrider toleransen), (3) `IMPACT_END_MARGIN_FRAMES` (2): närmande på/inom
+    marginalen från envelope-slutet = cutoff-artefakt. **top** = apex före impact (follow-through
+    ligger efter impact → förorenar ej). Confident kräver `MIN_VERTICAL_EXCURSION` (verklig
+    baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`. Annars `impact=null` + `impactReason`.
   - Ren + testbar; returnerar `{valid, startSec, finishSec, clippedTail, impact|null, impactReason}` +
     diagnostik (`trackedWrist`, `visibleFrac`, `addressY`, `apexY`, `finishY`, `peakSpeed`) + `debug`
     (per-sampel `{t,y,vy,speed}` + valda index).
@@ -248,6 +249,15 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   syntetiskt (esbuild+node): full sving → confident impact; avklippt → `clippedTail`, `impact=null`,
   uniform baslinje. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda.
   Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: falsk impact på avklippt klipp*.
+- [x] **D-2 impact nearest-approach (face-on-fix)** *(2026-08-05)* — face-on-klipp gav `[3.35→4.83] ·
+  uniform baseline · no impact`; envelopen rätt, bara polishen uteblev. Root cause: exakt korsning genom
+  `addressY` för strikt — annan kameravinkel → handlederna återvänder ej exakt till address-höjd vid träff.
+  Fix: exakt korsning → **nearest-approach inom tolerans** (`IMPACT_ADDRESS_TOL` ny tunbar 0.05, snävare än
+  `IMPACT_HEIGHT_TOL` 0.12). Alla skydd oförändrade (`clippedTail`/slut-marginal/inget pass → `impact=null`;
+  toleransen gör ej impact "alltid sann" — clippedTail överrider). Verifierat syntetiskt (esbuild+node):
+  full → impact, face-on (närmar 0.03) → **nu impact**, avklippt → `impact=null`, avklippt-inom-tolerans →
+  `impact=null` via clippedTail. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts`
+  orörda. Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: impact missar på face-on*.
 - [x] **D-2 dev-preview frame-budget → 20** *(2026-08-02)* — envelope-selektionens frame-antal höjt
   10→20 via EN exporterad konstant `ENVELOPE_FRAME_BUDGET` (poseEnvelopeSelection.ts), konsumerad av
   `FramePreview` (sizer både selektion + grid-rendering, previewen visar alla 20). Allokeringen skalar

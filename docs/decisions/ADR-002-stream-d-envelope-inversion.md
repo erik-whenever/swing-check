@@ -303,6 +303,43 @@ kan *pinnas* (fallback, sista frame) är per definition inte confident och ska d
 uniform baslinje. En detektor får aldrig ha en tyst fallback som gör en icke-detektion till en
 falsk detektion; hellre `null` (ärligt "vet inte" → baslinje) än ett artefakt-värde.
 
+## Uppföljning: impact missar på face-on — exakt korsning för strikt (2026-08-05)
+
+Ett **face-on**-klipp gav `envelope [3.35→4.83] · uniform baseline · no impact` ("no crossing
+back through address height before envelope end"). Envelopen fångade hela svingen korrekt —
+baslinjen var rätt — men impact-*polishen* uteblev.
+
+**Root cause:** kravet på en **exakt korsning tillbaka genom `addressY`** är för strikt.
+`addressY` är address-platåns medel-Y, mätt i just detta klipps kameravinkel. I face-on
+återvänder handlederna **inte exakt** till den höjden vid träff (annan vinkel → annan
+wrist-bana i Y än i DTL), så korsningsvillkoret (`y` går från `< addressY` till `≥ addressY`)
+missar knappt trots en ren sving. Samma klass av fel som drift-buggen i start: ett *exakt*
+geometriskt villkor på en brusig/vinkelberoende signal är skört.
+
+**Fix:** exakt korsning ersätts med **nearest-approach inom tolerans**. Över nedåtpasset
+`[passIdx, finishIdx)` tas framen där `y` kommer **NÄRMAST** `addressY`; är minsta avståndet
+inom `IMPACT_ADDRESS_TOL` (ny tunbar, 0.05) → impact = den framen, annars ingen impact.
+`IMPACT_ADDRESS_TOL` (0.05) är **snävare** än `IMPACT_HEIGHT_TOL` (0.12, som bara grindar
+nedåtpasset) — närmandet måste vara genuint nära, så toleransen inte gör impact "alltid sann".
+
+**Alla befintliga skydd oförändrade (fortsatt → `impact=null` → uniform baslinje):**
+1. Nedåtpasset måste finnas (`passIdx ≥ 0`); ingen fallback till max-vy/sista frame.
+2. `clippedTail = true` ⇒ aldrig verifierad impact (överrider toleransen — ett avklippt klipp
+   vars svans råkar nå inom 0.05 ger ändå ingen impact).
+3. Slut-marginal `IMPACT_END_MARGIN_FRAMES` (2): närmande vid envelope-slutet = artefakt.
+
+Verifierat syntetiskt (esbuild + node), inga regressioner: **full** sving (korsar `addressY`) →
+confident impact; **face-on** (närmar sig 0.03, ingen korsning) → **nu confident impact**;
+**avklippt** → `impact=null`; **avklippt men närmande inom tolerans utan settle** →
+`clippedTail=true`, `impact=null` (spärr 2 överrider toleransen). `poseEnvelope.ts` enbart;
+start/downswing/finish orört; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda.
+
+**Nyansering (mönster genom hela ADR:n):** exakta geometriska villkor — global min-y, exakt
+tröskel-passage, exakt korsning — är genomgående för sköra på 2D-pose vid 15 fps och
+varierande kameravinkel. Rätt form är nästan alltid **närmande/sekvens inom tolerans**, med
+värsta-fallet (princip #3) som väljer hur strikt: här hellre en missad polish (uniform baslinje
+duger) än en falsk impact, men en ren face-on-sving ska inte tappa polishen på en hårsmån.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*
