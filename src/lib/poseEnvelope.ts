@@ -89,6 +89,15 @@ const IMPACT_HEIGHT_TOL = 0.12;
  * impact is rejected (null), leaving the pure uniform-in-envelope baseline.
  */
 const MIN_DOWNSWING_SEC = 0.12;
+/**
+ * IMPACT END MARGIN (frames). An impact crossing pinned to — or within this many
+ * frames of — the envelope end is a CLIP-CUTOFF ARTIFACT, not a real hit: a clip that
+ * stops before contact leaves the wrists still descending, and the only "crossing"
+ * near addressY is the last frame the detector could reach. Require a real gap between
+ * the crossing and the envelope end, so an impact at the tail is rejected (impact
+ * null → pure uniform baseline). Combined with the clippedTail guard below.
+ */
+const IMPACT_END_MARGIN_FRAMES = 2;
 
 export interface EnvelopeImpact {
   /** Backswing top (local vertical apex BEFORE the finish), seconds. */
@@ -398,23 +407,33 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
 
   // ── Impact (confident-only polish) ─────────────────────────────────────────
   // Impact = the wrists crossing back DOWN through address height on the downswing —
-  // NOT the fastest-descending frame. passIdx (max descending speed) is the MIDDLE of
-  // the down pass, a few frames before the hands actually reach address height again:
-  // on this DTL clip it picks idx 116 (y=0.288, still above addressY≈0.38) while the
-  // wrists only cross addressY at idx 117-118. So scan forward from the pass for the
-  // first descending frame where y crosses back through addressY.
-  // OSÄKER: if the smoothed y never quite reaches addressY (shallow/low finish) no
-  // crossing exists → keep passIdx (fastest descending) as the best estimate.
-  let impactIdx = passIdx;
-  if (passIdx >= 0) {
-    const bound = finishIdx > passIdx ? finishIdx : n;
-    for (let i = passIdx; i < bound; i++) {
-      if (vy[i] > 0 && pos[i].y >= addressY && pos[i - 1].y < addressY) {
-        impactIdx = i; // wrists just crossed back down through address height
-        break;
-      }
+  // NOT the fastest-descending frame, and NEVER a fallback. passIdx (max descending
+  // speed) is the MIDDLE of the down pass, a few frames before the hands actually
+  // reach address height again (DTL: passIdx idx 116 y=0.288 while the wrists only
+  // cross addressY at 117-118), so we scan forward from the pass for the first
+  // descending frame where y crosses back through addressY, BOUNDED BY the envelope
+  // end. If no crossing completes before the envelope ends there is no verified hit —
+  // impactIdx stays -1 (no fallback to passIdx / max-vy / the last frame). This is the
+  // clip-cutoff case: a clip that stops before contact leaves the wrists still
+  // descending and never crosses back, so impact must be null → pure uniform baseline.
+  let impactIdx = -1;
+  for (let i = Math.max(passIdx, startIdx + 1); i < finishIdx; i++) {
+    if (passIdx < 0) break; // no descending pass at all → no impact
+    if (vy[i] > 0 && pos[i].y >= addressY && pos[i - 1].y < addressY) {
+      impactIdx = i; // wrists just crossed back down through address height
+      break;
     }
   }
+  // Reject a crossing pinned to (or within IMPACT_END_MARGIN_FRAMES of) the envelope
+  // end — that is a cutoff artifact, not a hit. And a clipped-tail clip can never carry
+  // a verified impact: if the tail is clipped the swing did not complete, so any
+  // near-end crossing is untrustworthy. Either way impactIdx → -1 (impact stays null).
+  const atEnvelopeEnd = impactIdx >= 0 && finishIdx - impactIdx < IMPACT_END_MARGIN_FRAMES;
+  const clippedNoCrossing = clippedTail && impactIdx < 0;
+  if (impactIdx >= 0 && (atEnvelopeEnd || clippedTail)) {
+    impactIdx = -1;
+  }
+
   // Backswing top = highest point (min y) BEFORE impact — the follow-through, which is
   // after impact, cannot contaminate it.
   let topIdx = startIdx;
@@ -430,7 +449,13 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   let impact: EnvelopeImpact | null = null;
   let impactReason: string;
   if (impactIdx < 0) {
-    impactReason = 'no descending pass near address height (no clear impact)';
+    impactReason = clippedNoCrossing
+      ? 'clipped tail: swing ends before the wrists cross back through address (no impact)'
+      : clippedTail
+        ? 'clipped tail: near-end crossing is a cutoff artifact, not a verified hit'
+        : atEnvelopeEnd
+          ? 'crossing pinned to envelope end (cutoff artifact, no verified impact)'
+          : 'no crossing back through address height before envelope end (no clear impact)';
   } else if (addressY - topY < MIN_VERTICAL_EXCURSION) {
     impactReason = 'insufficient vertical excursion (no real backswing top)';
   } else {

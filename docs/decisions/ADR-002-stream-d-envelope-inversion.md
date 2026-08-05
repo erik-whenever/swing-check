@@ -270,6 +270,39 @@ till rörelsens början** i st.f. att ta tröskel-passagen rakt av. Position mot
 misslyckas av en grundläggande orsak (drift), inte en avstämbar — ingen TOL räddar den.
 Se uppdaterad princip #2.
 
+## Uppföljning: falsk impact på avklippt klipp (2026-08-05)
+
+Ett avklippt DTL-klipp (slutar FÖRE bollträff) gav `envelope [3.53→4.27] · clipped tail ·
+**impact 4.27**` — impact exakt på envelope-slutet, den klassiska "pinnas till sista
+framen". Klippet innehåller ingen träff → korrekt beteende (ADR-002 princip #3, confident-
+only) är `impactClusterApplied = false`, ren uniform baslinje.
+
+**Root cause:** impact-crossing-fixen (föregående uppföljning) hade kvar en **fallback**:
+`let impactIdx = passIdx;` — hittades ingen korsning tillbaka genom `addressY` föll impact
+tillbaka på `passIdx` (snabbaste nedåtframen), som på ett avklippt klipp ligger vid tail:en.
+Ett avklippt klipp lämnar handlederna *fortfarande på väg ned* — de korsar aldrig tillbaka
+genom address-höjd — så varje impact-värde där är en **detektionsartefakt**, inte en träff.
+
+**Fix (tre lager, alla → impact null):**
+1. **Ingen fallback.** `impactIdx` startar på `-1` och sätts BARA av en faktisk korsning
+   tillbaka genom `addressY` på nedåtpasset, sökt inom envelopen (`< finishIdx`). Ingen
+   `passIdx`/max-vy/sista-frame-fallback.
+2. **`clippedTail = true` ⇒ aldrig verifierad impact.** Är svansen avklippt fullföljdes inte
+   svingen; varje nära-slutet-korsning förkastas → impact null ovillkorligt.
+3. **Slut-marginal** `IMPACT_END_MARGIN_FRAMES` (2): en korsning på (eller inom marginalen
+   från) envelope-slutet är en cutoff-artefakt → förkasta.
+
+Verifierat med syntetiska banor (esbuild + node): en **full** sving (rise → korsning tillbaka
+genom address → hög settle) ger `confident impact`; en **avklippt** sving (slutar mitt i
+nedåtpasset, ingen korsning) ger `clippedTail=true`, `impact=null` ("clipped tail: swing ends
+before the wrists cross back through address"). `poseEnvelope.ts` enbart; start/downswing/finish
+orört; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda.
+
+**Stärker princip #3:** "confident-only" måste vara verkligt confident — en impact som bara
+kan *pinnas* (fallback, sista frame) är per definition inte confident och ska degradera till
+uniform baslinje. En detektor får aldrig ha en tyst fallback som gör en icke-detektion till en
+falsk detektion; hellre `null` (ärligt "vet inte" → baslinje) än ett artefakt-värde.
+
 ## Durabla principer (gäller bortom denna ADR)
 
 1. **Verifiera alltid vilken kodväg som faktiskt selekterar.** Pose var *overlay-only*

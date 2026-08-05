@@ -89,12 +89,18 @@ pixlar → impact ligger i en motion-dal). Pose-estimering spårar kroppens 33 l
   - **Avklippt-skydd:** ingen downswing-passage, eller ingen settle efter den (video slutar mitt i
     rörelse) → envelope-slut = sista frame med signifikant wrist-rörelse (`clippedTail=true`).
   - **impact (confident-only)** = framen där wrist-Y **korsar tillbaka ned genom `addressY`**
-    på nedåtpasset *(impact-crossing-fix, 2026-08-02)*, sökt framåt från `passIdx`. Tidigare
-    togs `passIdx` (snabbaste nedåtframen) rakt av, men den ligger mitt i passet några frames
-    *före* att händerna når address-höjd (DTL: `passIdx` idx 116 `y=0.288`, korsning idx 117–118).
-    `passIdx` behålls för finish-sekvenseringen. **top** = apex före impact (follow-through
-    ligger efter impact → förorenar ej). Confident kräver `MIN_VERTICAL_EXCURSION` (verklig
-    baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`. Annars `impact=null` + `impactReason`.
+    på nedåtpasset *(impact-crossing-fix, 2026-08-02)*, sökt framåt från `passIdx` inom
+    envelopen. Tidigare togs `passIdx` (snabbaste nedåtframen) rakt av, men den ligger mitt i
+    passet några frames *före* att händerna når address-höjd (DTL: `passIdx` idx 116 `y=0.288`,
+    korsning idx 117–118). `passIdx` behålls för finish-sekvenseringen. **INGEN fallback**
+    *(falsk-impact-fix, 2026-08-05)*: `impactIdx` startar `-1` och sätts bara av en faktisk
+    korsning — sker ingen korsning före envelope-slutet finns ingen verifierad impact (ingen
+    fallback till `passIdx`/max-vy/sista frame). Tre spärrar → `impact=null`: (1) ingen korsning,
+    (2) `clippedTail=true` (avklippt sving kan aldrig ha verifierad impact — nära-slutet-korsning
+    förkastas), (3) `IMPACT_END_MARGIN_FRAMES` (2): korsning på/inom marginalen från envelope-slutet
+    = cutoff-artefakt. **top** = apex före impact (follow-through ligger efter impact → förorenar ej).
+    Confident kräver `MIN_VERTICAL_EXCURSION` (verklig baksvingstopp) + `downswingSec ≥ MIN_DOWNSWING_SEC`.
+    Annars `impact=null` + `impactReason`.
   - Ren + testbar; returnerar `{valid, startSec, finishSec, clippedTail, impact|null, impactReason}` +
     diagnostik (`trackedWrist`, `visibleFrac`, `addressY`, `apexY`, `finishY`, `peakSpeed`) + `debug`
     (per-sampel `{t,y,vy,speed}` + valda index).
@@ -234,6 +240,14 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   `y=0.288` vs korsning idx 117–118). Impact omdefinierad till första nedåtframen där `y` korsar
   tillbaka genom `addressY`, sökt framåt från `passIdx` (behållen för finish-sekvens). `poseEnvelope.ts`
   enbart. Build+lint rena; **ej fältverifierad**.
+- [x] **D-2 falsk impact på avklippt klipp** *(2026-08-05)* — avklippt DTL-klipp (slutar före träff) gav
+  `impact 4.27` = envelope-slutet (pinnades till sista framen). Root cause: impact-crossing-fixen hade
+  kvar fallback `impactIdx = passIdx`. Fix (3 lager → `impact=null`): (1) ingen fallback (`impactIdx`
+  startar `-1`, sätts bara av faktisk korsning inom envelopen); (2) `clippedTail=true` ⇒ aldrig verifierad
+  impact; (3) `IMPACT_END_MARGIN_FRAMES` (2) — korsning vid envelope-slutet = cutoff-artefakt. Verifierat
+  syntetiskt (esbuild+node): full sving → confident impact; avklippt → `clippedTail`, `impact=null`,
+  uniform baslinje. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda.
+  Build+lint rena; **ej fältverifierad** (checkpoint 2). Se ADR-002 *Uppföljning: falsk impact på avklippt klipp*.
 - [x] **D-2 dev-preview frame-budget → 20** *(2026-08-02)* — envelope-selektionens frame-antal höjt
   10→20 via EN exporterad konstant `ENVELOPE_FRAME_BUDGET` (poseEnvelopeSelection.ts), konsumerad av
   `FramePreview` (sizer både selektion + grid-rendering, previewen visar alla 20). Allokeringen skalar

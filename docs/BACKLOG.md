@@ -352,9 +352,19 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > på nedåtpasset (ej `passIdx`/max-vy, som satt några frames före address-höjd; DTL idx 116→117-118).
 > `poseEnvelope.ts` enbart; downswing/finish orört. Build+lint rena; **ej fältverifierad** (checkpoint 2).
 >
+> **Pass 3 falsk impact på avklippt klipp (2026-08-05, ADR-002 *Uppföljning: falsk impact på avklippt
+> klipp*):** avklippt DTL-klipp (slutar före träff) gav `[3.53→4.27] · clipped tail · impact 4.27` —
+> impact pinnad till sista framen. Root cause: impact-crossing-fixen hade kvar fallback `impactIdx =
+> passIdx`. Fix (3 lager → `impact=null` → uniform baslinje): (1) ingen fallback (`impactIdx` startar `-1`,
+> sätts bara av faktisk korsning tillbaka genom `addressY` inom envelopen); (2) `clippedTail=true` ⇒ aldrig
+> verifierad impact; (3) slut-marginal `IMPACT_END_MARGIN_FRAMES` (2) — korsning vid envelope-slutet =
+> cutoff-artefakt. Verifierat syntetiskt (esbuild+node): full sving → confident impact; avklippt →
+> `clippedTail`, `impact=null`. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts`
+> orörda. Build+lint rena; **ej fältverifierad** (checkpoint 2).
+>
 > **Återstår i D-2:** Eriks checkpoint-2-verifiering av start/impact på DTL-klippet (läs `[START-DIAG]`-
-> loggarna) → ta bort TEMP-diagnostiken + `ADDRESS_DEPART_TOL`; enhetstest på envelope-/settle-/impact-
-> logiken; D-3-cutover.
+> loggarna; avklippt klipp ska ge uniform baslinje utan impact, oavklippt `[6.72→8.38]` impact 7.78) → ta
+> bort TEMP-diagnostiken + `ADDRESS_DEPART_TOL`; enhetstest på envelope-/settle-/impact-logiken; D-3-cutover.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 
