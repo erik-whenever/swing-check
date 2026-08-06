@@ -2,6 +2,7 @@
 
 > **Enda källa till sanning för vad som är gjort och vad som är kvar.**
 > GitHub Issues används inte (ensam utvecklare). Status lever här + i git-historiken.
+> **Prioritetsordning mellan strömmar + beslutsforkar:** [ROADMAP.md](ROADMAP.md) (2026-07-07). Ordning: A-3 → A-5/C-2 → E-1 → D-2/D-3 → B → G2.
 
 ---
 
@@ -95,6 +96,8 @@ Hands-free svingstart i hörlurs-session: användaren säger "start" (eller klap
 
 ### [ ] A-4 — Wake-word "start" via Porcupine + settings-toggle
 
+> **Villkorad (ROADMAP beslutsfork 2):** byggs endast om A-5-fältdata visar > 1 falsk trigger per 10 svingar. Annars stryks A-4 vid G1-scopefrysen.
+
 **Mål:** On-device wake-word för "start" (Picovoice Porcupine Web SDK). Energi-trigger kvar som fallback. Settings-toggle.
 
 **Kontext:** Energi-trigger ger falska positiv i range-brus. Porcupine kör offline, ingen API-kostnad, gratis tier för personligt bruk, custom keyword. Latens ~200–500ms OK. Kräver access-key i env (committas ej).
@@ -129,6 +132,7 @@ Hands-free svingstart i hörlurs-session: användaren säger "start" (eller klap
 ## Ström B — Supabase RLS-policies + auth-grund
 
 Lägg RLS-policies på `swing_records` och grundlägg auth så historik-sync slutar falla tyst tillbaka på IndexedDB. Isolerad från A och C.
+**B är G2:s hårda grind** ([ROADMAP.md](ROADMAP.md) M5) — instruktörsspåret kräver konton + cross-device-video. B-3:s lagringsbeslut är därmed lutat: **Supabase Storage för video** (metadata-only räcker inte för G2). Verifiera EU-region i B-1 (GDPR, se ROADMAP → G2 data/samtycke).
 
 **Konfliktzon:** `lib/supabase.ts`, `supabase/migrations/*.sql`, `store/auth.ts` (ny), `hooks/useHistory.ts`, `components/Settings/` (auth-UI)
 
@@ -220,6 +224,262 @@ Fixa ikoner (emoji-renderingsrisk) och verifiera PWA på iPhone. Helt isolerat.
 **Acceptans:** Komplett iOS PWA-meta i index.html. safe-area respekteras. Docs har ifyllbar iOS-testchecklista. Kodbara fixar gjorda; manuella punkter märkta 'kräver Eriks telefon'.
 
 **Dokumentkrav:** `swingcheck-handoff.md`: uppdatera 'iOS Safari-validering ej gjord' (kodfixar klara, manuell pending); uppdatera relevant rad under 'Känd teknisk skuld'. `docs/pwa-checklist.md`: bocka av C-2, lägg manuell iOS-testchecklista.
+
+---
+
+## Ström D — Pose-estimering (MediaPipe PoseLandmarker)
+
+Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleringsvägen i handoff → *Kritiskt olöst* + [ADR-0001](adr/0001-motion-based-swing-detection.md)). Byggs **vid sidan om** `frameExtractor.ts` tills den bevisat sig. Egen branch `stream-d`. Detaljer i [docs/pose-detection.md](pose-detection.md).
+
+> **Omklassad + time-boxad ([ROADMAP.md](ROADMAP.md) M4, beslutsfork 1):** pose är primärt en **G2-tillgång** (overlay/fasjämförelse för tränare); G1-fångsten ankras på rösttriggern (A-3). Pose-selection får D-2 + D-3 + ett fälttest. Missas D-3-metriken (≥ 80 % av 20 klipp inom ±150 ms), eller är D-3 inte fältkörd 2026-07-31, byggs manuell trim-slider som fallback och pose blir ren overlay.
+
+**Konfliktzon:** `lib/poseDetector.ts` (ny), `lib/poseTrajectory.ts` (ny), `lib/poseConnections.ts` (ny), `components/Analysis/FramePreview.tsx`, `scripts/download-pose-model.mjs` (ny). **Rör INTE** `frameExtractor.ts` eller `SwingRecord`.
+
+### [x] D-1 pass 1 — Integrera & visualisera PoseLandmarker
+
+> **Klart:** `@mediapipe/tasks-vision` (v0.10.35) installerat. Modell `public/models/pose_landmarker_lite.task` hämtas reproducerbart via `npm run pose:model` (`scripts/download-pose-model.mjs`, idempotent, gitignorad). `lib/poseDetector.ts` — singleton `getPoseLandmarker()`, `runningMode:'VIDEO'`, `numPoses:1`, GPU→CPU-fallback, WASM från jsDelivr-CDN. `lib/poseTrajectory.ts` — `extractPoseTrajectory(blob)` seekar dold video ~15 fps (seekTo-mönster från frameExtractor), sparar alla 33 punkter per sampel. `lib/poseConnections.ts` — lokal standard-topologi (håller tasks-vision ur huvudbundlen). `FramePreview.tsx` ritar bakom `VITE_DEV_PREVIEW` skelett-overlay (SVG) via dynamisk import → egen lazy chunk. Laddnings-/inferenstid loggas till DevLogPanel. Ingen fasdetektion. Bygger + lintar rent (inga nya lint-fel); dev-server bootar, modell-asset serveras 200. **Ej fältverifierad** (kräver Eriks klipp + browser).
+
+**Mål (pass 1):** Kör pose-detektion på en svingvideo och rita skelettet i dev-previewen. INGEN fasdetektion.
+
+**Acceptans:** tasks-vision installerat; modell hämtbar via skript; `poseDetector` singleton med GPU/CPU-fallback; `poseTrajectory` returnerar tidsserie med 33 punkter/sampel; skelett-overlay i FramePreview bakom `VITE_DEV_PREVIEW`; laddnings-/inferenstid loggad.
+
+**Nästa pass:** D-2 och D-3 nedan (ersätter tidigare lösa "nästa pass"-rad).
+
+### [x] D-2 — Självhosta WASM/modell + härled svingfaser
+
+> **Delvis (Pass 2, del b klar):** `lib/posePhases.ts` (`detectSwingPhases`) härleder
+> `{ addressRef, backswingStart, top, impact, followThroughStart }` ur handledsbanorna (landmärke
+> 15/16, väljer bäst spårad wrist, ocklusions-fallback, interpolering). `lib/poseFrameSelection.ts`
+> (`selectPhaseWeightedFrames`) lägger fas-viktad allokering (tunbara `PHASE_WEIGHTS`; impact får
+> resten, min 2, tätt kluster; graceful fallback till jämn fördelning + `usedPhaseWeighting`-flagga).
+> `lib/poseFrameGrab.ts` greppar frames för A/B-visualisering. `FramePreview.tsx`: A/B-toggle
+> Even↔Phase-weighted (default even), summary med fas-gränser/allokering/fallback + `PoseSelect`
+> WARN-logg. Pose körs INTE om (återanvänder previewens trajektoria). `frameExtractor.ts` orörd;
+> phase-weighting når EJ default-vägen (pass 3, gated på Eriks manuella verifiering). Bygger + lintar
+> rent (nya filer); **ej fältverifierad**. Se `docs/pose-detection.md` (Arkitektur pass 2).
+> **Pass 2-buggfix (2026-07-08):** verkligt klipp visade `top`/`impact`/`ft` kollapsade till
+> klippslutet (ex: top 3.00 · impact 3.07 · ft 3.07) → impact-frames saknades i fallbacken.
+> Rot (leadhypotes, verifieras via ny `debug`-logg): apex-sökningen (min y) låste på
+> follow-through-**finishen** (händer högt), inte toppen av baksvingen. Fix: (STEG 1) per-sampel
+> `{t,y,vy,speed}`-trace i `PoseSelect`-loggen; (STEG 2) fallback kastar fas-fönstren och sprider
+> uniformt i tid över `[backswingStart, spanEnd]`; (STEG 3) impact-gate på nedåtrörelse (`vy>0`)
+> + minsta downswing-tid `MIN_DOWNSWING_SEC` 0.12 s. Bygger + lintar rent (ändrade filer).
+>
+> **Pass 3 — ARKITEKTUR-INVERTERING (2026-07-14, [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md)):**
+> Tre rundor heuristik-patchning visade att **fas-viktad klustring som PRIMÄR väg är skör** — varje fix
+> blottlade nästa lager. Root cause: global min-y låser på finishen, inte toppen; finishen är i själva
+> verket den *mest* tillförlitliga landmarken. **Fas-viktad-som-primär är därmed ERSATT av envelope-som-primär.**
+> `posePhases.ts`→`poseEnvelope.ts` (`detectSwingEnvelope`: start=baksving-onset, finish=globalt min-y+settle
+> med avklippt-skydd, confident-only impact via nedåtpass nära address-höjd + top-före-impact).
+> `poseFrameSelection.ts`→`poseEnvelopeSelection.ts` (`selectEnvelopeFrames`: uniform-inom-envelopen som
+> baslinje; impact-kluster endast när impact confident; `impactClusterApplied`-flagga). A/B-toggle nu
+> **even ↔ envelope** (default even). Konsekvens: värsta fall = "uniform över svingen", inte "missad impact".
+> Tunbara konstanter överst i båda filerna. Bygger + lintar rent; logik-sanity-testad på syntetiska
+> banor (full/avklippt/statisk/endast-baksving); **ej fältverifierad** (Eriks checkpoint 2).
+>
+> **Pass (a) — WASM-självhost + SW-precache klar (2026-08-02):** WASM-runtimen kopieras nu från
+> `node_modules` till `public/wasm/` (`scripts/copy-pose-wasm.mjs`, `npm run pose:wasm`; gitignorad);
+> `FilesetResolver.forVisionTasks('/wasm')` pekar på egen origin — **inga jsDelivr-requests**.
+> `vite.config.ts` → `workbox` precachar modell + SIMD-`.js`/`.wasm` (`maximumFileSizeToCacheInBytes`
+> 12 MB) och runtime-cachar nosimd-`.wasm` (`CacheFirst`, `pose-wasm`) same-origin. `npm run pose:assets`
+> (= model + wasm) körs en gång före build. Byggverifierat: precache 17.7 MB / 19 entries, noll
+> CDN-referenser kvar; **ej browser-/offline-fältverifierad** (kräver `npm run dev` på Eriks enhet).
+> **Pass 3 finish-kollaps-fix (2026-08-02, ADR-002 *Uppföljning*):** verkligt DTL-klipp kollapsade
+> envelopen till `[6.98→7.38]` (bara baksvingen), "no descending pass". Root cause: globalt min-y har
+> TVÅ jämförbara maxima (baksvingstopp + finish) → tidigaste-inom-tol snappade finishen bakåt till
+> toppen, vilket tömde det bundna impact-fönstret. Fix (strukturell): finish binds till SEKVENSEN —
+> downswing-passagen hittas FÖRST (över hela spannet), finish = high-settle EFTER den. `poseEnvelope.ts`
+> enbart; `FINISH_MIN_HOLD_FRAMES` in, `APEX_PLATEAU_TOL`/`SETTLE_MIN_FRAMES` ut. Build+lint rena;
+> **ej fältverifierad** (checkpoint 2).
+>
+> **Pass 3 start-fix (2026-08-02, ADR-002 *Uppföljning*):** spegelbild-bugg i andra änden — samma
+> DTL-klipp startade envelopen mitt i baksvingen och missade take-away (klubban redan lyft). Root
+> cause: `start` = backsving-hastighetströskel; take-away är långsam → under tröskel → start hoppade
+> in efter take-away. Fix (strukturell): start = address-AVFÄRDEN — första framen vars wrist-Y lämnar
+> platå-medel > `ADDRESS_DEPART_TOL` (0.03). `poseEnvelope.ts` enbart; downswing/finish orört.
+> Build+lint rena; **ej fältverifierad** (checkpoint 2). Generaliserar durabel princip: bind BÅDE
+> start och finish till svingsekvensen, aldrig till hastighetströsklar.
+>
+> **Pass 3 start-fix waggle (2026-08-02, ADR-002 *Uppföljning*):** efter start-fixen fyrade starten
+> för TIDIGT — fångade ~3 waggle-frames före take-away på samma DTL-klipp `[1.60→8.38]`. Root cause:
+> `ADDRESS_DEPART_TOL` är en enkel tröskel-passage → kortvarig pre-sving-jitter triggade start. Fix
+> (samma min-hold-anda som finish-fixen): start = första framen i en körning av
+> `START_MIN_SUSTAIN_FRAMES` (3) frames där wrist-Y ligger över platån i take-away-riktning (uppåt) med
+> > `ADDRESS_DEPART_TOL`; en blip som återgår nollställer körningen. `poseEnvelope.ts` enbart;
+> downswing/impact/finish orört. Build ren, poseEnvelope.ts lint-ren; **ej fältverifierad** (checkpoint
+> 2). Skärper durabel princip: bind aldrig en gräns till en enkel tröskel-passage — kräv ett ihållande,
+> riktat skeende (min-hold i båda ändar).
+>
+> **Pass 3 start-fix inverterad (2026-08-02, ADR-002 *Uppföljning*):** waggle-fixen ovan
+> ÖVERKORRIGERADE — starten fyrade nu ALLDELES för sent, envelope-start nära baksvingstoppen (verifierat
+> DTL: första framen händerna nästan uppe). Root cause: "sustained+riktad, nollställ vid varje avbrott"
+> är för strikt — take-away vid 15 fps är inte monoton (hack/pauser tidigt), så räknaren nollställdes
+> upprepat tills den snabba delen nära toppen. Värsta-fall (ADR-002): för-sen start = KATASTROF (hela
+> take-away tappas) > för-tidig = billig (några adress-frames slösas) → bias:a starten TIDIGT. Fix:
+> `START_MIN_SUSTAIN_FRAMES` ut, `WAGGLE_LOOKAHEAD_FRAMES` (3) in — tolerant lookahead: första avfärden
+> räknas som start SÅVIDA INTE handleden är tillbaka på platån i slutet av fönstret. Hack/pauser inom
+> fönstret tillåts (ingen monotoni-krav); bara en verklig återgång-till-adress (waggle) filtreras.
+> `poseEnvelope.ts` enbart; downswing/impact/finish orört. Build ren, poseEnvelope.ts lint-ren;
+> **ej fältverifierad** (checkpoint 2).
+>
+> **Pass 3 waggle-filter REVERT:AT (2026-08-02, ADR-002 *Uppföljning: waggle-filtret revert:as*):**
+> den toleranta lookaheaden gjorde starten katastrofalt sen igen (`[7.18→8.38]`, första framen mitt
+> i baksvingen). Root cause: i DTL rör sig händerna i take-away nästan rakt BAKÅT, inte uppåt → y
+> kryper knappt över `ADDRESS_DEPART_TOL`, så varje y-baserat waggle-test (sustain ELLER
+> lookahead-retur) läser den långsamma take-away:n som en waggle-retur och kapar den. Y-only är fel
+> signal för take-away-start i DTL. Fix: `WAGGLE_LOOKAHEAD_FRAMES` ut, inget filter — start = första
+> address-avfärden, ofiltrerad → `[1.60→8.38]` (hela svingen, ~3 tidiga adress-frames = accepterad
+> early-bias, princip #3). Känd svaghet: en verklig waggle kan ge några extra adress-frames — OK tills
+> en signal bättre än y finns. `poseEnvelope.ts` enbart. Build+lint rena; **ej fältverifierad**.
+>
+> **Pass 3 dev-preview frame-budget → 20 (2026-08-02):** envelope-selektionens frame-antal höjt 10→20
+> via EN exporterad konstant `ENVELOPE_FRAME_BUDGET` (poseEnvelopeSelection.ts), konsumerad av
+> `FramePreview` — sizer både selektion + grid-rendering (previewen visar alla 20). Allokeringen skalar
+> parametriskt; impact-klustret får fortsatt `IMPACT_CLUSTER_BUDGET_FRAC` (0.4 → 8/20 frames). Dev-preview
+> only; `frameExtractor.ts`/Vision-anropet orört. Build+lint rena.
+>
+> **Pass 3 start-fix SLUTLIG — hastighet, inte Y (2026-08-02, ADR-002 *Uppföljning: wrist-Y ... oanvändbar
+> för start* + princip #2b):** TEMP-diagnostik (bakom `VITE_DEV_PREVIEW`) på DTL-klippet (144 frames)
+> avgjorde efter fyra gissningar. Data: 6,9 s adress där wrist-Y **driftar** `0.380→0.425` (0.045 > TOL
+> 0.03) → bidir fyrar på driften (`t=1.60`), riktat kräver att händerna stiger (`t=7.18`, mitt i
+> baksvingen). Wrist-SPEED separerar rent (`<0.07` död period, ramp `0.06→0.39` frames 102–107). Fix:
+> hela `ADDRESS_DEPART_TOL`-logiken ut ur start; start = hastighetsbaserad onset (`speedSm ≥ speedThresh`)
+> **backad bakåt** medan föregående `speedSm > START_QUIET_FLOOR` (ny tunbar 0.04) → frame 102–103
+> (`t≈6.78–6.85`). Vänder tidigare "aldrig hastighet för start" (rätt observation, fel slutsats): position
+> mot platå-medel misslyckas fundamentalt (drift), hastighet är rätt signal — läs onset + backa. Early
+> bias behållen. `ADDRESS_DEPART_TOL` kvar tillfälligt ENDAST för diagnostiken (tas bort efter Eriks
+> verifiering). Bonus (samma fil): impact omdefinierad till framen där y **korsar tillbaka genom addressY**
+> på nedåtpasset (ej `passIdx`/max-vy, som satt några frames före address-höjd; DTL idx 116→117-118).
+> `poseEnvelope.ts` enbart; downswing/finish orört. Build+lint rena; **ej fältverifierad** (checkpoint 2).
+>
+> **Pass 3 falsk impact på avklippt klipp (2026-08-05, ADR-002 *Uppföljning: falsk impact på avklippt
+> klipp*):** avklippt DTL-klipp (slutar före träff) gav `[3.53→4.27] · clipped tail · impact 4.27` —
+> impact pinnad till sista framen. Root cause: impact-crossing-fixen hade kvar fallback `impactIdx =
+> passIdx`. Fix (3 lager → `impact=null` → uniform baslinje): (1) ingen fallback (`impactIdx` startar `-1`,
+> sätts bara av faktisk korsning tillbaka genom `addressY` inom envelopen); (2) `clippedTail=true` ⇒ aldrig
+> verifierad impact; (3) slut-marginal `IMPACT_END_MARGIN_FRAMES` (2) — korsning vid envelope-slutet =
+> cutoff-artefakt. Verifierat syntetiskt (esbuild+node): full sving → confident impact; avklippt →
+> `clippedTail`, `impact=null`. `poseEnvelope.ts` enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts`
+> orörda. Build+lint rena; **ej fältverifierad** (checkpoint 2).
+>
+> **Pass 3 impact nearest-approach — face-on-fix (2026-08-05, ADR-002 *Uppföljning: impact missar på
+> face-on*):** face-on-klipp gav `[3.35→4.83] · uniform baseline · no impact` — envelopen rätt, bara
+> impact-polishen uteblev. Root cause: exakt korsning genom `addressY` för strikt; i face-on återvänder
+> handlederna ej exakt till address-höjd vid träff (annan kameravinkel → annan wrist-bana i Y). Fix: exakt
+> korsning → **nearest-approach inom `IMPACT_ADDRESS_TOL`** (ny tunbar 0.05, snävare än `IMPACT_HEIGHT_TOL`
+> 0.12). Alla skydd oförändrade → `impact=null`: inget pass/utanför tolerans, `clippedTail` (överrider
+> toleransen), slut-marginal. Verifierat syntetiskt (esbuild+node): full → impact, face-on (närmar 0.03) →
+> nu impact, avklippt → no impact, avklippt-inom-tolerans → no impact via clippedTail. `poseEnvelope.ts`
+> enbart; `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint rena; **ej fältverifierad**.
+>
+> **Pass 3 STÄDNING + inlåsning (2026-08-05) — checkpoint 2 godkänd på tre klipp (DTL, DTL avklippt,
+> face-on):** (1) TEMP-diagnostiken (`[START-DIAG]` + per-frame-trace) borttagen; (2) `ADDRESS_DEPART_TOL`
+> + all död kod runt den borttagen; (3) **enhetstest** `poseEnvelope.test.ts` (vitest, `npm test`) mot
+> syntetiska banor: full sving (start vid speed-onset, finish efter downswing-passage, impact hittad),
+> avklippt (`clippedTail=true`, `impact=null`), lång drift-adress (start fyrar EJ på driften), face-on
+> (impact via nearest-approach utan exakt korsning), statisk/endast-baksving (ingen krasch, degradering),
+> för-få-samples. Enhetstestet fångade en latent bugg: statiskt klipp gav `valid=true` p.g.a.
+> flyttalsbrus (`peakSpeed ~1e-16` passerade `<= 0`) → ny konstant `MIN_PEAK_SPEED` (1e-6). Alla tunbara
+> konstanter samlade + kommenterade överst. `poseEnvelope.ts` + ny testfil + `package.json` (test-script +
+> vitest devDep); `frameExtractor.ts`/`poseEnvelopeSelection.ts` orörda. Build+lint+test rena.
+>
+> **KLAR:** Envelope-logiken fältverifierad (checkpoint 2: DTL, DTL avklippt, face-on) + enhetstestad.
+> D-3-cutover genomförd (2026-08-05) — envelope är nu produktionens primära frame-selektor i
+> `frameExtractor.ts`, pixel-diff är fallback. Se D-3 nedan.
+>
+> **Regressionsharness — envelope (2026-08-06):** ersätter den manuella 3-klippsrundan vid
+> logikändringar. (1) Export-knapp i dev-previewen (`FramePreview.tsx`, bakom `VITE_DEV_PREVIEW`)
+> dumpar den råa landmark-serien (per frame: `t` + alla 33 landmarks/visibility, 5 dp) som JSON. (2)
+> Fixture-katalog `src/lib/__fixtures__/` (en JSON/verifierat klipp: `dtl-full`/`dtl-clipped`/`face-on`)
+> + `README.md`. (3) `poseEnvelopeRegression.test.ts` (vitest) kör `detectSwingEnvelope` +
+> `selectEnvelopeFrames` **exakt som produktionens `selectViaPose`** (budget = `ANALYSIS_FRAME_COUNT`) mot checkpoint-2:s
+> golden-värden (envelope `[start→finish]`, impact, `impactClusterApplied`, `clippedTail`) med
+> **±1-frame**-tolerans + (4) exakt **frame-antal** (fångar budget-regressioner som count-drop).
+> Saknad fixture = `todo`, inte fail → `npm test` grön tills fångad. **Erik måste exportera de tre
+> fixturerna en gång** (kräver klippen + browser) innan asserterna aktiveras. (5) Dokumenterat i
+> `docs/pose-detection.md` → *Regressionsharness*. Build+lint (ändrade filer)+test rena.
+>
+> **Fixturer fångade + golden-korrigering (2026-08-06):** de tre fixturerna exporterade och incheckade.
+> Verifierat att harnessen kör EXAKT produktionskedjan (`detectSwingEnvelope`→`selectEnvelopeFrames`);
+> ingen förbehandling saknas — all utjämning/wrist-val/visibility-filtrering bor inuti
+> `detectSwingEnvelope`, `extractPoseTrajectory` ger rå `PoseSample[]`. `dtl-full` ger produktionens
+> `[6.78→8.38]`/impact 7.85 exakt. Enda felet var golden `frameCount`: `dtl-full`+`face-on` ger
+> deterministiskt **16** (inte budgeten 20) — impact-klustret (0.06s) överlappar den likformiga
+> baslinjen på kort envelope och dedupe (0.03s) slår ihop dubbletterna; det är precis vad produktionen
+> skickar till Claude. Golden satt till 16 för de två impact-bärande klippen; `dtl-clipped` (ingen
+> impact → ren likformig) behåller 20. Alla tre gröna.
+
+**Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
+
+**Att göra:**
+
+- Kopiera `@mediapipe/tasks-vision` WASM-assets till `public/` vid build; peka `FilesetResolver.forVisionTasks` lokalt; lägg wasm + `.task`-modellen (~5,5 MB) i SW-precache (höj `maximumFileSizeToCacheInBytes`).
+- `lib/posePhases.ts` — ren, testbar: address = låghastighetsplatå (handled 15/16), top = vertikal riktningsvändning, impact = hastighetsmax nära nedre handledsläge, follow-through = deceleration efter. `// OSÄKER:` där heuristiken är svag (15 fps i downswing).
+- Fasmarkörer i dev-preview (bakom `VITE_DEV_PREVIEW`) + fastider till DevLogPanel. Ingen koppling till frame-valet än.
+
+**Acceptans:** pose körs helt utan nätverk efter första laddning (noll jsDelivr-requests); posePhases ger fyra timestamps på normalklipp; markörer i preview; enhetstest på platå-/vändpunktslogik.
+
+**Dokumentkrav:** bocka av här + i `docs/pose-detection.md` (heuristik + kända svagheter); uppdatera `swingcheck-handoff.md` (Pågående: Pose).
+
+### [x] D-3 — Cutover: envelope som primär frame-selektor
+
+> **Klart (2026-08-05) — cutover genomförd.** `frameExtractor.ts`: pose/envelope-selektionen är
+> nu produktionens PRIMÄRA väg (`selectViaPose` → `detectSwingEnvelope` + `selectEnvelopeFrames`
+> med produktionens `count`=10). Pixel-diff (`selectViaMotion`, orörd logik) är FALLBACK — körs
+> endast när pose ej kan köra (dynamisk import/inferens-fel) eller `envelope.valid===false`.
+> Fallbacken är tyst för användaren men loggad: `log.warn('Frame selection', {path:'pose'|'motion', …})`
+> (WARN surfar även i prod) → fält-fallback-frekvens mätbar. A/B-toggeln (even↔envelope) + "even"-vägen
+> borttagna ur `FramePreview.tsx`; selektionen sker nu i `extractFrames` → **flagg-oberoende by
+> construction** (dev-preview visar samma selektion som produktion). `ENVELOPE_FRAME_BUDGET` (dev-only)
+> borttagen — selektionen använder `count`. Vision-anropet + `SwingRecord`-formatet **orörda**.
+> @mediapipe stannar i egen lazy chunk (dynamisk import; byggverifierat). Build + lint (ändrade filer)
+> + test (7/7) rena. Se [ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md) → *Cutover (D-3)*.
+>
+> **Avvikelse (ärlig):** cutovern gjordes på **checkpoint 2** (3 klipp: DTL, DTL avklippt, face-on) +
+> gröna enhetstester — INTE den formella ROADMAP-metriken (≥80 % av 20 klipp inom ±150 ms). Den
+> 20-klipps-utvärderingen ersätts i praktiken av **fält-instrumenteringen**: `path`-loggen mäter nu
+> pose-vs-motion-fallback-frekvens i skarp drift, vilket är den verkliga kvalitetssignalen. Om
+> fält-fallback visar sig hög → återöppna som ny uppgift (trim-slider-forken, ROADMAP beslutsfork 1).
+
+**Ursprunglig spec (utvärderingsläge — ej byggt; ersatt av fält-instrumentering ovan):** Avgör beslutsfork 1 i [ROADMAP.md](ROADMAP.md) med data. Dev-utvärderingsläge: kör posePhases på 20 riktiga klipp (Eriks), jämför pose-impact mot manuellt etiketterad impact.
+
+**Acceptans/beslut:** ≥ 80 % inom ±150 ms → pose blir frame-valets ankare för icke-sessionsklipp (nytt pass specas). Annars, eller om ej fältkört 2026-07-31 → ny uppgift F-1 (manuell trim-slider, ~1 pass) och pose degraderas till overlay. Utfallet skrivs in i ROADMAP (beslutsfork 1) + `docs/oppna-fragor.md` (stänger F1-komplexet).
+
+**Dokumentkrav:** bocka av här + `docs/pose-detection.md` (resultattabell); uppdatera `swingcheck-handoff.md` → *Kritiskt olöst*.
+
+---
+
+## Ström E — Vision-kostnad
+
+Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [ROADMAP.md](ROADMAP.md) M3 + beslutsfork 3 (hybrid pre-selection triggas av D-2-framgång, inte av kostnad).
+
+**Konfliktzon:** `lib/frameExtractor.ts` (endast analys-frame-dimensionering — vänta tills Ström A:s A-3 är mergad enligt parallellitetsregeln).
+
+### [ ] E-1 — Långside-cap på analys-frames (~1024 px)
+
+**Mål:** ≥ 40 % färre vision-input-tokens/sving utan verdict-regression. Idag cappas endast bredden (1280) — porträttvideo (1080×1920) passerar nästan ohindrat → ~1 800 tokens/frame × 10.
+
+**Att göra:**
+
+- Ersätt width-cappen i `frameExtractor.ts` med långside-cap (`FRAME_MAX_DIM = 1024`, tunable överst som övriga). Behåll JPEG quality 0.8. Rör inte motion-canvasen (`MOTION_MAX_DIM`).
+- Logga frame-dimensioner + uppskattad tokenvikt i extraktions-loggen.
+- Före/efter på 5 referensklipp — **kostnadsmedförande Claude-anrop: kör endast på Eriks klartecken**, max 5+5.
+
+**Acceptans:** långsida ≤ 1024 oavsett orientering; ≥ 40 % tokenreduktion (loggad dimension eller usage i Worker-svar); inga oförklarade verdict-ändringar på referensklippen.
+
+**Dokumentkrav:** bocka av här; uppdatera `swingcheck-handoff.md` ('Fungerar': frame-pipeline med kostnadsnot); notera b/a-resultat i `ROADMAP.md` M3.
+
+---
+
+## Ström G — Instruktörsspår (G2) — *låst bakom Ström B*
+
+Stubbar; detaljspecas när M5 (Ström B) är klar. Ramar: [ROADMAP.md](ROADMAP.md) → *G2 — Instruktörsspåret* (pilotdesign, pris/intäktsdelning, data/samtycke).
+
+### [ ] G2-1 — Delningsrelation tränare↔elev + RLS
+Relationstabell med explicit, återkallbart samtycke per relation; RLS så tränare läser endast delade svingar; cascade-radering.
+
+### [ ] G2-2 — Tränarvy
+Elevlista → svingar med regelutfall försorterade mot tränarens regeluppsättning → text-/röstkommentar tillbaka till eleven.
 
 ---
 

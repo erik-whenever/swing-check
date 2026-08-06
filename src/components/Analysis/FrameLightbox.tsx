@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react';
 import type { FrameMeta } from '../../lib/frameExtractor';
+import type { PoseSample } from '../../lib/poseTrajectory';
+import { SkeletonOverlay } from './SkeletonOverlay';
+import { nearestSample } from '../../lib/poseSampling';
 
 interface Props {
   frames: FrameMeta[];
   index: number;
+  /** Dev-only pose trajectory; when present the skeleton is overlaid. */
+  poseSamples?: PoseSample[] | null;
   onClose: () => void;
   onNavigate: (index: number) => void;
 }
 
-export function FrameLightbox({ frames, index, onClose, onNavigate }: Props) {
+export function FrameLightbox({ frames, index, poseSamples, onClose, onNavigate }: Props) {
   const [zoom, setZoom] = useState(1);
   const [origin, setOrigin] = useState({ x: 50, y: 50 });
+  // Aspect ratio of the loaded frame, so the overlay box matches the letterboxed
+  // (object-contain) image exactly.
+  const [aspect, setAspect] = useState<number | null>(null);
 
   const frame = frames[index];
 
@@ -73,16 +81,33 @@ export function FrameLightbox({ frames, index, onClose, onNavigate }: Props) {
         onMouseMove={handleMove}
         style={{ cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }}
       >
-        <img
-          src={`data:image/jpeg;base64,${frame.b64}`}
-          alt={`Frame #${frame.candidateIndex}`}
-          className="max-w-full max-h-full object-contain transition-transform duration-100"
+        {/* Wrapper sized to the image aspect so the skeleton overlay aligns. */}
+        <div
+          className="relative max-w-full max-h-full transition-transform duration-100"
           style={{
+            aspectRatio: aspect ?? undefined,
             transform: `scale(${zoom})`,
             transformOrigin: `${origin.x}% ${origin.y}%`,
           }}
-          draggable={false}
-        />
+        >
+          <img
+            src={`data:image/jpeg;base64,${frame.b64}`}
+            alt={`Frame #${frame.candidateIndex}`}
+            className="w-full h-full object-contain select-none"
+            onLoad={(e) =>
+              setAspect(
+                e.currentTarget.naturalWidth / e.currentTarget.naturalHeight,
+              )
+            }
+            draggable={false}
+          />
+          {poseSamples && (
+            <SkeletonOverlay
+              sample={nearestSample(poseSamples, frame.timeSec)}
+              fit="contain"
+            />
+          )}
+        </div>
       </div>
 
       {/* Footer: nav + zoom level */}

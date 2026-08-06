@@ -1,7 +1,7 @@
 # STATUS — SwingCheck
 
 > **Auktoritativ källa för gjort/kvar är [docs/BACKLOG.md](docs/BACKLOG.md).** Den här filen är bara en kort orientering — current-state och uppgiftslistor lever i BACKLOG, inte här.
-> Stabil grund: [KONTEXT.md](KONTEXT.md) · Överlämning: [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md). Senast uppdaterad: 2026-06-30.
+> Stabil grund: [KONTEXT.md](KONTEXT.md) · Överlämning: [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md) · **Sekvensering & beslutsforkar: [docs/ROADMAP.md](docs/ROADMAP.md)**. Senast uppdaterad: 2026-07-07.
 
 ## Nuvarande fokus
 Tre isolerade strömmar redo att starta (en session/branch per ström, se [docs/BACKLOG.md](docs/BACKLOG.md)):

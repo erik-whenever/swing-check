@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run pose:assets",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
     "icons": "node scripts/generate-icons.mjs",
+    "pose:model": "node scripts/download-pose-model.mjs",
+    "pose:wasm": "node scripts/copy-pose-wasm.mjs",
+    "pose:assets": "npm run pose:model && npm run pose:wasm",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.35",
     "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/vite": "^4.3.0",
     "canvas": "^3.2.3",
@@ -39,6 +45,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
+    "vitest": "^4.1.10",
     "wrangler": "^4.95.0"
   }
 }

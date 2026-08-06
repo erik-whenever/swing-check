@@ -31,6 +31,33 @@ export default defineConfig({
         { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       ],
     },
+    workbox: {
+      // Precache the pose model (~5 MB) and the SIMD WASM runtime (~11 MB) so
+      // pose detection runs offline with zero cross-origin requests (BACKLOG
+      // D-2). The nosimd fallback is served same-origin and runtime-cached on
+      // demand (see below) rather than precached, to keep install lean.
+      globPatterns: [
+        "**/*.{js,css,html,ico,png,svg}",
+        "models/*.task",
+        "wasm/vision_wasm_internal.{js,wasm}",
+      ],
+      // Default is 2 MiB; the WASM binary alone is ~11 MB.
+      maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
+      runtimeCaching: [
+        {
+          // Catches the nosimd WASM fallback (and anything under /wasm/ not
+          // precached) so even no-SIMD browsers stay same-origin and offline
+          // after the first load.
+          urlPattern: ({ url, sameOrigin }) =>
+            sameOrigin && url.pathname.startsWith("/wasm/"),
+          handler: "CacheFirst",
+          options: {
+            cacheName: "pose-wasm",
+            expiration: { maxEntries: 6 },
+          },
+        },
+      ],
+    },
     devOptions: { enabled: true },
   }), cloudflare()],
 });

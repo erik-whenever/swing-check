@@ -32,6 +32,46 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
   ERROR: 40,
 };
 
+/**
+ * Turn an unknown thrown value into something readable in a log payload.
+ *
+ * `String(err)` collapses a DOM `Event` (what a failed WASM/model fetch or a
+ * MediaPipe load error throws) into the useless `"[object Event]"`. Here we pull
+ * out the diagnostic bits that actually matter — the event type and the failing
+ * resource URL/status on its target — so the next failure is diagnosable.
+ */
+export function serializeError(err: unknown): Record<string, unknown> | string {
+  if (err instanceof Error) {
+    return { name: err.name, message: err.message, stack: err.stack };
+  }
+
+  if (typeof Event !== 'undefined' && err instanceof Event) {
+    const out: Record<string, unknown> = { kind: 'Event', type: err.type };
+    const target = err.target as
+      | (Partial<{ src: string; href: string; readyState: number; status: number }> & EventTarget)
+      | null;
+    if (target) {
+      if (typeof target.src === 'string') out.targetUrl = target.src;
+      else if (typeof target.href === 'string') out.targetUrl = target.href;
+      if (typeof target.status === 'number') out.status = target.status;
+      if (typeof target.readyState === 'number') out.readyState = target.readyState;
+      out.targetType = (target as object).constructor?.name;
+    }
+    return out;
+  }
+
+  if (err && typeof err === 'object') {
+    // Prefer a real JSON view; fall back to String() if it isn't serializable.
+    try {
+      return JSON.parse(JSON.stringify(err));
+    } catch {
+      return String(err);
+    }
+  }
+
+  return String(err);
+}
+
 const isDev = import.meta.env.DEV;
 
 // Production drops everything below WARN; development keeps everything.
