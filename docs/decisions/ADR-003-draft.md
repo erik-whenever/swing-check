@@ -146,6 +146,71 @@ blockerade insamlingen av testdata:
   går aldrig genom `extractPoseTrajectory`, så harnessen är per konstruktion oberoende av
   den här konstanten.
 
+## Mätt blockering (2026-08-06, steg A + C byggda)
+
+`src/lib/poseSegments.ts` implementerar steg A (`segmentSwingCandidates`) och steg C
+(`isSwing`), med `detectSwingEnvelope` orörd däremellan. Mätt mot den nya fixturen
+`src/lib/__fixtures__/session-multi.json` (63,45 s, 953 sampel, 15 fps, 3 svingar).
+
+**Steg A fungerar.** `refSpeed = p95 = 0,744` (mot `max = 2,23` — se nedan varför den
+skillnaden är kritisk). Segmenteringen ger 9 kandidater, varav exakt tre bär svingenergi:
+
+| Segment | Burst | peak | Vad det är |
+| --- | --- | --- | --- |
+| 7,67–12,06 | 8,26–11,06 | 1,27 | sving 1 |
+| 30,99–38,06 | 31,59–37,06 | 2,23 | sving 2 |
+| 53,99–58,45 | 54,59–57,45 | 1,89 | sving 3 |
+| 6 övriga | — | 0,30–0,95 | bollplock, waggle, gå-runt, uttåg |
+
+**Steg C fungerar också** — men får aldrig något att släppa igenom. Kedjan accepterar
+**noll** svingar, för att `detectSwingEnvelope` inte producerar en confident impact i
+något av de tre segmenten. Tre oberoende orsaker, alla mätta:
+
+1. **Handledsbyte-artefakt (huvudorsaken).** Fallbacken `primary ?? backup` byter handled
+   PER FRAME. I följdrörelsen skyms höger handled och dess `visibility` oscillerar runt
+   `MIN_VISIBILITY = 0,4` (mätt 0,28 → 0,55 över ~0,7 s), så serien snärtar mellan höger
+   handled (x ≈ 0,43) och vänster (x ≈ 0,01): **ett hopp på ~0,35 i x på en enda frame**,
+   skenbar hastighet 2,23 — klippets högsta. Det inträffar efter varenda sving. Envelopens
+   `passIdx` ("snabbaste nedåtgående passage nära adresshöjd") plockar då artefakten i
+   stället för impact, exakt den svaghet `poseEnvelope.ts` rad 311–314 flaggar som OSÄKER.
+   Enkelklippsfixturerna träffas aldrig: där står golfaren kvar och handleden syns hela
+   tiden. **Klippets `max` är alltså ren artefakt — ADR:ns val av p95 var rätt, och av ett
+   ännu starkare skäl än det som skrevs ned.**
+2. **`IMPACT_ADDRESS_TOL = 0,05` är för snäv vid 15 fps.** Även med artefakten borta är
+   handledens närmaste (utjämnade) approach till `addressY` på nedsvinget 0,067 / 0,058 /
+   0,040 för de tre svingarna. Den exakta impact-framen finns helt enkelt inte i en
+   15 fps-sampling av en 120 fps-källa.
+3. **`FINISH_MIN_HOLD_FRAMES = 3` vid `SETTLE_SPEED_FRAC = 0,2`.** Sving 1:s följdrörelse
+   håller aldrig tre frames under 20 % av toppfarten — golfaren flyter direkt från finish
+   till att sänka klubban.
+
+**Verifierad recept (probe, ej incheckat).** Med exakt tre ändringar i `poseEnvelope.ts`
+ger kedjan **3 svingar** på `session-multi` (impact 9,26 / 32,53 / 55,59; downswing 0,27 s
+för alla tre; exkursion 0,270 / 0,271 / 0,271) och samtidigt **1** på `dtl-full`, **1** på
+`face-on` och **0** på `dtl-clipped`:
+
+- använd EN handled för hela klippet och interpolera dess luckor, i stället för
+  per-frame-fallback till den andra handleden;
+- `IMPACT_ADDRESS_TOL` 0,05 → 0,08;
+- `FINISH_MIN_HOLD_FRAMES` 3 → 2.
+
+**Kostnaden:** `poseEnvelopeRegression.test.ts` golden för `dtl-full` flyttar sig
+(`finishSec` 8,38 → 9,38); impact-tiderna 7,85 och 4,29 står still. Det är en verklig
+regressionskostnad och ska tas som ett eget, medvetet beslut — inte smygas in i
+segmenteringsarbetet. Därför är `poseEnvelope.ts` orörd här och
+`poseSegments.test.ts` bär golden **0** med en KNOWN GAP-markering som ska flippa till 3 i
+samma commit som lyfter blockeringen.
+
+**Följd för ADR:ns trösklar.** Två avsteg från §1/§3, båda mätta:
+
+- Grovgallringens övre burst-gräns är **4,0 s**, inte 3,0. Bursten mäts mot 0,15 × p95 och
+  är en övermängd av envelopen (waggle före, klubbsänkning efter); de tre äkta svingarnas
+  burstar ligger på 2,80 / 2,80 / 2,87 s, alltså mot 3,0-taket. Den riktiga 0,7–3,0-gränsen
+  ligger kvar där den hör hemma: på **envelope**-varaktigheten i `isSwing`.
+- Paddingen före bursten är **2 × `MIN_ADDRESS_SEC`**, inte 1 ×. Envelopen kräver en hel
+  address-platå *inuti* sitt eget spann; 0,3 s ger precis 5 sampel vid 15 fps, alltså noll
+  marginal.
+
 ## Alternativ som övervägts
 
 **A. Behåll klipp-per-sving; röst/knapp klipper strömmen.** Billigast, ingen ny detektion,

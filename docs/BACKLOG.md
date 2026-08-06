@@ -447,6 +447,36 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 
 **Dokumentkrav:** bocka av här + `docs/pose-detection.md` (resultattabell); uppdatera `swingcheck-handoff.md` → *Kritiskt olöst*.
 
+### [~] D-4 — Segmentering för kontinuerligt sessionsläge (ADR-003 steg A + C)
+
+> **Byggt (2026-08-06):** ny ren modul `src/lib/poseSegments.ts` — `segmentSwingCandidates`
+> (steg A: p95-refSpeed, QUIET/MOVING, stillnadsöar, burst + padding, grovgallring),
+> `isSwing` (steg C: kvalitetsgrind med **`MAX_DOWNSWING_SEC = 0.6`**, envelope-varaktighet
+> 0,7–3,0 s, vertikal exkursion, peak-mot-refSpeed, cooldown 2 s) och `detectSessionSwings`
+> som kedjar ihop dem. `detectSwingEnvelope` anropas per segment och är **orörd**; likaså
+> `frameExtractor.ts` och `poseEnvelopeSelection.ts`. Alla trösklar är namngivna konstanter
+> överst med motivering. Ny harness `poseSegments.test.ts` (8 test) + fixturen
+> `__fixtures__/session-multi.json` (63 s, 3 svingar). `poseEnvelopeRegression.test.ts`
+> oförändrad och grön. Build + lint (mina filer) + test (18/18) rena.
+>
+> **Steg A verifierat:** segmenteringen isolerar klippets tre svingar rent (peak 1,27 / 2,23
+> / 1,89 mot 0,30–0,95 för bollplock/waggle/gå-runt).
+>
+> **Återstår — blockerat på ett beslut, inte på arbete:** kedjan accepterar **0** svingar.
+> `detectSwingEnvelope` kan inte producera en confident impact i något segment. Huvudorsak:
+> handledsbyte-artefakt (`primary ?? backup` snärtar mellan höger och vänster handled när
+> `visibility` oscillerar runt 0,4 i följdrörelsen → skenbar hastighet 2,23, som envelopens
+> `passIdx` tar för impact). Mätning, de två övriga orsakerna och ett **verifierat recept på
+> tre envelope-ändringar som ger 3/3** står i [ADR-003](decisions/ADR-003-draft.md) →
+> *Mätt blockering*. Receptet flyttar `dtl-full`-goldens `finishSec` 8,38 → 9,38 — en verklig
+> regressionskostnad som ska tas som eget beslut. `poseSegments.test.ts` bär golden **0** med
+> KNOWN GAP-markering; flippa den till 3 i samma commit som lyfter blockeringen.
+>
+> **Nästa uppgift (D-5):** besluta om receptet, ändra `poseEnvelope.ts`, uppdatera båda
+> harnessarnas golden i samma commit. Därefter ADR-003 §4/§5 (ringbuffert, live-pose, kö).
+
+**Dokumentkrav:** bocka av här + `docs/decisions/ADR-003-draft.md`; uppdatera `swingcheck-handoff.md`.
+
 ---
 
 ## Ström E — Vision-kostnad
