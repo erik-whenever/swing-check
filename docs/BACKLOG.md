@@ -398,6 +398,16 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > Saknad fixture = `todo`, inte fail → `npm test` grön tills fångad. **Erik måste exportera de tre
 > fixturerna en gång** (kräver klippen + browser) innan asserterna aktiveras. (5) Dokumenterat i
 > `docs/pose-detection.md` → *Regressionsharness*. Build+lint (ändrade filer)+test rena.
+>
+> **Fixturer fångade + golden-korrigering (2026-08-06):** de tre fixturerna exporterade och incheckade.
+> Verifierat att harnessen kör EXAKT produktionskedjan (`detectSwingEnvelope`→`selectEnvelopeFrames`);
+> ingen förbehandling saknas — all utjämning/wrist-val/visibility-filtrering bor inuti
+> `detectSwingEnvelope`, `extractPoseTrajectory` ger rå `PoseSample[]`. `dtl-full` ger produktionens
+> `[6.78→8.38]`/impact 7.85 exakt. Enda felet var golden `frameCount`: `dtl-full`+`face-on` ger
+> deterministiskt **16** (inte budgeten 20) — impact-klustret (0.06s) överlappar den likformiga
+> baslinjen på kort envelope och dedupe (0.03s) slår ihop dubbletterna; det är precis vad produktionen
+> skickar till Claude. Golden satt till 16 för de två impact-bärande klippen; `dtl-clipped` (ingen
+> impact → ren likformig) behåller 20. Alla tre gröna.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 

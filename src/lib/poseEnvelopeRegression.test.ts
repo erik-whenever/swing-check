@@ -59,7 +59,10 @@ const GOLDENS: EnvelopeGolden[] = [
     impactSec: 7.85,
     clippedTail: false,
     impactClusterApplied: true,
-    frameCount: BUDGET,
+    // 16, not BUDGET: with a confident impact the cluster (spacing 0.06s) overlaps
+    // the uniform baseline over this short (~1.6s) envelope, and dedupe (0.03s)
+    // merges the near-duplicates. This is exactly what production sends to Claude.
+    frameCount: 16,
   },
   {
     fixture: 'dtl-clipped',
@@ -77,7 +80,10 @@ const GOLDENS: EnvelopeGolden[] = [
     impactSec: 4.29,
     clippedTail: false,
     impactClusterApplied: true,
-    frameCount: BUDGET,
+    // 16, not BUDGET — same cluster/baseline dedupe collapse as dtl-full (short
+    // envelope + confident impact). dtl-clipped keeps BUDGET: no impact → pure
+    // uniform baseline, nothing to dedupe.
+    frameCount: 16,
   },
 ];
 
