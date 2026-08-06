@@ -354,17 +354,17 @@ nu är den bevisad.
   försöker först `selectViaPose` (dynamisk `import('./poseTrajectory')` → håller
   @mediapipe ur huvudbundeln; verifierat: `poseTrajectory` byggs som egen lazy chunk,
   huvud-index-chunken oförändrad). Den kör pose, `detectSwingEnvelope`, `selectEnvelopeFrames`
-  med produktionens `count` (10). **Fallback (`selectViaMotion`, den orörda pixel-diff-logiken)
+  med produktionens `count` (`ANALYSIS_FRAME_COUNT`, se *Kostnadsavvägning* nedan). **Fallback (`selectViaMotion`, den orörda pixel-diff-logiken)
   körs endast när** (a) pose ej kan köra (dynamisk import / inferens-fel) **eller** (b)
   `envelope.valid === false` (låg visibilitet, ingen address-platå, ingen rörelse). Fallbacken
   är **tyst för användaren men loggad**: `log.warn('Frame selection', { path: 'pose'|'motion', … })`
   (WARN surfar även i prod) → fält-fallback-frekvens mätbar.
 - **`selectEnvelopeFrames` anropas med produktionens `count`, inte dev-budgeten.**
-  `ENVELOPE_FRAME_BUDGET` (20, dev-preview-only) borttagen — selektionen använder samma
-  `count` (10) som skickas till Claude. Vision-anropet + `SwingRecord`-formatet **orörda**.
+  `ENVELOPE_FRAME_BUDGET` (dev-preview-only) borttagen — selektionen använder samma
+  `count` (`ANALYSIS_FRAME_COUNT`) som skickas till Claude. Vision-anropet + `SwingRecord`-formatet **orörda**.
 - **A/B-toggeln (even ↔ envelope) + "even"-vägen borttagna ur `FramePreview.tsx`.** Selektionen
   sker nu i `extractFrames` och är därmed **flagg-oberoende by construction**: `CameraView`
-  kallar `extractFrames(blob, 10)` oavsett `VITE_DEV_PREVIEW`; flaggan avgör bara om
+  kallar `extractFrames(blob, ANALYSIS_FRAME_COUNT)` oavsett `VITE_DEV_PREVIEW`; flaggan avgör bara om
   preview-skärmen visas. Dev-previewen renderar produktionens frames (store-meta) + skelett-overlay
   + en **read-only** `EnvelopeSummary` (recomputad `detectSwingEnvelope`, driver inte selektion) —
   samma envelope produktionen byggde på (eller `valid=false` → motion-fallback). `poseFrameGrab.ts`
@@ -374,6 +374,35 @@ nu är den bevisad.
 samma envelopes som dev-previewen — läs `[FrameExtractor] Frame selection`-WARN (`path`,
 `envelopeSec`, `impactSec`) i konsolen och jämför med previewens `EnvelopeSummary`. Identiska
 by construction (samma `extractFrames`). Build + lint (ändrade filer) + test rena.
+
+## Kostnadsavvägning: frame-antal 10 → 20 (2026-08-06)
+
+Frame-antalet som skickas till Claude Vision höjt **10 → 20**. **Motiv:** kvaliteten
+verifierades i checkpoint 2 vid 20 frames; vid 10 blir samplingen glesare inom *samma*
+envelope, och 8–10 frames har tidigare visat sig otillräckligt för full svinganalys
+(setup → follow-through kräver flera frames per fas). **Medveten kostnadsavvägning:** ~2×
+Vision-input per sving accepteras. Vision-promptens innehåll + `SwingRecord`-formatet orörda
+— endast antalet.
+
+**Implementering:** EN namngiven, exporterad konstant `ANALYSIS_FRAME_COUNT = 20`
+(`frameExtractor.ts`) — enda källan. `extractFrames` defaultar till den; `CameraView.tsx`
+importerar den (minimal ändring i Ström A:s konfliktzon: en import + ett argument). Inga
+hårdkodade `10`:or kvar. Envelope-allokeringen skalar parametriskt: impact-klustret
+`round(20 · IMPACT_CLUSTER_BUDGET_FRAC 0.4) = 8`, resten 12 uniformt över `[start, finish]`
+(endpoints → address-referens + finish-täckning behållna). Verifierat via bundle-probe.
+
+**Rapporterat (ej åtgärdat) — dedup tappar frames vid tät envelope:** vid `budget = 20`
+ger en kort DTL-envelope färre än 20 *unika* frames (reproducerat: span 1.58 s, impact 7.2,
+finish 8.38 → **16/20**). **Mekanism:** `selectEnvelopeFrames` lägger 12 uniforma baslinje-
+frames + 8 impact-kluster-frames, sorterar och kör `dedupe` (`DEDUPE_SEC = 0.03`). I en KORT
+envelope är den uniforma spacingen liten (1.58 s / 11 ≈ 0.144 s) och impact-klustret (~0.46 s
+brett, spacing ≈ 0.067 s) överlappar den i tid → 3–4 baslinje-frames hamnar inom 0.03 s från en
+kluster-frame och slås ihop. Loss:en skalar **omvänt med envelope-spannet**: bundle-probe gav
+kort envelope (1.58 s) → 16–17/20, brett envelope (6.78 s, uniformΔ 0.616 s) → 19/20. Det är
+i grunden *korrekt* beteende (nära-dubbletter till Claude undviks), men den effektiva frame-
+tätheten är < 20 på korta envelopes. **Ej åtgärdat** (per instruktion). Om full 20-täthet
+önskas vid korta envelopes: minska baslinjen där ett kluster läggs på (baslinje över `[start,
+finish]` MINUS kluster-fönstret), inte via `DEDUPE_SEC` (den skyddar mot äkta dubbletter).
 
 ## Durabla principer (gäller bortom denna ADR)
 

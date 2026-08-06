@@ -48,6 +48,18 @@ interface MotionCurve {
   interval: number;
 }
 
+/**
+ * ANALYSIS FRAME COUNT — the single source of truth for how many frames are
+ * extracted per swing and sent to Claude Vision. Both selectors (pose envelope +
+ * motion fallback) size their output to this, and the dev preview renders exactly
+ * these frames. Raised 10 → 20 (2026-08-06): quality was verified at checkpoint 2
+ * with 20 frames; at 10 the sampling is too sparse within the same envelope to
+ * cover every swing phase (setup → follow-through needs several frames per phase).
+ * Deliberate cost trade-off — ~2× Vision input per swing is accepted. This is the
+ * ONLY place the number lives; callers import it rather than hardcoding a count.
+ */
+export const ANALYSIS_FRAME_COUNT = 20;
+
 // ── Tunables (motion fallback) ───────────────────────────────────────────────
 // The pose/envelope path (poseEnvelope.ts) is the PRIMARY selector; the pixel-diff
 // motion path below runs only as a fallback when pose is unavailable or the
@@ -75,7 +87,7 @@ const MOTION_MAX_DIM = 360;
 
 export async function extractFrames(
   videoBlob: Blob,
-  count = 10,
+  count = ANALYSIS_FRAME_COUNT,
   quality = 0.8,
   options?: { onProgress?: (fraction: number) => void },
 ): Promise<ExtractionResult> {

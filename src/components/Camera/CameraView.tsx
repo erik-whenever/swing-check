@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
-import { extractFrames } from '../../lib/frameExtractor';
+import { extractFrames, ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
 import { useSessionStore } from '../../store/session';
 import { useSettingsStore } from '../../store/settings';
 import { cancelSpeech, isSpeaking, speak, TTS_ANALYZING } from '../../lib/tts';
@@ -66,7 +66,7 @@ export function CameraView() {
     setCurrentVideoBlob(blob);
     setProgress(0);
     try {
-      const { selected, meta } = await extractFrames(blob, 10, 0.8, {
+      const { selected, meta } = await extractFrames(blob, ANALYSIS_FRAME_COUNT, 0.8, {
         onProgress: setProgress,
       });
       setCurrentAnalysis(null);
