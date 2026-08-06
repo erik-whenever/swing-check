@@ -329,14 +329,6 @@ export function isSwing(
     return no(`wrist visibility ${envelope.visibleFrac.toFixed(2)} < ${MIN_VISIBLE_FRAC}`);
   }
 
-  // Vertikal exkursion: händerna måste ha gått UPP. Fel tecken = bollplock.
-  const excursion = envelope.addressY - envelope.apexY;
-  if (excursion < MIN_VERTICAL_EXCURSION) {
-    return no(
-      `vertical excursion ${excursion.toFixed(3)} < ${MIN_VERTICAL_EXCURSION} (hands never rose — ball pickup?)`,
-    );
-  }
-
   const envSec = envelope.finishSec - envelope.startSec;
   if (envSec < MIN_ENVELOPE_SEC) return no(`envelope ${envSec.toFixed(2)}s < ${MIN_ENVELOPE_SEC}s (waggle?)`);
   if (envSec > MAX_ENVELOPE_SEC) return no(`envelope ${envSec.toFixed(2)}s > ${MAX_ENVELOPE_SEC}s (not one swing)`);
@@ -347,10 +339,26 @@ export function isSwing(
     );
   }
 
-  // En sving utan verifierad impact släpps INTE igenom. Envelopens impact är redan
-  // "confident-only" (aldrig en fallback), och utan den är `apexY` dessutom odefinierad
-  // som backswing-topp. Grinden ska vara strikt — hellre missa en sving.
+  // IMPACT TESTAS FÖRE EXKURSIONEN — ordningen är en loggkorrekthetsfråga, inte en
+  // smaksak. `apexY` (baksvingstoppen) beräknas i poseEnvelope bara när en impact
+  // finns: topp-loopen är bunden av `impactIdx`, så utan impact blir `apexY` =
+  // positionen vid `startIdx` och exkursionen läser ≈ 0. Med exkursionen först
+  // rapporterade grinden därför "vertical excursion −0.003 (ball pickup?)" för
+  // äkta svingar vars ENDA fel var att impact saknades — ett skäl som pekade på fel
+  // orsak och skickade felsökningen åt fel håll. Nu faller de på impact, som är
+  // sanningen, och exkursionstestet ser bara envelopes där `apexY` betyder något.
+  //
+  // En sving utan verifierad impact släpps aldrig igenom oavsett: envelopens impact
+  // är "confident-only" (aldrig en fallback). Grinden ska vara strikt — hellre missa.
   if (!envelope.impact) return no(`no confident impact (${envelope.impactReason})`);
+
+  // Vertikal exkursion: händerna måste ha gått UPP. Fel tecken = bollplock.
+  const excursion = envelope.addressY - envelope.apexY;
+  if (excursion < MIN_VERTICAL_EXCURSION) {
+    return no(
+      `vertical excursion ${excursion.toFixed(3)} < ${MIN_VERTICAL_EXCURSION} (hands never rose — ball pickup?)`,
+    );
+  }
 
   const ds = envelope.impact.downswingSec;
   if (ds < MIN_DOWNSWING_SEC) return no(`downswing ${ds.toFixed(2)}s < ${MIN_DOWNSWING_SEC}s`);

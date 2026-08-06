@@ -125,7 +125,10 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
         expect(r.envelope?.valid).toBe(true);
         expect(r.envelope?.clippedTail).toBe(false);
         expect(r.envelope?.impact).toBeNull();
-        expect(r.reason).toMatch(/vertical excursion|no confident impact/);
+        // Skälet måste peka på impact, inte på exkursionen: utan impact är `apexY`
+        // odefinierad och exkursionen läser ≈ 0, så ett exkursionsskäl här vore en
+        // felaktig diagnos. Grinden testar därför impact först.
+        expect(r.reason).toMatch(/^no confident impact/);
       }
     });
 
