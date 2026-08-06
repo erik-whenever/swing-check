@@ -447,33 +447,48 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 
 **Dokumentkrav:** bocka av här + `docs/pose-detection.md` (resultattabell); uppdatera `swingcheck-handoff.md` → *Kritiskt olöst*.
 
-### [~] D-4 — Segmentering för kontinuerligt sessionsläge (ADR-003 steg A + C)
+### [x] D-4 — Segmentering för kontinuerligt sessionsläge (ADR-003 steg A + C)
 
-> **Byggt (2026-08-06):** ny ren modul `src/lib/poseSegments.ts` — `segmentSwingCandidates`
-> (steg A: p95-refSpeed, QUIET/MOVING, stillnadsöar, burst + padding, grovgallring),
-> `isSwing` (steg C: kvalitetsgrind med **`MAX_DOWNSWING_SEC = 0.6`**, envelope-varaktighet
-> 0,7–3,0 s, vertikal exkursion, peak-mot-refSpeed, cooldown 2 s) och `detectSessionSwings`
-> som kedjar ihop dem. `detectSwingEnvelope` anropas per segment och är **orörd**; likaså
-> `frameExtractor.ts` och `poseEnvelopeSelection.ts`. Alla trösklar är namngivna konstanter
-> överst med motivering. Ny harness `poseSegments.test.ts` (8 test) + fixturen
-> `__fixtures__/session-multi.json` (63 s, 3 svingar). `poseEnvelopeRegression.test.ts`
-> oförändrad och grön. Build + lint (mina filer) + test (18/18) rena.
+> **Klart (2026-08-06)** — kedjan hittar **3 svingar** i det 63-sekunders sessionsklippet,
+> och 1/1/0 i enkelklippen. Ny ren modul `src/lib/poseSegments.ts`:
+> `segmentSwingCandidates` (steg A: p95-refSpeed, QUIET/MOVING, stillnadsöar, burst +
+> padding, grovgallring), `isSwing` (steg C: **`MAX_DOWNSWING_SEC = 0.6`** — gränsen som
+> stänger den tysta 20,36 s-buggen — plus envelope-varaktighet 0,7–3,0 s, vertikal
+> exkursion, peak-mot-refSpeed, cooldown 2 s) och `detectSessionSwings`.
+> `frameExtractor.ts` och `poseEnvelopeSelection.ts` orörda. Ny fixture
+> `__fixtures__/session-multi.json` + harness `poseSegments.test.ts`. Build + lint
+> (0 nya) + test 19/19 rena.
 >
-> **Steg A verifierat:** segmenteringen isolerar klippets tre svingar rent (peak 1,27 / 2,23
-> / 1,89 mot 0,30–0,95 för bollplock/waggle/gå-runt).
+> **Envelope-logiken är orörd, men signalen under den var trasig och fixades:**
+> `primary ?? backup` bytte handled per frame och injicerade avståndet mellan
+> handlederna (~0,4 i x) som förflyttning → skenbar hastighet 2,23, klippets högsta, som
+> impact-sökningen tog för ett nedslag. Handpositionen är nu en **visibility-viktad
+> mittpunkt av båda handlederna** (händerna sitter på samma grepp = ett objekt), utan
+> visibility-golv på serien. Topphastigheter: session-multi 2,229 → 1,173, dtl-full
+> 1,710 → 0,978. Tre varianter mättes innan valet; se
+> [ADR-003](decisions/ADR-003-draft.md) → *Mätt blockering — och hur den löstes*.
 >
-> **Återstår — blockerat på ett beslut, inte på arbete:** kedjan accepterar **0** svingar.
-> `detectSwingEnvelope` kan inte producera en confident impact i något segment. Huvudorsak:
-> handledsbyte-artefakt (`primary ?? backup` snärtar mellan höger och vänster handled när
-> `visibility` oscillerar runt 0,4 i följdrörelsen → skenbar hastighet 2,23, som envelopens
-> `passIdx` tar för impact). Mätning, de två övriga orsakerna och ett **verifierat recept på
-> tre envelope-ändringar som ger 3/3** står i [ADR-003](decisions/ADR-003-draft.md) →
-> *Mätt blockering*. Receptet flyttar `dtl-full`-goldens `finishSec` 8,38 → 9,38 — en verklig
-> regressionskostnad som ska tas som eget beslut. `poseSegments.test.ts` bär golden **0** med
-> KNOWN GAP-markering; flippa den till 3 i samma commit som lyfter blockeringen.
+> **Trösklar omräknade mot den städade signalen:** `IMPACT_ADDRESS_TOL` 0,05 → 0,07
+> (15 fps-sampling missar träffframen; uppmätt behov 0,063/0,056), `MAX_BURST_SEC` 4,0 →
+> **härledd** 5,5 = `MAX_ENVELOPE_SEC + POST_FINISH_TAIL_SEC`. Harness-toleransen
+> ±1 → ±2 frames: ±1 var falsk precision (dtl-full klarade sin golden med 1,3 ms, face-on
+> med 0,8 ms, av ett ±66 ms-fönster).
 >
-> **Nästa uppgift (D-5):** besluta om receptet, ändra `poseEnvelope.ts`, uppdatera båda
-> harnessarnas golden i samma commit. Därefter ADR-003 §4/§5 (ringbuffert, live-pose, kö).
+> **Utfall:** dtl-full [6,78→8,31] imp 7,85 · face-on [3,35→4,70] imp 4,23 · dtl-clipped
+> `clippedTail`, 0 svingar · session-multi [8,26→9,86] / [31,53→33,13] / [54,46→56,25],
+> impact 9,26 / 32,53 / 55,59, nedsving 0,27/0,27/0,33 s, exkursion 0,265/0,267/0,267.
+>
+> **Öppet:** face-ons finish-golden flyttad 4,83 → 4,70 (gamla koden returnerade i
+> praktiken 4,7637 och klarade 4,83 med 0,8 ms). **Erik verifierar perceptuellt** både den
+> och sessionsklippets tre svingtider. Faller face-on är det finish-detektionen som ska
+> granskas, inte konstanten.
+>
+> **Ny durabel princip:** *kompensera aldrig en trasig signal med lösare trösklar.* Före
+> signalfixen hade tre trösklar behövt lossas för att dölja ett artefakthopp på 0,35;
+> efteråt behövde en enda röras, av ett härledbart skäl (15 fps-sampling).
+>
+> **Nästa (D-5):** ADR-003 §4 + §5 — live-pose i rAF-loop, ringbuffertar för landmarks och
+> MediaRecorder-chunks, analyskö och `swings: SessionSwing[]` i store.
 
 **Dokumentkrav:** bocka av här + `docs/decisions/ADR-003-draft.md`; uppdatera `swingcheck-handoff.md`.
 

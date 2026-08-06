@@ -4,14 +4,6 @@
 // isSwing — mot frysta pose-fixturer, precis som poseEnvelopeRegression.test.ts gör
 // för enkelklippsvägen.
 //
-// ── LÄS DETTA INNAN DU ÄNDRAR EN SIFFRA HÄR ────────────────────────────────────
-// Segmenteringen (steg A) FUNGERAR: den isolerar sessionsklippets tre svingar rent.
-// Kedjan hittar ändå NOLL svingar, för `detectSwingEnvelope` — som per uppdrag är
-// orörd — inte kan producera en confident impact i något av de tre segmenten.
-// Blockeringen är mätt, inte gissad; se ADR-003 → *Mätt blockering* och de två
-// KNOWN GAP-testerna nedan. Golden-siffran 0 är alltså inte ett beteende vi vill ha,
-// det är en dokumenterad baslinje som ska flippa till 3 när blockeringen lyfts.
-
 import { describe, it, expect } from 'vitest';
 import { detectSwingEnvelope } from './poseEnvelope';
 import { detectSessionSwings, segmentSwingCandidates, isSwing } from './poseSegments';
@@ -21,14 +13,18 @@ import type { PoseSample } from './poseTrajectory';
 const SESSION_MULTI_SWING_CANDIDATES = 3;
 
 /**
- * Antal svingar kedjan FAKTISKT accepterar i session-multi idag. Noll — se filhuvudet.
- * När poseEnvelope-blockeringen lyfts ska denna bli 3 i samma commit som lyfter den;
- * verifierat i probe att exakt tre envelope-ändringar räcker (ADR-003 → Mätt blockering).
+ * Antal svingar kedjan accepterar i session-multi. Uppmätt 2026-08-06 efter
+ * viktad-handsignal + omräknade trösklar; PENDING Eriks perceptuella verifiering mot
+ * klippet. Envelopes: [8.26→9.86] impact 9.26 · [31.53→33.13] impact 32.53 ·
+ * [54.46→56.25] impact 55.59 — tre nedsving på 0.27/0.27/0.33 s och exkursion
+ * 0.265/0.267/0.267, alltså tre svingar som liknar varandra på alla mått som betyder
+ * något. Bollplock, waggle och uttåg (peak 0.31–0.61) förkastas.
  */
-const SESSION_MULTI_SWINGS = 0;
+const SESSION_MULTI_SWINGS = 3;
 
-/** Tolerans för tidsassertar: ±1 sampelframe (ur fixturens eget dt) + float-epsilon. */
-const TOL_FRAMES = 1;
+/** Tolerans för tidsassertar: ±2 sampelframes (ur fixturens eget dt) + float-epsilon —
+ *  samma motivering som i poseEnvelopeRegression.test.ts (±1 var falsk precision). */
+const TOL_FRAMES = 2;
 
 interface FixtureFile {
   samples: PoseSample[];
@@ -49,6 +45,15 @@ function medianDt(samples: PoseSample[]): number {
   return dts[Math.floor(dts.length / 2)] || 1 / 15;
 }
 
+/** |actual − expected| ≤ tol — ett absolut fönster (till skillnad från toBeCloseTo,
+ *  som arbetar i decimalsiffror). Samma hjälpare som i poseEnvelopeRegression.test.ts. */
+function expectWithin(actual: number, expected: number, tol: number): void {
+  expect(
+    Math.abs(actual - expected),
+    `${actual} should be within ${tol} of ${expected}`,
+  ).toBeLessThanOrEqual(tol);
+}
+
 describe('session segmentation (ADR-003 steg A + C)', () => {
   const multi = fixtures.get('session-multi');
 
@@ -59,24 +64,21 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
     it(`session-multi: segmentation isolates ${SESSION_MULTI_SWING_CANDIDATES} swing-energy bursts`, () => {
       const seg = segmentSwingCandidates(multi.samples);
 
-      // refSpeed MÅSTE vara p95, inte max: klippets max (2.23) är en handledsbyte-
-      // artefakt (se poseSegments.ts) och skulle sätta tröskeln tre gånger för högt.
-      expect(seg.refSpeed).toBeGreaterThan(0.5);
-      expect(seg.refSpeed).toBeLessThan(1.0);
+      // refSpeed är p95, inte max. Med den gamla handledsväxlingen var klippets max 2.23
+      // — ren artefakt — och p95 0.744. Efter viktningen: max 1.173, p95 0.565.
+      expect(seg.refSpeed).toBeGreaterThan(0.4);
+      expect(seg.refSpeed).toBeLessThan(0.8);
 
-      // Tre kandidater bär svingenergi (peak 1.27 / 2.23 / 1.89). Övriga är bollplock,
-      // waggle och gå-runt — alla under 1.0.
-      // OSÄKER: den svagaste "övriga" är bursten 60.3–62.7 (peak 0.95, visibleFrac 0.55,
-      // envelope-varaktighet 0.13 s, händerna går NED). Den ser ut som klubbplock/uttåg,
-      // inte som Eriks eventuella fjärde sving — men den ligger närmast gränsen av allt
-      // i klippet och är den kandidat som ska verifieras mot videon först.
-      const energetic = seg.candidates.filter((c) => c.peakSpeed >= 1.2);
-      const rest = seg.candidates.filter((c) => c.peakSpeed < 1.2);
+      // Tre kandidater bär svingenergi (peak 1.04 / 1.15 / 1.17). Övriga är bollplock,
+      // waggle och uttåg — alla under 0.7. Separationen är ren, vilket är vad som gör
+      // peak-grinden meningsfull.
+      const energetic = seg.candidates.filter((c) => c.peakSpeed >= 1.0);
+      const rest = seg.candidates.filter((c) => c.peakSpeed < 1.0);
       const dump = seg.candidates
         .map((c) => `${c.startSec.toFixed(1)}-${c.endSec.toFixed(1)} pk=${c.peakSpeed.toFixed(2)}`)
         .join(', ');
       expect(energetic.length, dump).toBe(SESSION_MULTI_SWING_CANDIDATES);
-      for (const c of rest) expect(c.peakSpeed, dump).toBeLessThan(1.0);
+      for (const c of rest) expect(c.peakSpeed, dump).toBeLessThan(0.7);
 
       // De tre ligger där svingarna ligger i klippet, väl separerade.
       const starts = energetic.map((c) => c.burstStartSec);
@@ -92,8 +94,8 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
       }
     });
 
-    // ── Steg C end-to-end: den dokumenterade baslinjen ───────────────────────
-    it(`session-multi: chain accepts ${SESSION_MULTI_SWINGS} swings (KNOWN GAP — see file header)`, () => {
+    // ── Steg C end-to-end ─────────────────────────────────────────────────────
+    it(`session-multi: chain accepts ${SESSION_MULTI_SWINGS} swings`, () => {
       const result = detectSessionSwings(multi.samples);
       const summary = result.swings
         .map((s) => `${s.envelope.startSec.toFixed(2)}→${s.envelope.finishSec.toFixed(2)} @${s.impactSec.toFixed(2)}`)
@@ -114,28 +116,44 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
       }
     });
 
-    it('session-multi: the three swing candidates fail ONLY on the missing impact (KNOWN GAP)', () => {
-      // Pinnar blockeringen till exakt ett skäl. Faller detta har antingen envelopen
-      // ändrats (bra — flippa golden till 3) eller så har grinden börjat kasta de tre
-      // av något ANNAT skäl (dåligt — segmenteringen har regredierat).
+    it('session-multi: the three accepted swings land where the swings are', () => {
+      // Pinnar TIDERNA, inte bara antalet — rätt antal kan uppstå ur fel segment.
+      // Golden från mätningen 2026-08-06; ±2 frames.
+      const EXPECTED: { envelope: [number, number]; impact: number }[] = [
+        { envelope: [8.26, 9.86], impact: 9.26 },
+        { envelope: [31.53, 33.13], impact: 32.53 },
+        { envelope: [54.46, 56.25], impact: 55.59 },
+      ];
       const result = detectSessionSwings(multi.samples);
-      const energetic = result.rejected.filter((r) => r.candidate.peakSpeed >= 1.2);
-      expect(energetic.length).toBe(SESSION_MULTI_SWING_CANDIDATES);
-      for (const r of energetic) {
-        expect(r.envelope?.valid).toBe(true);
-        expect(r.envelope?.clippedTail).toBe(false);
-        expect(r.envelope?.impact).toBeNull();
-        // Skälet måste peka på impact, inte på exkursionen: utan impact är `apexY`
-        // odefinierad och exkursionen läser ≈ 0, så ett exkursionsskäl här vore en
-        // felaktig diagnos. Grinden testar därför impact först.
-        expect(r.reason).toMatch(/^no confident impact/);
+      const tol = medianDt(multi.samples) * TOL_FRAMES + 1e-6;
+      expect(result.swings.length).toBe(EXPECTED.length);
+      result.swings.forEach((s, i) => {
+        expectWithin(s.envelope.startSec, EXPECTED[i].envelope[0], tol);
+        expectWithin(s.envelope.finishSec, EXPECTED[i].envelope[1], tol);
+        expectWithin(s.impactSec, EXPECTED[i].impact, tol);
+      });
+    });
+
+    it('session-multi: rejected candidates are rejected for an honest reason', () => {
+      // Falska negativ måste vara diagnostiserbara, och skälet måste peka på ORSAKEN.
+      // Utan impact är `apexY` odefinierad och exkursionen läser ≈ 0, så ett
+      // exkursionsskäl på en impact-lös envelope vore en felaktig diagnos — grinden
+      // testar därför impact först.
+      const result = detectSessionSwings(multi.samples);
+      expect(result.rejected.length).toBeGreaterThan(0);
+      for (const r of result.rejected) {
+        expect(r.reason).toMatch(/^(envelope invalid|no confident impact|clipped tail|vertical excursion|envelope \d|peak speed|downswing|cooldown|wrist visibility|segment too short)/);
+        if (r.envelope && !r.envelope.impact) {
+          expect(r.reason).not.toMatch(/^vertical excursion/);
+        }
       }
     });
 
     it('session-multi: whole-clip envelope is the silent failure ADR-003 describes', () => {
       // Vaktar PROBLEMFORMULERINGEN, inte lösningen: så länge detta är sant får
       // segmenteringen aldrig tas bort. Utan segmentering svarar detektorn med EN
-      // "sving" på 26 s, valid + confident — ett tyst fel som spänner över två svingar.
+      // "sving" som spänner över hela sessionen (uppmätt [0.33→56.25], impact 55.66),
+      // valid + confident — ett tyst fel över alla tre svingarna.
       const whole = detectSwingEnvelope(multi.samples);
       expect(whole.valid).toBe(true);
       expect(whole.impact).not.toBeNull();
@@ -173,10 +191,17 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
   if (!clipped) {
     it.todo('dtl-clipped: fixture missing');
   } else {
-    it('dtl-clipped: clipped tail is rejected by the gate', () => {
+    it('dtl-clipped: an incomplete swing yields nothing', () => {
       const result = detectSessionSwings(clipped.samples);
       expect(result.swings.length).toBe(0);
-      expect(result.rejected.some((r) => /clipped tail/.test(r.reason))).toBe(true);
+
+      // Var i kedjan den stoppas är inte kontraktet — ATT den stoppas är. Efter
+      // viktningen faller den redan i grovgallringen (rörelsebursten når inte
+      // MIN_BURST_SEC), tidigare nådde den fram till grinden och föll på clippedTail.
+      // Båda är rätt svar; asserta därför utfallet, inte vägen dit.
+      const whole = detectSwingEnvelope(clipped.samples);
+      expect(whole.clippedTail).toBe(true);
+      expect(whole.impact).toBeNull();
     });
   }
 

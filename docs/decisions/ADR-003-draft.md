@@ -1,12 +1,16 @@
 # ADR-003 (UTKAST) — Kontinuerligt sessionsläge: från "ett klipp = en sving" till N svingar i en ström
 
-- **Status:** **Utkast / ej beslutad.** Underlag för beslut. Ingen kod ändrad.
+- **Status:** **Steg A + C byggda och mätta** (2026-08-06). §4 (strömmande fångst) och §5
+  (feedback per sving) är fortfarande utkast. Pendlar på Eriks perceptuella verifiering av
+  session-multis tre svingar och av face-ons nya finish (4,70).
 - **Datum:** 2026-08-06
 - **Ström:** D (pose-estimering) + ny ström för sessionsfångst
 - **Bygger på:** [ADR-002](ADR-002-stream-d-envelope-inversion.md) (envelope som primär selektor,
   cutover D-3), [ADR-0001](../adr/0001-motion-based-swing-detection.md) (pixel-diff, nu fallback).
-- **Rör inte:** envelope-logikens *inre* kontrakt. Utkastet föreslår att `detectSwingEnvelope`
-  behålls oförändrad och **wrappas**, inte skrivs om.
+- **Envelope-LOGIKEN är orörd** och wrappas, som föreslaget. Två saker *under* logiken
+  ändrades när mätningen visade att signalen var trasig: handpositionen är nu en
+  visibility-viktad mittpunkt av båda handlederna, och `IMPACT_ADDRESS_TOL` räknades om.
+  Se *Mätt blockering — och hur den löstes*.
 
 ---
 
@@ -146,70 +150,95 @@ blockerade insamlingen av testdata:
   går aldrig genom `extractPoseTrajectory`, så harnessen är per konstruktion oberoende av
   den här konstanten.
 
-## Mätt blockering (2026-08-06, steg A + C byggda)
+## Mätt blockering — och hur den löstes (2026-08-06)
 
 `src/lib/poseSegments.ts` implementerar steg A (`segmentSwingCandidates`) och steg C
-(`isSwing`), med `detectSwingEnvelope` orörd däremellan. Mätt mot den nya fixturen
-`src/lib/__fixtures__/session-multi.json` (63,45 s, 953 sampel, 15 fps, 3 svingar).
+(`isSwing`). Mätt mot den nya fixturen `src/lib/__fixtures__/session-multi.json`
+(63,45 s, 953 sampel, 15 fps, 3 svingar).
 
-**Steg A fungerar.** `refSpeed = p95 = 0,744` (mot `max = 2,23` — se nedan varför den
-skillnaden är kritisk). Segmenteringen ger 9 kandidater, varav exakt tre bär svingenergi:
+**Steg A fungerade direkt.** Segmenteringen isolerade de tre svingarna rent. **Steg C
+fick ändå ingenting att släppa igenom** — noll accepterade svingar. Grävandet gav en
+rot som inte låg i någon tröskel:
 
-| Segment | Burst | peak | Vad det är |
+### Root cause: handledssignalen var trasig, inte logiken
+
+Positionsserien byggdes med `primary ?? backup` — en per-frame-fallback till den andra
+handleden. Den gick sönder på tre sätt samtidigt:
+
+1. **Offset-hopp.** Handlederna ligger ~0,4 isär i normaliserad x. I varje följdrörelse
+   skyms släphandleden och dess `visibility` oscillerar över `MIN_VISIBILITY` (mätt
+   0,28 → 0,55 över ~0,7 s), så serien snärtade mellan dem: **~0,35 i x på EN frame**,
+   skenbar hastighet **2,23** — klippets högsta. Impact-sökningen (`passIdx` = snabbaste
+   nedåtgående passage nära adresshöjd) låste på artefakten efter varenda sving.
+2. **`MIN_VISIBILITY` användes som giltighetsgrind för koordinater.** MediaPipes
+   `visibility` är ett *ocklusionsmått*, inte ett kvalitetsmått på positionen. I dtl-full
+   glider släphandleden x 0,204 → 0,553 vid visibility 0,12–0,36 — jämnt och rimligt —
+   medan händerna i själva verket HÅLLS i finishen. Att kasta de framesen och interpolera
+   rakt över dem fabricerar 1,07 s konstant "rörelse" på 0,314, över settle-tröskeln.
+3. **Vilken handled som är tillförlitlig växlar INOM svingen.** Down-the-line:
+   släphandleden vid adress, ledhandleden vid finish, eftersom den skymda är bakom
+   kroppen. Alltså fungerar ingen en-handled-lösning heller — den tappar finishen, just
+   den landmark ADR-002 ankrar envelopen på (dtl-full finish 8,38 → 9,31).
+
+### Fix: händerna som ETT objekt
+
+Båda händerna sitter på samma grepp. Positionen är därför en **visibility-viktad
+mittpunkt** av båda handlederna, `pos = (pL·vL + pR·vR) / (vL + vR)`, utan golv: den
+välspårade handleden dominerar, den skymda tonas ned, ingen växling, inget kastat.
+
+Tre varianter mättes innan valet (`poseEnvelope.ts` + `poseSegments.ts`, identisk serie
+på båda ställena — grinden jämför `envelope.peakSpeed` mot segmenteringens `refSpeed`):
+
+| Variant | dtl-full finish | session-multi |
+| --- | --- | --- |
+| En handled, golv kvar, interpolera luckor | 9,38 ✗ | 0 svingar, sving 3 tappas i segmenteringen |
+| En handled, golv borttaget | 9,31 ✗ | 0 svingar |
+| **Viktad mittpunkt** | **8,31 ✓** | **3 svingar** |
+
+### Trösklar omräknade mot den städade signalen
+
+- **`IMPACT_ADDRESS_TOL` 0,05 → 0,07.** Vid 15 fps finns den exakta träffframen inte i
+  datat; närmaste utjämnade approach mätte 0,063 / 0,056 på äkta träffar. 0,07 klarar dem
+  med ~10 % marginal och ligger fortfarande långt under `IMPACT_HEIGHT_TOL` (0,12) —
+  dtl-clipped ger fortsatt `impact: null`, alltså gör toleransen inte impact "alltid sant".
+- **`MAX_BURST_SEC` 4,0 → 5,5, härledd** som `MAX_ENVELOPE_SEC + POST_FINISH_TAIL_SEC`
+  (3,0 + 2,5). Mätningen visade att ett burst-tak **inte kan skilja sving från skräp**:
+  äkta svingar 1,68 / 2,53 / 3,20 / 3,67 / 4,27 s, skräp 0,93–2,33 s — fördelningarna
+  överlappar helt. Takets enda uppgift är att hindra ett orimligt långt fönster från att
+  skickas in i envelopen; diskrimineringen sköts av peak-grinden, exkursionen och
+  envelope-varaktigheten. ADR:ns ursprungliga 3,0 var fel storhet (bursten är en
+  övermängd av envelopen) och 4,0 gallrade sving 3 innan grinden såg den.
+- **Harness-tolerans ±1 → ±2 frames.** ±1 var falsk precision: dtl-full klarade sin golden
+  med 1,3 ms och face-on med 0,8 ms, av ett ±66 ms-fönster. En marginal tre tiopotenser
+  under kvantiseringen är ingen kvalitetsgräns — den fäller nästa legitima
+  signalförbättring och kallar den regression. ±2 frames (±133 ms) fångar fortfarande allt
+  harnessen finns för; de kollapser den vaktar mot flyttar gränser 0,5–20 s, inte en frame.
+
+### Utfall
+
+| Fixture | Envelope | Impact | Accepterade |
 | --- | --- | --- | --- |
-| 7,67–12,06 | 8,26–11,06 | 1,27 | sving 1 |
-| 30,99–38,06 | 31,59–37,06 | 2,23 | sving 2 |
-| 53,99–58,45 | 54,59–57,45 | 1,89 | sving 3 |
-| 6 övriga | — | 0,30–0,95 | bollplock, waggle, gå-runt, uttåg |
+| dtl-full | [6,78 → 8,31] | 7,85 | 1 |
+| face-on | [3,35 → 4,70] | 4,23 | 1 |
+| dtl-clipped | [3,53 → 4,27] `clippedTail` | null | 0 |
+| session-multi | [8,26→9,86] · [31,53→33,13] · [54,46→56,25] | 9,26 · 32,53 · 55,59 | **3** |
 
-**Steg C fungerar också** — men får aldrig något att släppa igenom. Kedjan accepterar
-**noll** svingar, för att `detectSwingEnvelope` inte producerar en confident impact i
-något av de tre segmenten. Tre oberoende orsaker, alla mätta:
+Hastighetstoppar: session-multi 2,229 → **1,173**, dtl-full 1,710 → **0,978**. face-on och
+dtl-clipped rör sig knappt (1,632 → 1,594; 0,674 → 0,676) — de hade aldrig ocklusionen.
 
-1. **Handledsbyte-artefakt (huvudorsaken).** Fallbacken `primary ?? backup` byter handled
-   PER FRAME. I följdrörelsen skyms höger handled och dess `visibility` oscillerar runt
-   `MIN_VISIBILITY = 0,4` (mätt 0,28 → 0,55 över ~0,7 s), så serien snärtar mellan höger
-   handled (x ≈ 0,43) och vänster (x ≈ 0,01): **ett hopp på ~0,35 i x på en enda frame**,
-   skenbar hastighet 2,23 — klippets högsta. Det inträffar efter varenda sving. Envelopens
-   `passIdx` ("snabbaste nedåtgående passage nära adresshöjd") plockar då artefakten i
-   stället för impact, exakt den svaghet `poseEnvelope.ts` rad 311–314 flaggar som OSÄKER.
-   Enkelklippsfixturerna träffas aldrig: där står golfaren kvar och handleden syns hela
-   tiden. **Klippets `max` är alltså ren artefakt — ADR:ns val av p95 var rätt, och av ett
-   ännu starkare skäl än det som skrevs ned.**
-2. **`IMPACT_ADDRESS_TOL = 0,05` är för snäv vid 15 fps.** Även med artefakten borta är
-   handledens närmaste (utjämnade) approach till `addressY` på nedsvinget 0,067 / 0,058 /
-   0,040 för de tre svingarna. Den exakta impact-framen finns helt enkelt inte i en
-   15 fps-sampling av en 120 fps-källa.
-3. **`FINISH_MIN_HOLD_FRAMES = 3` vid `SETTLE_SPEED_FRAC = 0,2`.** Sving 1:s följdrörelse
-   håller aldrig tre frames under 20 % av toppfarten — golfaren flyter direkt från finish
-   till att sänka klubban.
+**Kvarstående kostnad, ärlig:** face-ons finish flyttar 4,83 → 4,70 och dess golden är
+uppdaterad till uppmätt värde. Den gamla koden returnerade i praktiken 4,7637 och klarade
+4,83 med 0,8 ms — goldenvärdet var redan urvattnat. **Erik verifierar 4,70 perceptuellt.**
+Faller det, är det finish-detektionen som ska granskas, inte konstanten.
 
-**Verifierad recept (probe, ej incheckat).** Med exakt tre ändringar i `poseEnvelope.ts`
-ger kedjan **3 svingar** på `session-multi` (impact 9,26 / 32,53 / 55,59; downswing 0,27 s
-för alla tre; exkursion 0,270 / 0,271 / 0,271) och samtidigt **1** på `dtl-full`, **1** på
-`face-on` och **0** på `dtl-clipped`:
+**Följd för ADR:ns trösklar.** Två avsteg från §1, båda mätta: burst-taket är härlett
+(ovan), och paddingen före bursten är 2 × `MIN_ADDRESS_SEC` — envelopen kräver en hel
+address-platå inuti sitt eget spann, och 0,3 s ger precis 5 sampel vid 15 fps.
 
-- använd EN handled för hela klippet och interpolera dess luckor, i stället för
-  per-frame-fallback till den andra handleden;
-- `IMPACT_ADDRESS_TOL` 0,05 → 0,08;
-- `FINISH_MIN_HOLD_FRAMES` 3 → 2.
-
-**Kostnaden:** `poseEnvelopeRegression.test.ts` golden för `dtl-full` flyttar sig
-(`finishSec` 8,38 → 9,38); impact-tiderna 7,85 och 4,29 står still. Det är en verklig
-regressionskostnad och ska tas som ett eget, medvetet beslut — inte smygas in i
-segmenteringsarbetet. Därför är `poseEnvelope.ts` orörd här och
-`poseSegments.test.ts` bär golden **0** med en KNOWN GAP-markering som ska flippa till 3 i
-samma commit som lyfter blockeringen.
-
-**Följd för ADR:ns trösklar.** Två avsteg från §1/§3, båda mätta:
-
-- Grovgallringens övre burst-gräns är **4,0 s**, inte 3,0. Bursten mäts mot 0,15 × p95 och
-  är en övermängd av envelopen (waggle före, klubbsänkning efter); de tre äkta svingarnas
-  burstar ligger på 2,80 / 2,80 / 2,87 s, alltså mot 3,0-taket. Den riktiga 0,7–3,0-gränsen
-  ligger kvar där den hör hemma: på **envelope**-varaktigheten i `isSwing`.
-- Paddingen före bursten är **2 × `MIN_ADDRESS_SEC`**, inte 1 ×. Envelopen kräver en hel
-  address-platå *inuti* sitt eget spann; 0,3 s ger precis 5 sampel vid 15 fps, alltså noll
-  marginal.
+**Durabel princip, tillagd:** *kompensera aldrig en trasig signal med lösare trösklar.*
+Varje tröskel som "nästan" räcker är en hypotes om att signalen är rätt. Här hade tre
+trösklar behövt lossas för att dölja ett artefakthopp på 0,35 — efter signalfixen behövde
+en enda röras, och då av ett skäl som gick att härleda (15 fps-sampling).
 
 ## Alternativ som övervägts
 

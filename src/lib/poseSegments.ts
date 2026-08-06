@@ -9,11 +9,16 @@
 // Lösningen (ADR-003 §Beslut): WRAPPA, skriv inte om. Den här filen lägger ett
 // segmenteringssteg FÖRE envelope-detektionen och en kvalitetsgrind EFTER, så att
 // `detectSwingEnvelope` får exakt det kontrakt den redan uppfyller — en adress, en
-// sving, en finish. `poseEnvelope.ts` är oförändrad.
+// sving, en finish.
 //
 //   segmentSwingCandidates()  ← steg A: stillhet/hastighet → kandidatfönster
-//     → detectSwingEnvelope() ← OFÖRÄNDRAD, en gång per kandidat
+//     → detectSwingEnvelope() ← en gång per kandidat, logiken oförändrad
 //       → isSwing()           ← steg C: kvalitetsgrind, förkastar bollplock/waggle
+//
+// Envelope-LOGIKEN är orörd. Två saker under den ändrades dock när mätningarna visade
+// att signalen, inte logiken, var trasig: handpositionen är nu en visibility-viktad
+// mittpunkt av båda handlederna (se nedan), och `IMPACT_ADDRESS_TOL` räknades om mot den
+// städade signalen. Båda ligger i poseEnvelope.ts och gäller alltså även enkelklipp.
 //
 // Durabel princip från ADR-003, som hela grinden bygger på: *varje gräns som har ett
 // minimum måste också ha ett maximum.* `MIN_DOWNSWING_SEC` utan `MAX_DOWNSWING_SEC` är
@@ -27,7 +32,9 @@ import type { PoseSample } from './poseTrajectory';
 // ── Trösklar: wrist-serie (speglar poseEnvelope.ts) ──────────────────────────
 const WRIST_LEFT = 15;
 const WRIST_RIGHT = 16;
-/** Landmark-visibility under detta räknas som otillförlitlig (samma som envelopen). */
+/** Landmark-visibility under detta räknas som otillförlitlig (samma som envelopen).
+ *  Filtrerar INTE positionsserien — den viktar i stället (se weightedHands). Används
+ *  bara för handledsvalet i diagnostiken och för visibleFrac-grinden. */
 const MIN_VISIBILITY = 0.4;
 /** Glidande medelvärde, halvfönster i sampel (samma som envelopen). */
 const SMOOTH_HALF = 1;
@@ -36,13 +43,25 @@ const MIN_VISIBLE_FRAC = 0.5;
 /** Färre sampel än så och `detectSwingEnvelope` bailar ändå ("too few pose samples"). */
 const MIN_SEGMENT_SAMPLES = 6;
 
+// ── Svingens varaktighet — delad av grinden och burst-taket ──────────────────
+/**
+ * ENVELOPE-VARAKTIGHET (start→finish). Under: waggle. Över: mer än en sving, eller
+ * gå-runt. Detta är den EGENTLIGA kvalitetsgränsen på hur länge en sving får hålla på;
+ * grovgallringens burst-tak nedan härleds ur den i stället för att gissas.
+ * Mätt över alla fyra fixturerna efter viktningen: 1.41 / 1.53 / 1.60 / 1.60 s.
+ */
+const MIN_ENVELOPE_SEC = 0.7;
+const MAX_ENVELOPE_SEC = 3.0;
+
 // ── Trösklar: steg A, segmentering ───────────────────────────────────────────
 /**
  * REFERENSHASTIGHET = p95, INTE max (ADR-003 §1.1). Med `max` sätter strömmens
  * hårdaste driver tröskeln för allt som kommer efter: ett chip med halva hastigheten
  * hamnar då under QUIET-gränsen och segmenteras aldrig ut. p95 är robust mot den
  * enskilda toppen men följer fortfarande sessionens allmänna rörelsenivå.
- * Mätt på session-multi (64 s, 3 svingar): max 2.23 mot p95 0.74 — en faktor 3.
+ * Mätt på session-multi (64 s, 3 svingar) efter den viktade signalen: max 1.173 mot
+ * p95 0.565. Före viktningen var max 2.23 — men den toppen var en handledsbyte-artefakt,
+ * inte rörelse, vilket är ett andra och starkare skäl att aldrig normalisera mot max.
  */
 const REF_SPEED_QUANTILE = 0.95;
 /** QUIET/MOVING-gräns som andel av refSpeed (samma andel som envelopens address-platå). */
@@ -68,23 +87,39 @@ const PAD_AFTER_SEC = 1.0;
 /** Grovgallring: kortare burst än så är waggle/ryck, inte en sving. */
 const MIN_BURST_SEC = 0.7;
 /**
- * Grovgallring, ÖVRE gräns. ADR-003 §1.5 föreslår 3.0 s, samma fönster som
- * envelope-varaktigheten i grinden. Det är för snävt HÄR: bursten mäts mot en känslig
- * tröskel (0.15 × p95) och är därför en ÖVERMÄNGD av envelopen — den innehåller
- * inledande waggle och klubbsänkningen efteråt. Mätt på session-multi ligger de tre
- * äkta svingarnas burstar på 2.80 / 2.80 / 2.87 s, alltså mot 3.0-taket; en aning
- * långsammare sving hade gallrats bort här innan grinden ens fick se den. Den riktiga
- * 0.7–3.0-gränsen ligger kvar där den hör hemma: på ENVELOPE-varaktigheten i `isSwing`.
- * Grovgallringen ska bara kasta uppenbart skräp billigt.
+ * EFTERSLÄPET efter finishen. Bursten mäts mot en känslig tröskel (0.15 × refSpeed) och
+ * fortsätter därför bortom svingens finish, genom att golfaren sänker klubban, tills
+ * stillheten infinner sig. Uppmätt som `burstEnd − envelope.finishSec` efter viktningen:
+ * dtl-full 1.20 s, session-multi 1.60 och 2.06 s. 2.5 ger ~20 % marginal över det längsta
+ * observerade.
  */
-const MAX_BURST_SEC = 4.0;
+const POST_FINISH_TAIL_SEC = 2.5;
+/**
+ * Grovgallring, ÖVRE gräns — HÄRLEDD, inte gissad: en burst får rymma en maximalt lång
+ * sving plus dess eftersläp, alltså `MAX_ENVELOPE_SEC + POST_FINISH_TAIL_SEC` = 5.5 s.
+ *
+ * ADR-003 §1.5 föreslog 3.0 s (samma fönster som envelope-varaktigheten). Det är fel
+ * storhet: bursten är en ÖVERMÄNGD av envelopen. Mätningen mot den städade, viktade
+ * signalen visar dessutom att ett burst-tak inte kan skilja sving från skräp alls —
+ * fördelningarna överlappar helt:
+ *
+ *   äkta svingar (5 st, alla fixturer): 1.68 · 2.53 · 3.20 · 3.67 · 4.27 s
+ *   skräp som klarar MIN_BURST_SEC + peak-grinden: 0.93 … 2.33 s
+ *
+ * Ett tak vid 4.0 gallrade sving 3 (4.27 s) innan grinden ens såg den, och ett tak som
+ * skulle bita mot skräpet hade tagit fyra av fem svingar med sig. Takets enda uppgift är
+ * därför att hindra ett orimligt LÅNGT fönster (en promenad, eller två svingar i samma
+ * burst) från att skickas in i `detectSwingEnvelope` som ett spann. 5.5 s klarar den
+ * uppgiften — svingarna i sessionsklippet ligger >20 s isär — utan att kapa något äkta.
+ * Diskrimineringen sköts av peak-grinden, exkursionen och envelope-varaktigheten.
+ */
+const MAX_BURST_SEC = MAX_ENVELOPE_SEC + POST_FINISH_TAIL_SEC;
 /** Grovgallring: burstens topphastighet måste nå denna andel av refSpeed. */
 const MIN_BURST_PEAK_FRAC = 0.4;
 
 // ── Trösklar: steg C, kvalitetsgrind ─────────────────────────────────────────
-/** Envelope-varaktighet (start→finish). Under: waggle. Över: gå-runt/bollplock. */
-const MIN_ENVELOPE_SEC = 0.7;
-const MAX_ENVELOPE_SEC = 3.0;
+// (Envelope-varaktigheten MIN/MAX_ENVELOPE_SEC står längre upp — den delas med det
+// härledda burst-taket.)
 /** Nedsving (top→impact). Nedre gränsen speglar envelopens egen MIN_DOWNSWING_SEC. */
 const MIN_DOWNSWING_SEC = 0.12;
 /**
@@ -98,7 +133,8 @@ const MAX_DOWNSWING_SEC = 0.6;
  * VERTIKAL EXKURSION (normaliserad y, origo uppe till vänster → mindre y = högre upp).
  * `addressY − apexY` måste vara positiv och stor: i en sving går händerna UPP.
  * Detta är testet som fångar BOLLPLOCK — där går händerna NED, alltså fel tecken.
- * Mätt på session-multi: äkta svingar ~0.20–0.27, bollplock/räfsande ~0.02–0.05.
+ * Mätt på session-multi efter viktningen: äkta svingar 0.265 / 0.267 / 0.267,
+ * bollplock och uttåg 0.004–0.019. Separationen är över en tiopotens.
  */
 const MIN_VERTICAL_EXCURSION = 0.08;
 /** Segmentets egen topphastighet mot sessionens refSpeed — sållar gester/vinkningar. */
@@ -124,7 +160,7 @@ export interface SwingCandidate {
   burstEndSec: number;
   /** Högsta utjämnade handledshastighet inuti bursten. */
   peakSpeed: number;
-  /** Andel sampel i segmentet med en direkt användbar handled (ej interpolerad). */
+  /** Andel sampel i segmentet där MINST en handled klarar MIN_VISIBILITY. */
   visibleFrac: number;
 }
 
@@ -135,7 +171,7 @@ export interface SegmentationResult {
   /** QUIET/MOVING-gränsen som användes (refSpeed × ADDRESS_SPEED_FRAC). */
   quietThreshold: number;
   sampleDt: number;
-  /** Vilken handled som drev läsningen. */
+  /** Bäst spårade handled — DIAGNOSTIK. Serien är en viktad mittpunkt av båda. */
   trackedWrist: 'left' | 'right';
   visibleFrac: number;
   /** Satt när ingen segmentering var möjlig (för loggen). */
@@ -193,29 +229,31 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
 
   if (n < MIN_SEGMENT_SAMPLES) return empty('too few pose samples');
 
-  // ── Handledsserien byggs EXAKT som i poseEnvelope.ts ──────────────────────
+  // ── Handpositionsserien byggs EXAKT som i poseEnvelope.ts ─────────────────
   // Medvetet duplicerad, inte utbruten: poseEnvelope.ts är låst (D-3-cutover,
   // regressionsharness grön) och en refaktorering som flyttar dess interna hjälpare
-  // vore en beteendeförändring förklädd till städning. Håll dem i synk för hand.
+  // vore en beteendeförändring förklädd till städning. Håll dem i synk för hand —
+  // inklusive VIKTNINGEN nedan, som MÅSTE vara identisk på båda ställena: grinden
+  // jämför `envelope.peakSpeed` mot `refSpeed` härifrån, så är serierna byggda olika
+  // betyder jämförelsen ingenting.
   //
-  // OSÄKER — HANDLEDSBYTE (mätt på session-multi, blockerar hela kedjan): fallbacken
-  // `primary ?? backup` byter handled PER FRAME. I följdrörelsen skyms höger handled
-  // och dess `visibility` oscillerar runt MIN_VISIBILITY (0.28→0.55 över ~0.7 s), så
-  // serien snärtar mellan höger (x≈0.43) och vänster (x≈0.01) handled: ett hopp på
-  // ~0.35 i x på EN frame → skenbar hastighet 2.23, klippets högsta. Det inträffar
-  // efter varenda sving i sessionsklippet. Serien här ärver felet med flit — den ska
-  // spegla det envelope-detektorn faktiskt ser, annars jämför grinden `envelope.peakSpeed`
-  // (artefakt-inflaterad) mot ett `refSpeed` som inte är det. Fixen hör hemma i
-  // poseEnvelope.ts (en handled för hela klippet, interpolera dess luckor) och måste
-  // göras på BÅDA ställena samtidigt. Se ADR-003 → *Mätt blockering*.
+  // VISIBILITY-VIKTAD MITTPUNKT av båda handlederna — händerna sitter på samma grepp
+  // och är ett fysiskt objekt. Full motivering i poseEnvelope.ts; kort: den gamla
+  // `primary ?? backup` växlade handled per frame och injicerade avståndet mellan
+  // handlederna (~0.4 i x) som förflyttning → skenbar hastighet 2.23 på session-multi,
+  // klippets högsta, som impact-sökningen tog för ett nedslag. Efter fixen: max 1.173,
+  // p95 0.744 → 0.565.
   const leftVisible = countVisible(samples, WRIST_LEFT);
   const rightVisible = countVisible(samples, WRIST_RIGHT);
   const trackedWrist: 'left' | 'right' = rightVisible >= leftVisible ? 'right' : 'left';
-  const primary = trackedWrist === 'right' ? WRIST_RIGHT : WRIST_LEFT;
-  const backup = trackedWrist === 'right' ? WRIST_LEFT : WRIST_RIGHT;
 
-  const raw: (Vec | null)[] = samples.map((s) => usable(s, primary) ?? usable(s, backup));
-  const visibleFrac = raw.filter((p) => p !== null).length / n;
+  const raw: (Vec | null)[] = samples.map((s) => weightedHands(s));
+  // Kvalitetsmåttet är fortfarande en visibility-fråga även om serien inte filtrerar
+  // på den: en frame räknas som spårad när MINST en handled klarar MIN_VISIBILITY.
+  const tracked = samples.map(
+    (s) => usable(s, WRIST_LEFT) !== null || usable(s, WRIST_RIGHT) !== null,
+  );
+  const visibleFrac = tracked.filter(Boolean).length / n;
   if (visibleFrac < MIN_VISIBLE_FRAC) {
     return empty('low wrist visibility', { trackedWrist, visibleFrac });
   }
@@ -286,7 +324,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
           burstStartSec: t[i],
           burstEndSec: t[j],
           peakSpeed: peak,
-          visibleFrac: fracVisible(raw, startIdx, endIdx),
+          visibleFrac: fracVisible(tracked, startIdx, endIdx),
         });
       }
       i = j + 1;
@@ -294,7 +332,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
   }
 
   return {
-    candidates: mergeOverlapping(candidates, raw, t),
+    candidates: mergeOverlapping(candidates, tracked, t),
     refSpeed,
     quietThreshold,
     sampleDt,
@@ -423,10 +461,28 @@ function countVisible(samples: PoseSample[], idx: number): number {
   return c;
 }
 
-function fracVisible(raw: (Vec | null)[], from: number, to: number): number {
+function fracVisible(tracked: boolean[], from: number, to: number): number {
   let c = 0;
-  for (let i = from; i <= to; i++) if (raw[i]) c++;
+  for (let i = from; i <= to; i++) if (tracked[i]) c++;
   return c / (to - from + 1);
+}
+
+/**
+ * Visibility-viktad mittpunkt av de två handlederna — identisk med poseEnvelope.ts.
+ * Inget visibility-golv: en lågt synlig handled nedviktas, den kastas inte. Null bara
+ * när MediaPipe inte gav någon handled alls (då fyller interpolationen luckan).
+ */
+function weightedHands(sample: PoseSample): Vec | null {
+  const l = sample.landmarks[WRIST_LEFT];
+  const r = sample.landmarks[WRIST_RIGHT];
+  const wl = l ? (l.visibility ?? 1) : 0;
+  const wr = r ? (r.visibility ?? 1) : 0;
+  const sum = wl + wr;
+  if (sum <= 0) return null;
+  return {
+    x: ((l ? l.x * wl : 0) + (r ? r.x * wr : 0)) / sum,
+    y: ((l ? l.y * wl : 0) + (r ? r.y * wr : 0)) / sum,
+  };
 }
 
 /** Fyll null-luckor linjärt; klampa ledande/avslutande luckor till närmaste. */
@@ -517,7 +573,7 @@ function indexAtOrBefore(t: number[], sec: number): number {
  */
 function mergeOverlapping(
   cands: SwingCandidate[],
-  raw: (Vec | null)[],
+  tracked: boolean[],
   t: number[],
 ): SwingCandidate[] {
   if (cands.length < 2) return cands;
@@ -529,7 +585,7 @@ function mergeOverlapping(
       prev.endSec = t[prev.endIdx];
       prev.burstEndSec = c.burstEndSec;
       prev.peakSpeed = Math.max(prev.peakSpeed, c.peakSpeed);
-      prev.visibleFrac = fracVisible(raw, prev.startIdx, prev.endIdx);
+      prev.visibleFrac = fracVisible(tracked, prev.startIdx, prev.endIdx);
     } else {
       out.push({ ...c });
     }
