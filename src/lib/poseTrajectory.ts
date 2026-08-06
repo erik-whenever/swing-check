@@ -13,7 +13,31 @@ const log = createLogger('PoseTrajectory');
 // Sampling rate for pose inference. 15 fps is dense enough to follow a golf
 // swing while keeping the number of (relatively expensive) inferences bounded.
 const SAMPLE_FPS = 15;
-const MAX_SAMPLES = 240;
+/**
+ * MAX ANALYSIS SECONDS — the work cap is on analysed DURATION, not on sample count.
+ *
+ * This replaces a fixed `MAX_SAMPLES = 240`, which capped the TOTAL number of samples
+ * and therefore silently traded away the SAMPLING RATE on long clips: a 3-minute clip
+ * got 240 samples spread over 180 s ≈ 1.3 Hz, so a whole golf swing (~1.5 s) landed on
+ * 1–2 samples and `detectSwingEnvelope` had nothing to read. The old cap started biting
+ * at 16 s — i.e. exactly in the "long setup" scenario that motivated the pose work in
+ * the first place (see docs/reviews/ARCHITECTURE_REVIEW_2026-07.md and
+ * docs/decisions/ADR-003-draft.md §3).
+ *
+ * Capping duration instead keeps the rate pinned at SAMPLE_FPS for every clip length,
+ * which is what the detector actually depends on. Beyond the cap we TRUNCATE (analyse
+ * the first MAX_ANALYSIS_SEC) and log it loudly, rather than thinning the whole clip:
+ * silent down-sampling is the precise failure mode being removed here, and a quiet
+ * degradation that still reports success is worse than a loud, bounded one.
+ *
+ * 300 s covers the 2–4 minute multi-swing session clips being collected for the
+ * segmentation work (ADR-003) with headroom.
+ * OSÄKER: at the cap this is ~4500 inferences (~2–5 min of work on a CPU delegate).
+ * That is a deliberate cost trade for usable fixtures; if a long UPLOAD ever needs to
+ * stay snappy, gate the pose path on duration in frameExtractor rather than lowering
+ * this (lowering it brings back the rate loss).
+ */
+const MAX_ANALYSIS_SEC = 300;
 
 export interface PoseSample {
   /** Timestamp in seconds (relative to the start of the clip). */
@@ -62,8 +86,13 @@ export async function extractPoseTrajectory(
       throw new Error('Cannot determine video duration');
     }
 
-    const count = Math.max(2, Math.min(Math.round(duration * SAMPLE_FPS), MAX_SAMPLES));
-    const interval = duration / count;
+    // Analyse at SAMPLE_FPS regardless of clip length; only the analysed WINDOW is
+    // capped. `interval` is derived from the analysed span (not the full duration) so
+    // the rate stays put when a clip is truncated.
+    const analysisSec = Math.min(duration, MAX_ANALYSIS_SEC);
+    const truncated = duration > MAX_ANALYSIS_SEC;
+    const count = Math.max(2, Math.round(analysisSec * SAMPLE_FPS));
+    const interval = analysisSec / count;
 
     const samples: PoseSample[] = [];
     let detected = 0;
@@ -94,12 +123,24 @@ export async function extractPoseTrajectory(
 
     log.info('Pose trajectory extracted', {
       durationSec: Number(duration.toFixed(2)),
+      analyzedSec: Number(analysisSec.toFixed(2)),
+      truncated,
       sampleFps: Number((1 / interval).toFixed(1)),
       samples: count,
       posesDetected: detected,
       avgInferMs: Number((totalInferMs / count).toFixed(1)),
       totalMs: Math.round(performance.now() - t0),
     });
+    // Truncation drops real footage (and any swing in it), so it must never be
+    // silent — WARN surfaces in production builds where INFO is dropped.
+    if (truncated) {
+      log.warn('Clip truncated for pose analysis', {
+        durationSec: Number(duration.toFixed(2)),
+        analyzedSec: Number(analysisSec.toFixed(2)),
+        droppedSec: Number((duration - analysisSec).toFixed(2)),
+        maxAnalysisSec: MAX_ANALYSIS_SEC,
+      });
+    }
 
     return samples;
   } finally {
