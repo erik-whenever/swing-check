@@ -386,6 +386,18 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > **KLAR:** Envelope-logiken fältverifierad (checkpoint 2: DTL, DTL avklippt, face-on) + enhetstestad.
 > D-3-cutover genomförd (2026-08-05) — envelope är nu produktionens primära frame-selektor i
 > `frameExtractor.ts`, pixel-diff är fallback. Se D-3 nedan.
+>
+> **Regressionsharness — envelope (2026-08-06):** ersätter den manuella 3-klippsrundan vid
+> logikändringar. (1) Export-knapp i dev-previewen (`FramePreview.tsx`, bakom `VITE_DEV_PREVIEW`)
+> dumpar den råa landmark-serien (per frame: `t` + alla 33 landmarks/visibility, 5 dp) som JSON. (2)
+> Fixture-katalog `src/lib/__fixtures__/` (en JSON/verifierat klipp: `dtl-full`/`dtl-clipped`/`face-on`)
+> + `README.md`. (3) `poseEnvelopeRegression.test.ts` (vitest) kör `detectSwingEnvelope` +
+> `selectEnvelopeFrames` **exakt som produktionens `selectViaPose`** (budget = `ANALYSIS_FRAME_COUNT`) mot checkpoint-2:s
+> golden-värden (envelope `[start→finish]`, impact, `impactClusterApplied`, `clippedTail`) med
+> **±1-frame**-tolerans + (4) exakt **frame-antal** (fångar budget-regressioner som count-drop).
+> Saknad fixture = `todo`, inte fail → `npm test` grön tills fångad. **Erik måste exportera de tre
+> fixturerna en gång** (kräver klippen + browser) innan asserterna aktiveras. (5) Dokumenterat i
+> `docs/pose-detection.md` → *Regressionsharness*. Build+lint (ändrade filer)+test rena.
 
 **Mål:** (a) WASM-runtime + modell servas från egen origin och precachas av service workern (offline-först — utan detta mäter D-3:s fälttest nätverkslycka, inte pose-kvalitet; ROADMAP beslutsfork 4). (b) `lib/posePhases.ts` härleder `{ address, top, impact, followThrough }` (timestamps) ur handledsbanorna. Rör INTE `frameExtractor.ts` eller `SwingRecord`.
 

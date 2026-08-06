@@ -75,6 +75,36 @@ export function FramePreview() {
     setView('camera');
   };
 
+  // Dump the raw pose-landmark series for the loaded clip as JSON so it can be
+  // frozen as a regression fixture (src/lib/__fixtures__/). MediaPipe is
+  // deterministic enough to capture once — after that every envelope-logic change
+  // is re-verified by `npm test` (poseEnvelopeRegression.test.ts) with no browser.
+  const handleExportFixture = () => {
+    if (!poseSamples) return;
+    const round = (n: number) => Math.round(n * 1e5) / 1e5; // 5 dp: under detection sensitivity
+    const payload = {
+      label: '',
+      capturedAt: new Date().toISOString(),
+      sampleCount: poseSamples.length,
+      samples: poseSamples.map((s) => ({
+        t: round(s.t),
+        landmarks: s.landmarks.map((l) => ({
+          x: round(l.x),
+          y: round(l.y),
+          z: round(l.z),
+          ...(l.visibility !== undefined ? { visibility: round(l.visibility) } : {}),
+        })),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pose-fixture-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-4 space-y-4">
@@ -100,6 +130,16 @@ export function FramePreview() {
             )}
             {poseStatus === 'idle' && <span className="text-faint">—</span>}
           </p>
+        )}
+
+        {DEV_PREVIEW && poseStatus === 'done' && poseSamples && (
+          <button
+            onClick={handleExportFixture}
+            className="w-full py-2 bg-surface hover:bg-raised rounded-lg text-xs font-mono text-fg-dim transition-colors"
+            title="Dump the raw pose-landmark series as a regression fixture (src/lib/__fixtures__/)"
+          >
+            ⬇︎ Export pose fixture ({poseSamples.length} samples)
+          </button>
         )}
 
         {/* Read-only envelope verification (dev only). The frames below ARE this

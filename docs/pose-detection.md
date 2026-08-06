@@ -223,6 +223,46 @@ Phase-weighted; modul `PoseSelect` loggar `Phase-weighted selection` (WARN) med 
 den riktiga hastighetstoppen och `vy`-tecknet (up→down-flippen) för att lokalisera verklig impact vs
 var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-strategin på samma klipp.
 
+## Regressionsharness — envelope-logiken *(2026-08-06)*
+
+> **Ersätter den manuella 3-klippsrundan.** Det enda som varierar per klipp är pose-landmark-serien;
+> MediaPipe är deterministiskt nog att fånga den **en gång** och frysa som fixture. Efter det
+> re-verifieras varje envelope-logikändring av `npm test` utan browser.
+
+- **Export (dev-preview, bakom `VITE_DEV_PREVIEW`):** `FramePreview.tsx` har en knapp
+  **⬇︎ Export pose fixture** som visas när pose-overlayn kört klart. Den dumpar den råa
+  landmark-serien för det laddade klippet som JSON (per frame: `t` + alla 33 landmarks med
+  `visibility`, coords rundade till 5 decimaler) → nedladdad fil.
+- **Fixture-katalog:** `src/lib/__fixtures__/` — en JSON per verifierat klipp
+  (`dtl-full`, `dtl-clipped`, `face-on`). Gitignoras **inte** (de ÄR testinput). Format +
+  bakgrund i [`src/lib/__fixtures__/README.md`](../src/lib/__fixtures__/README.md).
+- **Regressionstest:** `src/lib/poseEnvelopeRegression.test.ts` (vitest). Kör
+  `detectSwingEnvelope` + `selectEnvelopeFrames` mot varje fixture **exakt som produktionens
+  `selectViaPose`** (budget = `ANALYSIS_FRAME_COUNT`, 20; `span` = första/sista sampel-`t`) och
+  asserterar mot checkpoint-2:s golden-värden (`GOLDENS`-arrayen överst):
+  - `dtl-full`: envelope `[6.78 → 8.38]`, impact `~7.85`, `impactClusterApplied=true`.
+  - `dtl-clipped`: `clippedTail=true`, `impact=null`, `impactClusterApplied=false`.
+  - `face-on`: envelope `[3.35 → 4.83]`, impact `~4.29`, `impactClusterApplied=true`.
+  Tider asserteras med **±1 frame** (härlett ur fixturens egen sampel-dt), aldrig exakt likhet.
+  **Frame-ANTALET** asserteras exakt (`picks.length === golden.frameCount`, default = budget) →
+  budget-regressioner (t.ex. dedupe som tyst tappar frames) fångas. Om en fixtures verkliga antal
+  legitimt understiger budgeten (kort envelope → dedupe slår ihop ett par picks) sätts `frameCount`
+  till det exakta antal previewens grid visar.
+- **Bootstrapping:** ett klipp vars fixture ännu inte fångats rapporteras som `todo` (inte fail),
+  så `npm test` förblir grön tills JSON:en droppats in. **De tre checkpoint-2-fixturerna måste
+  exporteras en gång av Erik** (kräver klippen + browsern) innan asserterna aktiveras.
+
+### Lägg till ett klipp som fixture
+1. `npm run dev` med `VITE_DEV_PREVIEW=true`; ladda klippet i previewen och vänta tills
+   pose-overlayn står `done`.
+2. Klicka **⬇︎ Export pose fixture**; döp om nedladdningen till `<namn>.json` och lägg i
+   `src/lib/__fixtures__/`.
+3. Lägg en rad i `GOLDENS` (poseEnvelopeRegression.test.ts) med värdena som dev-previewens
+   `EnvelopeSummary` visar (`envelope [start→finish]`, impact, `clippedTail`, cluster) samt
+   `frameCount` = antal tiles previewens grid visar (default = budget; sätt exakt om dedupe
+   gett färre).
+4. `npm test` — det nya fallet körs (saknad fixture förblir `todo`, aldrig rött).
+
 ## Checklista
 - [x] **D-1 pass 1** — Installera tasks-vision, hämta modell, `poseDetector`/`poseTrajectory`,
   skelett-overlay i dev-preview, laddnings-/inferenstid loggad. **Ej fältverifierad** (kräver
@@ -315,3 +355,10 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   borttagna; dev-preview = produktion. Vision-anropet + `SwingRecord` orörda; @mediapipe i egen lazy
   chunk. Build+lint+test (7/7) rena. Avvikelse: cutover på checkpoint 2 (3 klipp), ej 20-klipp/±150 ms-
   metriken (ersatt av fält-`path`-instrumentering). Se *Cutover (D-3)* ovan + ADR-002.
+- [x] **Regressionsharness — envelope** *(2026-08-06)* — export-knapp (`FramePreview.tsx`, bakom
+  `VITE_DEV_PREVIEW`) dumpar råa landmark-serien som JSON; `src/lib/__fixtures__/` (en JSON/klipp);
+  `poseEnvelopeRegression.test.ts` kör `detectSwingEnvelope`+`selectEnvelopeFrames` (produktionens
+  `selectViaPose`-väg, budget = `ANALYSIS_FRAME_COUNT`) mot golden-värden (envelope/impact/`impactClusterApplied`) med
+  ±1-frame-tolerans + exakt frame-antal. Saknad fixture = `todo` (grön tills fångad). `npm test`
+  ersätter manuella 3-klippsrundan så snart Erik exporterat de tre fixturerna en gång. Build+lint
+  (ändrade filer)+test rena. Se *Regressionsharness — envelope-logiken* ovan.
