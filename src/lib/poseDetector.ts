@@ -13,15 +13,41 @@
 // never drift apart.
 
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import { createLogger } from './logger';
+import { createLogger, serializeError } from './logger';
 
 const log = createLogger('PoseDetector');
 
 const WASM_PATH = '/wasm';
 const MODEL_URL = '/models/pose_landmarker_lite.task';
+// The JS loader FilesetResolver fetches first; if this 404s (assets missing from
+// the deploy) the real error is swallowed as an opaque WASM-load Event.
+const WASM_LOADER_URL = `${WASM_PATH}/vision_wasm_internal.js`;
 
 let instance: PoseLandmarker | null = null;
 let loading: Promise<PoseLandmarker> | null = null;
+
+/**
+ * Preflight the pose assets before handing them to MediaPipe. A missing WASM
+ * runtime or model (e.g. a deploy that never ran `pose:assets`) otherwise
+ * surfaces only as an opaque GPU/CPU load Event; here we HEAD each URL and log
+ * the exact URL + HTTP status so the failure is diagnosable, then throw a clear
+ * error instead of letting the whole thing collapse into "[object Event]".
+ */
+async function preflightAssets(): Promise<void> {
+  for (const url of [WASM_LOADER_URL, MODEL_URL]) {
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'HEAD' });
+    } catch (err) {
+      log.error('Pose asset unreachable', { url, error: serializeError(err) });
+      throw new Error(`Pose asset fetch failed for ${url}: ${String(err)}`, { cause: err });
+    }
+    if (!res.ok) {
+      log.error('Pose asset missing', { url, status: res.status, statusText: res.statusText });
+      throw new Error(`Pose asset ${url} returned HTTP ${res.status}`);
+    }
+  }
+}
 
 async function build(delegate: 'GPU' | 'CPU'): Promise<PoseLandmarker> {
   const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
@@ -34,6 +60,9 @@ async function build(delegate: 'GPU' | 'CPU'): Promise<PoseLandmarker> {
 
 async function create(): Promise<PoseLandmarker> {
   const t0 = performance.now();
+  // Fail loud and specific if the assets aren't served, before MediaPipe turns
+  // the 404 into an opaque load Event on both delegates.
+  await preflightAssets();
   let landmarker: PoseLandmarker;
   let used: 'GPU' | 'CPU' = 'GPU';
   try {
@@ -42,7 +71,7 @@ async function create(): Promise<PoseLandmarker> {
     // GPU delegate is unavailable on some devices/browsers (no WebGL2, locked-
     // down iOS, etc). Fall back to CPU so pose detection still works.
     used = 'CPU';
-    log.warn('GPU delegate failed — falling back to CPU', { error: String(err) });
+    log.warn('GPU delegate failed — falling back to CPU', { error: serializeError(err) });
     landmarker = await build('CPU');
   }
   log.info('PoseLandmarker loaded', {

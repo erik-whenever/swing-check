@@ -1,4 +1,4 @@
-import { createLogger } from './logger';
+import { createLogger, serializeError } from './logger';
 import { detectSwingEnvelope } from './poseEnvelope';
 import { selectEnvelopeFrames } from './poseEnvelopeSelection';
 
@@ -283,7 +283,7 @@ async function selectViaPose(
     };
   } catch (err) {
     log.warn('Pose selection failed — falling back to motion', {
-      error: String(err),
+      error: serializeError(err),
     });
     return null;
   }
