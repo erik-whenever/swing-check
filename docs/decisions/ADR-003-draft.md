@@ -1,9 +1,12 @@
 # ADR-003 (UTKAST) — Kontinuerligt sessionsläge: från "ett klipp = en sving" till N svingar i en ström
 
 - **Status:** **Steg A + C byggda och mätta** (2026-08-06); **§5.4 (session-store som lista)
-  byggd** (2026-08-08, D-5 pass 1 — se §5.4 nedan). §4 (strömmande fångst) och resten av §5
-  (analyskö, serialiserad TTS) är fortfarande utkast. Pendlar på Eriks perceptuella
-  verifiering av session-multis tre svingar och av face-ons nya finish (4,70).
+  byggd** (2026-08-08, D-5 pass 1); **§4 byggd utom video-chunk-ringbufferten** (2026-08-08,
+  D-5 pass 2 — live-pose i rAF-loop, landmark-ringbuffert, tvåstegstakt, inkrementell
+  detektion; se §4.1 nedan). Kvar som utkast: video-chunk-ringbufferten och resten av §5
+  (frame-grab per sving, analyskö, serialiserad TTS). Pendlar på Eriks perceptuella
+  verifiering av session-multis tre svingar, av face-ons nya finish (4,70) och på
+  termikmätningen från ett riktigt fälttest.
 - **Datum:** 2026-08-06
 - **Ström:** D (pose-estimering) + ny ström för sessionsfångst
 - **Bygger på:** [ADR-002](ADR-002-stream-d-envelope-inversion.md) (envelope som primär selektor,
@@ -123,6 +126,50 @@ också ha ett maximum.* Ett ensidigt intervall degraderar inte — det kollapsar
   chunks), så bara ~10 s runt varje detekterad sving materialiseras till en blob.
 - Två-stegs vakt för batteri/termik: låg takt (~5 fps pose eller den befintliga pixel-diff-
   metriken) som vakt, höj till 15 fps först när rörelse detekteras.
+
+#### 4.1 byggd: live-pose + realtidsdetektering (D-5 pass 2, 2026-08-08)
+
+Allt utom video-chunk-ringbufferten (den hör till frame-grab, alltså pass 3) är byggt, bakom
+`VITE_DEV_PREVIEW`, som en **parallell** väg. Klippvägen är bit-för-bit oförändrad.
+
+| ADR-punkt | Modul | Utfall |
+| --- | --- | --- |
+| `detectForVideo` mot `<video>` i rAF-loop | `livePoseLoop.ts` | seek borta; enda kostnaden är inferensen |
+| Ringbuffert ~30 s | `poseRingBuffer.ts` | 450 sampel, **konstant** ~1,9 MB |
+| Två-stegs vakt | `livePoseLoop.ts` | 5 fps → 15 fps vid rörelse, 4 s dwell |
+| Inkrementell detektion | `liveSwingDetector.ts` | dedupe på ankare, cooldown 2 s |
+| Video-chunk-ringbuffert | — | **pass 3** |
+
+**Mätt: den inkrementella vägen är identisk med batch-vägen.** `liveSwingDetector.test.ts` spelar
+upp varje fryst fixtur sampel-för-sampel genom ringbufferten med live-vägens eget
+0,5 s-detektionsintervall. Utfall: session-multi 3 svingar (`[8,26→9,86]` / `[31,53→33,13]` /
+`[54,46→56,25]`, impact 9,26 / 32,53 / 55,59), dtl-full 1, face-on 1, dtl-clipped 0 — exakt
+`detectSessionSwings` egna värden, utan dubbelräkning och utan tappade svingar vid fönsterkant.
+Detektionskostnaden över ett 450-sampelsfönster är **0,4 ms i snitt, 2,7 ms max**, alltså försumbar
+mot inferensen — den glidande omkörningen är gratis.
+
+**Detektionslatens 0,6–1,1 s efter impact, och det är rätt.** Grinden förkastar `clippedTail`, så en
+sving kan inte accepteras förrän dess follow-through hunnit sätta sig (`FINISH_MIN_HOLD_FRAMES`).
+Latensen är alltså strukturell, inte schemaläggning: att detektera tidigare vore att acceptera
+svingar vars fullföljd inte hänt än — precis det ADR-002:s clip-cutoff-skydd finns för. Den
+rapporteras som `latencySec` i stället för att trollas bort.
+
+**Termikmätningen** (Risker §1, ADR:ns största risk) loggas var 5:e sekund på WARN som
+`Live pose stats`: inferenstid senaste/avg/p95/max, `achievedFps` mot `targetFps`, `saturated`
+(inferensen ensam överskrider frameintervallet — mätvärdet som skiljer "missar takten" från "takten
+är ouppnåelig"), ringbuffertens storlek/span/evictions, delegat. **Siffrorna finns ännu inte** — de
+kräver Eriks iPhone.
+
+**Egen landmarker.** `poseDetector.createPoseLandmarker()` (additivt) ger live-loopen sin egen graf.
+Två strukturella skäl: `runningMode:'VIDEO'` kräver strikt växande tidsstämplar *per instans*, och
+live-loopen kör på väggklocka medan klippvägen startar om från 0 per klipp; och `resetPoseLandmarker()`
+finns just för att den delade grafen är enanvändar-per-extraktion, så överlappet mellan
+inspelningsstopp och klippextraktion hade annars kunnat nollställa båda.
+
+**Ny durabel princip:** *en bunden buffert ska vara bunden av konstruktion, inte av städning.*
+Ringbufferten förallokerar sina slots och skriver över den äldsta; den är aldrig en växande lista som
+trimmas i efterhand. Skillnaden syns inte i normaldrift och är hela skillnaden när något oväntat gör
+att trimningen uteblir.
 
 ### 5. Feedback per sving
 

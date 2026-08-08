@@ -585,9 +585,71 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > test **32/32** rena; dev-servern bootar och alla ändrade moduler serveras 200.
 > **Kvar att verifiera av Erik:** enkelsvingsklipp + sessionsklipp i dev-preview.
 
-**Mål (kvar):** pass 2 — koppla `detectSessionSwings` till fångstvägen så ett sessionsklipp blir N
-`SessionSwing` med egen frame-extraktion och eget Vision-anrop per sving (analyskö, serialiserad TTS).
-Pass 3 — live-pose i rAF-loop + ringbuffertar för landmarks och MediaRecorder-chunks (ADR-003 §4).
+> **Pass 2 KLAR (2026-08-08) — live-pose + svingdetektering i realtid (ADR-003 §4).** Bevisar
+> kärnan i sessionsvisionen: en sving detekteras **medan inspelningen pågår**, utan seek och utan
+> efterbearbetning av klippet. Fyra nya moduler, alla parallella med klippvägen:
+> `poseRingBuffer.ts` (bunden landmark-historik, 450 sampel ≈ 30 s @ 15 fps, **konstant minne**
+> ~1,9 MB oavsett sessionslängd — förallokerade slots som skrivs över, inte en växande lista som
+> trimmas), `livePoseLoop.ts` (`detectForVideo` mot preview-`<video>` i rAF-loop, tvåstegstakt,
+> mätning), `liveSwingDetector.ts` (inkrementell `detectSessionSwings` + dedupe över glidande
+> fönster) och `useLiveSwingDetection.ts` + `LiveSwingPanel.tsx` (dev-preview-räknare).
+>
+> **Seek-kostnaden är borta.** Klippvägen seekar en dold `<video>` per sampel och väntar på
+> `onseeked` — det är den dyra delen, och den kan bara köras efter att inspelningen stoppats.
+> Live-vägen läser den redan avkodade previewframen; enda kvarvarande kostnad är inferensen själv.
+>
+> **Tvåstegstakt (Risker §1, termik):** `GUARD_FPS` 5 i vila → `ACTIVE_FPS` 15 vid rörelse
+> (`MOTION_ESCALATE_SPEED` 0,10 normaliserade enheter/s), med `ACTIVE_DWELL_SEC` 4 s efterhållning.
+> Eskaleringen är **medvetet biased mot ACTIVE**: för långsam sampling tappar en hel sving, för
+> snabb kostar batteri. Varje taktbyte loggas på WARN.
+>
+> **Mätning (krav 6), loggas var 5:e sekund på WARN som `Live pose stats`:** inferenstid
+> (senaste/avg/p95/max), `achievedFps` mot `targetFps`, `saturated` (inferensen ensam överskrider
+> frameintervallet — det ärliga throttling-måttet), ringbuffertens storlek/span/evictions,
+> delegat, felräknare. Slutraden `Live pose loop stopped` är sessionssammanfattningen.
+>
+> **Dedupe:** samma fysiska sving återdetekteras i varje pass så länge den ligger kvar i fönstret.
+> `LiveSwingDetector` rapporterar bara svingar vars ankare ligger > `REPORT_COOLDOWN_SEC` (2 s,
+> speglar `poseSegments.COOLDOWN_SEC`) efter senast rapporterade.
+>
+> **Mätt på de frysta fixturerna** (ny harness `liveSwingDetector.test.ts` spelar upp varje fixtur
+> sampel-för-sampel genom ringbufferten med samma 0,5 s-detektionsintervall som live): live-vägen
+> ger **exakt** batch-vägens resultat — session-multi 3 svingar `[8,26→9,86]` imp 9,26 ·
+> `[31,53→33,13]` imp 32,53 · `[54,46→56,25]` imp 55,59; dtl-full 1 `[6,78→8,31]` imp 7,85;
+> face-on 1 `[3,35→4,70]` imp 4,23; dtl-clipped 0. Inget dubbelräknat, inget tappat vid
+> fönsterkant. **Detektionskostnad över 450-sampelsfönstret: 0,4 ms i snitt, 2,7 ms max** — försumbar
+> mot inferensen. **Detektionslatens 0,6–1,1 s efter impact**, och det är *strukturellt korrekt*:
+> grinden förkastar `clippedTail`, så en sving blir detekterbar först när dess finish hunnit sätta
+> sig. Att detektera tidigare vore att acceptera svingar vars fullföljd inte hänt än.
+>
+> **Egen landmarker, inte singletonen:** `poseDetector.ts` fick ett additivt
+> `createPoseLandmarker()`. `runningMode:'VIDEO'` kräver strikt växande tidsstämplar per instans, och
+> live-loopen kör på väggklocka medan klippvägen startar om från 0 per klipp; dessutom finns
+> `resetPoseLandmarker()` just för att den delade grafen är enanvändar-per-extraktion. Med egen
+> instans är överlappet när inspelningen stoppas ofarligt. Ingen beteendeändring för
+> `getPoseLandmarker`.
+>
+> **RÖRDA EJ:** `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`, `poseTrajectory.ts`,
+> session-store, Vision-anropet, `SwingRecord`. Klippvägen (inspelning → extraktion → analys)
+> beter sig exakt som förut, med eller utan live-panelen. @mediapipe ligger kvar i egen lazy chunk
+> (dynamisk import i hooken; byggverifierat). Build + lint (0 nya) + test **52/52** rena; dev-servern
+> bootar och alla nya moduler + wasm/modell serveras 200.
+>
+> **Ärliga avgränsningar.** (1) Bara detektion loggas — frame-grab och analys per live-sving är
+> pass 3, liksom MediaRecorder-chunk-ringbufferten i ADR-003 §4. (2) `MOTION_ESCALATE_SPEED` och
+> `ACTIVE_DWELL_SEC` är härledda ur klipp-fixturer, **inte ur live-kamerabrus** — markerade
+> `// OSÄKER:`; dwellen är den som skyddar detektionskvaliteten, eftersom envelopens
+> `FINISH_MIN_HOLD_FRAMES` är ett *frame*-antal och ett fönster som blandar 5 och 15 fps ändrar vad
+> "3 frames" betyder i tid. (3) rAF-loopen, taktbytet och inferenstiden går inte att enhetstesta
+> utan kamera — de mäts i fält via panelen och WARN-raderna.
+>
+> **Kvar att verifiera av Erik:** spela in på iPhone, gör 3 svingar utan att stoppa inspelningen,
+> och läs (a) att räknaren går till 3, (b) `Live pose stats`-raderna för termikbeslutet.
+
+**Mål (kvar):** pass 3 — koppla live-detektionen till fångst: MediaRecorder-chunk-ringbuffert så bara
+~10 s runt varje sving materialiseras, frame-grab + Vision-anrop per detekterad sving i en analyskö,
+serialiserad TTS, och N `SessionSwing` i storen. Även: fälttrimning av takt-trösklarna mot Eriks
+`Live pose stats`-data.
 
 **Dokumentkrav:** bocka av respektive pass här + `docs/decisions/ADR-003-draft.md` §5;
 uppdatera `swingcheck-handoff.md`.

@@ -61,6 +61,13 @@ async function build(delegate: 'GPU' | 'CPU'): Promise<PoseLandmarker> {
 }
 
 async function create(): Promise<PoseLandmarker> {
+  return (await createWithDelegate()).landmarker;
+}
+
+async function createWithDelegate(): Promise<{
+  landmarker: PoseLandmarker;
+  delegate: 'GPU' | 'CPU';
+}> {
   const t0 = performance.now();
   // Fail loud and specific if the assets aren't served, before MediaPipe turns
   // the 404 into an opaque load Event on both delegates.
@@ -91,7 +98,56 @@ async function create(): Promise<PoseLandmarker> {
     delegate: used,
     model: 'pose_landmarker_lite',
   });
-  return landmarker;
+  return { landmarker, delegate: used };
+}
+
+/** A landmarker owned by exactly one caller, with its own tracking graph. */
+export interface StandalonePoseLandmarker {
+  landmarker: PoseLandmarker;
+  delegate: 'GPU' | 'CPU';
+  /** Release the graph (and its GPU context). Safe to call twice. */
+  close(): void;
+}
+
+/**
+ * Build a landmarker that is NOT the shared singleton — for the live capture loop
+ * (ADR-003 §4).
+ *
+ * WHY A SEPARATE INSTANCE, not `getPoseLandmarker()`. Two independent reasons, both
+ * structural rather than stylistic:
+ *
+ * 1. `runningMode: 'VIDEO'` demands a strictly increasing timestamp per INSTANCE, and
+ *    the live loop runs on a wall-clock timeline while the clip path runs on a
+ *    per-clip timeline that restarts at 0. Sharing one graph would mean one of them
+ *    has to yield its timeline to the other.
+ * 2. `resetPoseLandmarker()` exists precisely because the shared graph is single-tenant
+ *    for the duration of one extraction (see its OSÄKER note). The live loop overlaps
+ *    the end of a recording with the start of the clip-path extraction by however many
+ *    milliseconds React takes to unmount it — sharing would let those two reset each
+ *    other's graph mid-run. With its own instance the overlap is harmless.
+ *
+ * The caller MUST `close()` it; nothing here tracks it. The delegate probe result is
+ * shared with the singleton path, so this does not re-pay the GPU failure on devices
+ * without WebGL2.
+ */
+export async function createPoseLandmarker(): Promise<StandalonePoseLandmarker> {
+  const { landmarker, delegate } = await createWithDelegate();
+  let closed = false;
+  return {
+    landmarker,
+    delegate,
+    close: () => {
+      if (closed) return;
+      closed = true;
+      try {
+        landmarker.close();
+      } catch (err) {
+        // Never let disposal take down the caller — worst case is one leaked graph,
+        // which is strictly better than an unhandled throw on the teardown path.
+        log.warn('Standalone PoseLandmarker close() failed', { error: serializeError(err) });
+      }
+    },
+  };
 }
 
 /**

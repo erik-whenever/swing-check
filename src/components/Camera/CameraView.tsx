@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../store/settings';
 import { cancelSpeech, isSpeaking, speak, TTS_ANALYZING } from '../../lib/tts';
 import { RecordButton } from './RecordButton';
 import { CountdownStepper } from './CountdownStepper';
+import { LiveSwingPanel } from './LiveSwingPanel';
 import { AnglePill } from '../AngleToggle';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
@@ -241,6 +242,11 @@ export function CameraView() {
         <div className="absolute bottom-4 left-4">
           <AnglePill angle={cameraAngle} />
         </div>
+
+        {/* Live swing detection (ADR-003 §4, D-5 pass 2) — dev preview only, and a
+            PARALLEL path: it reads the preview element while recording and never
+            touches the recorded blob or the clip-based extraction below. */}
+        {DEV_PREVIEW && <LiveSwingPanel videoRef={videoRef} active={isRecording} />}
 
         {/* Recording indicator */}
         {isRecording && (
