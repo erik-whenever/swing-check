@@ -205,6 +205,29 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
     });
   }
 
+  const diagFixture = fixtures.get('session-multi') ?? fixtures.get('dtl-full');
+  if (diagFixture) {
+    it('segmentation diagnostics account for every frame and every burst', () => {
+      // Diagnostiken är dev-preview:ns enda fönster in i segmenteringssteget. Om den
+      // tappar frames eller burstar ljuger panelen, och då är den värre än ingen panel.
+      const seg = segmentSwingCandidates(diagFixture.samples);
+      const d = seg.diagnostics;
+      expect(d.totalFrames).toBe(diagFixture.samples.length);
+      expect(d.quietFrames + d.movingFrames).toBe(d.totalFrames);
+      expect(d.bursts.length).toBeGreaterThan(0);
+
+      // Varje burst är antingen admitted ELLER har ett skäl — aldrig tyst bortgallrad.
+      for (const b of d.bursts) {
+        if (b.admitted) expect(b.culledBy).toBeUndefined();
+        else expect(b.culledBy).toBeTruthy();
+        expect(b.endSec).toBeGreaterThanOrEqual(b.startSec);
+      }
+      // Kandidaterna kommer ur de admitted burstarna; sammanslagning kan bara minska.
+      const admitted = d.bursts.filter((b) => b.admitted).length;
+      expect(admitted).toBeGreaterThanOrEqual(seg.candidates.length);
+    });
+  }
+
   it('empty input degrades quietly', () => {
     expect(segmentSwingCandidates([]).candidates).toEqual([]);
     expect(segmentSwingCandidates([]).reason).toBe('too few pose samples');

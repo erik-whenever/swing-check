@@ -55,11 +55,46 @@ export function SegmentedSwings({
 
   const multi = session.swings.length > 1;
 
+  // Segmenteringssteget loggas ALLTID, oberoende av utfallet — det är den enda
+  // signalen som skiljer "segmenteringen hittade inga burstar" från "grinden fällde
+  // dem". WARN, inte INFO: logpanelen visar bara WARN och uppåt, och en diagnostik
+  // som inte syns är ingen diagnostik.
   useEffect(() => {
-    // Only a MULTI-swing clip gets this treatment; one swing (or none) is exactly
-    // what the existing single-envelope view already renders correctly. No state
-    // reset needed on this branch — the component renders null, and a later
-    // multi-swing clip clears the previous frames when its grab starts below.
+    const d = session.segmentation.diagnostics;
+    const span =
+      poseSamples.length > 0
+        ? [round(poseSamples[0].t), round(poseSamples[poseSamples.length - 1].t)]
+        : [0, 0];
+    log.warn('Segmentation', {
+      poseSamples: poseSamples.length,
+      clipSpanSec: span,
+      sampleDt: round(session.segmentation.sampleDt),
+      trackedWrist: session.segmentation.trackedWrist,
+      visibleFrac: round(session.segmentation.visibleFrac),
+      refSpeedP95: round(session.refSpeed),
+      quietThreshold: round(session.segmentation.quietThreshold),
+      quietFrames: d.quietFrames,
+      movingFrames: d.movingFrames,
+      stillnessIslands: d.islands,
+      bursts: d.bursts.length,
+      burstsAdmitted: d.bursts.filter((b) => b.admitted).length,
+      burstList: d.bursts.map(
+        (b) =>
+          `${b.startSec.toFixed(2)}-${b.endSec.toFixed(2)} ${b.durationSec.toFixed(2)}s pk=${b.peakSpeed.toFixed(2)}${b.admitted ? ' ✓' : ` ✗ ${b.culledBy}`}`,
+      ),
+      candidates: session.segmentation.candidates.length,
+      accepted: session.swings.length,
+      rejected: session.rejected.map(
+        (r) => `[${r.candidate.startSec.toFixed(2)}-${r.candidate.endSec.toFixed(2)}] ${r.reason}`,
+      ),
+      ...(session.segmentation.reason ? { segmentationReason: session.segmentation.reason } : {}),
+    });
+  }, [session, poseSamples]);
+
+  useEffect(() => {
+    // Frames grabbas bara för en MULTI-sving-klipp: vid noll eller en sving visar
+    // panelen diagnostik, och den vanliga frame-griden nedanför är redan rätt vy.
+    // Ingen state-återställning behövs här — nästa multi-klipp nollar vid grab-start.
     if (!multi) return;
     let cancelled = false;
     (async () => {
@@ -79,7 +114,7 @@ export function SegmentedSwings({
             swing.candidate.endSec,
           );
           const e = swing.envelope;
-          log.info(`swing ${i + 1}/${session.swings.length}`, {
+          log.warn(`Swing ${i + 1}/${session.swings.length}`, {
             envelopeSec: [round(e.startSec), round(e.finishSec)],
             envelopeDurationSec: round(e.finishSec - e.startSec),
             impactSec: round(swing.impactSec),
@@ -116,7 +151,15 @@ export function SegmentedSwings({
     };
   }, [multi, session, videoBlob]);
 
-  if (!multi) return null;
+  // Panelen visas ALLTID när pose har kört. Den är mest värdefull när INGET hittas —
+  // "ingen panel" går inte att skilja från "koden kördes aldrig", och det var precis
+  // den tvetydigheten som gjorde noll-svingsfallet omöjligt att felsöka.
+  const seg = session.segmentation;
+  const d = seg.diagnostics;
+  const span =
+    poseSamples.length > 0
+      ? `${poseSamples[0].t.toFixed(2)}–${poseSamples[poseSamples.length - 1].t.toFixed(2)}s`
+      : 'empty';
 
   return (
     <div className="rounded-lg border-2 border-fuchsia-600/60 bg-fuchsia-950/20">
@@ -124,8 +167,12 @@ export function SegmentedSwings({
         <span className="text-xs font-bold uppercase tracking-wide text-fuchsia-300">
           ⚗︎ Segmentation view — dev only
         </span>
-        <span className="text-[10px] font-mono text-fuchsia-400/80">
-          {session.swings.length} swings
+        <span
+          className={`text-[10px] font-mono ${
+            multi ? 'text-fuchsia-300' : 'text-amber-400'
+          }`}
+        >
+          {session.swings.length} swing{session.swings.length === 1 ? '' : 's'}
         </span>
       </div>
 
@@ -133,22 +180,64 @@ export function SegmentedSwings({
         Not the production path. Production (<code>frameExtractor</code>) sends ONE
         {' '}
         {ANALYSIS_FRAME_COUNT}-frame set for the whole clip — the grid further down.
-        This panel is <code>detectSessionSwings</code> (ADR-003 steg A + C), one
-        allocation per detected swing. Wiring it into capture is D-5.
+        This panel is <code>detectSessionSwings</code> (ADR-003 steg A + C).
+        {multi
+          ? ' Below: one allocation per detected swing. Wiring it into capture is D-5.'
+          : ' Fewer than two swings here, so no per-swing frames are grabbed — the diagnostics below show where the clip fell out.'}
       </p>
 
-      <div className="px-3 py-2 text-[10px] font-mono text-fg-dim">
-        refSpeed(p95) {session.refSpeed.toFixed(3)} · candidates{' '}
-        {session.segmentation.candidates.length} · accepted {session.swings.length} ·
-        rejected {session.rejected.length}
-        {status === 'grabbing' && (
-          <span className="text-sky-400">
-            {' '}
-            · grabbing frames… {progress}/{session.swings.length}
-          </span>
-        )}
-        {status === 'error' && <span className="text-red-400"> · grab failed (see Logs)</span>}
+      {/* Input identity first: the fastest way to tell "wrong/short clip" from
+          "right clip, detection disagrees". session-multi.json is 953 samples
+          over 0.00–63.45s; anything far from that is a different input. */}
+      <div className="px-3 py-2 space-y-0.5 text-[10px] font-mono text-fg-dim">
+        <div>
+          input: {poseSamples.length} samples · span {span} · dt{' '}
+          {seg.sampleDt.toFixed(4)} ({(1 / seg.sampleDt).toFixed(1)} fps)
+        </div>
+        <div>
+          wrist {seg.trackedWrist} · vis {seg.visibleFrac.toFixed(3)} · refSpeed(p95){' '}
+          {session.refSpeed.toFixed(3)} · quietThr {seg.quietThreshold.toFixed(4)}
+        </div>
+        <div>
+          frames: {d.quietFrames} quiet / {d.movingFrames} moving · islands {d.islands} ·
+          bursts {d.bursts.length} ({d.bursts.filter((b) => b.admitted).length} admitted)
+        </div>
+        <div>
+          candidates {seg.candidates.length} · accepted{' '}
+          <span className={session.swings.length > 0 ? 'text-emerald-400' : 'text-amber-400'}>
+            {session.swings.length}
+          </span>{' '}
+          · rejected {session.rejected.length}
+          {seg.reason && <span className="text-amber-400"> · {seg.reason}</span>}
+          {status === 'grabbing' && (
+            <span className="text-sky-400">
+              {' '}
+              · grabbing frames… {progress}/{session.swings.length}
+            </span>
+          )}
+          {status === 'error' && (
+            <span className="text-red-400"> · grab failed (see Logs)</span>
+          )}
+        </div>
       </div>
+
+      {/* Burst-nivån: skiljer "segmenteringen hittade inget" från "grinden fällde". */}
+      {d.bursts.length > 0 && (
+        <details className="px-3 pb-2 text-[10px] font-mono" open={!multi}>
+          <summary className="cursor-pointer text-fuchsia-300/70">
+            {d.bursts.length} bursts before coarse filtering
+          </summary>
+          <ul className="mt-1 space-y-0.5 pl-2">
+            {d.bursts.map((b, i) => (
+              <li key={i} className={b.admitted ? 'text-emerald-400/80' : 'text-faint'}>
+                {b.admitted ? '✓' : '✗'} [{b.startSec.toFixed(2)}–{b.endSec.toFixed(2)}]{' '}
+                {b.durationSec.toFixed(2)}s pk {b.peakSpeed.toFixed(2)}
+                {b.culledBy && ` — ${b.culledBy}`}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <div className="px-3 pb-3 space-y-4">
         {frames.map(({ swing, picks, b64 }, si) => (
@@ -164,20 +253,43 @@ export function SegmentedSwings({
           />
         ))}
 
+        {/* Grind-nivån: per kandidat, exakt vilket villkor som fällde den. Öppen
+            som default när inget hittades — då är detta huvudinnehållet. */}
         {session.rejected.length > 0 && (
-          <details className="text-[10px] font-mono text-faint">
+          <details className="text-[10px] font-mono text-faint" open={!multi}>
             <summary className="cursor-pointer text-fuchsia-300/70">
-              {session.rejected.length} rejected candidates
+              {session.rejected.length} candidate
+              {session.rejected.length === 1 ? '' : 's'} rejected by the gate
             </summary>
-            <ul className="mt-1 space-y-0.5 pl-2">
+            <ul className="mt-1 space-y-1 pl-2">
               {session.rejected.map((r, i) => (
                 <li key={i}>
-                  [{r.candidate.startSec.toFixed(2)}–{r.candidate.endSec.toFixed(2)}] pk{' '}
-                  {r.candidate.peakSpeed.toFixed(2)} — {r.reason}
+                  <span className="text-fg-dim">
+                    [{r.candidate.startSec.toFixed(2)}–{r.candidate.endSec.toFixed(2)}] pk{' '}
+                    {r.candidate.peakSpeed.toFixed(2)}
+                  </span>
+                  <br />
+                  <span className="text-amber-400/90">↳ {r.reason}</span>
+                  {r.envelope?.valid && (
+                    <span className="text-faint">
+                      {' '}
+                      (env [{r.envelope.startSec.toFixed(2)}→
+                      {r.envelope.finishSec.toFixed(2)}], exc{' '}
+                      {(r.envelope.addressY - r.envelope.apexY).toFixed(3)}
+                      {r.envelope.clippedTail && ', clippedTail'})
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
           </details>
+        )}
+
+        {session.swings.length === 0 && session.rejected.length === 0 && (
+          <p className="text-[10px] font-mono text-amber-400">
+            No candidates at all — the coarse filter culled every burst (see list
+            above), so this fell out in SEGMENTATION, not in the gate.
+          </p>
         )}
       </div>
 

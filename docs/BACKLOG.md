@@ -500,6 +500,17 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > Verifierat att panelen ger 17 frames per sving inom respektive envelope på session-multi.
 > Build + lint (0 nya) + test 19/19 rena.
 >
+> **Diagnostik tillagd (2026-08-08):** panelen visas nu **alltid** när pose kört, även vid
+> 0–1 sving — "ingen panel" gick inte att skilja från "koden kördes aldrig", och vyn är som
+> mest värd när inget hittas. Den visar indata-identitet (sampelantal, span, dt — snabbaste
+> sättet att se om fel/kort klipp laddats), segmenteringsstatistik (quiet/moving-frames,
+> stillnadsöar, burstar), **varje burst med admitted/culledBy** och **varje kandidat med
+> grindens exakta fällande villkor**. Loggning flyttad INFO → **WARN** (logpanelen visar bara
+> WARN, så INFO var osynlig). `SegmentationResult.diagnostics` är ett nytt **additivt,
+> rent observationellt** fält i `poseSegments.ts` — utan det är grovgallringen tyst och en
+> utebliven sving går inte att härleda till segmentering vs grind. Regressionsvakt i
+> `poseSegments.test.ts` (20/20). Ingen logikändring; build + lint (0 nya) rena.
+>
 > **Nästa (D-5):** ADR-003 §4 + §5 — live-pose i rAF-loop, ringbuffertar för landmarks och
 > MediaRecorder-chunks, analyskö och `swings: SessionSwing[]` i store.
 

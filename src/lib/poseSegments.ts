@@ -164,6 +164,34 @@ export interface SwingCandidate {
   visibleFrac: number;
 }
 
+/**
+ * En rörelse-burst innan grovgallringen — INKLUSIVE de som gallrades bort.
+ * Finns för att gallringen annars är tyst: en burst som faller på längd eller
+ * topphastighet försvinner spårlöst, och då går det inte att se om en utebliven sving
+ * föll i SEGMENTERINGEN eller i grinden. Rent observationellt, styr ingenting.
+ */
+export interface BurstDiagnostic {
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+  peakSpeed: number;
+  /** True när bursten blev en kandidat; annars säger `culledBy` varför inte. */
+  admitted: boolean;
+  culledBy?: string;
+}
+
+/** Observationsdata för segmenteringssteget. Påverkar inte utfallet. */
+export interface SegmentationDiagnostics {
+  totalFrames: number;
+  /** Frames under QUIET/MOVING-gränsen respektive över. */
+  quietFrames: number;
+  movingFrames: number;
+  /** QUIET-löp långa nog (≥ MIN_ADDRESS_SEC) att bryta två burstar från varandra. */
+  islands: number;
+  /** Varje burst, admitted eller gallrad, i tidsordning. */
+  bursts: BurstDiagnostic[];
+}
+
 export interface SegmentationResult {
   candidates: SwingCandidate[];
   /** p95 av den utjämnade hastighetsserien — grindens normaliserare. */
@@ -176,6 +204,8 @@ export interface SegmentationResult {
   visibleFrac: number;
   /** Satt när ingen segmentering var möjlig (för loggen). */
   reason?: string;
+  /** Observationsdata — enbart för dev-inspektion och loggning. */
+  diagnostics: SegmentationDiagnostics;
 }
 
 export interface SwingGate {
@@ -224,6 +254,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
     trackedWrist: 'right',
     visibleFrac: 0,
     reason,
+    diagnostics: { totalFrames: n, quietFrames: 0, movingFrames: 0, islands: 0, bursts: [] },
     ...extra,
   });
 
@@ -277,6 +308,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
   // (t.ex. det korta uppehållet i backswingens topp) är AVSIKTLIGT inga öar — de får
   // inte klyva en sving i två burstar.
   const isIsland = new Array<boolean>(n).fill(false);
+  let islandCount = 0;
   {
     let i = 0;
     while (i < n) {
@@ -288,13 +320,16 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
       while (j + 1 < n && speedSm[j + 1] < quietThreshold) j++;
       if (t[j] - t[i] >= MIN_ADDRESS_SEC) {
         for (let k = i; k <= j; k++) isIsland[k] = true;
+        islandCount++;
       }
       i = j + 1;
     }
   }
+  const quietFrames = speedSm.filter((s) => s < quietThreshold).length;
 
   // ── Burstar = maximala icke-ö-löp, grovgallrade ───────────────────────────
   const candidates: SwingCandidate[] = [];
+  const bursts: BurstDiagnostic[] = [];
   {
     let i = 0;
     while (i < n) {
@@ -308,6 +343,25 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
       const burstSec = t[j] - t[i];
       let peak = 0;
       for (let k = i; k <= j; k++) peak = Math.max(peak, speedSm[k]);
+
+      // Notera VARJE burst, även de som gallras — annars är gallringen tyst och
+      // en utebliven sving går inte att härleda till rätt steg. Rent observationellt.
+      const culls: string[] = [];
+      if (burstSec < MIN_BURST_SEC) culls.push(`too short (${burstSec.toFixed(2)}s < ${MIN_BURST_SEC}s)`);
+      if (burstSec > MAX_BURST_SEC) culls.push(`too long (${burstSec.toFixed(2)}s > ${MAX_BURST_SEC}s)`);
+      if (peak < refSpeed * MIN_BURST_PEAK_FRAC) {
+        culls.push(
+          `too slow (peak ${peak.toFixed(2)} < ${(refSpeed * MIN_BURST_PEAK_FRAC).toFixed(2)})`,
+        );
+      }
+      bursts.push({
+        startSec: t[i],
+        endSec: t[j],
+        durationSec: burstSec,
+        peakSpeed: peak,
+        admitted: culls.length === 0,
+        ...(culls.length > 0 ? { culledBy: culls.join(' · ') } : {}),
+      });
 
       if (
         burstSec >= MIN_BURST_SEC &&
@@ -338,6 +392,13 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
     sampleDt,
     trackedWrist,
     visibleFrac,
+    diagnostics: {
+      totalFrames: n,
+      quietFrames,
+      movingFrames: n - quietFrames,
+      islands: islandCount,
+      bursts,
+    },
   };
 }
 
