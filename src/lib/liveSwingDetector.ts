@@ -21,6 +21,7 @@
 //
 // Pure: samples in, reports out. No pose, no timers, no React — unit-testable.
 
+import type { SwingEnvelope } from './poseEnvelope';
 import { detectSessionSwings } from './poseSegments';
 import type { PoseSample } from './poseTrajectory';
 
@@ -54,6 +55,15 @@ export interface LiveSwingReport {
   detectedAtSec: number;
   /** `detectedAtSec − anchorSec` — how long after the swing the detection landed. */
   latencySec: number;
+  /**
+   * The envelope this swing was accepted on, verbatim from `detectSwingEnvelope`.
+   *
+   * Carried so the capture path (D-5 pass 3) can run the SAME
+   * `selectEnvelopeFrames` allocation the clip path runs, instead of re-deriving an
+   * approximation from `envelopeSec`/`impactSec`. Frame selection quality then does
+   * not depend on which path captured the swing.
+   */
+  envelope: SwingEnvelope;
 }
 
 export interface LiveDetectionRun {
@@ -111,6 +121,7 @@ export class LiveSwingDetector {
         peakSpeed: e.peakSpeed,
         detectedAtSec: nowSec,
         latencySec: nowSec - swing.anchorSec,
+        envelope: e,
       });
     }
 

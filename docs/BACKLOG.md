@@ -646,10 +646,105 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > **Kvar att verifiera av Erik:** spela in på iPhone, gör 3 svingar utan att stoppa inspelningen,
 > och läs (a) att räknaren går till 3, (b) `Live pose stats`-raderna för termikbeslutet.
 
-**Mål (kvar):** pass 3 — koppla live-detektionen till fångst: MediaRecorder-chunk-ringbuffert så bara
-~10 s runt varje sving materialiseras, frame-grab + Vision-anrop per detekterad sving i en analyskö,
-serialiserad TTS, och N `SessionSwing` i storen. Även: fälttrimning av takt-trösklarna mot Eriks
-`Live pose stats`-data.
+> **Pass 3 KLAR (2026-08-08) — per-sving frame-grab och analys i kö (ADR-003 §4.3 + §5).**
+> Sessionsläget är nu verkligt: kameran rullar, varje sving analyseras och läses upp medan
+> nästa slås. **Sessionsläge = kontinuerligt läge** — samma 🎯-knapp som förut, men
+> inspelningen stoppas inte längre mellan svingar. Klippvägen (spela in → stoppa → analysera,
+> och uppladdning av färdiga klipp) är oförändrad och är det som körs så snart sessionsläget
+> är av.
+>
+> **Kedjan, och varför den är delad där den är delad:**
+> `detektor (rAF)` → *klipp fönster ur chunk-ringen* → `analyskö (seriell)` → `TTS-kö (egen)`.
+> Tre egenskaper faller ut, och alla tre är krav: (1) **detekteringen väntar aldrig** — det
+> enda arbetet på detektortråden är en Blob-splittring (referenser, ingen kopiering); (2)
+> **fönstret klipps vid detektion, inte när kön hinner fram** — ringen håller ~30 s, så om två
+> analyser köar bakom en trög range-uppkoppling vore sving N+2:s bytes sedan länge utslängda
+> när dess tur kom; att klippa direkt gör retentionen **oberoende av ködjupet**; (3) **TTS
+> serialiseras separat** — analyskön får inte blockeras av att någon lyssnar, och två utlåtanden
+> får aldrig tala samtidigt.
+>
+> **`videoChunkRing.ts` (ny, ren):** tidsstämplade `ondataavailable`-chunks i ett bundet
+> ~30 s-fönster; `materialize(start, end)` klipper en spelbar blob. **Init-segmentet är
+> pinnat** — MediaRecorderns första chunk bär `ftyp`+`moov` (fMP4 på iOS) resp. EBML-headern
+> (WebM), och utan den är senare chunks obrukbara bytes. Den hålls därför utanför utkastningen
+> för alltid (en chunk) och läggs först i varje fönster som inte redan innehåller den — samma
+> form som DASH/HLS: init-segment + delmängd fragment. `useCamera` fick `RecordMode`:
+> `'clip'` (som förut, hela klippet returneras) eller `'session'` (ringen, `stopRecording()`
+> returnerar **null** — det finns medvetet ingen hel-sessions-blob). Det var den gamla
+> `chunksRef`-arrayen som var de uppmätta 150–350 MB i inventeringen.
+>
+> **`analysisQueue.ts` (ny, ren):** `SerialQueue` — en uppgift i taget, ordning bevarad,
+> **en misslyckad uppgift stoppar aldrig kön** (rejektet går till anroparen, nästa startar).
+> Djupet mäts (`maxDepth`) i stället för att kapas; en kö som tyst tappar svingar är precis
+> den sortens tysta fel ADR-003 finns för att ta bort.
+>
+> **TTS-kö i `tts.ts`:** `enqueueSpeech` (FIFO, avbryter aldrig) vid sidan av `speakSequence`
+> (barge-in, oförändrad för enkelsvingsvägen). `cancelSpeech()` tömmer nu **både** motorn och
+> kön. **Watchdog:** iOS Safari tappar `onend` tillräckligt ofta att en kö som litar på den
+> förr eller senare kilar fast — tyst, resten av sessionen. Budgeten är generös (~10 tecken/s)
+> och släpper bara loss kön; värsta fall är en kort överlappning i stället för permanent tystnad.
+>
+> **`useSessionCapture.ts` (ny):** orkestreringen. Per sving: klipp fönster → `addSwing`
+> ('detected') → kö: `selectEnvelopeFrames` på **samma envelope-objekt grinden accepterade**
+> (inte en omhärledning ur `envelopeSec`) → `grabFramesAtTimes` → `analyzeSwing` →
+> `enqueueSpeech` → historik (fönstret, inte sessionen). Regler/inställningar läses vid
+> **körning**, inte vid detektion.
+>
+> **Tidsbasen var det icke-uppenbara problemet, i två lager.** (a) Live-loopens klocka startade
+> när `createPoseLandmarker()` var klar — sekunder efter inspelningsstart på en kall GPU-probe —
+> så en sving vid t=34,2 pekade inte på samma bytes i videoringen som i landmark-ringen. Fix:
+> additivt `LivePoseLoopOptions.epochMs`; båda ringarna mäter nu från **inspelningsstart**.
+> (b) Ett fönster ur en längre inspelning kan presenteras antingen på originaltidslinjen
+> (sök 34,2) eller ombasad till noll (sök 1,2), beroende på container och motor. `poseFrameGrab`
+> **gissar inte** — den söker förbi slutet, ser var uppspelningen landar och jämför mot båda
+> kandidat-sluttiderna. Billigt, och svarar med webbläsarens faktiska beteende i stället för
+> vår modell av det. Sök har nu också timeout (3 s): en hängande seek skulle annars låsa
+> analyskön för resten av sessionen.
+>
+> **Loggning per sving (krav 6), på WARN:** `Session swing N captured` (fönster, MB, chunks,
+> header-prepend, trunkering, ringstatus, ködjup), `Session swing N analyzed` (**anchor→detekterad
+> →bilder→analys** plus `grabMs`/`visionMs`/frameCount/impact-kluster) och `Session swing N spoken`
+> (anchor→tal klart). Samma kedja ligger på `SessionSwing.timings` och visas per rad i sessionsvyn.
+>
+> **Sessionsvy:** `components/Session/SessionSwingList.tsx` — en rad per sving med status,
+> envelope-tider, utlåtande och fallerade regler allteftersom de landar, plus latenskedjan.
+> Renderas under kameran medan den rullar; sving 3 kan vara `analyzing` medan 2 visar utlåtande
+> och 1 visar ett fel. Det är precis det tillstånd pass 1:s store-refaktorering gjorde
+> representerbart.
+>
+> **Två följdfixar som annars hade bitit i fält:** (1) `anySwingBusy` låste inspelningsknappen —
+> i en session är den nästan alltid sann, så golfaren hade inte kunnat stoppa sin egen session;
+> den grindar nu bara klippvägen. (2) `AnalysisView` bailar på `swing.timings !== null`: en
+> sessionsfångad sving äger sin egen analys, och utan grinden hade ett besök i analysvyn under
+> flykten avfyrat ett **andra, betalt** Vision-anrop för samma sving.
+>
+> **`LiveSwingPanel` är nu presentationell** — den ägde sin egen `useLiveSwingDetection`, och
+> två instanser hade betytt två PoseLandmarkers som infererar på samma preview, alltså dubbla
+> kostnaden för precis det panelen finns för att mäta. Den visar också ködjup/max/klara/fel.
+>
+> **RÖRDA EJ:** `poseEnvelope.ts`, `poseSegments.ts`, `livePoseLoop.ts`-logiken (endast additivt
+> `epochMs`), `poseTrajectory.ts`, `frameExtractor.ts`, Vision-anropet, `SwingRecord`.
+> Nya enhetstester: `videoChunkRing.test.ts` (bundenhet över 10 min session, konstant minne,
+> pinnat init-segment, trunkering rapporteras), `analysisQueue.test.ts` (serialitet, ordning,
+> **fortsätter efter fel**, clear), `tts.test.ts` (två analyser talar aldrig samtidigt,
+> `cancelSpeech` tömmer kön, watchdog släpper en kilad motor). Build + lint (0 nya) + test
+> **75/75** rena; dev-servern bootar och alla nya moduler serveras 200.
+>
+> **Ärliga avgränsningar.** (1) `// OSÄKER:` på fMP4-fönstren: en delmängd fragment efter
+> init-segmentet är giltig per konstruktion, men iOS Safaris exakta beteende är inte verifierat
+> på hårdvara — probe:n och `Session swing N captured`-loggen är gjorda för att göra ett fel här
+> omedelbart synligt i stället för tyst. (2) Analysen konkurrerar med live-inferensen om GPU:n;
+> `grabMs`/`visionMs` mot `Live pose stats` är mätningen som visar hur mycket. (3) `analysisAngle`
+> ligger fortfarande globalt (ärvt från pass 1). (4) Takt-trösklarna är fortfarande härledda ur
+> klipp-fixturer, inte live-kamerabrus.
+>
+> **Kvar att verifiera av Erik:** session på iPhone, 3 svingar utan att stoppa inspelningen →
+> (a) talad feedback efter varje sving, (b) sessionsvyns tre rader, (c) latenskedjan i
+> `Session swing N analyzed`, (d) `windowMb`/`ringRetainedMb` som bevis för att sessionen aldrig
+> ligger i RAM.
+
+**Mål (kvar):** fälttrimning av takt-trösklarna (`MOTION_ESCALATE_SPEED`, `ACTIVE_DWELL_SEC`) mot
+Eriks `Live pose stats`-data, och verifiering av fMP4-fönsterklippet på faktisk iPhone-hårdvara.
 
 **Dokumentkrav:** bocka av respektive pass här + `docs/decisions/ADR-003-draft.md` §5;
 uppdatera `swingcheck-handoff.md`.

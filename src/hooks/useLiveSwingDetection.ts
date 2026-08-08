@@ -62,10 +62,32 @@ const INITIAL: LiveDetectionState = {
 export function useLiveSwingDetection(
   videoRef: React.RefObject<HTMLVideoElement | null>,
   active: boolean,
-  options?: { ringCapacity?: number },
+  options?: {
+    ringCapacity?: number;
+    /**
+     * `performance.now()` origin for sample times — pass the RECORDING start so
+     * landmark times and video-chunk times name the same instants (D-5 pass 3).
+     * Omit and the loop times from its own start, which is pass 2's behaviour.
+     */
+    epochMs?: number;
+    /**
+     * Fired once per newly detected swing, synchronously from the rAF thread.
+     * Keep it cheap and non-blocking — the capture path uses it only to cut a
+     * video window and enqueue work.
+     */
+    onSwing?: (report: LiveSwingReport) => void;
+  },
 ): LiveDetectionState {
   const [state, setState] = useState<LiveDetectionState>(INITIAL);
   const ringCapacity = options?.ringCapacity ?? DEFAULT_RING_CAPACITY;
+  const epochMs = options?.epochMs;
+
+  // Held in a ref, not in the effect's deps: a caller passing an inline closure
+  // would otherwise tear down and rebuild the landmarker on every render.
+  const onSwingRef = useRef(options?.onSwing);
+  useEffect(() => {
+    onSwingRef.current = options?.onSwing;
+  });
 
   // Kept in a ref so the sampling callback can read/write them without re-subscribing
   // on every render — the callback runs on the rAF thread and must stay allocation-free.
@@ -110,6 +132,7 @@ export function useLiveSwingDetection(
           landmarker: standalone.landmarker,
           buffer,
           delegate: standalone.delegate,
+          epochMs,
           onSample: (sample, stats) => {
             // ── Detection, throttled ──────────────────────────────────────────
             if (sample.t - lastDetectAtRef.current >= DETECT_INTERVAL_SEC) {
@@ -133,6 +156,16 @@ export function useLiveSwingDetection(
                     cadence: stats.cadence,
                     refSpeed: round3(run.refSpeed),
                   });
+                  // Hand the swing to the capture path BEFORE React sees it: the
+                  // video window has to be cut from the chunk ring while its bytes
+                  // are still retained, and a render is not a guarantee of when.
+                  try {
+                    onSwingRef.current?.(r);
+                  } catch (err) {
+                    // A consumer throwing must not kill the sampling loop — the
+                    // session keeps detecting even if one swing's capture fails.
+                    log.error('Live swing consumer threw', { error: serializeError(err) });
+                  }
                 }
                 swingsRef.current = [...swingsRef.current, ...run.reports];
                 // Publish immediately — a detected swing is the event being proved,
@@ -174,7 +207,7 @@ export function useLiveSwingDetection(
       buffer.clear();
       detector.reset();
     };
-  }, [active, videoRef, ringCapacity, reset]);
+  }, [active, videoRef, ringCapacity, epochMs, reset]);
 
   return state;
 }

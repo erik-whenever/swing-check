@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
+import { useSessionCapture } from '../../hooks/useSessionCapture';
 import { extractFrames, ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
 import {
   useSessionStore,
@@ -12,6 +13,7 @@ import { cancelSpeech, isSpeaking, speak, TTS_ANALYZING } from '../../lib/tts';
 import { RecordButton } from './RecordButton';
 import { CountdownStepper } from './CountdownStepper';
 import { LiveSwingPanel } from './LiveSwingPanel';
+import { SessionSwingList } from '../Session/SessionSwingList';
 import { AnglePill } from '../AngleToggle';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
@@ -28,6 +30,9 @@ export function CameraView() {
     startRecording,
     cancelCountdown,
     stopRecording,
+    chunkRingRef,
+    recordingEpochMs,
+    releaseChunkRing,
   } = useCamera();
 
   const setCurrentVideoBlob = useSessionStore((s) => s.setCurrentVideoBlob);
@@ -43,7 +48,6 @@ export function CameraView() {
   // Session mode (hands-free multi-swing)
   const sessionActive = useSessionStore((s) => s.sessionActive);
   const swingNumber = useSessionStore((s) => s.swingNumber);
-  const beginSwing = useSessionStore((s) => s.beginSwing);
   const startSession = useSessionStore((s) => s.startSession);
   const endSession = useSessionStore((s) => s.endSession);
   const autoRecordPending = useSessionStore((s) => s.autoRecordPending);
@@ -67,6 +71,23 @@ export function CameraView() {
   }, [startStream, stopStream]);
 
   const isCounting = countdown !== null;
+
+  // ── Continuous session capture (ADR-003 §4 + §5, D-5 pass 3) ────────────────
+  // Session mode IS continuous mode: the camera keeps rolling, the detector finds
+  // each swing, and each swing is analyzed and spoken while the next one is being
+  // hit. The clip flow (record → stop → analyze one swing) is untouched and is
+  // still what runs whenever session mode is off.
+  //
+  // Detection also runs outside a session when the dev preview is on, but with
+  // `captureEnabled` false: there is no chunk ring in clip mode, so there is
+  // nothing to cut a window from — it detects and logs only, as in pass 2.
+  const capture = useSessionCapture({
+    videoRef,
+    active: isRecording && (sessionActive || DEV_PREVIEW),
+    captureEnabled: sessionActive,
+    chunkRingRef,
+    recordingEpochMs,
+  });
 
   const processVideo = async (blob: Blob) => {
     setCurrentVideoBlob(blob);
@@ -109,16 +130,34 @@ export function CameraView() {
     e.target.value = '';
   };
 
-  // Start a recording, incrementing the session counter first when in a session.
+  // Start a recording. In a session it runs in 'session' mode — bounded chunk ring,
+  // no whole-session blob — and the swing counter is driven by the DETECTOR
+  // (`beginSwing` per detected swing) rather than by pressing record once.
   const startSwingRecording = useCallback(() => {
-    if (sessionActive) beginSwing();
-    startRecording(countdownSeconds);
-  }, [sessionActive, beginSwing, startRecording, countdownSeconds]);
+    // The list is NOT cleared here: a session can span several recordings (a break
+    // to change club), and the swings already hit belong to the same session.
+    // Clearing happens when the session starts.
+    startRecording(countdownSeconds, sessionActive ? 'session' : 'clip');
+  }, [sessionActive, startRecording, countdownSeconds]);
+
+  // Stop a session recording and let the queued swings finish before the video ring
+  // is released — a swing still waiting for its turn owns bytes in it.
+  const finishSessionRecording = useCallback(async () => {
+    await stopRecording();
+    await capture.drain();
+    releaseChunkRing();
+  }, [stopRecording, capture, releaseChunkRing]);
 
   const handleToggleRecord = async () => {
     if (isRecording) {
+      if (sessionActive) {
+        // No clip to process: session mode never materializes the whole recording,
+        // and every swing in it has already been analyzed on its own.
+        await finishSessionRecording();
+        return;
+      }
       const blob = await stopRecording();
-      await processVideo(blob);
+      if (blob) await processVideo(blob);
     } else if (isCounting) {
       cancelCountdown();
     } else {
@@ -177,10 +216,14 @@ export function CameraView() {
     handleSecondaryHeadset,
   );
 
-  const toggleSession = () => {
+  const toggleSession = async () => {
     if (sessionActive) {
+      // Ending a session while it is recording has to stop the recording too —
+      // otherwise the camera keeps rolling into a ring nothing will ever read.
+      if (isRecording) await finishSessionRecording();
       endSession();
     } else {
+      clearSwings();
       startSession();
       // Ensure the headset loop is live so the session is truly hands-free.
       if (!rangeMode) toggleRangeMode();
@@ -243,10 +286,11 @@ export function CameraView() {
           <AnglePill angle={cameraAngle} />
         </div>
 
-        {/* Live swing detection (ADR-003 §4, D-5 pass 2) — dev preview only, and a
-            PARALLEL path: it reads the preview element while recording and never
-            touches the recorded blob or the clip-based extraction below. */}
-        {DEV_PREVIEW && <LiveSwingPanel videoRef={videoRef} active={isRecording} />}
+        {/* Live detection readout (ADR-003 §4) — dev preview only. It renders the
+            state the capture hook already produces; it does not run its own. */}
+        {DEV_PREVIEW && (
+          <LiveSwingPanel live={capture.live} queue={capture.queue} active={isRecording} />
+        )}
 
         {/* Recording indicator */}
         {isRecording && (
@@ -256,11 +300,13 @@ export function CameraView() {
           </div>
         )}
 
-        {/* Session swing counter */}
+        {/* Session swing counter — driven by the DETECTOR in continuous mode, so it
+            counts swings actually found, not recordings started. */}
         {sessionActive && (
           <div className="absolute top-4 inset-x-0 flex justify-center pointer-events-none">
             <span className="px-3 py-1 rounded-full bg-black/60 text-white text-sm font-semibold">
-              🎯 Sving {Math.max(1, swingNumber)}
+              🎯 {swingNumber} sving{swingNumber === 1 ? '' : 'ar'}
+              {isRecording ? ' · spelar in' : ''}
             </span>
           </div>
         )}
@@ -274,6 +320,14 @@ export function CameraView() {
           </div>
         )}
       </div>
+
+      {/* Session view: every swing of this session with its own status and verdict,
+          filling in while the camera keeps rolling (ADR-003 §5). */}
+      {sessionActive && (
+        <div className="flex-shrink-0 border-t border-line bg-bg">
+          <SessionSwingList />
+        </div>
+      )}
 
       {/* Range mode + TTS controls */}
       <div className="flex-shrink-0 px-4 pt-3 flex items-center justify-between gap-2 bg-bg">
@@ -334,7 +388,7 @@ export function CameraView() {
       <div className="flex-shrink-0 py-6 flex items-center justify-center gap-6 bg-bg">
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={anySwingBusy || progress !== null}
+          disabled={anySwingBusy || progress !== null || (sessionActive && isRecording)}
           className="px-3 py-2 bg-raised hover:bg-raised-hi rounded-lg text-xs font-medium
                      disabled:opacity-30 transition-colors"
         >
@@ -347,17 +401,23 @@ export function CameraView() {
           onChange={handleFileUpload}
           className="hidden"
         />
+        {/* In a session `anySwingBusy` is almost always true — swings are analyzed
+            while recording continues — so it must NOT gate the controls there, or
+            the golfer could never stop the session. It still gates the clip flow,
+            where busy genuinely means "this one recording is being processed". */}
         <RecordButton
           isRecording={isRecording}
           isCounting={isCounting}
           isStreaming={isStreaming}
-          disabled={!isStreaming || anySwingBusy}
+          disabled={!isStreaming || (!sessionActive && anySwingBusy)}
           onToggle={handleToggleRecord}
         />
         <CountdownStepper
           value={countdownSeconds}
           onChange={setCountdownSeconds}
-          disabled={isRecording || isCounting || anySwingBusy || progress !== null}
+          disabled={
+            isRecording || isCounting || progress !== null || (!sessionActive && anySwingBusy)
+          }
         />
       </div>
     </div>

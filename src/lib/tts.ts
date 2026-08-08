@@ -107,7 +107,13 @@ export function isSpeaking(): boolean {
   return !!synth && (synth.speaking || synth.pending);
 }
 
+/**
+ * Silence everything: the engine AND the serialized session queue. Clearing both
+ * is the point — a user pressing stop (or a headset button) means "stop talking",
+ * not "stop this sentence and start the next swing's".
+ */
 export function cancelSpeech(): void {
+  clearSpeechQueue();
   getSynth()?.cancel();
 }
 
@@ -119,10 +125,19 @@ interface SpeakOptions {
 /**
  * Speak each part as a separate utterance (natural pauses between sentences).
  * Cancels anything currently queued first so new speech always takes over.
+ *
+ * BARGE-IN by design — this is the single-swing path, where new speech should
+ * replace old. For the session path, where two analyses must never talk over each
+ * other, use `enqueueSpeech` below.
  */
 export function speakSequence(parts: string[], opts: SpeakOptions = {}): void {
   const synth = getSynth();
-  if (!synth) return;
+  if (!synth) {
+    // No speech engine: the caller's completion contract must still be honoured,
+    // or a queue waiting on onEnd deadlocks on a device without TTS.
+    opts.onEnd?.();
+    return;
+  }
 
   const filtered = parts.map((p) => p.trim()).filter(Boolean);
   synth.cancel();
@@ -132,6 +147,14 @@ export function speakSequence(parts: string[], opts: SpeakOptions = {}): void {
   }
 
   const voice = resolveVoice();
+  // `onend` and `onerror` both terminate an utterance, and cancel() fires one or
+  // the other depending on the engine. Settle once, whichever arrives.
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    opts.onEnd?.();
+  };
 
   filtered.forEach((text, i) => {
     const u = new SpeechSynthesisUtterance(text);
@@ -139,10 +162,103 @@ export function speakSequence(parts: string[], opts: SpeakOptions = {}): void {
     u.lang = voice?.lang || TTS_LANG;
     if (i === 0 && opts.onStart) u.onstart = opts.onStart;
     if (i === filtered.length - 1) {
-      u.onend = () => opts.onEnd?.();
+      u.onend = finish;
+      u.onerror = finish;
     }
     synth.speak(u);
   });
+}
+
+// ── Serialized speech queue (ADR-003 §5, D-5 pass 3) ─────────────────────────
+// In a session, swing N's feedback can finish speaking after swing N+1's analysis
+// has already returned. `speakSequence` cancels — which would cut swing N off
+// mid-sentence and lose it. So session feedback goes through a FIFO instead: each
+// analysis speaks in full, in the order the swings happened.
+//
+// The queue is a module-level singleton because the speech engine is: there is one
+// `window.speechSynthesis`, so there can only be one authority over what it says
+// next. `cancelSpeech()` clears the queue as well as the engine — a user who
+// silences the app means all of it, not just the current sentence.
+
+interface SpeechJob {
+  parts: string[];
+  opts: SpeakOptions;
+}
+
+let speechQueue: SpeechJob[] = [];
+let speechBusy = false;
+let speechWatchdog: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * WATCHDOG. iOS Safari drops `onend` often enough that a queue trusting it alone
+ * will eventually wedge, silently, for the rest of the session. Budget is generous
+ * (speech runs ~12 chars/s; this allows ~10) and only ever fires as a release
+ * valve — if it fires the next job simply starts, which is a small overlap rather
+ * than permanent silence.
+ */
+const SPEECH_MS_PER_CHAR = 100;
+const SPEECH_WATCHDOG_FLOOR_MS = 5000;
+const SPEECH_WATCHDOG_CEILING_MS = 120000;
+
+function watchdogMs(parts: string[]): number {
+  const chars = parts.reduce((n, p) => n + p.length, 0);
+  return Math.min(
+    SPEECH_WATCHDOG_CEILING_MS,
+    Math.max(SPEECH_WATCHDOG_FLOOR_MS, chars * SPEECH_MS_PER_CHAR),
+  );
+}
+
+function clearWatchdog(): void {
+  if (speechWatchdog !== null) {
+    clearTimeout(speechWatchdog);
+    speechWatchdog = null;
+  }
+}
+
+function pumpSpeech(): void {
+  if (speechBusy) return;
+  const job = speechQueue.shift();
+  if (!job) return;
+  speechBusy = true;
+
+  let done = false;
+  const advance = () => {
+    if (done) return;
+    done = true;
+    clearWatchdog();
+    speechBusy = false;
+    job.opts.onEnd?.();
+    pumpSpeech();
+  };
+
+  speechWatchdog = setTimeout(advance, watchdogMs(job.parts));
+  speakSequence(job.parts, { onStart: job.opts.onStart, onEnd: advance });
+}
+
+/**
+ * Queue a sequence to be spoken after everything already queued. Never interrupts.
+ * `onEnd` fires when this job's speech is done (or the watchdog released it).
+ */
+export function enqueueSpeech(parts: string[], opts: SpeakOptions = {}): void {
+  speechQueue.push({ parts, opts });
+  pumpSpeech();
+}
+
+/** Drop every queued job and release the engine claim. Used by `cancelSpeech`. */
+export function clearSpeechQueue(): void {
+  clearWatchdog();
+  speechQueue = [];
+  speechBusy = false;
+}
+
+/** Jobs waiting, excluding the one speaking. */
+export function pendingSpeechCount(): number {
+  return speechQueue.length;
+}
+
+/** True while the serialized queue owns the engine. */
+export function isSpeechQueueBusy(): boolean {
+  return speechBusy;
 }
 
 /** Speak a single short phrase, replacing any current speech. */

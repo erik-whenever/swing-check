@@ -9,19 +9,27 @@
 // inference time creeping up while achieved fps falls below the target is throttling,
 // and `SAT` means the target rate is unreachable no matter how the loop is scheduled.
 //
-// Nothing here reaches the Vision call, the session store or SwingRecord — the clip
-// path runs unchanged alongside it.
+// PRESENTATIONAL ONLY (changed in D-5 pass 3). It used to own its own
+// `useLiveSwingDetection` call, which was fine while it was the only consumer.
+// Session capture now needs the same detection stream, and two hook instances would
+// mean two PoseLandmarkers inferring on the same preview — doubling the cost of the
+// exact thing this panel exists to measure. So the state is passed in.
+//
+// Nothing here reaches the Vision call, the session store or SwingRecord.
 
-import { useLiveSwingDetection } from '../../hooks/useLiveSwingDetection';
+import type { LiveDetectionState } from '../../hooks/useLiveSwingDetection';
+import type { QueueStats } from '../../lib/analysisQueue';
 
 export function LiveSwingPanel({
-  videoRef,
+  live,
+  queue,
   active,
 }: {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  live: LiveDetectionState;
+  queue?: QueueStats;
   active: boolean;
 }) {
-  const { status, swings, stats, detectMs, error } = useLiveSwingDetection(videoRef, active);
+  const { status, swings, stats, detectMs, error } = live;
 
   if (!active) return null;
 
@@ -92,6 +100,16 @@ export function LiveSwingPanel({
             {stats.samples} sampel · {stats.posesDetected} pose · {stats.errors} fel ·{' '}
             {stats.elapsedSec.toFixed(0)}s · v {stats.lastSpeed.toFixed(3)}
           </div>
+        </div>
+      )}
+
+      {/* Analysis backlog (D-5 pass 3). Depth > 0 means a swing is waiting behind
+          another swing's Vision call — the honest read on whether one-at-a-time
+          keeps up with how fast Erik hits balls. */}
+      {queue && (queue.started > 0 || queue.depth > 0) && (
+        <div className="text-[10px] font-mono text-fuchsia-300/90">
+          kö {queue.depth} väntar{queue.busy ? ' · 1 kör' : ''} · max {queue.maxDepth} ·{' '}
+          {queue.completed} klara · {queue.failed} fel
         </div>
       )}
     </div>

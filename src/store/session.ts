@@ -19,6 +19,29 @@ type View = 'home' | 'camera' | 'rules' | 'analysis' | 'history' | 'preview' | '
  */
 export type SwingStatus = 'detected' | 'extracting' | 'analyzing' | 'done' | 'failed';
 
+/**
+ * The latency chain for one swing, measured from its anchor (impact when confident,
+ * else envelope start) in milliseconds. Null until that stage is reached; a stage
+ * that never completes stays null rather than being back-filled with a guess.
+ *
+ * This is the whole point of the session mode being worth building or not: how long
+ * after hitting the ball the golfer hears something. Kept on the swing rather than
+ * in a log line so the session view can show it and Erik can read the chain per
+ * swing without filtering a log.
+ */
+export interface SwingTimings {
+  /** Anchor in recording-clock seconds — the zero every figure below is from. */
+  anchorSec: number;
+  /** Anchor → the live detector accepted the swing (structural ~0.6–1.1 s). */
+  detectedMs: number;
+  /** Anchor → analysis frames grabbed and ready to send. */
+  framesMs: number | null;
+  /** Anchor → Claude Vision verdict in hand. */
+  analysisMs: number | null;
+  /** Anchor → spoken feedback finished. */
+  spokenMs: number | null;
+}
+
 /** One swing inside the current session, with its own independent lifecycle. */
 export interface SessionSwing {
   id: string;
@@ -39,6 +62,8 @@ export interface SessionSwing {
   analysis: SwingAnalysis | null;
   /** Failure message when `status === 'failed'`. */
   error: string | null;
+  /** Latency chain (D-5 pass 3). Null on the clip path, which has no anchor clock. */
+  timings: SwingTimings | null;
 }
 
 interface SessionState {
@@ -102,6 +127,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       frameMeta: [],
       analysis: null,
       error: null,
+      timings: null,
       ...init,
     };
     set((s) => ({ swings: [...s.swings, swing] }));

@@ -110,6 +110,17 @@ export interface LivePoseLoopOptions {
   landmarker: PoseLandmarker;
   buffer: PoseRingBuffer;
   delegate?: 'GPU' | 'CPU' | null;
+  /**
+   * `performance.now()` value that sample times are measured from. Defaults to the
+   * moment `start()` is called.
+   *
+   * D-5 pass 3 passes the RECORDING start here, and that alignment is load-bearing:
+   * a swing detected at t=34.2 has to name the same instant in the video chunk ring
+   * as it does in the landmark ring, or the frames grabbed for it come from the
+   * wrong part of the session. The two clocks used to differ by however long
+   * `createPoseLandmarker()` took (seconds, on a cold GPU probe).
+   */
+  epochMs?: number;
   /** Called after every sample is pushed. Keep it cheap — it runs on the rAF thread. */
   onSample?: (sample: PoseSample, stats: LiveLoopStats) => void;
   /** Called at STATS_LOG_INTERVAL_SEC, right after the stats line is logged. */
@@ -128,6 +139,7 @@ export class LivePoseLoop {
   private readonly delegate: 'GPU' | 'CPU' | null;
   private readonly onSample?: LivePoseLoopOptions['onSample'];
   private readonly onStats?: LivePoseLoopOptions['onStats'];
+  private readonly epochMs?: number;
 
   private raf: number | null = null;
   private running = false;
@@ -160,13 +172,17 @@ export class LivePoseLoop {
     this.delegate = options.delegate ?? null;
     this.onSample = options.onSample;
     this.onStats = options.onStats;
+    this.epochMs = options.epochMs;
   }
 
   start(): void {
     if (this.running) return;
     this.running = true;
     const now = performance.now();
-    this.startedAt = now;
+    // Sample times are measured from the shared epoch when one was given (the
+    // recording start), so landmark times and video-chunk times name the same
+    // instants. Falls back to loop start, which is pass 2's behaviour.
+    this.startedAt = this.epochMs ?? now;
     this.lastSampleAt = 0;
     this.statsWindowStart = now;
     // Start ACTIVE: the interesting moment is often immediately after the record
@@ -180,6 +196,10 @@ export class LivePoseLoop {
       escalateSpeed: MOTION_ESCALATE_SPEED,
       ringCapacity: this.buffer.capacity,
       delegate: this.delegate,
+      // How far behind the shared epoch the loop actually started — i.e. how long
+      // landmarker construction took. Non-zero is normal; it is the reason the
+      // epoch is passed in rather than taken here.
+      clockOffsetSec: round1((now - this.startedAt) / 1000),
     });
     this.raf = requestAnimationFrame(this.tick);
   }

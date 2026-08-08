@@ -88,6 +88,11 @@ export function AnalysisView() {
     if (!current || !swingId) return;
     if (current.frames.length === 0 || activeRules.length === 0) return;
     if (current.analysis || current.status === 'failed') return;
+    // A swing captured by the SESSION path owns its own analysis (D-5 pass 3):
+    // `timings` is only ever set there. Without this, opening the analysis view
+    // while such a swing is mid-flight would fire a second, paid Vision call for
+    // the same swing.
+    if (current.timings) return;
 
     const swingFrames = current.frames;
     let cancelled = false;
