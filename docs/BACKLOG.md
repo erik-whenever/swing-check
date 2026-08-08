@@ -511,6 +511,39 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > utebliven sving går inte att härleda till segmentering vs grind. Regressionsvakt i
 > `poseSegments.test.ts` (20/20). Ingen logikändring; build + lint (0 nya) rena.
 >
+> **Determinismbugg + impact ur acceptansen (2026-08-08):** inventering visade att kedjan
+> var stabil mot `refSpeed` (±15 % → oförändrat 3 svingar) och mot fönsterbredd (padding
+> 0,5→3,0 s → oförändrad envelope), men **instabil mot sampelrutnätets läge** — den enda
+> variabel som inte var reproducerbar mellan körningar. Två fixar:
+>
+> 1. **`resetPoseLandmarker()`** (`poseDetector.ts`): `runningMode:'VIDEO'` är ett
+>    *tracking*-läge som seedar varje frame med föregående detektion, och landmarkaren var
+>    en process-livstids-singleton → körning 2 av samma klipp startade med tillståndet från
+>    körning 1:s sista frame (uppmätt `posesDetected` 924/929/924, `refSpeed` ±11 %). Varje
+>    extraktion bygger nu en kall instans; `lastGlobalTsMs` borttagen och tidslinjen är
+>    per körning från 0 (den växande tidsbasen var själv en determinismrisk). Delegaten
+>    cachas så en ombyggnad inte betalar GPU-proben igen. Ny `seriesHash` (FNV-1a över
+>    handledsserien) loggas på **WARN** så två körningar jämförs genom att läsa två rader.
+> 2. **Impact är inte längre acceptanskrav i `isSwing`** (ADR-002: impact är polish, aldrig
+>    bärande). Acceptansen vilar på envelope-struktur: `valid`, `!clippedTail`,
+>    varaktighet 0,7–3,0 s, exkursion ≥ 0,08, peak ≥ 0,4×refSpeed, cooldown 2 s.
+>    Nedsvingsgränserna gäller fortfarande **när** impact finns. Förutsatte en fix i
+>    `poseEnvelope.ts`: `apexY` var bunden av `impactIdx` och degenererade till
+>    adresshöjd utan impact → exkursionen läste ≈0 och äkta svingar såg ut som bollplock.
+>    `apexY` är nu envelopens globala min-y (alltid definierad); baksvingstoppen finns
+>    kvar internt för `downswingSec`. `DetectedSwing.impactSec` är nullbar + nytt
+>    `anchorSec`.
+>
+> **Mätt effekt:** fatala enskilda bildrutor **3 av 925 → 0 av 925**. Subframe-svep
+> 0–50 ms: accepterade **3 vid varje förskjutning** (var 3,3,3,2,2,1,1); impact fladdrar
+> (3→1 med confident impact) utan att antalet rör sig. Multi-drop 5–50 bildrutor ×3 seeds:
+> alltid 3. dtl-full/face-on/dtl-clipped envelopes och impacts bit-identiska.
+> Regressionsvakt: "swing count survives losing any single pose frame". Test 21/21.
+>
+> **Kvar (separat, enligt beslut):** interpolerad impact mellan sampel, och sammanslagning
+> av de två handledsserie-implementationerna (`poseEnvelope.ts` + `poseSegments.ts` har var
+> sin teckenidentiska `weightedHands` utan test som låser dem till varandra).
+>
 > **Nästa (D-5):** ADR-003 §4 + §5 — live-pose i rAF-loop, ringbuffertar för landmarks och
 > MediaRecorder-chunks, analyskö och `swings: SessionSwing[]` i store.
 

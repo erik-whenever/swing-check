@@ -217,8 +217,15 @@ export interface SwingGate {
 export interface DetectedSwing {
   candidate: SwingCandidate;
   envelope: SwingEnvelope;
-  /** Impact-tid i KLIPPETS tidsbas (envelopens tider är redan absoluta). */
-  impactSec: number;
+  /**
+   * Confident impact i klippets tidsbas, eller **null** när impact inte kunde
+   * verifieras. Null betyder INTE att svingen är osäker — acceptansen vilar på
+   * envelope-strukturen (se `isSwing`). Impact är polish: finns den får svingen ett
+   * frame-kluster runt träffen, annars uniform baslinje över envelopen (ADR-002).
+   */
+  impactSec: number | null;
+  /** Impact när den finns, annars envelopens start. Ordning + cooldown använder denna. */
+  anchorSec: number;
 }
 
 export interface SessionSwings {
@@ -418,6 +425,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
 export function isSwing(
   envelope: SwingEnvelope,
   refSpeed: number,
+  /** Ankartid för närmast föregående ACCEPTERADE sving (impact, annars envelope-start). */
   prevAcceptedImpactSec?: number | null,
 ): SwingGate {
   const no = (reason: string): SwingGate => ({ accepted: false, reason });
@@ -438,20 +446,8 @@ export function isSwing(
     );
   }
 
-  // IMPACT TESTAS FÖRE EXKURSIONEN — ordningen är en loggkorrekthetsfråga, inte en
-  // smaksak. `apexY` (baksvingstoppen) beräknas i poseEnvelope bara när en impact
-  // finns: topp-loopen är bunden av `impactIdx`, så utan impact blir `apexY` =
-  // positionen vid `startIdx` och exkursionen läser ≈ 0. Med exkursionen först
-  // rapporterade grinden därför "vertical excursion −0.003 (ball pickup?)" för
-  // äkta svingar vars ENDA fel var att impact saknades — ett skäl som pekade på fel
-  // orsak och skickade felsökningen åt fel håll. Nu faller de på impact, som är
-  // sanningen, och exkursionstestet ser bara envelopes där `apexY` betyder något.
-  //
-  // En sving utan verifierad impact släpps aldrig igenom oavsett: envelopens impact
-  // är "confident-only" (aldrig en fallback). Grinden ska vara strikt — hellre missa.
-  if (!envelope.impact) return no(`no confident impact (${envelope.impactReason})`);
-
-  // Vertikal exkursion: händerna måste ha gått UPP. Fel tecken = bollplock.
+  // Vertikal exkursion: händerna måste ha gått UPP. Fel tecken = bollplock. Mäts mot
+  // `apexY` = envelopens högsta punkt, som är definierad oavsett om impact hittades.
   const excursion = envelope.addressY - envelope.apexY;
   if (excursion < MIN_VERTICAL_EXCURSION) {
     return no(
@@ -459,20 +455,58 @@ export function isSwing(
     );
   }
 
-  const ds = envelope.impact.downswingSec;
-  if (ds < MIN_DOWNSWING_SEC) return no(`downswing ${ds.toFixed(2)}s < ${MIN_DOWNSWING_SEC}s`);
-  if (ds > MAX_DOWNSWING_SEC) return no(`downswing ${ds.toFixed(2)}s > ${MAX_DOWNSWING_SEC}s (envelope spans more than one swing)`);
+  // ── IMPACT ÄR POLISH, ALDRIG BÄRANDE (ADR-002:s bärande princip) ──────────────
+  // Grinden krävde tidigare en confident impact för att acceptera en sving. Det bröt
+  // mot ADR-002 och gjorde acceptansen spröd på ett mätbart sätt: impact hänger på
+  // EN sampel — den enda i nedåtpasset som kommer inom IMPACT_ADDRESS_TOL av
+  // adresshöjd. Uppmätt på session-multi låg de tre svingarnas närmaste approach på
+  // 0.063 / 0.056 / 0.049 mot toleransen 0.07, och grannsamplen på 0.079–0.105,
+  // alltså ÖVER. Noll reservsampel. Följden: att tappa en enda pose-frame (3 av 925,
+  // 0.3 %) kostade en hel sving, och en subframe-förskjutning av sampelrutnätet —
+  // exakt det som varierar mellan körningar — tog antalet från 3 till 1.
+  //
+  // Det är fel storhet att hänga acceptansen på. Impact är en punkthändelse på ~1 ms
+  // i en 15 fps-serie; handleden rör sig 0.03–0.06 i y mellan sampel runt träffen,
+  // alltså i samma storleksordning som hela toleransen. En sving som SYNS i
+  // envelope-strukturen (adress → händerna upp → settle-finish, med rätt varaktighet
+  // och rätt tecken vertikalt) är en sving vare sig vi råkade sampla träffögonblicket
+  // eller inte.
+  //
+  // Så: acceptansen vilar nu enbart på struktur (testerna ovan). Impact rapporteras
+  // som förut och driver fortfarande frame-KLUSTRET i selectEnvelopeFrames
+  // (`impactClusterApplied`); saknas den får svingen uniform baslinje över sin
+  // envelope. Det är precis ADR-002:s degraderingsmodell: värsta fall "uniformt över
+  // svingen" (användbart), aldrig "missad sving" (värdelöst).
+  //
+  // Vad som skyddar mot multi-sving-envelopen när MAX_DOWNSWING_SEC inte kan tillämpas:
+  // envelope-varaktigheten [0.7, 3.0] s ovan. Den 20.36 s-"downswing" som motiverade
+  // MAX_DOWNSWING_SEC satt i en envelope på 21+ s, och hel-sessionens envelope mäter
+  // 55.9 s — båda faller på varaktigheten oberoende av impact. Nedsvingsgränserna
+  // tillämpas fortfarande NÄR impact finns, som en extra kontroll.
+  const ds = envelope.impact?.downswingSec ?? null;
+  if (ds !== null) {
+    if (ds < MIN_DOWNSWING_SEC) return no(`downswing ${ds.toFixed(2)}s < ${MIN_DOWNSWING_SEC}s`);
+    if (ds > MAX_DOWNSWING_SEC) {
+      return no(`downswing ${ds.toFixed(2)}s > ${MAX_DOWNSWING_SEC}s (envelope spans more than one swing)`);
+    }
+  }
 
+  // Cooldown mot föregående ACCEPTERAD sving. Ankaret är impact när den finns och
+  // envelopens start annars — utan det skulle en sving utan impact hoppa över
+  // dubbelräkningsskyddet helt.
   if (prevAcceptedImpactSec != null) {
-    const gap = envelope.impact.timeSec - prevAcceptedImpactSec;
+    const anchor = envelope.impact?.timeSec ?? envelope.startSec;
+    const gap = anchor - prevAcceptedImpactSec;
     if (gap < COOLDOWN_SEC) {
-      return no(`cooldown: ${gap.toFixed(2)}s since previous accepted impact < ${COOLDOWN_SEC}s`);
+      return no(`cooldown: ${gap.toFixed(2)}s since previous accepted swing < ${COOLDOWN_SEC}s`);
     }
   }
 
   return {
     accepted: true,
-    reason: `swing (env ${envSec.toFixed(2)}s, ds ${ds.toFixed(2)}s, excursion ${excursion.toFixed(3)})`,
+    reason: `swing (env ${envSec.toFixed(2)}s, excursion ${excursion.toFixed(3)}, ${
+      ds !== null ? `ds ${ds.toFixed(2)}s` : `no confident impact — uniform baseline (${envelope.impactReason})`
+    })`,
   };
 }
 
@@ -495,10 +529,15 @@ export function detectSessionSwings(samples: PoseSample[]): SessionSwings {
       continue;
     }
     const envelope = detectSwingEnvelope(slice);
-    const prev = swings.length > 0 ? swings[swings.length - 1].impactSec : null;
+    const prev = swings.length > 0 ? swings[swings.length - 1].anchorSec : null;
     const gate = isSwing(envelope, segmentation.refSpeed, prev);
     if (gate.accepted) {
-      swings.push({ candidate, envelope, impactSec: envelope.impact!.timeSec });
+      swings.push({
+        candidate,
+        envelope,
+        impactSec: envelope.impact?.timeSec ?? null,
+        anchorSec: envelope.impact?.timeSec ?? envelope.startSec,
+      });
     } else {
       rejected.push({ candidate, envelope, reason: gate.reason });
     }

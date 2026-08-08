@@ -161,7 +161,12 @@ export interface SwingEnvelope {
   visibleFrac: number;
   sampleDt: number;
   addressY: number;
-  /** y of the backswing top (local apex). */
+  /**
+   * y of the ENVELOPE apex — the highest point (min y) anywhere in [start, finish].
+   * Always meaningful, with or without a confident impact, which is what makes
+   * `addressY − apexY` usable as a "did the hands rise?" test. NOT the backswing top:
+   * that one is bounded by impact (see `impact.topSec`) and is undefined without it.
+   */
   apexY: number;
   /** y of the finish landmark (global apex, or clip-protected end). */
   finishY: number;
@@ -442,7 +447,8 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
 
   // Backswing top = highest point (min y) BEFORE impact — the follow-through, which is
-  // after impact, cannot contaminate it.
+  // after impact, cannot contaminate it. Used ONLY for downswingSec, so it is fine that
+  // it collapses to startIdx when there is no impact to bound it.
   let topIdx = startIdx;
   let topY = pos[startIdx].y;
   for (let i = startIdx; i < Math.max(startIdx + 1, impactIdx); i++) {
@@ -451,6 +457,30 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
       topIdx = i;
     }
   }
+
+  // ENVELOPE APEX = highest point (min y) over the WHOLE envelope, impact or not.
+  //
+  // This is what `apexY` reports, and it is deliberately NOT `topY`. `topY` is bounded
+  // by `impactIdx`, so on an envelope with no confident impact the loop above does not
+  // execute and `topY` degenerates to the position at `startIdx` — i.e. address height,
+  // giving a vertical excursion of ~0. Any consumer testing "did the hands go UP?"
+  // against that reads a real swing as a ball pickup. The segmentation gate did exactly
+  // that, which is why removing impact from its accept criteria requires this first.
+  //
+  // Over the whole envelope the minimum is the follow-through apex (hands highest at the
+  // finish, ADR-002's anchor) rather than the backswing top, and for the excursion
+  // question — did the hands rise, or is this someone bending down for a ball? — that is
+  // the better measure of the two: it is the swing's true vertical extent and it exists
+  // whether or not impact was verified.
+  let apexIdx = startIdx;
+  let apexY = pos[startIdx].y;
+  for (let i = startIdx; i <= finishIdx; i++) {
+    if (pos[i].y < apexY) {
+      apexY = pos[i].y;
+      apexIdx = i;
+    }
+  }
+  void apexIdx; // index itself isn't part of the contract; the height is
 
   // Evaluate impact confidence. Any failure → impact stays null (pure baseline).
   let impact: EnvelopeImpact | null = null;
@@ -489,7 +519,7 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
     visibleFrac,
     sampleDt,
     addressY,
-    apexY: topY,
+    apexY,
     finishY,
     peakSpeed,
     debug: {

@@ -98,31 +98,48 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
     it(`session-multi: chain accepts ${SESSION_MULTI_SWINGS} swings`, () => {
       const result = detectSessionSwings(multi.samples);
       const summary = result.swings
-        .map((s) => `${s.envelope.startSec.toFixed(2)}→${s.envelope.finishSec.toFixed(2)} @${s.impactSec.toFixed(2)}`)
+        .map(
+          (s) =>
+            `${s.envelope.startSec.toFixed(2)}→${s.envelope.finishSec.toFixed(2)} @${s.impactSec?.toFixed(2) ?? 'no-impact'}`,
+        )
         .join(', ');
       expect(result.swings.length, `accepted: [${summary}]`).toBe(SESSION_MULTI_SWINGS);
 
       // Konsistensvakt som gäller oavsett hur många som accepteras: rätt ANTAL får
-      // aldrig uppstå ur två fel som tar ut varandra.
-      let prevImpact = -Infinity;
+      // aldrig uppstå ur två fel som tar ut varandra. Notera att impact INTE ingår —
+      // acceptansen vilar på envelope-strukturen, inte på att träffen samplades.
+      let prevAnchor = -Infinity;
       for (const s of result.swings) {
         expect(s.envelope.valid).toBe(true);
         expect(s.envelope.clippedTail).toBe(false);
-        expect(s.envelope.impact).not.toBeNull();
-        expect(s.impactSec - prevImpact).toBeGreaterThanOrEqual(2);
-        expect(s.envelope.impact!.downswingSec).toBeLessThanOrEqual(0.6);
-        expect(s.envelope.finishSec - s.envelope.startSec).toBeLessThanOrEqual(3.0);
-        prevImpact = s.impactSec;
+        expect(s.anchorSec - prevAnchor).toBeGreaterThanOrEqual(2);
+        expect(s.envelope.addressY - s.envelope.apexY).toBeGreaterThanOrEqual(0.08);
+        const envSec = s.envelope.finishSec - s.envelope.startSec;
+        expect(envSec).toBeGreaterThanOrEqual(0.7);
+        expect(envSec).toBeLessThanOrEqual(3.0);
+        // Nedsvingsgränsen gäller BARA när impact finns — den är en extra kontroll,
+        // inte det som bär acceptansen.
+        if (s.envelope.impact) {
+          expect(s.envelope.impact.downswingSec).toBeLessThanOrEqual(0.6);
+          expect(s.impactSec).toBe(s.envelope.impact.timeSec);
+        } else {
+          expect(s.impactSec).toBeNull();
+          expect(s.anchorSec).toBe(s.envelope.startSec);
+        }
+        prevAnchor = s.anchorSec;
       }
     });
 
     it('session-multi: the three accepted swings land where the swings are', () => {
       // Pinnar TIDERNA, inte bara antalet — rätt antal kan uppstå ur fel segment.
-      // Golden från mätningen 2026-08-06; ±2 frames.
-      const EXPECTED: { envelope: [number, number]; impact: number }[] = [
-        { envelope: [8.26, 9.86], impact: 9.26 },
-        { envelope: [31.53, 33.13], impact: 32.53 },
-        { envelope: [54.46, 56.25], impact: 55.59 },
+      // Golden från mätningen 2026-08-06; ±2 frames. ENVELOPE-gränserna är kontraktet;
+      // `impact` anges bara där den är verifierad och asserteras inte som ett krav —
+      // den får fladdra utan att det räknas som regression (det är hela poängen med
+      // att lyfta impact ur acceptansen).
+      const EXPECTED: { envelope: [number, number] }[] = [
+        { envelope: [8.26, 9.86] },
+        { envelope: [31.53, 33.13] },
+        { envelope: [54.46, 56.25] },
       ];
       const result = detectSessionSwings(multi.samples);
       const tol = medianDt(multi.samples) * TOL_FRAMES + 1e-6;
@@ -130,23 +147,40 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
       result.swings.forEach((s, i) => {
         expectWithin(s.envelope.startSec, EXPECTED[i].envelope[0], tol);
         expectWithin(s.envelope.finishSec, EXPECTED[i].envelope[1], tol);
-        expectWithin(s.impactSec, EXPECTED[i].impact, tol);
       });
     });
 
     it('session-multi: rejected candidates are rejected for an honest reason', () => {
-      // Falska negativ måste vara diagnostiserbara, och skälet måste peka på ORSAKEN.
-      // Utan impact är `apexY` odefinierad och exkursionen läser ≈ 0, så ett
-      // exkursionsskäl på en impact-lös envelope vore en felaktig diagnos — grinden
-      // testar därför impact först.
+      // Falska negativ måste vara diagnostiserbara och skälet måste peka på ORSAKEN.
       const result = detectSessionSwings(multi.samples);
       expect(result.rejected.length).toBeGreaterThan(0);
       for (const r of result.rejected) {
-        expect(r.reason).toMatch(/^(envelope invalid|no confident impact|clipped tail|vertical excursion|envelope \d|peak speed|downswing|cooldown|wrist visibility|segment too short)/);
-        if (r.envelope && !r.envelope.impact) {
-          expect(r.reason).not.toMatch(/^vertical excursion/);
-        }
+        expect(r.reason).toMatch(/^(envelope invalid|clipped tail|vertical excursion|envelope \d|peak speed|downswing|cooldown|wrist visibility|segment too short)/);
+        // "no confident impact" får ALDRIG vara ett avslagsskäl längre. Impact är
+        // polish (ADR-002); att avslå på den gjorde acceptansen beroende av en enda
+        // sampel och kostade en sving per tappad bildruta.
+        expect(r.reason).not.toMatch(/no confident impact/);
       }
+    });
+
+    it('session-multi: swing count survives losing any single pose frame', () => {
+      // DETTA är kontraktet som gjorde att impact lyftes ur acceptansen. Innan dess
+      // kostade 3 av 925 bildrutor (alla på eller intill impact-framen) en hel sving,
+      // för att acceptansen hängde på den ENDA sampel som kom inom IMPACT_ADDRESS_TOL
+      // av adresshöjd — grannsamplen låg över. Nu ska antalet vara oberoende av
+      // varje enskild tappad bildruta; impact får fladdra, svingen får inte försvinna.
+      const base = detectSessionSwings(multi.samples).swings.length;
+      expect(base).toBe(SESSION_MULTI_SWINGS);
+      const fatal: string[] = [];
+      for (let i = 0; i < multi.samples.length; i++) {
+        if (multi.samples[i].landmarks.length === 0) continue;
+        const dropped = multi.samples.map((s, k) =>
+          k === i ? { t: s.t, landmarks: [] } : s,
+        );
+        const got = detectSessionSwings(dropped).swings.length;
+        if (got < base) fatal.push(`frame ${i} (t=${multi.samples[i].t.toFixed(2)}s) → ${got}`);
+      }
+      expect(fatal, `frames whose loss costs a swing: ${fatal.join(', ')}`).toEqual([]);
     });
 
     it('session-multi: whole-clip envelope is the silent failure ADR-003 describes', () => {

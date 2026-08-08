@@ -117,8 +117,9 @@ export function SegmentedSwings({
           log.warn(`Swing ${i + 1}/${session.swings.length}`, {
             envelopeSec: [round(e.startSec), round(e.finishSec)],
             envelopeDurationSec: round(e.finishSec - e.startSec),
-            impactSec: round(swing.impactSec),
-            downswingSec: round(e.impact?.downswingSec ?? NaN),
+            impactSec: swing.impactSec === null ? null : round(swing.impactSec),
+            impactReason: e.impactReason,
+            downswingSec: e.impact ? round(e.impact.downswingSec) : null,
             verticalExcursion: round(e.addressY - e.apexY),
             frameCount: sel.picks.length,
             impactClusterApplied: sel.impactClusterApplied,
@@ -354,8 +355,20 @@ function SwingSection({
         <div className="text-[10px] font-mono text-muted mt-0.5">
           envelope [{e.startSec.toFixed(2)} → {e.finishSec.toFixed(2)}] ={' '}
           {(e.finishSec - e.startSec).toFixed(2)}s ·{' '}
-          <span className="text-emerald-300">impact {swing.impactSec.toFixed(2)}</span> · ds{' '}
-          {e.impact?.downswingSec.toFixed(2) ?? '—'}s · exc {excursion.toFixed(3)}
+          {/* Impact är polish, inte acceptanskrav — en sving utan verifierad impact
+              är fortfarande en sving och får uniform baslinje (ADR-002). Märk den
+              som sådan i stället för att låta den se ut som ett fel. */}
+          {swing.impactSec !== null ? (
+            <>
+              <span className="text-emerald-300">impact {swing.impactSec.toFixed(2)}</span> · ds{' '}
+              {e.impact!.downswingSec.toFixed(2)}s
+            </>
+          ) : (
+            <span className="text-sky-300" title={e.impactReason}>
+              no impact → uniform baseline
+            </span>
+          )}{' '}
+          · exc {excursion.toFixed(3)}
         </div>
       </div>
 
