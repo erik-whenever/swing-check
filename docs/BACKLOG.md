@@ -487,6 +487,19 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > signalfixen hade tre trösklar behövt lossas för att dölja ett artefakthopp på 0,35;
 > efteråt behövde en enda röras, av ett härledbart skäl (15 fps-sampling).
 >
+> **Inspektionsyta tillagd (2026-08-08):** `src/components/Analysis/SegmentedSwings.tsx`
+> (dev-preview only, bakom `VITE_DEV_PREVIEW`) kör `detectSessionSwings` på pose-samplen
+> och renderar **en sektion per sving** med egen `selectEnvelopeFrames`-allokering, egna
+> frames (via `poseFrameGrab`, inte `currentFrameMeta` — de framesen ÄR enkelenvelope-
+> selektionen som vyn finns för att motbevisa), rubrik med envelope-tider/impact/downswing/
+> exkursion, skelett-overlay och IMP-markering på framen närmast impact. Loggar per sving
+> på INFO (`SwingSegments`): envelopeSec, impactSec, downswingSec, exkursion, frameCount.
+> Panelen renderar sig **bara** när klippet innehåller fler än en sving — noll eller en ger
+> oförändrat beteende. Tydligt märkt som dev-vy. `frameExtractor.ts` och produktionsvägen
+> (CameraView-flödet) orörda; ingenting härifrån når Vision-anropet eller `SwingRecord`.
+> Verifierat att panelen ger 17 frames per sving inom respektive envelope på session-multi.
+> Build + lint (0 nya) + test 19/19 rena.
+>
 > **Nästa (D-5):** ADR-003 §4 + §5 — live-pose i rAF-loop, ringbuffertar för landmarks och
 > MediaRecorder-chunks, analyskö och `swings: SessionSwing[]` i store.
 

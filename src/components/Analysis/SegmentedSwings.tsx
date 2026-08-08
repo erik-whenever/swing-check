@@ -1,0 +1,288 @@
+// DEV-PREVIEW ONLY — inspection surface for the ADR-003 segmentation (D-4).
+//
+// Production still assumes ONE swing per clip: `frameExtractor.extractFrames` runs
+// `detectSwingEnvelope` over the whole span and returns one set of ANALYSIS_FRAME_COUNT
+// frames. Feed it a 64-second range session and you get 20 frames smeared across the
+// whole clip — the silent failure ADR-003 exists to fix.
+//
+// This component renders what the SEGMENTED chain sees instead: `detectSessionSwings`
+// splits the pose stream into per-swing segments, and each swing gets its own
+// `selectEnvelopeFrames` allocation, grabbed and shown as its own section. It is a
+// read-only viewer — nothing here feeds the Vision call, the store, or `SwingRecord`.
+// The wiring into the real capture path is D-5 (ADR-003 §4/§5).
+//
+// Frames are grabbed here rather than reused from `currentFrameMeta`, because those
+// frames ARE the single-envelope selection this view exists to contradict — reusing
+// them would show the bug instead of the fix. Grabbing is the same seek-and-draw
+// helper Stream D has always used (`poseFrameGrab`), so `frameExtractor.ts` stays
+// untouched.
+
+import { useEffect, useMemo, useState } from 'react';
+import { ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
+import { createLogger } from '../../lib/logger';
+import { detectSessionSwings, type DetectedSwing } from '../../lib/poseSegments';
+import { selectEnvelopeFrames, type FramePick } from '../../lib/poseEnvelopeSelection';
+import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
+import { nearestSample } from '../../lib/poseSampling';
+import type { PoseSample } from '../../lib/poseTrajectory';
+import { SkeletonOverlay } from './SkeletonOverlay';
+
+const log = createLogger('SwingSegments');
+
+/** Per-swing frames + the picks they came from. */
+interface SwingFrames {
+  swing: DetectedSwing;
+  picks: FramePick[];
+  b64: string[];
+}
+
+type GrabStatus = 'idle' | 'grabbing' | 'done' | 'error';
+
+export function SegmentedSwings({
+  poseSamples,
+  videoBlob,
+}: {
+  poseSamples: PoseSample[];
+  videoBlob: Blob;
+}) {
+  // Segmentation is pure and cheap — derive it, don't store it.
+  const session = useMemo(() => detectSessionSwings(poseSamples), [poseSamples]);
+
+  const [frames, setFrames] = useState<SwingFrames[]>([]);
+  const [status, setStatus] = useState<GrabStatus>('idle');
+  const [progress, setProgress] = useState(0);
+  const [lightbox, setLightbox] = useState<{ b64: string; label: string } | null>(null);
+
+  const multi = session.swings.length > 1;
+
+  useEffect(() => {
+    // Only a MULTI-swing clip gets this treatment; one swing (or none) is exactly
+    // what the existing single-envelope view already renders correctly. No state
+    // reset needed on this branch — the component renders null, and a later
+    // multi-swing clip clears the previous frames when its grab starts below.
+    if (!multi) return;
+    let cancelled = false;
+    (async () => {
+      setFrames([]);
+      setProgress(0);
+      setStatus('grabbing');
+      try {
+        const out: SwingFrames[] = [];
+        for (const [i, swing] of session.swings.entries()) {
+          // Same call production makes per clip — but bounded to THIS segment, which
+          // is the whole point of ADR-003: the envelope's global measures become
+          // per-segment measures for free.
+          const sel = selectEnvelopeFrames(
+            swing.envelope,
+            ANALYSIS_FRAME_COUNT,
+            swing.candidate.startSec,
+            swing.candidate.endSec,
+          );
+          const e = swing.envelope;
+          log.info(`swing ${i + 1}/${session.swings.length}`, {
+            envelopeSec: [round(e.startSec), round(e.finishSec)],
+            envelopeDurationSec: round(e.finishSec - e.startSec),
+            impactSec: round(swing.impactSec),
+            downswingSec: round(e.impact?.downswingSec ?? NaN),
+            verticalExcursion: round(e.addressY - e.apexY),
+            frameCount: sel.picks.length,
+            impactClusterApplied: sel.impactClusterApplied,
+            segmentSec: [round(swing.candidate.startSec), round(swing.candidate.endSec)],
+            peakSpeed: round(e.peakSpeed),
+            visibleFrac: round(e.visibleFrac),
+          });
+
+          const b64 = await grabFramesAtTimes(
+            videoBlob,
+            sel.picks.map((p) => p.t),
+          );
+          if (cancelled) return;
+          out.push({ swing, picks: sel.picks, b64 });
+          setProgress(i + 1);
+          // Publish incrementally: on a 64 s 4K clip each swing takes a few seconds
+          // of seeking, and watching swing 1 while 2 and 3 load beats a blank panel.
+          setFrames([...out]);
+        }
+        if (!cancelled) setStatus('done');
+      } catch (err) {
+        if (!cancelled) {
+          setStatus('error');
+          log.error('Segment frame grab failed', err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [multi, session, videoBlob]);
+
+  if (!multi) return null;
+
+  return (
+    <div className="rounded-lg border-2 border-fuchsia-600/60 bg-fuchsia-950/20">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-fuchsia-600/40">
+        <span className="text-xs font-bold uppercase tracking-wide text-fuchsia-300">
+          ⚗︎ Segmentation view — dev only
+        </span>
+        <span className="text-[10px] font-mono text-fuchsia-400/80">
+          {session.swings.length} swings
+        </span>
+      </div>
+
+      <p className="px-3 pt-2 text-[10px] text-fuchsia-200/70 leading-relaxed">
+        Not the production path. Production (<code>frameExtractor</code>) sends ONE
+        {' '}
+        {ANALYSIS_FRAME_COUNT}-frame set for the whole clip — the grid further down.
+        This panel is <code>detectSessionSwings</code> (ADR-003 steg A + C), one
+        allocation per detected swing. Wiring it into capture is D-5.
+      </p>
+
+      <div className="px-3 py-2 text-[10px] font-mono text-fg-dim">
+        refSpeed(p95) {session.refSpeed.toFixed(3)} · candidates{' '}
+        {session.segmentation.candidates.length} · accepted {session.swings.length} ·
+        rejected {session.rejected.length}
+        {status === 'grabbing' && (
+          <span className="text-sky-400">
+            {' '}
+            · grabbing frames… {progress}/{session.swings.length}
+          </span>
+        )}
+        {status === 'error' && <span className="text-red-400"> · grab failed (see Logs)</span>}
+      </div>
+
+      <div className="px-3 pb-3 space-y-4">
+        {frames.map(({ swing, picks, b64 }, si) => (
+          <SwingSection
+            key={si}
+            index={si}
+            total={session.swings.length}
+            swing={swing}
+            picks={picks}
+            b64={b64}
+            poseSamples={poseSamples}
+            onZoom={setLightbox}
+          />
+        ))}
+
+        {session.rejected.length > 0 && (
+          <details className="text-[10px] font-mono text-faint">
+            <summary className="cursor-pointer text-fuchsia-300/70">
+              {session.rejected.length} rejected candidates
+            </summary>
+            <ul className="mt-1 space-y-0.5 pl-2">
+              {session.rejected.map((r, i) => (
+                <li key={i}>
+                  [{r.candidate.startSec.toFixed(2)}–{r.candidate.endSec.toFixed(2)}] pk{' '}
+                  {r.candidate.peakSpeed.toFixed(2)} — {r.reason}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <img src={`data:image/jpeg;base64,${lightbox.b64}`} alt={lightbox.label} className="max-h-[85vh] max-w-full object-contain" />
+          <span className="mt-2 text-xs font-mono text-fg-dim">{lightbox.label}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SwingSection({
+  index,
+  total,
+  swing,
+  picks,
+  b64,
+  poseSamples,
+  onZoom,
+}: {
+  index: number;
+  total: number;
+  swing: DetectedSwing;
+  picks: FramePick[];
+  b64: string[];
+  poseSamples: PoseSample[];
+  onZoom: (v: { b64: string; label: string }) => void;
+}) {
+  const e = swing.envelope;
+  const excursion = e.addressY - e.apexY;
+  // Badge the pick NEAREST the impact timestamp, not one matching it exactly. The
+  // impact cluster is laid out around impact at its own spacing and then deduped
+  // against the uniform baseline, so no pick is guaranteed to land on the exact
+  // millisecond — an equality test would silently badge nothing, which is worse than
+  // useless on a panel whose job is to make impact easy to eyeball.
+  const impactIdx =
+    e.impact === null
+      ? -1
+      : picks.reduce(
+          (best, p, i) =>
+            Math.abs(p.t - e.impact!.timeSec) < Math.abs(picks[best].t - e.impact!.timeSec)
+              ? i
+              : best,
+          0,
+        );
+  return (
+    <div className="rounded-lg bg-surface/60 overflow-hidden">
+      <div className="px-2 py-1.5 bg-surface">
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs font-semibold text-fuchsia-200">
+            Swing {index + 1} / {total}
+          </span>
+          <span className="text-[10px] font-mono text-fg-dim">
+            {b64.length} frames
+          </span>
+        </div>
+        <div className="text-[10px] font-mono text-muted mt-0.5">
+          envelope [{e.startSec.toFixed(2)} → {e.finishSec.toFixed(2)}] ={' '}
+          {(e.finishSec - e.startSec).toFixed(2)}s ·{' '}
+          <span className="text-emerald-300">impact {swing.impactSec.toFixed(2)}</span> · ds{' '}
+          {e.impact?.downswingSec.toFixed(2) ?? '—'}s · exc {excursion.toFixed(3)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1 p-1">
+        {b64.map((img, i) => {
+          const t = picks[i]?.t ?? 0;
+          const isImpact = i === impactIdx;
+          const label = `swing ${index + 1} · ${t.toFixed(2)}s${picks[i]?.phase ? ` · ${picks[i].phase}` : ''}`;
+          return (
+            <button
+              key={i}
+              onClick={() => onZoom({ b64: img, label })}
+              className={`relative rounded overflow-hidden border cursor-zoom-in ${
+                isImpact ? 'border-emerald-400' : 'border-line'
+              }`}
+            >
+              <img
+                src={`data:image/jpeg;base64,${img}`}
+                alt={label}
+                className="w-full aspect-video object-cover"
+              />
+              <SkeletonOverlay sample={nearestSample(poseSamples, t)} fit="cover" />
+              <span className="absolute bottom-0 right-0 px-1 bg-black/70 text-[9px] font-mono">
+                {t.toFixed(2)}
+              </span>
+              {isImpact && (
+                <span className="absolute top-0 left-0 px-1 bg-emerald-600 text-[9px] font-bold">
+                  IMP
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** 3 dp — enough to compare against the harness goldens, short enough to read. */
+function round(n: number): number {
+  return Math.round(n * 1e3) / 1e3;
+}

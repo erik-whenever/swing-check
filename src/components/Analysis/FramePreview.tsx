@@ -5,6 +5,7 @@ import { SkeletonOverlay } from './SkeletonOverlay';
 import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
 import { detectSwingEnvelope, type SwingEnvelope } from '../../lib/poseEnvelope';
+import { SegmentedSwings } from './SegmentedSwings';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 
@@ -145,6 +146,14 @@ export function FramePreview() {
         {/* Read-only envelope verification (dev only). The frames below ARE this
             selection — this panel just surfaces the boundaries it was built from. */}
         {DEV_PREVIEW && <EnvelopeSummary envelope={envelope} />}
+
+        {/* ADR-003 segmentation view (dev only). Renders itself ONLY when the clip
+            holds more than one swing; one swing or none leaves everything below
+            exactly as it was, because that is the case the single-envelope path
+            already gets right. Read-only — nothing here reaches the Vision call. */}
+        {DEV_PREVIEW && poseSamples && videoBlob && (
+          <SegmentedSwings poseSamples={poseSamples} videoBlob={videoBlob} />
+        )}
 
         <p className="text-xs text-muted">
           {meta.length} frames selected from recording. Swing start detected at
