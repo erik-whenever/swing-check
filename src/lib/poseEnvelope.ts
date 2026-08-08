@@ -26,7 +26,15 @@ import type { PoseSample } from './poseTrajectory';
 // ── Tunables ─────────────────────────────────────────────────────────────────
 const WRIST_LEFT = 15;
 const WRIST_RIGHT = 16;
-/** Landmark visibility below this is treated as unreliable (matches overlay). */
+/**
+ * Landmark visibility below this is treated as unreliable (matches overlay).
+ * NOTE: this is NOT a filter on the position series any more — the hand position is a
+ * visibility-WEIGHTED midpoint of both wrists and discards nothing (see below). The
+ * threshold now only decides (a) which wrist is reported as `trackedWrist` and (b)
+ * whether a frame counts toward `visibleFrac`, i.e. the "can we see the golfer at all"
+ * guard. Using it to reject coordinates was the bug: MediaPipe's `visibility` is an
+ * occlusion score, not a position-quality score.
+ */
 const MIN_VISIBILITY = 0.4;
 /** Moving-average half-window (samples) applied to position + speed. */
 const SMOOTH_HALF = 1;
@@ -91,10 +99,18 @@ const IMPACT_HEIGHT_TOL = 0.12;
  * nearest approach must be genuinely close, so a clip that never brings the wrists back
  * near address (e.g. clipped before contact) still yields no impact — the tolerance
  * must NOT make impact "always true".
- * OSÄKER: 0.05 assumes the wrists return to within ~0.05 of address at real contact;
- * a very steep/flat face-on path could need a touch more. Field-tune on real clips.
+ * RETUNED 0.05 → 0.07 against the weighted-midpoint signal (2026-08-06). At 15 fps the
+ * exact contact frame is simply not in the data, so the closest SMOOTHED approach falls
+ * a little short of address height. Measured on session-multi's three swings: 0.063,
+ * 0.056 and (once its burst is admitted) a comparable value — all real contacts, all
+ * rejected at 0.05. 0.07 clears them with ~10 % margin while staying well inside
+ * IMPACT_HEIGHT_TOL (0.12), so a clip that never brings the hands back near address
+ * still yields no impact. The tolerance must not make impact "always true"; verified by
+ * dtl-clipped, which still returns impact = null.
+ * OSÄKER: 0.07 is calibrated at 15 fps. A higher sampling rate would land closer to
+ * true contact and could take this back down; re-measure if SAMPLE_FPS changes.
  */
-const IMPACT_ADDRESS_TOL = 0.05;
+const IMPACT_ADDRESS_TOL = 0.07;
 /**
  * MINIMUM DOWNSWING TIME. A real top → impact is ~0.2–0.3 s. If the detected
  * impact lands sooner than this after the (local) top, the read has collapsed →
@@ -136,12 +152,21 @@ export interface SwingEnvelope {
   /** Why impact was or wasn't accepted (for the log), even when impact is null. */
   impactReason: string;
   // ── diagnostics ──
-  /** Which wrist drove the read (better-tracked of 15/16). */
+  /**
+   * Better-tracked wrist (15/16) by total visibility. DIAGNOSTIC ONLY — the position
+   * series is a weighted midpoint of BOTH wrists, so this names the dominant one, not
+   * "the one that was used".
+   */
   trackedWrist: 'left' | 'right';
   visibleFrac: number;
   sampleDt: number;
   addressY: number;
-  /** y of the backswing top (local apex). */
+  /**
+   * y of the ENVELOPE apex — the highest point (min y) anywhere in [start, finish].
+   * Always meaningful, with or without a confident impact, which is what makes
+   * `addressY − apexY` usable as a "did the hands rise?" test. NOT the backswing top:
+   * that one is bounded by impact (see `impact.topSec`) and is undefined without it.
+   */
   apexY: number;
   /** y of the finish landmark (global apex, or clip-protected end). */
   finishY: number;
@@ -198,24 +223,50 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
 
   if (n < 6) return fail('too few pose samples');
 
-  // ── Pick the better-tracked wrist ─────────────────────────────────────────
+  // ── Hand position = VISIBILITY-WEIGHTED MIDPOINT of both wrists ────────────
+  // Both hands are on the same grip, so they are one physical object — track it as
+  // one. Each frame's position is the visibility-weighted mean of the two wrists:
+  //
+  //     pos = (pL·vL + pR·vR) / (vL + vR)
+  //
+  // The well-tracked wrist dominates; the occluded one fades out smoothly. No
+  // per-frame switching, no discarded frames, no interpolation over real data.
+  //
+  // This replaces `primary ?? backup`, a per-frame fallback that broke in three ways
+  // at once (all measured on __fixtures__/session-multi.json, 63 s, 3 swings, and
+  // dtl-full.json):
+  //  1. OFFSET JUMPS. The wrists sit ~0.4 apart in normalized x. Through every
+  //     follow-through the trail wrist is occluded and its `visibility` oscillates
+  //     across MIN_VISIBILITY (measured 0.28 → 0.55 over ~0.7 s), so the series
+  //     snapped between the two — a ~0.35 jump in x in ONE frame, an apparent speed
+  //     of 2.23 (the clip's highest). The downswing search then locked onto that
+  //     artefact instead of impact, after every swing. Removing it halves the peak:
+  //     session-multi 2.229 → 1.173, dtl-full 1.710 → 0.978.
+  //  2. TRUSTING AN OCCLUDED LANDMARK'S POSITION. MediaPipe keeps emitting smooth,
+  //     plausible coordinates for a hidden wrist — in dtl-full the trail wrist glides
+  //     x 0.204 → 0.553 at visibility 0.12–0.36 while the hands are in fact HELD at
+  //     the finish. The lead wrist (visibility 0.50–0.71) shows the truth. Weighting
+  //     by visibility is exactly the statement "believe the wrist we can see".
+  //  3. WHICH WRIST IS RELIABLE CHANGES WITHIN THE SWING. Down-the-line: trail wrist
+  //     at address, lead wrist at the finish, because the hidden one is behind the
+  //     body. So no single-wrist series works either — it loses the finish, the very
+  //     landmark ADR-002 anchors the envelope on (dtl-full finish 8.38 → 9.31).
+  //
+  // Measured effect on the envelope shape, which is the real win: session-multi's
+  // swings now yield clean ~1.60 s envelopes ending at the follow-through apex,
+  // instead of stretching a further ~1.1 s into the post-swing club-lowering.
   const leftVisible = countVisible(samples, WRIST_LEFT);
   const rightVisible = countVisible(samples, WRIST_RIGHT);
   const trackedWrist: 'left' | 'right' =
     rightVisible >= leftVisible ? 'right' : 'left';
-  const primary = trackedWrist === 'right' ? WRIST_RIGHT : WRIST_LEFT;
-  const backup = trackedWrist === 'right' ? WRIST_LEFT : WRIST_RIGHT;
 
-  // ── Build the wrist position series, filling occlusions ────────────────────
-  // Prefer the primary wrist; fall back to the other wrist per-frame; leave null
-  // where neither is visible, then linearly interpolate the gaps.
-  const raw: (Vec | null)[] = samples.map((s) => {
-    const p = usable(s, primary);
-    if (p) return p;
-    const b = usable(s, backup);
-    return b ?? null;
-  });
-  const visibleFrac = raw.filter((p) => p !== null).length / n;
+  const raw: (Vec | null)[] = samples.map((s) => weightedHands(s));
+  // Quality gate stays a VISIBILITY question even though the series no longer filters
+  // on it: a frame counts as tracked when at least one wrist clears MIN_VISIBILITY.
+  // Without this the fraction would be ~1.0 for any clip where MediaPipe emitted
+  // landmarks at all, and the guard would stop guarding.
+  const visibleFrac =
+    samples.filter((s) => usable(s, WRIST_LEFT) || usable(s, WRIST_RIGHT)).length / n;
   if (visibleFrac < MIN_VISIBLE_FRAC) {
     return fail('low wrist visibility', { trackedWrist, visibleFrac });
   }
@@ -396,7 +447,8 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
   }
 
   // Backswing top = highest point (min y) BEFORE impact — the follow-through, which is
-  // after impact, cannot contaminate it.
+  // after impact, cannot contaminate it. Used ONLY for downswingSec, so it is fine that
+  // it collapses to startIdx when there is no impact to bound it.
   let topIdx = startIdx;
   let topY = pos[startIdx].y;
   for (let i = startIdx; i < Math.max(startIdx + 1, impactIdx); i++) {
@@ -405,6 +457,30 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
       topIdx = i;
     }
   }
+
+  // ENVELOPE APEX = highest point (min y) over the WHOLE envelope, impact or not.
+  //
+  // This is what `apexY` reports, and it is deliberately NOT `topY`. `topY` is bounded
+  // by `impactIdx`, so on an envelope with no confident impact the loop above does not
+  // execute and `topY` degenerates to the position at `startIdx` — i.e. address height,
+  // giving a vertical excursion of ~0. Any consumer testing "did the hands go UP?"
+  // against that reads a real swing as a ball pickup. The segmentation gate did exactly
+  // that, which is why removing impact from its accept criteria requires this first.
+  //
+  // Over the whole envelope the minimum is the follow-through apex (hands highest at the
+  // finish, ADR-002's anchor) rather than the backswing top, and for the excursion
+  // question — did the hands rise, or is this someone bending down for a ball? — that is
+  // the better measure of the two: it is the swing's true vertical extent and it exists
+  // whether or not impact was verified.
+  let apexIdx = startIdx;
+  let apexY = pos[startIdx].y;
+  for (let i = startIdx; i <= finishIdx; i++) {
+    if (pos[i].y < apexY) {
+      apexY = pos[i].y;
+      apexIdx = i;
+    }
+  }
+  void apexIdx; // index itself isn't part of the contract; the height is
 
   // Evaluate impact confidence. Any failure → impact stays null (pure baseline).
   let impact: EnvelopeImpact | null = null;
@@ -443,7 +519,7 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
     visibleFrac,
     sampleDt,
     addressY,
-    apexY: topY,
+    apexY,
     finishY,
     peakSpeed,
     debug: {
@@ -465,6 +541,27 @@ function usable(sample: PoseSample, idx: number): Vec | null {
   if (!p) return null;
   if (p.visibility !== undefined && p.visibility < MIN_VISIBILITY) return null;
   return { x: p.x, y: p.y };
+}
+
+/**
+ * Visibility-weighted midpoint of the two wrists — the hands as ONE object.
+ * No visibility floor: a low-visibility wrist is down-weighted, not discarded, so a
+ * partly-occluded frame still carries the half of the signal we can see. Returns null
+ * only when MediaPipe emitted neither wrist at all (then interpolation fills the gap).
+ * A landmark without a `visibility` field is treated as fully visible, matching
+ * `usable()`.
+ */
+function weightedHands(sample: PoseSample): Vec | null {
+  const l = sample.landmarks[WRIST_LEFT];
+  const r = sample.landmarks[WRIST_RIGHT];
+  const wl = l ? (l.visibility ?? 1) : 0;
+  const wr = r ? (r.visibility ?? 1) : 0;
+  const sum = wl + wr;
+  if (sum <= 0) return null;
+  return {
+    x: ((l ? l.x * wl : 0) + (r ? r.x * wr : 0)) / sum,
+    y: ((l ? l.y * wl : 0) + (r ? r.y * wr : 0)) / sum,
+  };
 }
 
 function countVisible(samples: PoseSample[], idx: number): number {
