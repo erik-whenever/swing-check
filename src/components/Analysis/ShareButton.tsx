@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSessionStore } from '../../store/session';
+import { useSessionStore, selectPrimarySwing } from '../../store/session';
 import { useRulesStore } from '../../store/rules';
 import { useToastStore } from '../../store/toast';
 import { exportSwingClip, isClipExportSupported, type OverlayLine } from '../../lib/videoExport';
@@ -26,7 +26,7 @@ function triggerDownload(blob: Blob, filename: string) {
  */
 export function ShareButton() {
   const videoBlob = useSessionStore((s) => s.currentVideoBlob);
-  const analysis = useSessionStore((s) => s.currentAnalysis);
+  const analysis = useSessionStore(selectPrimarySwing)?.analysis ?? null;
   const rules = useRulesStore((s) => s.rules);
   const showToast = useToastStore((s) => s.show);
   const [busy, setBusy] = useState(false);

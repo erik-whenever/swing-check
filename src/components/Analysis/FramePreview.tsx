@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSessionStore } from '../../store/session';
+import { useSessionStore, selectPrimarySwing } from '../../store/session';
 import { FrameLightbox } from './FrameLightbox';
 import { SkeletonOverlay } from './SkeletonOverlay';
 import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
 import { detectSwingEnvelope, type SwingEnvelope } from '../../lib/poseEnvelope';
+import type { FrameMeta } from '../../lib/frameExtractor';
 import { SegmentedSwings } from './SegmentedSwings';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 
+/** Stable empty array so `meta` keeps its identity when there is no swing. */
+const EMPTY_META: FrameMeta[] = [];
+
 export function FramePreview() {
-  const meta = useSessionStore((s) => s.currentFrameMeta);
+  // Preview of the single-swing selection: swings[0]. Multi-swing preview is the
+  // SegmentedSwings panel below (dev only) until D-5 pass 2 wires it into capture.
+  const swing = useSessionStore(selectPrimarySwing);
+  const meta = swing?.frameMeta ?? EMPTY_META;
   const videoBlob = useSessionStore((s) => s.currentVideoBlob);
   const setView = useSessionStore((s) => s.setView);
-  const setIsAnalyzing = useSessionStore((s) => s.setIsAnalyzing);
-  const setCurrentFrames = useSessionStore((s) => s.setCurrentFrames);
-  const setCurrentFrameMeta = useSessionStore((s) => s.setCurrentFrameMeta);
+  const updateSwing = useSessionStore((s) => s.updateSwing);
+  const clearSwings = useSessionStore((s) => s.clearSwings);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -66,13 +72,14 @@ export function FramePreview() {
   const swingStartIndex = meta.findIndex((m) => m.isSwingStart);
 
   const handleSend = () => {
-    setIsAnalyzing(true);
+    // Flip status before the view switch so the analysis view opens on its
+    // spinner rather than flashing "no analysis yet".
+    if (swing) updateSwing(swing.id, { status: 'analyzing' });
     setView('analysis');
   };
 
   const handleDiscard = () => {
-    setCurrentFrames([]);
-    setCurrentFrameMeta([]);
+    clearSwings();
     setView('camera');
   };
 

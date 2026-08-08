@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { useSessionStore } from '../../store/session';
+import { useSessionStore, selectPrimarySwing } from '../../store/session';
 import { useRulesStore } from '../../store/rules';
 import { useSettingsStore } from '../../store/settings';
 import { useHistory } from '../../hooks/useHistory';
@@ -26,12 +26,12 @@ import { createLogger } from '../../lib/logger';
 const log = createLogger('AnalysisView');
 
 export function AnalysisView() {
-  const currentFrames = useSessionStore((s) => s.currentFrames);
+  // Single-swing view: renders swings[0]. A session holding N swings gets its own
+  // view in D-5 pass 2; the state layer below is already per swing (ADR-003 §5.4).
+  const swing = useSessionStore(selectPrimarySwing);
   const currentVideoBlob = useSessionStore((s) => s.currentVideoBlob);
-  const currentAnalysis = useSessionStore((s) => s.currentAnalysis);
-  const setCurrentAnalysis = useSessionStore((s) => s.setCurrentAnalysis);
-  const isAnalyzing = useSessionStore((s) => s.isAnalyzing);
-  const setIsAnalyzing = useSessionStore((s) => s.setIsAnalyzing);
+  const updateSwing = useSessionStore((s) => s.updateSwing);
+  const clearSwings = useSessionStore((s) => s.clearSwings);
   const focusRuleId = useSessionStore((s) => s.focusRuleId);
   const setView = useSessionStore((s) => s.setView);
   const analysisAngle = useSessionStore((s) => s.analysisAngle);
@@ -57,11 +57,11 @@ export function AnalysisView() {
     restartTimerRef.current = setTimeout(() => {
       restartTimerRef.current = null;
       if (!useSessionStore.getState().sessionActive) return;
-      setCurrentAnalysis(null);
+      clearSwings();
       requestAutoRecord();
       setView('camera');
     }, SESSION_RESTART_MS);
-  }, [clearRestartTimer, requestAutoRecord, setCurrentAnalysis, setView]);
+  }, [clearRestartTimer, requestAutoRecord, clearSwings, setView]);
 
   const rules = useRulesStore((s) => s.rules);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
@@ -72,27 +72,38 @@ export function AnalysisView() {
     (r) => r.active && ruleMatchesAngle(r, cameraAngle),
   );
   const { saveRecord } = useHistory();
-  const [error, setError] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
 
-  useEffect(() => {
-    if (currentFrames.length === 0 || activeRules.length === 0 || currentAnalysis) return;
+  const swingId = swing?.id ?? null;
+  const frames = swing?.frames ?? [];
+  const analysis = swing?.analysis ?? null;
+  const status = swing?.status ?? null;
+  const error = swing?.status === 'failed' ? swing.error : null;
 
+  useEffect(() => {
+    // Re-reading from the store rather than closing over `swing` keeps this effect
+    // keyed on the swing's IDENTITY: the status/analysis patches it writes below
+    // replace the object but not the id, so it never re-triggers itself.
+    const current = useSessionStore.getState().swings.find((w) => w.id === swingId);
+    if (!current || !swingId) return;
+    if (current.frames.length === 0 || activeRules.length === 0) return;
+    if (current.analysis || current.status === 'failed') return;
+
+    const swingFrames = current.frames;
     let cancelled = false;
-    setError(null);
 
     async function run() {
-      setIsAnalyzing(true);
+      updateSwing(swingId!, { status: 'analyzing', error: null });
       setAnalysisAngle(cameraAngle);
       const startedAt = performance.now();
       log.info('Lifecycle: sending', {
-        frames: currentFrames.length,
+        frames: swingFrames.length,
         activeRules: activeRules.length,
         cameraAngle,
         focusRuleId: focusRuleId ?? null,
       });
       try {
-        const analysis = await analyzeSwing(currentFrames, activeRules, {
+        const analysis = await analyzeSwing(swingFrames, activeRules, {
           focusRuleId: focusRuleId ?? undefined,
           cameraAngle: ANGLE_TO_PROMPT[cameraAngle],
           quickMode: ttsEnabled && ttsMode === 'quick',
@@ -100,7 +111,7 @@ export function AnalysisView() {
         const receivedMs = Math.round(performance.now() - startedAt);
         log.info('Lifecycle: received', { phaseMs: receivedMs });
         if (cancelled) return;
-        setCurrentAnalysis(analysis);
+        updateSwing(swingId!, { analysis, status: 'done' });
 
         const inSession = sessionActive;
         if (ttsEnabled) {
@@ -125,7 +136,7 @@ export function AnalysisView() {
             id: uuid(),
             timestamp: Date.now(),
             videoBlob: currentVideoBlob,
-            frames: currentFrames,
+            frames: swingFrames,
             results: [
               ...(analysis.focus_rule ? [analysis.focus_rule] : []),
               ...analysis.rules,
@@ -147,11 +158,9 @@ export function AnalysisView() {
             error: msg,
             elapsedMs: Math.round(performance.now() - startedAt),
           });
-          setError(msg);
+          updateSwing(swingId!, { status: 'failed', error: msg });
           if (ttsEnabled) speak(TTS_FAILED);
         }
-      } finally {
-        if (!cancelled) setIsAnalyzing(false);
       }
     }
 
@@ -159,8 +168,11 @@ export function AnalysisView() {
     return () => {
       cancelled = true;
     };
+    // `frames.length` is in the deps because a swing can reach this view while
+    // still `extracting` (empty frames): the effect bails, then re-fires once the
+    // frames land. Without it that swing would sit on the spinner forever.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFrames]);
+  }, [swingId, frames.length]);
 
   // Stop any in-flight speech and pending auto-restart when leaving the analysis view.
   useEffect(() => {
@@ -191,13 +203,13 @@ export function AnalysisView() {
     );
   }
 
-  if (isAnalyzing) {
+  if (status === 'extracting' || status === 'analyzing') {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6">
         <div className="w-10 h-10 border-4 border-accent-press border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-sm text-muted">Analyzing your swing...</p>
         <p className="text-xs text-faint mt-1">
-          {currentFrames.length} frames sent to Claude Vision
+          {frames.length} frames sent to Claude Vision
         </p>
       </div>
     );
@@ -210,8 +222,7 @@ export function AnalysisView() {
         <p className="text-sm text-muted mb-4">{error}</p>
         <button
           onClick={() => {
-            setError(null);
-            setCurrentAnalysis(null);
+            clearSwings();
             setView('camera');
           }}
           className="px-4 py-2 bg-accent-press rounded-lg text-sm"
@@ -222,7 +233,7 @@ export function AnalysisView() {
     );
   }
 
-  if (!currentAnalysis) {
+  if (!analysis) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
         <p className="text-muted">No analysis yet. Record a swing first.</p>
@@ -237,7 +248,7 @@ export function AnalysisView() {
   }
 
   const { focus_rule, rules: ruleResults, overall_assessment, frame_quality, cannot_determine_reasons } =
-    currentAnalysis;
+    analysis;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -273,7 +284,7 @@ export function AnalysisView() {
         )}
 
         {/* Frame viewer */}
-        <FrameViewer frames={currentFrames} />
+        <FrameViewer frames={frames} />
 
         {/* Quality badge + the angle this swing was analyzed with */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -294,7 +305,7 @@ export function AnalysisView() {
             </span>
           )}
           <span className="text-xs text-faint">
-            detected: {currentAnalysis.camera_angle_detected}
+            detected: {analysis.camera_angle_detected}
           </span>
         </div>
 
@@ -312,7 +323,7 @@ export function AnalysisView() {
             <RuleResultCard
               result={focus_rule}
               isFocus
-              detectedAngle={currentAnalysis.camera_angle_detected}
+              detectedAngle={analysis.camera_angle_detected}
             />
           </div>
         )}
@@ -327,7 +338,7 @@ export function AnalysisView() {
               <RuleResultCard
                 key={result.id}
                 result={result}
-                detectedAngle={currentAnalysis.camera_angle_detected}
+                detectedAngle={analysis.camera_angle_detected}
               />
             ))}
           </div>
@@ -353,7 +364,7 @@ export function AnalysisView() {
         {/* New swing button */}
         <button
           onClick={() => {
-            setCurrentAnalysis(null);
+            clearSwings();
             setView('camera');
           }}
           className="w-full py-3 bg-accent-press hover:bg-accent rounded-lg text-sm font-medium transition-colors"

@@ -1,8 +1,9 @@
 # ADR-003 (UTKAST) — Kontinuerligt sessionsläge: från "ett klipp = en sving" till N svingar i en ström
 
-- **Status:** **Steg A + C byggda och mätta** (2026-08-06). §4 (strömmande fångst) och §5
-  (feedback per sving) är fortfarande utkast. Pendlar på Eriks perceptuella verifiering av
-  session-multis tre svingar och av face-ons nya finish (4,70).
+- **Status:** **Steg A + C byggda och mätta** (2026-08-06); **§5.4 (session-store som lista)
+  byggd** (2026-08-08, D-5 pass 1 — se §5.4 nedan). §4 (strömmande fångst) och resten av §5
+  (analyskö, serialiserad TTS) är fortfarande utkast. Pendlar på Eriks perceptuella
+  verifiering av session-multis tre svingar och av face-ons nya finish (4,70).
 - **Datum:** 2026-08-06
 - **Ström:** D (pose-estimering) + ny ström för sessionsfångst
 - **Bygger på:** [ADR-002](ADR-002-stream-d-envelope-inversion.md) (envelope som primär selektor,
@@ -128,8 +129,38 @@ också ha ett maximum.* Ett ensidigt intervall degraderar inte — det kollapsar
 - Frame-grab + Vision-anrop **per accepterad sving**, i en kö (sving N+1 får detekteras
   medan N analyseras).
 - Session-store: `currentAnalysis: SwingAnalysis | null` → `swings: SessionSwing[]` med
-  status `detected | extracting | analyzing | done | failed`.
+  status `detected | extracting | analyzing | done | failed`. **BYGGD (D-5 pass 1,
+  2026-08-08)** — se nedan.
 - TTS serialiseras — två svar får aldrig tala samtidigt.
+
+#### 5.4 byggd: session-store som lista (D-5 pass 1, 2026-08-08)
+
+`store/session.ts` bär nu `swings: SessionSwing[]`; `currentFrames`, `currentFrameMeta`,
+`currentAnalysis` och `isAnalyzing` är borta. Varje `SessionSwing` är
+`{ id, status, envelopeSec, impactSec, frames, frameMeta, analysis, error }` med sin egen
+livscykel, och listan muteras additivt via `addSwing` / `updateSwing` / `removeSwing` /
+`clearSwings`.
+
+**Varför den globala `isAnalyzing` var själva blockeringen:** den kodade "sessionen är
+upptagen" och "den här svingen väntar på svar" i samma bit. Så länge den fanns kunde sving
+N+1 inte ens *representeras* medan N analyserades — inte som ett bristande vyskikt, utan
+som en omöjlighet i typen. De två betydelserna är nu åtskilda: `swing.status` är per sving,
+och det som genuint är sessionsvitt (lås inspelningsknappar, grinda hands-free-loopen) är
+selektorn `selectAnySwingBusy` som *härleds* ur listan i stället för att skrivas separat.
+Enkelsvingsvyerna läser `selectPrimarySwing` (`swings[0]`), så enkelsvingsflödet är
+funktionellt oförändrat: ett klipp blir en session med exakt en sving.
+
+**Ärlig avgränsning.** `envelopeSec`/`impactSec` är i pass 1 **härledda** ur de valda
+framesen (`swingFromExtraction`) — `frameExtractor.ts` returnerar inte envelopen den valde
+ur, och pass 1 rör inte den filen. Spannet är därför envelopen på pose-vägen men
+*rörelsefönstret* på pixel-diff-fallbacken, och `impactSec` är null när ingen frame märktes
+`impact` (vilket är precis när envelopen saknade confident impact — ADR-002:s princip
+oförändrad). Pass 2 ersätter båda med `DetectedSwing`-värdena, som är de riktiga.
+`analysisAngle` ligger kvar globalt och hör hemma per sving; den flyttas i pass 2.
+
+Regressionsvakt: `src/store/session.test.ts` asserterar oberoendet direkt (N+1 `detected`
+medan N `analyzing`), att patchar inte korsar, att oförändrade svingar behåller
+objektsidentitet (selektorstabilitet) samt härledningen ovan. Test 32/32.
 
 ## Genomfört (delvis, i förväg)
 

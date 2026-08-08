@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
 import { extractFrames, ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
-import { useSessionStore } from '../../store/session';
+import {
+  useSessionStore,
+  selectAnySwingBusy,
+  swingFromExtraction,
+} from '../../store/session';
 import { useSettingsStore } from '../../store/settings';
 import { cancelSpeech, isSpeaking, speak, TTS_ANALYZING } from '../../lib/tts';
 import { RecordButton } from './RecordButton';
@@ -26,13 +30,14 @@ export function CameraView() {
   } = useCamera();
 
   const setCurrentVideoBlob = useSessionStore((s) => s.setCurrentVideoBlob);
-  const setCurrentFrames = useSessionStore((s) => s.setCurrentFrames);
-  const setCurrentFrameMeta = useSessionStore((s) => s.setCurrentFrameMeta);
   const setView = useSessionStore((s) => s.setView);
   const view = useSessionStore((s) => s.view);
-  const isAnalyzing = useSessionStore((s) => s.isAnalyzing);
-  const setCurrentAnalysis = useSessionStore((s) => s.setCurrentAnalysis);
-  const setIsAnalyzing = useSessionStore((s) => s.setIsAnalyzing);
+  const addSwing = useSessionStore((s) => s.addSwing);
+  const updateSwing = useSessionStore((s) => s.updateSwing);
+  const clearSwings = useSessionStore((s) => s.clearSwings);
+  // Session-wide busy flag: any swing extracting or analyzing blocks capture.
+  // Per-swing state lives on the swing itself (ADR-003 §5.4).
+  const anySwingBusy = useSessionStore(selectAnySwingBusy);
 
   // Session mode (hands-free multi-swing)
   const sessionActive = useSessionStore((s) => s.sessionActive);
@@ -65,23 +70,31 @@ export function CameraView() {
   const processVideo = async (blob: Blob) => {
     setCurrentVideoBlob(blob);
     setProgress(0);
+    // Single-swing flow: one clip becomes a session holding exactly one swing.
+    // Segmentation (D-5 pass 2) will append several here from the same clip.
+    clearSwings();
+    const swingId = addSwing({ status: 'extracting' });
     try {
       const { selected, meta } = await extractFrames(blob, ANALYSIS_FRAME_COUNT, 0.8, {
         onProgress: setProgress,
       });
-      setCurrentAnalysis(null);
-      setCurrentFrames(selected);
-      setCurrentFrameMeta(meta);
+      updateSwing(swingId, {
+        ...swingFromExtraction(selected, meta),
+        status: DEV_PREVIEW ? 'detected' : 'analyzing',
+      });
 
       if (DEV_PREVIEW) {
         setView('preview');
       } else {
+        // Status flips to 'analyzing' above, before the view switch, so the
+        // analysis view opens on its spinner instead of flashing "no analysis".
         if (ttsEnabled) speak(TTS_ANALYZING);
-        setIsAnalyzing(true);
         setView('analysis');
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Frame extraction failed:', err);
+      updateSwing(swingId, { status: 'failed', error: msg });
     } finally {
       setProgress(null);
     }
@@ -115,7 +128,7 @@ export function CameraView() {
   // Auto-start the next swing's recording when the analysis view requests it.
   useEffect(() => {
     if (!autoRecordPending) return;
-    if (!isStreaming || isRecording || isCounting || isAnalyzing || progress !== null) return;
+    if (!isStreaming || isRecording || isCounting || anySwingBusy || progress !== null) return;
     clearAutoRecord();
     startSwingRecording();
   }, [
@@ -123,7 +136,7 @@ export function CameraView() {
     isStreaming,
     isRecording,
     isCounting,
-    isAnalyzing,
+    anySwingBusy,
     progress,
     clearAutoRecord,
     startSwingRecording,
@@ -145,7 +158,7 @@ export function CameraView() {
     // In a session, a press from the results overlay jumps straight to the next swing,
     // skipping the 3s auto-restart wait.
     if (sessionActive && view === 'analysis') {
-      setCurrentAnalysis(null);
+      clearSwings();
       requestAutoRecord();
       setView('camera');
       return;
@@ -315,7 +328,7 @@ export function CameraView() {
       <div className="flex-shrink-0 py-6 flex items-center justify-center gap-6 bg-bg">
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={isAnalyzing || progress !== null}
+          disabled={anySwingBusy || progress !== null}
           className="px-3 py-2 bg-raised hover:bg-raised-hi rounded-lg text-xs font-medium
                      disabled:opacity-30 transition-colors"
         >
@@ -332,13 +345,13 @@ export function CameraView() {
           isRecording={isRecording}
           isCounting={isCounting}
           isStreaming={isStreaming}
-          disabled={!isStreaming || isAnalyzing}
+          disabled={!isStreaming || anySwingBusy}
           onToggle={handleToggleRecord}
         />
         <CountdownStepper
           value={countdownSeconds}
           onChange={setCountdownSeconds}
-          disabled={isRecording || isCounting || isAnalyzing || progress !== null}
+          disabled={isRecording || isCounting || anySwingBusy || progress !== null}
         />
       </div>
     </div>

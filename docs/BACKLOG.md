@@ -549,6 +549,49 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 
 **Dokumentkrav:** bocka av här + `docs/decisions/ADR-003-draft.md`; uppdatera `swingcheck-handoff.md`.
 
+### [~] D-5 — Kontinuerligt sessionsläge i fångstvägen (ADR-003 §4 + §5)
+
+> **Pass 1 KLAR (2026-08-08) — session-store från singular till lista.** `store/session.ts`:
+> `currentFrames` / `currentFrameMeta` / `currentAnalysis` / `isAnalyzing` **borta**, ersatta av
+> `swings: SessionSwing[]` där varje sving bär `{ id, status, envelopeSec, impactSec, frames,
+> frameMeta, analysis, error }` och status är `detected | extracting | analyzing | done | failed`.
+> Actions: `addSwing` (returnerar id) / `updateSwing` / `removeSwing` / `clearSwings`. Den globala
+> `isAnalyzing`-boolen finns inte längre — analys är per sving; det som genuint är sessionsvitt
+> (låsa inspelningsknappar, grinda hands-free-loopen) läser selektorn `selectAnySwingBusy`, och
+> enkelsvingsvyerna läser `selectPrimarySwing` (= `swings[0]`).
+>
+> **Enkelsvingsflödet är funktionellt oförändrat:** ett klipp → `clearSwings()` + `addSwing({status:
+> 'extracting'})` → `extractFrames` → `updateSwing(..., 'analyzing')` → `AnalysisView` kör analysen och
+> skriver `done`/`failed` på samma sving. Konsumenter uppdaterade: `CameraView`, `AnalysisView`,
+> `FramePreview`, `ShareButton`. `SwingRecord`-formatet är **orört** → redan sparad historik läses
+> som förut.
+>
+> **`envelopeSec`/`impactSec` i pass 1 är härledda, inte äkta:** `frameExtractor.ts` returnerar bara
+> frames (och rörs inte i detta pass), så `swingFromExtraction()` läser spannet ur de valda framesens
+> `timeSec` och impact ur den frame selektorn märkte `impact` — null när ingen märktes, alltså exakt
+> när envelopen saknade confident impact (ADR-002: impact är polish, aldrig bärande). Pass 2 ersätter
+> dem med `DetectedSwing`-värdena.
+>
+> **Två beteendedetaljer värda att känna till:** (1) analys-effekten i `AnalysisView` är nu keyad på
+> sving-**id** i stället för frame-arrayens identitet, så statusskrivningarna inte triggar om den
+> själv; `frames.length` finns kvar i deps så en sving som når vyn medan den fortfarande `extracting`
+> inte fastnar på spinnern. (2) `analysisAngle` ligger kvar globalt — den hör hemma per sving och
+> flyttas i pass 2 (utanför denna uppgifts uttryckliga scope).
+>
+> Nytt enhetstest `src/store/session.test.ts` (11 test) låser den egenskap refaktoreringen finns för:
+> sving N+1 kan vara `detected` medan N är `analyzing`, patchar korsar inte, oförändrade svingar
+> behåller objektsidentitet (selektorstabilitet), och `swingFromExtraction`-härledningen.
+> `poseEnvelope.ts` / `poseSegments.ts` / `frameExtractor.ts` **orörda**. Build + lint (0 nya) +
+> test **32/32** rena; dev-servern bootar och alla ändrade moduler serveras 200.
+> **Kvar att verifiera av Erik:** enkelsvingsklipp + sessionsklipp i dev-preview.
+
+**Mål (kvar):** pass 2 — koppla `detectSessionSwings` till fångstvägen så ett sessionsklipp blir N
+`SessionSwing` med egen frame-extraktion och eget Vision-anrop per sving (analyskö, serialiserad TTS).
+Pass 3 — live-pose i rAF-loop + ringbuffertar för landmarks och MediaRecorder-chunks (ADR-003 §4).
+
+**Dokumentkrav:** bocka av respektive pass här + `docs/decisions/ADR-003-draft.md` §5;
+uppdatera `swingcheck-handoff.md`.
+
 ---
 
 ## Ström E — Vision-kostnad
