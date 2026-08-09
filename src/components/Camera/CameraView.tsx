@@ -9,7 +9,7 @@ import {
   swingFromExtraction,
 } from '../../store/session';
 import { useSettingsStore } from '../../store/settings';
-import { cancelSpeech, isSpeaking, speak, TTS_ANALYZING } from '../../lib/tts';
+import { cancelSpeech, isSpeaking, primeSpeech, speak, TTS_ANALYZING } from '../../lib/tts';
 import { RecordButton } from './RecordButton';
 import { CountdownStepper } from './CountdownStepper';
 import { LiveSwingPanel } from './LiveSwingPanel';
@@ -51,6 +51,8 @@ export function CameraView() {
   const startSession = useSessionStore((s) => s.startSession);
   const endSession = useSessionStore((s) => s.endSession);
   const autoRecordPending = useSessionStore((s) => s.autoRecordPending);
+  // Set when the engine swallowed the first thing we tried to say (iOS gesture lock).
+  const speechBlocked = useSessionStore((s) => s.speechBlocked);
   const clearAutoRecord = useSessionStore((s) => s.clearAutoRecord);
   const requestAutoRecord = useSessionStore((s) => s.requestAutoRecord);
 
@@ -149,6 +151,9 @@ export function CameraView() {
   }, [stopRecording, capture, releaseChunkRing]);
 
   const handleToggleRecord = async () => {
+    // FIRST statement, before any await: this is the gesture that unlocks speech
+    // on iOS, and everything we ever speak happens in an async callback after it.
+    primeSpeech();
     if (isRecording) {
       if (sessionActive) {
         // No clip to process: session mode never materializes the whole recording,
@@ -217,6 +222,9 @@ export function CameraView() {
   );
 
   const toggleSession = async () => {
+    // Forced: iOS can re-lock the engine after the page has been backgrounded,
+    // and a session is exactly the mode where silence is a total failure.
+    primeSpeech(true);
     if (sessionActive) {
       // Ending a session while it is recording has to stop the recording too —
       // otherwise the camera keeps rolling into a ring nothing will ever read.
@@ -319,6 +327,15 @@ export function CameraView() {
             Hörlursläge aktivt 🎧
           </div>
         )}
+
+        {/* The engine never started the session's first utterance — without this
+            the only symptom is silence, which reads as "the app is broken". */}
+        {ttsEnabled && speechBlocked && (
+          <div className="absolute bottom-4 inset-x-4 px-3 py-2 rounded-lg bg-amber-500/95
+                          text-xs font-semibold text-black text-center shadow-lg">
+            🔇 Rösten blockerades av webbläsaren — tryck på Röst på
+          </div>
+        )}
       </div>
 
       {/* Session view: every swing of this session with its own status and verdict,
@@ -333,7 +350,10 @@ export function CameraView() {
       <div className="flex-shrink-0 px-4 pt-3 flex items-center justify-between gap-2 bg-bg">
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleRangeMode}
+            onClick={() => {
+              primeSpeech(true);
+              toggleRangeMode();
+            }}
             className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
               rangeMode
                 ? 'bg-accent text-on-accent'
@@ -356,7 +376,10 @@ export function CameraView() {
 
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setTtsEnabled(!ttsEnabled)}
+            onClick={() => {
+              primeSpeech(true);
+              setTtsEnabled(!ttsEnabled);
+            }}
             className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
               ttsEnabled
                 ? 'bg-raised-hi text-fg'

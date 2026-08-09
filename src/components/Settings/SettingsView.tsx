@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSettingsStore, ACCENTS } from '../../store/settings';
-import { loadVoices, getSwedishVoices, resolveVoice } from '../../lib/tts';
+import { loadVoices, getSwedishVoices, primeSpeech, resolveVoice } from '../../lib/tts';
 import type { Theme, Accent } from '../../store/settings';
 import { useOnboardingStore } from '../../store/onboarding';
 import { useSessionStore } from '../../store/session';
@@ -93,7 +93,15 @@ export function SettingsView() {
       {/* Voice */}
       <Section title={t('settings.voice')}>
         <Row label={t('settings.voice.enable')}>
-          <Toggle on={ttsEnabled} onClick={() => setTtsEnabled(!ttsEnabled)} />
+          {/* primeSpeech first, synchronously: this tap is the gesture iOS needs
+              before any later analysis callback is allowed to speak. */}
+          <Toggle
+            on={ttsEnabled}
+            onClick={() => {
+              primeSpeech(true);
+              setTtsEnabled(!ttsEnabled);
+            }}
+          />
         </Row>
         {ttsEnabled && (
           <>

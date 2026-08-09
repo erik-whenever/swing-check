@@ -100,6 +100,15 @@ interface SessionState {
   swingNumber: number;
   /** Set after analysis to signal the camera view to auto-start the next recording. */
   autoRecordPending: boolean;
+  /**
+   * True when the browser silently swallowed the first thing we tried to say —
+   * iOS Safari refusing speechSynthesis outside a user gesture. Set from the
+   * speech watchdog (see `primeSpeech` in lib/tts.ts), cleared by any gesture
+   * that re-primes the engine. Lives here rather than in settings because it is
+   * a transient fact about this page load, not a preference to persist.
+   */
+  speechBlocked: boolean;
+  setSpeechBlocked: (v: boolean) => void;
   startSession: () => void;
   endSession: () => void;
   /** Increment the swing counter (called when a new recording begins). */
@@ -147,8 +156,16 @@ export const useSessionStore = create<SessionState>((set) => ({
   sessionId: null,
   swingNumber: 0,
   autoRecordPending: false,
+  speechBlocked: false,
+  setSpeechBlocked: (speechBlocked) => set({ speechBlocked }),
   startSession: () =>
-    set({ sessionActive: true, sessionId: uuid(), swingNumber: 0, autoRecordPending: false }),
+    set({
+      sessionActive: true,
+      sessionId: uuid(),
+      swingNumber: 0,
+      autoRecordPending: false,
+      speechBlocked: false,
+    }),
   endSession: () =>
     set({ sessionActive: false, sessionId: null, swingNumber: 0, autoRecordPending: false }),
   beginSwing: () => set((s) => ({ swingNumber: s.swingNumber + 1 })),

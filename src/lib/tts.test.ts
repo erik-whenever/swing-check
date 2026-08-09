@@ -13,6 +13,7 @@ import type { RuleResult, SwingAnalysis } from '../types';
 
 interface FakeUtterance {
   text: string;
+  volume?: number;
   onstart?: () => void;
   onend?: () => void;
   onerror?: () => void;
@@ -26,6 +27,12 @@ class FakeSynth {
   pending = false;
   /** When true, utterances never fire onend — the wedged-engine case. */
   swallowEnd = false;
+  /**
+   * When true the engine accepts the utterance and then does nothing at all —
+   * no onstart, no onend. That is iOS Safari refusing speech outside a gesture,
+   * and it is indistinguishable from a working engine until the watchdog fires.
+   */
+  swallowStart = false;
 
   getVoices() {
     return [];
@@ -33,6 +40,7 @@ class FakeSynth {
 
   speak(u: FakeUtterance) {
     this.spoken.push(u.text);
+    if (this.swallowStart) return;
     this.queueInternal.push(u);
     this.speaking = true;
     u.onstart?.();
@@ -75,6 +83,7 @@ beforeEach(async () => {
       text: string;
       voice: unknown = null;
       lang = '';
+      volume = 1;
       onstart?: () => void;
       onend?: () => void;
       onerror?: () => void;
@@ -93,6 +102,51 @@ afterEach(() => {
 async function loadTts() {
   return await import('./tts');
 }
+
+// ── primeSpeech ──────────────────────────────────────────────────────────────
+// The iOS gesture unlock. Without it every utterance is dropped silently, which
+// is exactly the production bug this exists to fix — so the invariants worth
+// pinning are: it primes once, it can be forced again, and it does not cut off
+// speech that is already running.
+
+describe('primeSpeech', () => {
+  it('speaks one silent utterance and is idempotent afterwards', async () => {
+    const { primeSpeech, isSpeechPrimed } = await loadTts();
+
+    expect(primeSpeech()).toBe(true);
+    expect(synth.spoken).toEqual([' ']);
+    expect(isSpeechPrimed()).toBe(true);
+
+    expect(primeSpeech()).toBe(false);
+    expect(primeSpeech()).toBe(false);
+    expect(synth.spoken).toEqual([' ']);
+  });
+
+  it('primes again when forced — iOS can re-lock after backgrounding', async () => {
+    const { primeSpeech } = await loadTts();
+    primeSpeech();
+    expect(primeSpeech(true)).toBe(true);
+    expect(synth.spoken).toEqual([' ', ' ']);
+  });
+
+  it('leaves the utterance silent and cancels it immediately', async () => {
+    const { primeSpeech } = await loadTts();
+    primeSpeech();
+    // cancel() ran, so nothing is left holding the engine when real speech starts.
+    expect(synth.queueInternal).toEqual([]);
+    expect(synth.speaking).toBe(false);
+  });
+
+  it('does not cancel speech that is already running', async () => {
+    const { primeSpeech, enqueueSpeech } = await loadTts();
+    enqueueSpeech(['pågående sving']);
+    expect(synth.speaking).toBe(true);
+
+    expect(primeSpeech(true)).toBe(false);
+    expect(synth.spoken).toEqual(['pågående sving']);
+    expect(synth.queueInternal.map((u) => u.text)).toEqual(['pågående sving']);
+  });
+});
 
 describe('serialized speech queue', () => {
   it('never lets a second analysis start before the first has finished', async () => {
@@ -159,6 +213,57 @@ describe('serialized speech queue', () => {
     // Without the watchdog the session would stay silent from here on.
     await vi.advanceTimersByTimeAsync(6000);
     expect(synth.spoken).toEqual(['kort', 'nästa sving']);
+  });
+
+  it('warns and flags the UI when the engine drops a job without ever starting it', async () => {
+    vi.useFakeTimers();
+    const { enqueueSpeech } = await loadTts();
+    const { getEntries } = await import('./logger');
+    const { useSessionStore } = await import('../store/session');
+    // The production failure: accepted, never spoken, no events at all.
+    synth.swallowStart = true;
+
+    enqueueSpeech(['Sving 1 klart.']);
+    await vi.advanceTimersByTimeAsync(6000);
+
+    const warning = getEntries().find(
+      (e) => e.message === 'Speech dropped by engine (never started)',
+    );
+    expect(warning?.level).toBe('WARN');
+    expect(warning?.data).toMatchObject({ parts: 1, watchdogMs: 5000 });
+    expect(useSessionStore.getState().speechBlocked).toBe(true);
+  });
+
+  it('does not warn when the job started and only onend went missing', async () => {
+    vi.useFakeTimers();
+    const { enqueueSpeech } = await loadTts();
+    const { getEntries } = await import('./logger');
+    const { useSessionStore } = await import('../store/session');
+    // onstart fires, onend does not — benign, and already handled by the watchdog.
+    synth.swallowEnd = true;
+
+    enqueueSpeech(['Sving 1 klart.']);
+    await vi.advanceTimersByTimeAsync(6000);
+
+    expect(
+      getEntries().some((e) => e.message === 'Speech dropped by engine (never started)'),
+    ).toBe(false);
+    expect(useSessionStore.getState().speechBlocked).toBe(false);
+  });
+
+  it('re-priming clears the blocked flag', async () => {
+    vi.useFakeTimers();
+    const { enqueueSpeech, primeSpeech } = await loadTts();
+    const { useSessionStore } = await import('../store/session');
+    synth.swallowStart = true;
+
+    enqueueSpeech(['Sving 1 klart.']);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(useSessionStore.getState().speechBlocked).toBe(true);
+
+    synth.swallowStart = false;
+    primeSpeech(true);
+    expect(useSessionStore.getState().speechBlocked).toBe(false);
   });
 
   it('an empty job does not stall the queue', async () => {

@@ -2,6 +2,10 @@ import type { RuleResult, SwingAnalysis } from '../types';
 import type { TtsMode } from '../store/settings';
 import { useSettingsStore } from '../store/settings';
 import { useRulesStore } from '../store/rules';
+import { useSessionStore } from '../store/session';
+import { createLogger } from './logger';
+
+const log = createLogger('TTS');
 
 // All spoken strings are Swedish; fall back to this locale when no concrete voice
 // could be resolved (the selected voice's own lang is preferred otherwise).
@@ -108,6 +112,64 @@ function getSynth(): SpeechSynthesis | null {
 export function isSpeaking(): boolean {
   const synth = getSynth();
   return !!synth && (synth.speaking || synth.pending);
+}
+
+// ── iOS gesture unlock ────────────────────────────────────────────────────────
+// iOS Safari only lets speechSynthesis run once it has been used at least once
+// from inside a synchronous user-gesture handler. Every string this app speaks
+// comes from an async analysis callback — far too late to count as a gesture —
+// so without priming the utterance is dropped SILENTLY: neither `onstart` nor
+// `onend` fires, the watchdog releases the job at its floor, and the session is
+// mute for the rest of its life.
+//
+// Two hard constraints on the call site, both easy to break by accident:
+//   1. Nothing may `await` before `synth.speak()` — an await ends the gesture
+//      context and the unlock is lost. Hence: no async work in here, and callers
+//      must call this FIRST in their handler.
+//   2. It must run from a real click/tap handler, not a timer or a promise
+//      continuation.
+//
+// Idempotent by default, but `force` exists because iOS can re-lock the engine
+// after the page has been backgrounded — a session start re-primes rather than
+// trusting a flag set ten minutes ago.
+
+let speechPrimed = false;
+
+/**
+ * Unlock speechSynthesis from a user gesture. Returns true if it actually primed.
+ * MUST be called synchronously at the top of a click handler — see above.
+ */
+export function primeSpeech(force = false): boolean {
+  if (speechPrimed && !force) return false;
+  const synth = getSynth();
+  if (!synth) return false;
+  // Speech in flight means the engine is demonstrably unlocked already; priming
+  // would cancel() live feedback for nothing.
+  if (synth.speaking || synth.pending) {
+    speechPrimed = true;
+    return false;
+  }
+  try {
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    u.lang = TTS_LANG;
+    synth.speak(u);
+    synth.cancel();
+  } catch (err) {
+    log.warn('primeSpeech failed', { error: String(err) });
+    return false;
+  }
+  speechPrimed = true;
+  // A fresh unlock starts a fresh "did the first job speak?" observation, and
+  // clears any blocked warning the previous attempt raised.
+  jobsSincePrime = 0;
+  useSessionStore.getState().setSpeechBlocked(false);
+  return true;
+}
+
+/** Test seam / diagnostics: whether the engine has been primed in this page load. */
+export function isSpeechPrimed(): boolean {
+  return speechPrimed;
 }
 
 /**
@@ -218,12 +280,26 @@ function clearWatchdog(): void {
   }
 }
 
+/**
+ * Jobs handed to the engine since the last priming. Index 0 is the first thing a
+ * session tries to say — the one whose silence means the gesture unlock never
+ * took, as opposed to a single dropped `onend` mid-session.
+ */
+let jobsSincePrime = 0;
+
 function pumpSpeech(): void {
   if (speechBusy) return;
   const job = speechQueue.shift();
   if (!job) return;
   speechBusy = true;
 
+  // An all-empty job never reaches the engine, so it must not consume the index —
+  // otherwise the first job that DOES speak looks like the second one.
+  const jobIndex = job.parts.some((p) => p.trim()) ? jobsSincePrime++ : -1;
+  // Tracked per job because a watchdog release AFTER onstart is the benign iOS
+  // dropped-`onend` case, while a release with no onstart at all means the engine
+  // never accepted the utterance — the silent failure that has no other symptom.
+  let started = false;
   let done = false;
   const advance = () => {
     if (done) return;
@@ -234,8 +310,30 @@ function pumpSpeech(): void {
     pumpSpeech();
   };
 
-  speechWatchdog = setTimeout(advance, watchdogMs(job.parts));
-  speakSequence(job.parts, { onStart: job.opts.onStart, onEnd: advance });
+  const ms = watchdogMs(job.parts);
+  speechWatchdog = setTimeout(() => {
+    if (!started) {
+      log.warn('Speech dropped by engine (never started)', {
+        parts: job.parts.length,
+        chars: job.parts.reduce((n, p) => n + p.length, 0),
+        watchdogMs: ms,
+        jobIndex,
+        primed: speechPrimed,
+      });
+      // Only the first job flags the UI: it is the one the user can fix by
+      // pressing a button, and repeating the warning per swing would be noise.
+      if (jobIndex === 0) useSessionStore.getState().setSpeechBlocked(true);
+    }
+    advance();
+  }, ms);
+
+  speakSequence(job.parts, {
+    onStart: () => {
+      started = true;
+      job.opts.onStart?.();
+    },
+    onEnd: advance,
+  });
 }
 
 /**
