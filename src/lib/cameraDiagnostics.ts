@@ -2,6 +2,9 @@ import { createLogger } from './logger';
 
 const log = createLogger('cameraDiagnostics');
 
+/** Guards the one-time run below. Module scope = one page load. */
+let hasLogged = false;
+
 /**
  * One-time diagnostics: enumerate all video devices and inspect the ALREADY ACTIVE
  * track's capabilities. Gated on VITE_DEV_PREVIEW only — `import.meta.env.DEV` is
@@ -15,6 +18,13 @@ export async function logCameraCapabilities(track: MediaStreamTrack): Promise<vo
   if (import.meta.env.VITE_DEV_PREVIEW !== 'true') {
     return;
   }
+
+  // Once per page load. The caller is an effect keyed on `isStreaming`, so every
+  // stream transition re-ran it — in production it logged the same capabilities
+  // twice, and the device list cannot change while the page is loaded anyway.
+  // The flag is set before the first await so two overlapping calls cannot race.
+  if (hasLogged) return;
+  hasLogged = true;
 
   try {
     // Enumerate all devices. This opens no stream.

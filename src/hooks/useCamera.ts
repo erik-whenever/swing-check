@@ -1,6 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { createLogger } from '../lib/logger';
 import { VideoChunkRing } from '../lib/videoChunkRing';
+import { applyCameraZoom } from '../lib/cameraZoom';
+import { useSettingsStore } from '../store/settings';
 
 const log = createLogger('useCamera');
 
@@ -35,12 +37,17 @@ export function useCamera() {
    */
   const recordingEpochRef = useRef<number | null>(null);
 
+  /** Last zoom flag actually pushed to the track; null = nothing applied yet. */
+  const appliedWideAngleRef = useRef<boolean | null>(null);
+
   const [isStreaming, setIsStreaming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   /** Same value as `recordingEpochRef`, exposed as state for render-time consumers. */
   const [recordingEpochMs, setRecordingEpochMs] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const wideAngle = useSettingsStore((s) => s.wideAngle);
 
   const startStream = useCallback(async () => {
     try {
@@ -76,11 +83,35 @@ export function useCamera() {
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    // The next stream is a fresh track at default zoom, so what we applied to the
+    // old one says nothing about it.
+    appliedWideAngleRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
   }, []);
+
+  /**
+   * Push the wide-angle setting onto the live track.
+   *
+   * Zoom is a property of the track, so this can only run once a stream exists —
+   * and deliberately never while recording: `applyConstraints` reshapes the very
+   * track the MediaRecorder is reading, and a lens change mid-swing would corrupt
+   * the clip the analysis depends on. A toggle during a session is therefore not
+   * dropped but deferred: the effect re-runs when recording stops, so the next
+   * recording starts on the lens the user picked.
+   */
+  useEffect(() => {
+    if (!isStreaming || isRecording) return;
+    if (appliedWideAngleRef.current === wideAngle) return;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    // Claim the intent before awaiting so a re-render cannot fire a second apply
+    // for the same value. A rejected constraint is logged, not retried.
+    appliedWideAngleRef.current = wideAngle;
+    void applyCameraZoom(track, wideAngle);
+  }, [isStreaming, isRecording, wideAngle]);
 
   const beginRecording = useCallback((mode: RecordMode) => {
     if (!streamRef.current) return;

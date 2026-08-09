@@ -18,6 +18,17 @@
   (`log.warn('Frame selection', {path:'pose'|'motion'})`) så fallback-frekvensen är mätbar i fält.
   **Fältverifierad på iPhone:** GPU-delegat, 14,9 fps, 18–21 ms inferens.
 - Kamera/inspelning, Claude-analys via Worker-proxy med prompt caching (`api.ts`, `prompt.ts`).
+- **Vidvinkel (0,5×)** — `settings.wideAngle` (persisterad) → `lib/cameraZoom.ts` sätter
+  `zoom` på den **redan aktiva** videospårningen (ingen enhetsväxling; diagnostiken visar
+  `min 0.5 / max 10` på bakre trippelkameran). Halverar ungefär nödvändigt avstånd på range.
+  Appliceras i `useCamera` **bara när ingen inspelning pågår** — `applyConstraints` formar om
+  exakt den spårning MediaRecorder läser, så ett linsbyte mitt i svingen skulle förstöra klippet.
+  En växling under en session tappas inte utan **skjuts upp** till nästa inspelningsstart.
+  Saknad zoom-capability = tyst hoppa över (WARN en gång). `Camera zoom applied` loggas på
+  **WARN** med både begärt och faktiskt värde (`getSettings().zoom`) — Safari får acceptera
+  constrainten och ändå behålla linsen, och `matched:false` är enda sättet att se det i fält.
+  Toggle: `components/Camera/WideAngleToggle.tsx` (0.5× / 1×, i sökarens nedre högra hörn).
+  Testad i `lib/cameraZoom.test.ts` (klampning, saknad capability, avvikande faktiskt värde).
 - Regler: egna + regelbibliotek med drills, kameravinkel-filtrering.
 - Historik i IndexedDB + valfri Supabase-spegling av metadata.
 - TTS-uppläsning (quick/detailed), val av röst; serialiserad kö i sessionsläge.
@@ -138,7 +149,7 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
 - `src/store/` — `session` (`swings: SessionSwing[]`, ADR-003 §5.4), `settings`, `rules`, `onboarding`, `toast`.
 - `src/hooks/` — `useCamera` (`RecordMode`: klipp **och** session/chunk-ring), `useHistory`, `useRangeMode`,
   `useMicTrigger`/`useEnergyTrigger` (Ström A), `useLiveSwingDetection` (D-5 p2), `useSessionCapture` (D-5 p3).
-- `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`,
+- `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `cameraZoom`, `supabase`, `tts`, `i18n`, `logger`, `geo`,
   `audioTrigger`; pose: `poseDetector`/`poseTrajectory`/`poseConnections`/`poseEnvelope`/
   `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`; live: `poseRingBuffer`/`livePoseLoop`/
   `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`.

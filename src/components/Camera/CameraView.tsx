@@ -17,6 +17,7 @@ import { LiveSwingPanel } from './LiveSwingPanel';
 import { SessionSwingList } from '../Session/SessionSwingList';
 import { SessionSummaryCard } from '../Session/SessionSummaryCard';
 import { AnglePill } from '../AngleToggle';
+import { WideAngleToggle } from './WideAngleToggle';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 
@@ -305,6 +306,12 @@ export function CameraView() {
         {/* Current camera-angle badge — always visible before recording */}
         <div className="absolute bottom-4 left-4">
           <AnglePill angle={cameraAngle} />
+        </div>
+
+        {/* Wide-angle (0.5×) — framing is a viewfinder decision, so the control
+            sits on the viewfinder, mirroring the angle badge. */}
+        <div className="absolute bottom-4 right-4">
+          <WideAngleToggle />
         </div>
 
         {/* Live detection readout (ADR-003 §4) — dev preview only. It renders the

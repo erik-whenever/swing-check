@@ -42,6 +42,13 @@ interface SettingsState {
   /** Countdown (seconds) before recording starts. 0 = start immediately. */
   countdownSeconds: number;
   setCountdownSeconds: (seconds: number) => void;
+  /**
+   * Ultra-wide lens (0.5× zoom) on the rear camera. The whole swing only fits at
+   * a distance that is awkward on a range; 0.5× roughly halves it. Applied to the
+   * live track, never by switching device — see `lib/cameraZoom.ts`.
+   */
+  wideAngle: boolean;
+  setWideAngle: (v: boolean) => void;
 }
 
 export const COUNTDOWN_MIN = 0;
@@ -81,6 +88,8 @@ export const useSettingsStore = create<SettingsState>()(
             Math.min(COUNTDOWN_MAX, Math.round(seconds)),
           ),
         }),
+      wideAngle: false,
+      setWideAngle: (wideAngle) => set({ wideAngle }),
     }),
     { name: 'swingcheck-settings' }
   )
