@@ -9,6 +9,7 @@ Alltid-laddad baslinje. **Läs först, varje session:** [docs/BACKLOG.md](docs/B
 - **Levande status (gjort/pågår/horisont):** [STATUS.md](STATUS.md)
 - **Beslut & öppna frågor (numrerade):** [docs/oppna-fragor.md](docs/oppna-fragor.md)
 - **Arkitekturbeslut:** [docs/adr/](docs/adr/)
+- **Nattliga fynd (otriagerade):** [docs/inbox/](docs/inbox/)
 
 ## Backlog-driven workflow
 Sanningen om vad som är gjort och kvar bor i [docs/BACKLOG.md](docs/BACKLOG.md) — den är auktoritativ. Hela arbetsregeln står där under *"Arbetsregel för Claude Code"*; duplicera den inte här. Sammanfattning:
