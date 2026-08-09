@@ -3,6 +3,7 @@ import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
 import { useSessionCapture } from '../../hooks/useSessionCapture';
 import { extractFrames, ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
+import { logCameraCapabilities } from '../../lib/cameraDiagnostics';
 import {
   useSessionStore,
   selectAnySwingBusy,
@@ -72,6 +73,13 @@ export function CameraView() {
     startStream();
     return () => stopStream();
   }, [startStream, stopStream]);
+
+  // One-time camera diagnostics after stream is active.
+  useEffect(() => {
+    if (isStreaming) {
+      void logCameraCapabilities();
+    }
+  }, [isStreaming]);
 
   const isCounting = countdown !== null;
 
