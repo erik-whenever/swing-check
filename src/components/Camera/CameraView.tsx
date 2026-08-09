@@ -23,6 +23,7 @@ const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 export function CameraView() {
   const {
     videoRef,
+    streamRef,
     isStreaming,
     isRecording,
     countdown,
@@ -74,12 +75,15 @@ export function CameraView() {
     return () => stopStream();
   }, [startStream, stopStream]);
 
-  // One-time camera diagnostics after stream is active.
+  // One-time camera diagnostics after stream is active. It inspects the track the
+  // session is already using — opening a second stream here can steal the active
+  // one on iOS. No track, no diagnostics: silently skipped.
   useEffect(() => {
-    if (isStreaming) {
-      void logCameraCapabilities();
-    }
-  }, [isStreaming]);
+    if (!isStreaming) return;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    void logCameraCapabilities(track);
+  }, [isStreaming, streamRef]);
 
   const isCounting = countdown !== null;
 

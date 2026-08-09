@@ -230,6 +230,9 @@ export function useCamera() {
 
   return {
     videoRef,
+    /** The live capture stream, or null when not streaming. Read-only for callers:
+     *  this hook owns its lifecycle — never stop or replace it from outside. */
+    streamRef,
     isStreaming,
     isRecording,
     countdown,

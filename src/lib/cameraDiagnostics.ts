@@ -3,20 +3,21 @@ import { createLogger } from './logger';
 const log = createLogger('cameraDiagnostics');
 
 /**
- * One-time diagnostics: enumerate all video devices and their capabilities.
- * Logs after camera permission is granted and the stream is active.
- * Runs only in development behind VITE_DEV_PREVIEW to avoid noise in production.
+ * One-time diagnostics: enumerate all video devices and inspect the ALREADY ACTIVE
+ * track's capabilities. Gated on VITE_DEV_PREVIEW only — `import.meta.env.DEV` is
+ * false in every deployed build, so gating on it meant this never logged anywhere
+ * it mattered.
+ *
+ * It must never call getUserMedia(): a second stream opened alongside the session's
+ * live one can disturb or steal the active track on iOS.
  */
-export async function logCameraCapabilities(): Promise<void> {
-  const isDev = import.meta.env.DEV;
-  const showPreview = import.meta.env.VITE_DEV_PREVIEW;
-
-  if (!isDev || !showPreview) {
+export async function logCameraCapabilities(track: MediaStreamTrack): Promise<void> {
+  if (import.meta.env.VITE_DEV_PREVIEW !== 'true') {
     return;
   }
 
   try {
-    // Enumerate all devices.
+    // Enumerate all devices. This opens no stream.
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoInputs = devices.filter((d) => d.kind === 'videoinput');
 
@@ -30,29 +31,12 @@ export async function logCameraCapabilities(): Promise<void> {
       })),
     });
 
-    // Introspect the active video stream's track capabilities.
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-      audio: false,
-    });
-
-    const videoTrack = stream.getVideoTracks()[0];
-    if (!videoTrack) {
-      log.warn('Camera diagnostics', { message: 'No active video track found' });
-      stream.getTracks().forEach((t) => t.stop());
-      return;
-    }
-
-    const capabilities = videoTrack.getCapabilities?.();
-    const settings = videoTrack.getSettings?.();
+    const capabilities = track.getCapabilities?.();
+    const settings = track.getSettings?.();
 
     const capabilityReport: Record<string, unknown> = {
-      trackLabel: videoTrack.label,
-      trackState: videoTrack.readyState,
+      trackLabel: track.label,
+      trackState: track.readyState,
     };
 
     if (capabilities) {
@@ -67,6 +51,10 @@ export async function logCameraCapabilities(): Promise<void> {
         facingMode: capabilities.facingMode || undefined,
         hasZoomCapability: !!zoomCap,
       };
+      // The raw object too: the summary above only carries fields we already know
+      // about, and the interesting ones are the ones we don't — notably any zoom
+      // range reaching below 1.0, which means an ultra-wide lens is available.
+      capabilityReport.capabilitiesRaw = capabilities;
     }
 
     if (settings) {
@@ -79,12 +67,10 @@ export async function logCameraCapabilities(): Promise<void> {
         frameRate: settings.frameRate,
         facingMode: settings.facingMode,
       };
+      capabilityReport.settingsRaw = settings;
     }
 
     log.warn('Camera capabilities', capabilityReport);
-
-    // Clean up the diagnostic stream.
-    stream.getTracks().forEach((t) => t.stop());
   } catch (err) {
     log.warn('Camera diagnostics failed', {
       error: err instanceof Error ? err.message : String(err),
