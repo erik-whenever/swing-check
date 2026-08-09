@@ -17,6 +17,11 @@
 // prepended to every materialized window that does not already contain it. That is
 // the same shape DASH/HLS use: init segment + a subset of media fragments.
 //
+// AND THE SUBSET MUST BE A PREFIX. The init segment alone is not enough: media
+// fragments are decoded as a chain, so a window is only playable if it holds every
+// chunk from the first one onward. `materialize` therefore cuts at the tail only —
+// see the LEAD-IN note there for the field failure that established this.
+//
 // // OSÄKER: a subset of fMP4 fragments after the init segment is a valid file by
 // construction, but browsers differ in whether the resulting timeline keeps the
 // ORIGINAL decode times or is rebased to zero. This module does not guess — it
@@ -43,6 +48,12 @@ export interface MaterializedWindow {
   endSec: number;
   /** Media chunks in the window (excluding a prepended header). */
   chunks: number;
+  /**
+   * How many of `chunks` sit BEFORE the requested window and are carried only to
+   * keep the decode chain intact. Logged per swing so the cost is visible in field
+   * data — see the LEAD-IN note in the module header.
+   */
+  leadInChunks: number;
   bytes: number;
   /** True when the pinned init segment had to be prepended. */
   headerPrepended: boolean;
@@ -122,12 +133,37 @@ export class VideoChunkRing {
    * Cut a playable blob covering `[startSec, endSec]` of the recording clock.
    * Returns null when the ring holds nothing overlapping the request — which is
    * either "too early" (nothing recorded yet) or "too late" (already evicted).
+   *
+   * THE WINDOW ALWAYS STARTS AT THE RING'S OLDEST CHUNK, not at the requested
+   * start. This used to select only the chunks OVERLAPPING the request, which
+   * produced blobs that were bytes-correct and undecodable: iOS Safari hands us
+   * ~1 s chunks regardless of the timeslice we ask for, and those chunks carry no
+   * keyframe of their own — they only decode on the back of every chunk since the
+   * init segment. A window of `header + chunks[N..M]` therefore decoded exactly
+   * one chunk deep and every seek landed on the header's last frame. Field proof
+   * (session swing 12:11:55): `windowSec [3.25, 6.42] · chunks 3 · headerPrepended
+   * true` fed Claude Vision 17 identical address frames, and it answered "no
+   * visible swing movement".
+   *
+   * The chunks between `chunks[0]` and the window are the LEAD-IN: dead weight for
+   * viewing, mandatory for decoding. Retention already bounds them to
+   * `retentionSec`, so the memory ceiling is unchanged in practice.
    */
   materialize(startSec: number, endSec: number): MaterializedWindow | null {
     if (!(endSec > startSec)) return null;
-    const selected = this.chunks.filter((c) => c.endSec > startSec && c.startSec < endSec);
-    if (selected.length === 0) return null;
+    const firstOverlap = this.chunks.findIndex((c) => c.endSec > startSec && c.startSec < endSec);
+    if (firstOverlap === -1) return null;
+    // Everything from the ring's oldest chunk through the last chunk that starts
+    // before the window ends — an unbroken decode chain, cut only at the tail.
+    let lastIndex = firstOverlap;
+    while (lastIndex + 1 < this.chunks.length && this.chunks[lastIndex + 1].startSec < endSec) {
+      lastIndex++;
+    }
+    const selected = this.chunks.slice(0, lastIndex + 1);
 
+    // Defensive only: `evict()` keeps at least one chunk, and the chain now always
+    // starts at `chunks[0]`, so the header can only be missing if it was itself
+    // evicted. Prepending it costs tens of kB and rules out the undecodable case.
     const headerPrepended = this.header !== null && !selected.includes(this.header);
     const parts: Blob[] = headerPrepended ? [this.header!.blob, ...selected.map((c) => c.blob)] : selected.map((c) => c.blob);
 
@@ -136,8 +172,11 @@ export class VideoChunkRing {
       startSec: selected[0].startSec,
       endSec: selected[selected.length - 1].endSec,
       chunks: selected.length,
+      leadInChunks: firstOverlap,
       bytes: parts.reduce((n, b) => n + b.size, 0),
       headerPrepended,
+      // Only the requested start being EVICTED counts as truncation; the lead-in
+      // means `selected[0]` is the oldest chunk the ring still holds.
       truncatedStart: selected[0].startSec > startSec + 1e-6,
       truncatedEnd: selected[selected.length - 1].endSec < endSec - 1e-6,
     };

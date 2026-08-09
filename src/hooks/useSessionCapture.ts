@@ -350,6 +350,7 @@ export function useSessionCapture({
         windowSec: [round2(window.startSec), round2(window.endSec)],
         windowMb: round2(window.bytes / 1e6),
         chunks: window.chunks,
+        leadInChunks: window.leadInChunks,
         headerPrepended: window.headerPrepended,
         truncatedStart: window.truncatedStart,
         truncatedEnd: window.truncatedEnd,

@@ -38,26 +38,45 @@ describe('VideoChunkRing', () => {
     expect(long.bytes).toBe(short.bytes);
   });
 
-  it('materializes only the requested window, not the whole ring', () => {
+  it('cuts the tail at the requested end, not the whole ring', () => {
     const ring = new VideoChunkRing({ mimeType: 'video/mp4', retentionSec: 30 });
     fill(ring, 300); // 30 s at 100 ms
 
     const win = ring.materialize(20, 22);
     expect(win).not.toBeNull();
-    expect(win!.startSec).toBeCloseTo(20, 1);
+    // Everything after the window is dropped; everything before it is kept as the
+    // decode chain, so the blob ends at 22 s but starts at the ring's oldest chunk.
     expect(win!.endSec).toBeCloseTo(22, 1);
-    // ~20 chunks of media, not 300.
-    expect(win!.chunks).toBeLessThanOrEqual(22);
+    expect(win!.startSec).toBeCloseTo(0, 1);
+    expect(win!.chunks).toBeLessThanOrEqual(221);
     expect(win!.truncatedStart).toBe(false);
     expect(win!.truncatedEnd).toBe(false);
   });
 
-  it('prepends the pinned init segment when it is outside the window', () => {
+  it('keeps the whole decode chain from the ring start, not just the overlap', () => {
+    // The production bug (session swing 12:11:55): a window of `header + the 3
+    // overlapping chunks` is bytes-correct and undecodable, because iOS Safari's
+    // ~1 s chunks carry no keyframe of their own. Every chunk since the init
+    // segment has to be there.
     const ring = new VideoChunkRing({ mimeType: 'video/mp4', retentionSec: 30 });
-    fill(ring, 300);
+    fill(ring, 10, 1.0); // 10 chunks of 1 s — the shape iOS actually delivers
 
-    const win = ring.materialize(20, 22)!;
-    // The header is long evicted from the retention list but still prepended —
+    // Overlaps only the last 3 chunks ([7,8], [8,9], [9,10]).
+    const win = ring.materialize(7.5, 9.5)!;
+    expect(win.chunks).toBe(10);
+    expect(win.leadInChunks).toBe(7);
+    expect(win.startSec).toBeCloseTo(0, 5);
+    expect(win.endSec).toBeCloseTo(10, 5);
+    // The requested start is still in the ring — a lead-in is not a truncation.
+    expect(win.truncatedStart).toBe(false);
+  });
+
+  it('prepends the pinned init segment when it is outside the window', () => {
+    const ring = new VideoChunkRing({ mimeType: 'video/mp4', retentionSec: 5 });
+    fill(ring, 300); // 30 s recorded, 5 s retained — chunk 0 is long gone
+
+    const win = ring.materialize(28, 29)!;
+    // The header is evicted from the retention list but still prepended —
     // without it the fragments are undecodable bytes.
     expect(win.headerPrepended).toBe(true);
     expect(win.bytes).toBe((win.chunks + 1) * 1000);

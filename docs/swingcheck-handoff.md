@@ -79,6 +79,13 @@ Detaljerad patch-för-patch-historik finns i [ADR-002](decisions/ADR-002-stream-
   — probe + `Session swing N captured`-loggen finns för att göra ett fel synligt i stället för tyst.
   **Kvar: Erik kör en session på iPhone, 3 svingar utan att stoppa inspelningen**, och läser talad
   feedback per sving, sessionsvyns rader, latenskedjan samt `windowMb`/`ringRetainedMb`.
+  - **Avkodningsbugg fixad (2026-08-09).** Fältfallet `windowSec [3.25, 6.42] · chunks 3 ·
+    headerPrepended true` gav 17 identiska adressbilder och "no visible swing movement" från Vision:
+    `materialize()` valde bara de *överlappande* chunksen, och iOS Safaris ~1 s-chunks (oavsett
+    `TIMESLICE_MS=100`) saknar egna nyckelbilder — de kräver kedjan från init-segmentet. Nu tas
+    **alla** chunks från `chunks[0]` fram till fönstrets slut; `truncatedStart` betyder bara
+    "starten är evict:ad". Kostnaden syns som `leadInChunks` i `Session swing N captured`.
+    Retentionen (30 s) sätter fortfarande minnestaket.
 
 ### Ström A — Voice-start
 A-1 + A-2 klara (`useMicTrigger`, `EnergyTrigger` + `useEnergyTrigger`): adaptiv amplitud-trigger med
