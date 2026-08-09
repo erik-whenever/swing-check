@@ -23,8 +23,10 @@ export interface RuleResult {
   verdict: 'pass' | 'fail' | 'cannot_determine';
   confidence: number;
   relevant_frames: number[];
-  visual_evidence: string;
-  observation: string;
+  /** Omitted by the lean quick-mode schema — TTS never reads it. */
+  visual_evidence?: string;
+  /** Omitted by the lean quick-mode schema — TTS never reads it. */
+  observation?: string;
   short_verdict?: string;  // <=6 word Swedish summary, used for TTS quick mode
   suggestion?: string;
   correction?: string;

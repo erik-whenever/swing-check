@@ -19,18 +19,29 @@ function base64Kb(b64: string): number {
   return Math.round((b64.length * 0.75) / 1024);
 }
 
+// Generation speed — not image upload — dominates vision latency (26–46 s measured
+// on session swings). Quick mode asks for a lean schema (no visual_evidence, no
+// observation), so its ceiling is set to what that schema can actually need:
+// ~15 rules × a short_verdict + one-sentence suggestion. Detailed mode keeps the
+// full-text budget.
+const MAX_TOKENS_DETAILED = 2000;
+const MAX_TOKENS_QUICK = 600;
+
 export async function analyzeSwing(
   frames: string[],
   rules: Rule[],
   options: { focusRuleId?: string | null; cameraAngle?: string; quickMode?: boolean }
 ): Promise<SwingAnalysis> {
+  const quickMode = !!options.quickMode;
+  const maxTokens = quickMode ? MAX_TOKENS_QUICK : MAX_TOKENS_DETAILED;
   const frameSizesKb = frames.map(base64Kb);
   log.info('analyzeSwing request', {
     frames: frames.length,
     rules: rules.length,
     focusRuleId: options.focusRuleId ?? null,
     cameraAngle: options.cameraAngle ?? 'unknown',
-    quickMode: !!options.quickMode,
+    quickMode,
+    maxTokens,
   });
   log.debug('Frame payload sizes (KB)', {
     perFrameKb: frameSizesKb,
@@ -42,7 +53,7 @@ export async function analyzeSwing(
     focusRuleId: options.focusRuleId,
     frameCount: frames.length,
     cameraAngle: (options.cameraAngle as 'face-on' | 'down-the-line' | 'unknown') || 'unknown',
-    quickMode: options.quickMode,
+    quickMode,
   });
 
   const imageContent = frames
@@ -65,7 +76,7 @@ export async function analyzeSwing(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2000,
+      max_tokens: maxTokens,
       // Prompt caching: the system prompt is static across every request, so we mark it
       // as an ephemeral cache breakpoint to earn cache reads on repeated analyses.
       system: [
@@ -117,15 +128,27 @@ export async function analyzeSwing(
     ).toFixed(4)
   );
 
+  // visionMs is the same measurement the session log reports under that name — one
+  // greppable key across both lines, so output size and generation latency can be
+  // correlated in the field. stopReason 'max_tokens' means the ceiling was too low.
   log.info('analyzeSwing response received', {
-    responseMs,
-    inputTokens,
+    visionMs: responseMs,
     outputTokens,
+    maxTokens,
+    quickMode,
+    inputTokens,
     cacheReadTokens,
     cacheCreationTokens,
     costUsd,
     stopReason: data.stop_reason,
   });
+  if (data.stop_reason === 'max_tokens') {
+    log.warn('analyzeSwing hit max_tokens — response truncated', {
+      maxTokens,
+      outputTokens,
+      quickMode,
+    });
+  }
   if (cacheReadTokens > 0) {
     log.info(`Cache hit: ${cacheReadTokens} tokens (saved $${(cacheReadTokens * CLAUDE_SONNET_4_5_PRICING.cacheReadPerMillionTokens / 1_000_000).toFixed(4)})`, {
       cacheReadTokens,

@@ -82,7 +82,7 @@ function SwingRow({ swing, index }: { swing: SessionSwing; index: number }) {
         <ul className="mt-1 space-y-0.5">
           {failedRules.map((r) => (
             <li key={r.id} className="text-[11px] text-amber-300/90">
-              • {r.short_verdict || r.observation}
+              • {r.short_verdict || r.observation || r.id}
             </li>
           ))}
         </ul>

@@ -35,6 +35,17 @@ interface SwingPromptOptions {
 const SHORT_VERDICT_INSTRUCTION =
   'Also return a short_verdict field: maximum 6 words summarizing the verdict in Swedish, e.g. Händerna för lågt i toppen or Bra axelrotation';
 
+// Quick mode is read aloud, not read on screen: TTS speaks short_verdict and the
+// drill/suggestion, never visual_evidence or observation. Generating those two
+// full-text fields per rule is pure generation latency (measured 26–46 s per
+// session swing), so the quick schema omits them entirely.
+const QUICK_BREVITY_INSTRUCTION = `BREVITY IS A HARD REQUIREMENT, NOT A PREFERENCE:
+- This response is spoken aloud between swings. Every extra token is dead latency.
+- Answer with the shortest text that still carries a correct verdict. Never trade verdict correctness for brevity — trade away prose.
+- Do NOT include visual_evidence or observation. They are not part of this schema and will be discarded.
+- This overrides EVIDENCE FIRST in the system prompt: still ground every verdict in what you can actually see in the frames, but do not write that evidence down.
+- Do NOT explain your reasoning, restate the rule, or add preamble. Only the fields below.`;
+
 function formatDrills(rule: Rule): string {
   if (!rule.drills || rule.drills.length === 0) return '';
   const drillLines = rule.drills
@@ -58,6 +69,81 @@ export function buildSwingPrompt(options: SwingPromptOptions): string {
       ? 'CAMERA ANGLE: unknown'
       : `CAMERA ANGLE (user-selected, treat as authoritative): ${cameraAngle}`;
 
+  const responseFormat = quickMode
+    ? `REQUIRED JSON RESPONSE FORMAT (LEAN — omit every field not listed):
+{
+  "camera_angle_detected": "face-on" | "down-the-line" | "unknown",
+  "frame_quality": "good" | "acceptable" | "poor",
+  "frame_quality_notes": "max one short phrase",
+  "usable_phases_detected": ["address", "backswing", ...],
+${
+  focusRule
+    ? `
+  "focus_rule": {
+    "id": "${focusRule.id}",
+    "verdict": "pass" | "fail" | "cannot_determine",
+    "confidence": 0.0-1.0,
+    "short_verdict": "<=6 word Swedish summary",
+    "suggestion": "max one sentence, ONLY when verdict is fail — otherwise omit the field",
+    "relevant_frames": [1, 3]
+  },
+`
+    : ''
+}
+  "rules": [
+    {
+      "id": "rule-id",
+      "verdict": "pass" | "fail" | "cannot_determine",
+      "confidence": 0.0-1.0,
+      "short_verdict": "<=6 word Swedish summary",
+      "suggestion": "max one sentence, ONLY when verdict is fail — otherwise omit the field",
+      "relevant_frames": [2, 3]
+    }
+  ],
+
+  "overall_assessment": "max one sentence",
+  "cannot_determine_reasons": ["max one short phrase per rule"]
+}
+
+${QUICK_BREVITY_INSTRUCTION}`
+    : `REQUIRED JSON RESPONSE FORMAT:
+{
+  "camera_angle_detected": "face-on" | "down-the-line" | "unknown",
+  "frame_quality": "good" | "acceptable" | "poor",
+  "frame_quality_notes": "string",
+  "usable_phases_detected": ["address", "backswing", ...],
+
+  ${
+    focusRule
+      ? `"focus_rule": {
+    "id": "${focusRule.id}",
+    "verdict": "pass" | "fail" | "cannot_determine",
+    "confidence": 0.0-1.0,
+    "relevant_frames": [1, 3],
+    "visual_evidence": "Describe exactly what you see in those frames",
+    "observation": "Your interpretation",
+    "correction": "Specific correction if fail, null otherwise",
+    "drill_suggestion": "Recommend predefined drill if available, otherwise suggest one. Null if pass or cannot_determine"
+  },`
+      : ''
+  }
+
+  "rules": [
+    {
+      "id": "rule-id",
+      "verdict": "pass" | "fail" | "cannot_determine",
+      "confidence": 0.0-1.0,
+      "relevant_frames": [2, 3],
+      "visual_evidence": "I can see in frame 2 that...",
+      "observation": "The hands appear to be...",
+      "suggestion": "Recommend predefined drill if available, otherwise suggest a correction"
+    }
+  ],
+
+  "overall_assessment": "2-3 sentence summary",
+  "cannot_determine_reasons": ["frame 4 is too dark to assess impact position"]
+}`;
+
   return `You are analyzing ${frameCount} sequential frames from a golf swing video.
 
 ${cameraAngleLine}
@@ -73,10 +159,17 @@ What to check: ${focusRule.description}
 Phase: ${focusRule.phase}
 ${formatDrills(focusRule)}
 
-For this rule specifically:
+For this rule specifically:${
+  quickMode
+    ? `
+- Judge it from the ${focusRule.phase} phase frames, but do NOT write the frame-by-frame description
+- Note the exact frame number(s) most relevant to this rule
+- If verdict is "fail", name the predefined drill above (if any) in one sentence`
+    : `
 - Describe frame-by-frame what you observe during the ${focusRule.phase} phase
 - Note the exact frame number(s) most relevant to this rule
-- If verdict is "fail", recommend the predefined drills above (if any) and add specific corrections${shortVerdictLine}
+- If verdict is "fail", recommend the predefined drills above (if any) and add specific corrections`
+}${shortVerdictLine}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `
     : ''
@@ -92,43 +185,7 @@ ${i + 1}. [ID: ${rule.id}] ${rule.title} (phase: ${rule.phase})
   )
   .join('')}
 
-REQUIRED JSON RESPONSE FORMAT:
-{
-  "camera_angle_detected": "face-on" | "down-the-line" | "unknown",
-  "frame_quality": "good" | "acceptable" | "poor",
-  "frame_quality_notes": "string",
-  "usable_phases_detected": ["address", "backswing", ...],
-
-  ${
-    focusRule
-      ? `"focus_rule": {
-    "id": "${focusRule.id}",
-    "verdict": "pass" | "fail" | "cannot_determine",
-    "confidence": 0.0-1.0,
-    "relevant_frames": [1, 3],
-    "visual_evidence": "Describe exactly what you see in those frames",
-    "observation": "Your interpretation",${quickMode ? '\n    "short_verdict": "<=6 word Swedish summary",' : ''}
-    "correction": "Specific correction if fail, null otherwise",
-    "drill_suggestion": "Recommend predefined drill if available, otherwise suggest one. Null if pass or cannot_determine"
-  },`
-      : ''
-  }
-
-  "rules": [
-    {
-      "id": "rule-id",
-      "verdict": "pass" | "fail" | "cannot_determine",
-      "confidence": 0.0-1.0,
-      "relevant_frames": [2, 3],
-      "visual_evidence": "I can see in frame 2 that...",
-      "observation": "The hands appear to be...",${quickMode ? '\n      "short_verdict": "<=6 word Swedish summary",' : ''}
-      "suggestion": "Recommend predefined drill if available, otherwise suggest a correction"
-    }
-  ],
-
-  "overall_assessment": "2-3 sentence summary",
-  "cannot_determine_reasons": ["frame 4 is too dark to assess impact position"]
-}
+${responseFormat}
 
 CONFIDENCE CALIBRATION:
 - 0.9–1.0: Clear, unambiguous visual evidence, well-lit, correct angle

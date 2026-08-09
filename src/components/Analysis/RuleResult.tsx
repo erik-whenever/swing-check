@@ -63,8 +63,19 @@ export function RuleResultCard({ result, isFocus, detectedAngle }: Props) {
         </p>
       ) : (
         <>
-          <p className="text-xs text-fg-dim mb-1">{result.visual_evidence}</p>
-          <p className="text-xs text-muted">{result.observation}</p>
+          {/* Quick mode omits visual_evidence/observation; short_verdict is all
+              the model returned, so show that rather than two empty rows. */}
+          {result.visual_evidence && (
+            <p className="text-xs text-fg-dim mb-1">{result.visual_evidence}</p>
+          )}
+          {result.observation ? (
+            <p className="text-xs text-muted">{result.observation}</p>
+          ) : (
+            !result.visual_evidence &&
+            result.short_verdict && (
+              <p className="text-xs text-muted">{result.short_verdict}</p>
+            )
+          )}
         </>
       )}
 
