@@ -242,11 +242,19 @@ export function useSessionCapture({
           });
         }
 
-        // ── History (the window, not the session — the session has no blob) ───
+        // ── History (frames only — the window blob is NOT persisted) ──────────
+        // The materialized window carries every lead-in chunk back to the last
+        // keyframe so the fragment decodes standalone, which makes its size a
+        // function of the ring, not of the swing: ~28 MB in production and up to
+        // ~55 MB at full 30 s retention. Times MAX_RECORDS that is half a gigabyte
+        // in IndexedDB for bytes nothing reads — SwingCard renders `record.frames`,
+        // and ShareButton/FramePreview take `currentVideoBlob` from the session
+        // store, never the history record (supabase.ts likewise hydrates an empty
+        // blob). The clip path still saves its real recording.
         await saveRecordRef.current({
           id: uuid(),
           timestamp: Date.now(),
-          videoBlob: window.blob,
+          videoBlob: new Blob([]),
           frames,
           results: [
             ...(analysis.focus_rule ? [analysis.focus_rule] : []),
@@ -276,6 +284,8 @@ export function useSessionCapture({
           windowSec: [round2(window.startSec), round2(window.endSec)],
           windowMb: round2(window.bytes / 1e6),
           windowChunks: window.chunks,
+          // Deliberate: the window is used for frame grabbing and then dropped.
+          savedVideoBytes: 0,
           queueDepth: queue.stats.depth,
         });
       } catch (err) {
