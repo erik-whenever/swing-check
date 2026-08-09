@@ -749,6 +749,48 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > `Session swing N analyzed`, (d) `windowMb`/`ringRetainedMb` som bevis för att sessionen aldrig
 > ligger i RAM.
 
+> **Pass 4 KLAR (2026-08-09) — sessionssammanfattning (raden att utvärdera ett fälttest mot).**
+> Sessionsläget loggade utförligt *per sving*; en riktig rangesession (20+ min, 30+ svingar) blir
+> flera hundra rader, och frågan fälttestet faktiskt ställer — *funkade den här sessionen?* — hade
+> ingen rad. `lib/sessionStats.ts` (ny, ren modul-singleton — ingen ny store) samlar under
+> sessionens gång och loggar **en WARN-rad `Session summary`** vid `endSession()`:
+> `durationSec`, `swingsDetected`/`Analyzed`/`Failed`, `detectedMs`/`framesMs`/`visionMs` som
+> `{median, p95}`, `spokenMedianMs`, `poseDetectionRate`, `achievedFpsMedian`, `ringEvicted`,
+> `maxWindowMb`, `totalCostUsd` och `failureReasons` (unika felmeddelanden med antal, vanligast
+> först).
+>
+> **Median + p95, inte medelvärde:** ett enda 40 s Vision-anrop på en trög range-uppkoppling
+> drar ett medelvärde tills det inte betyder något. Medianen säger vad en sving normalt kostade,
+> p95 hur illa svansen blev. Samma nearest-rank-konvention som `livePoseLoop.stats()` använder,
+> så de två p95-siffrorna i loggarna betyder samma sak.
+>
+> **Livscykeln ligger i storen** (`startSession` → `begin()`, `endSession` → `end()`), inte i
+> hooken: `endSession` anropas från tre ställen (sessionsknappen, hörlurars dubbeltryck,
+> `AnalysisView`) och storen är den enda gemensamma strypningen. `end()` returnerar `null` om
+> ingen session kördes, så ett dubbelanrop inte ersätter sammanfattningen med en tom. **Varje
+> recorder är no-op före `begin()`** — live-detektering körs även utanför session när dev-previewen
+> är på, och den trafiken får inte hamna i en sessions siffror.
+>
+> **Två additiva utökningar krävdes:** (1) `api.ts` fick `options.onUsage` — kostnaden som redan
+> beräknades var bara loggad, aldrig returnerad; callback i stället för breddad returtyp så de två
+> befintliga anroparna står orörda, och den anropas **före** JSON-parsningen (ett svar som inte går
+> att parsa kostade ändå pengar). (2) `useLiveSwingDetection` skickar vidare `LivePoseLoop.onStats`
+> (5 s-intervallet) — pose-räknarna ackumuleras därifrån som **deltan med "räknaren gick bakåt ⇒ ny
+> loop"**, eftersom en session kan spänna över flera inspelningar. Samma delta-regel för
+> `ringEvicted`. `livePoseLoop.ts` är orörd.
+>
+> **UI:** `components/Session/SessionSummaryCard.tsx` visar samma objekt på kameravyn efter
+> avslutad session (det finns ingen egen slutvy — en session slutar där den körs). Loggen är
+> primär; kortet finns för att en range med telefon på stativ är fel plats att öppna
+> loggpanelen på.
+>
+> **Ärliga avgränsningar:** `ringEvicted` samplas vid svingfångst, så evictions efter sessionens
+> sista sving räknas inte (indikator, inte revision); pose-räknarna tappar de sista < 5 s av varje
+> inspelning eftersom stats-ticken är 5 s. Nytt enhetstest `sessionStats.test.ts` (7 test:
+> median/p95, no-op utanför session, felräkning, kostnadssumma, loop-/ring-omstart, dubbel `end`).
+> Build + lint (0 nya) + test **97/97** rena. **Ej fältverifierad** — raden finns för att läsas
+> efter Eriks rangesession.
+
 **Mål (kvar):** fälttrimning av takt-trösklarna (`MOTION_ESCALATE_SPEED`, `ACTIVE_DWELL_SEC`) mot
 Eriks `Live pose stats`-data, och verifiering av fMP4-fönsterklippet på faktisk iPhone-hårdvara.
 

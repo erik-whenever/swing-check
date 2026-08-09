@@ -76,6 +76,13 @@ export function useLiveSwingDetection(
      * video window and enqueue work.
      */
     onSwing?: (report: LiveSwingReport) => void;
+    /**
+     * Fired at the loop's own stats interval (5 s) with its cumulative counters.
+     * Session statistics accumulate from here rather than from `state.stats`: this
+     * is one clean measurement per stats window, where the published state is a
+     * throttled snapshot of a window still filling up.
+     */
+    onStats?: (stats: LiveLoopStats) => void;
   },
 ): LiveDetectionState {
   const [state, setState] = useState<LiveDetectionState>(INITIAL);
@@ -85,8 +92,10 @@ export function useLiveSwingDetection(
   // Held in a ref, not in the effect's deps: a caller passing an inline closure
   // would otherwise tear down and rebuild the landmarker on every render.
   const onSwingRef = useRef(options?.onSwing);
+  const onStatsRef = useRef(options?.onStats);
   useEffect(() => {
     onSwingRef.current = options?.onSwing;
+    onStatsRef.current = options?.onStats;
   });
 
   // Kept in a ref so the sampling callback can read/write them without re-subscribing
@@ -133,6 +142,7 @@ export function useLiveSwingDetection(
           buffer,
           delegate: standalone.delegate,
           epochMs,
+          onStats: (stats) => onStatsRef.current?.(stats),
           onSample: (sample, stats) => {
             // ── Detection, throttled ──────────────────────────────────────────
             if (sample.t - lastDetectAtRef.current >= DETECT_INTERVAL_SEC) {

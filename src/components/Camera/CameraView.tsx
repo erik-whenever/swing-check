@@ -14,6 +14,7 @@ import { RecordButton } from './RecordButton';
 import { CountdownStepper } from './CountdownStepper';
 import { LiveSwingPanel } from './LiveSwingPanel';
 import { SessionSwingList } from '../Session/SessionSwingList';
+import { SessionSummaryCard } from '../Session/SessionSummaryCard';
 import { AnglePill } from '../AngleToggle';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
@@ -343,6 +344,15 @@ export function CameraView() {
       {sessionActive && (
         <div className="flex-shrink-0 border-t border-line bg-bg">
           <SessionSwingList />
+        </div>
+      )}
+
+      {/* The summary of the session that just ended. Same numbers as the WARN line
+          the log carries — the log is what gets read after a field test, this is what
+          gets read at the range. */}
+      {!sessionActive && (
+        <div className="flex-shrink-0">
+          <SessionSummaryCard />
         </div>
       )}
 

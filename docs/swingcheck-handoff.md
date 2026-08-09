@@ -86,6 +86,17 @@ Detaljerad patch-för-patch-historik finns i [ADR-002](decisions/ADR-002-stream-
     **alla** chunks från `chunks[0]` fram till fönstrets slut; `truncatedStart` betyder bara
     "starten är evict:ad". Kostnaden syns som `leadInChunks` i `Session swing N captured`.
     Retentionen (30 s) sätter fortfarande minnestaket.
+- **Pass 4 klar (2026-08-09) — sessionssammanfattning.** `lib/sessionStats.ts` (ren
+  modul-singleton, ingen ny store) samlar under sessionen och loggar **en WARN-rad
+  `Session summary`** vid `endSession()`: `durationSec`, `swingsDetected/Analyzed/Failed`,
+  `detectedMs`/`framesMs`/`visionMs` som `{median, p95}`, `spokenMedianMs`, `poseDetectionRate`,
+  `achievedFpsMedian`, `ringEvicted`, `maxWindowMb`, `totalCostUsd`, `failureReasons`.
+  **Det är raden att utvärdera ett fälttest mot** — de per-sving-rader som redan finns är rätt
+  granularitet för en sving och fel för en 20-minuterssession. Livscykeln ligger i storen
+  (`startSession`→`begin()`, `endSession`→`end()`, `lastSummary` för UI:t) eftersom `endSession`
+  anropas från tre ställen. Additivt: `api.ts` `options.onUsage` (kostnaden var beräknad men
+  aldrig returnerad) och `useLiveSwingDetection.onStats` (vidarebefordrar `LivePoseLoop.onStats`).
+  Samma siffror visas på kameravyn efter avslutad session via `Session/SessionSummaryCard.tsx`.
 
 ### Ström A — Voice-start
 A-1 + A-2 klara (`useMicTrigger`, `EnergyTrigger` + `useEnergyTrigger`): adaptiv amplitud-trigger med
@@ -130,7 +141,7 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
 - `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `supabase`, `tts`, `i18n`, `logger`, `geo`,
   `audioTrigger`; pose: `poseDetector`/`poseTrajectory`/`poseConnections`/`poseEnvelope`/
   `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`; live: `poseRingBuffer`/`livePoseLoop`/
-  `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`.
+  `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`.
 - `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).
 

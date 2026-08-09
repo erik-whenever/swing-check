@@ -41,7 +41,9 @@ import { createLogger, serializeError } from '../lib/logger';
 import { grabFramesAtTimes } from '../lib/poseFrameGrab';
 import { selectEnvelopeFrames } from '../lib/poseEnvelopeSelection';
 import { SerialQueue, type QueueStats } from '../lib/analysisQueue';
+import { sessionStats } from '../lib/sessionStats';
 import { buildSpeechParts, enqueueSpeech, TTS_FAILED } from '../lib/tts';
+import type { LiveLoopStats } from '../lib/livePoseLoop';
 import type { LiveSwingReport } from '../lib/liveSwingDetector';
 import type { MaterializedWindow, VideoChunkRing } from '../lib/videoChunkRing';
 import { useRulesStore } from '../store/rules';
@@ -174,7 +176,9 @@ export function useSessionCapture({
         .rules.filter((r) => r.active && ruleMatchesAngle(r, cameraAngle));
 
       if (activeRules.length === 0) {
-        updateSwing(swingId, { status: 'failed', error: 'Inga aktiva regler för vinkeln' });
+        const reason = 'Inga aktiva regler för vinkeln';
+        updateSwing(swingId, { status: 'failed', error: reason });
+        sessionStats.recordFailure(reason);
         log.warn('Session swing skipped — no active rules', { swingIndex, cameraAngle });
         return;
       }
@@ -220,10 +224,12 @@ export function useSessionCapture({
           focusRuleId: focusRuleId ?? undefined,
           cameraAngle: ANGLE_TO_PROMPT[cameraAngle],
           quickMode: ttsEnabled && ttsMode === 'quick',
+          onUsage: (usage) => sessionStats.recordCost(usage.costUsd),
         });
         const visionMs = Math.round(performance.now() - visionStart);
         timings.analysisMs = sinceAnchorMs();
         updateSwing(swingId, { analysis, status: 'done', timings: { ...timings } });
+        sessionStats.recordAnalyzed({ framesMs: timings.framesMs, visionMs });
 
         // ── Speech (own queue — never blocks the next analysis) ───────────────
         if (ttsEnabled) {
@@ -234,6 +240,7 @@ export function useSessionCapture({
             onEnd: () => {
               timings.spokenMs = sinceAnchorMs();
               updateSwing(swingId, { timings: { ...timings } });
+              sessionStats.recordSpoken(timings.spokenMs);
               log.warn(`Session swing ${swingIndex} spoken`, {
                 anchorSec: round2(anchorSec),
                 spokenMs: timings.spokenMs,
@@ -291,6 +298,7 @@ export function useSessionCapture({
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         updateSwing(swingId, { status: 'failed', error: msg, timings: { ...timings } });
+        sessionStats.recordFailure(msg);
         log.error(`Session swing ${swingIndex} failed`, {
           error: serializeError(err),
           anchorSec: round2(anchorSec),
@@ -314,6 +322,7 @@ export function useSessionCapture({
       const ring = chunkRingRef.current;
 
       beginSwing();
+      sessionStats.recordDetected(Math.round(report.latencySec * 1000));
       const swingIndex = useSessionStore.getState().swings.length + 1;
       const swingId = addSwing({
         status: 'detected',
@@ -329,7 +338,9 @@ export function useSessionCapture({
       });
 
       if (!ring || epochMs === null) {
-        updateSwing(swingId, { status: 'failed', error: 'Ingen videobuffert för sessionen' });
+        const reason = 'Ingen videobuffert för sessionen';
+        updateSwing(swingId, { status: 'failed', error: reason });
+        sessionStats.recordFailure(reason);
         log.error('Session swing has no chunk ring', { swingIndex, hasRing: !!ring });
         return;
       }
@@ -341,10 +352,9 @@ export function useSessionCapture({
       const window = ring.materialize(winStart, winEnd);
 
       if (!window) {
-        updateSwing(swingId, {
-          status: 'failed',
-          error: 'Videofönstret fanns inte kvar i bufferten',
-        });
+        const reason = 'Videofönstret fanns inte kvar i bufferten';
+        updateSwing(swingId, { status: 'failed', error: reason });
+        sessionStats.recordFailure(reason);
         log.error('Window materialization failed', {
           swingIndex,
           requestedSec: [round2(winStart), round2(winEnd)],
@@ -353,6 +363,11 @@ export function useSessionCapture({
         });
         return;
       }
+
+      sessionStats.recordWindow({
+        windowMb: window.bytes / 1e6,
+        ringEvicted: ring.evictedCount,
+      });
 
       log.warn(`Session swing ${swingIndex} captured`, {
         anchorSec: round2(report.anchorSec),
@@ -378,9 +393,21 @@ export function useSessionCapture({
     [addSwing, updateSwing, beginSwing, chunkRingRef, queue, runSwing],
   );
 
+  // `onPoseStats` is stable and the collector ignores everything outside a session,
+  // so the dev-preview-outside-a-session case (detect and log only) contributes
+  // nothing to a session's numbers.
+  const onPoseStats = useCallback((stats: LiveLoopStats) => {
+    sessionStats.recordPoseStats({
+      samples: stats.samples,
+      posesDetected: stats.posesDetected,
+      achievedFps: stats.achievedFps,
+    });
+  }, []);
+
   const live = useLiveSwingDetection(videoRef, active, {
     epochMs: recordingEpochMs ?? undefined,
     onSwing,
+    onStats: onPoseStats,
   });
 
   /** Resolves once every queued swing has finished. Used before releasing the ring. */

@@ -27,10 +27,35 @@ function base64Kb(b64: string): number {
 const MAX_TOKENS_DETAILED = 2000;
 const MAX_TOKENS_QUICK = 600;
 
+/** Token accounting and cost for one analysis, as reported by the API. */
+export interface AnalysisUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  /** USD, from the price table above. */
+  costUsd: number;
+  /** Round-trip time of the Vision call itself. */
+  visionMs: number;
+}
+
 export async function analyzeSwing(
   frames: string[],
   rules: Rule[],
-  options: { focusRuleId?: string | null; cameraAngle?: string; quickMode?: boolean }
+  options: {
+    focusRuleId?: string | null;
+    cameraAngle?: string;
+    quickMode?: boolean;
+    /**
+     * Called with the cost of this analysis once the response is in — BEFORE the
+     * JSON is parsed, deliberately: a response that fails to parse still cost money,
+     * and a session's total would understate itself if it only counted successes.
+     *
+     * A callback rather than a widened return type so the two existing callers stay
+     * untouched; only the session path cares about the number.
+     */
+    onUsage?: (usage: AnalysisUsage) => void;
+  }
 ): Promise<SwingAnalysis> {
   const quickMode = !!options.quickMode;
   const maxTokens = quickMode ? MAX_TOKENS_QUICK : MAX_TOKENS_DETAILED;
@@ -127,6 +152,15 @@ export async function analyzeSwing(
       1_000_000
     ).toFixed(4)
   );
+
+  options.onUsage?.({
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheCreationTokens,
+    costUsd,
+    visionMs: responseMs,
+  });
 
   // visionMs is the same measurement the session log reports under that name — one
   // greppable key across both lines, so output size and generation latency can be

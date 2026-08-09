@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid';
 import type { SwingAnalysis } from '../types';
 import type { FrameMeta } from '../lib/frameExtractor';
 import type { CameraAngle } from '../lib/cameraAngle';
+import { sessionStats, type SessionSummary } from '../lib/sessionStats';
 
 type View = 'home' | 'camera' | 'rules' | 'analysis' | 'history' | 'preview' | 'settings';
 
@@ -109,6 +110,13 @@ interface SessionState {
    */
   speechBlocked: boolean;
   setSpeechBlocked: (v: boolean) => void;
+  /**
+   * Summary of the session that just ended (see `lib/sessionStats.ts`). Kept so the
+   * numbers survive the session being torn down and can be read on the phone at the
+   * range without opening the log panel. Cleared by the next session, or by hand.
+   */
+  lastSummary: SessionSummary | null;
+  clearLastSummary: () => void;
   startSession: () => void;
   endSession: () => void;
   /** Increment the swing counter (called when a new recording begins). */
@@ -158,16 +166,32 @@ export const useSessionStore = create<SessionState>((set) => ({
   autoRecordPending: false,
   speechBlocked: false,
   setSpeechBlocked: (speechBlocked) => set({ speechBlocked }),
-  startSession: () =>
+  lastSummary: null,
+  clearLastSummary: () => set({ lastSummary: null }),
+  startSession: () => {
+    // Zero the field-test statistics here rather than at the first swing: a session
+    // that detected nothing is itself a result, and its duration is part of it.
+    sessionStats.begin();
     set({
       sessionActive: true,
       sessionId: uuid(),
       swingNumber: 0,
       autoRecordPending: false,
       speechBlocked: false,
-    }),
+      lastSummary: null,
+    });
+  },
   endSession: () =>
-    set({ sessionActive: false, sessionId: null, swingNumber: 0, autoRecordPending: false }),
+    set((s) => ({
+      sessionActive: false,
+      sessionId: null,
+      swingNumber: 0,
+      autoRecordPending: false,
+      // `end()` logs the WARN line and returns null if no session was running, so a
+      // second call (the headset double-press and the button can both land) keeps
+      // the first summary instead of replacing it with an empty one.
+      lastSummary: sessionStats.end() ?? s.lastSummary,
+    })),
   beginSwing: () => set((s) => ({ swingNumber: s.swingNumber + 1 })),
   requestAutoRecord: () => set({ autoRecordPending: true }),
   clearAutoRecord: () => set({ autoRecordPending: false }),
