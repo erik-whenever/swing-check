@@ -151,6 +151,12 @@ Lägg RLS-policies på `swing_records` och grundlägg auth så historik-sync slu
 
 **Dokumentkrav:** `swingcheck-handoff.md`: uppdatera RLS-rader under 'Mindre saker' och 'Känd teknisk skuld'; notera under 'Backend' att policies finns och kräver auth.uid(). Skapa `docs/supabase-auth.md` (schema, policy-lista, checklista B-1…B-3 med B-1 avbockad).
 
+---
+
+**⚠️ TILLFÄLLIG AVSTÄNGNING:** `SUPABASE_DISABLED` är satt till `true` i `src/lib/supabase.ts` (2026-08-09). Supabase-projektet är oåtkomligt (nätverksfel) och lagret ger inget värde tills auth är implementerat (B-2) och projektet verifierat nåbart. **Förutsättning för B-1:** Sätt `SUPABASE_DISABLED = false` och verifiera att projektet är nåbart innan B-1 påbörjas.
+
+---
+
 ### [ ] B-2 — Auth-grund: magic link + auth-store
 
 **Mål:** Supabase Auth (magic link/passwordless) + Zustand auth-store. RLS kräver session för att sync ska funka, därför tidigarelagt.

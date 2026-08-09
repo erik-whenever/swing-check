@@ -16,11 +16,16 @@ const log = createLogger('Supabase');
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
+// TILLFÄLLIGT AV. Supabase-projektet är oåtkomligt och lagret ger inget värde
+// förrän auth finns (Ström B: magic link + user_id). Sätt till false när
+// auth-grunden landar och projektet är verifierat nåbart igen.
+const SUPABASE_DISABLED = true;
+
 /** The shared client, or null when Supabase is not configured. */
 export const supabase: SupabaseClient | null =
-  SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
-    : null;
+  SUPABASE_DISABLED || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY
+    ? null
+    : createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 /** True when a Supabase project is configured and history should sync remotely. */
 export function isSupabaseEnabled(): boolean {
