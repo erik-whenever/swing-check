@@ -6,6 +6,14 @@ const log = createLogger('API');
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/analyze';
 
+// Priser 2026-08, verifiera vid modellbyte
+const CLAUDE_SONNET_4_5_PRICING = {
+  inputPerMillionTokens: 3.0,
+  outputPerMillionTokens: 15.0,
+  cacheWritePerMillionTokens: 3.75,
+  cacheReadPerMillionTokens: 0.3,
+};
+
 /** Approximate decoded byte size of a base64 string, in KB. */
 function base64Kb(b64: string): number {
   return Math.round((b64.length * 0.75) / 1024);
@@ -96,18 +104,41 @@ export async function analyzeSwing(
   const data = await response.json();
   const cacheReadTokens = data.usage?.cache_read_input_tokens ?? 0;
   const cacheCreationTokens = data.usage?.cache_creation_input_tokens ?? 0;
+  const inputTokens = data.usage?.input_tokens ?? 0;
+  const outputTokens = data.usage?.output_tokens ?? 0;
+
+  const costUsd = parseFloat(
+    (
+      (inputTokens * CLAUDE_SONNET_4_5_PRICING.inputPerMillionTokens +
+        outputTokens * CLAUDE_SONNET_4_5_PRICING.outputPerMillionTokens +
+        cacheCreationTokens * CLAUDE_SONNET_4_5_PRICING.cacheWritePerMillionTokens +
+        cacheReadTokens * CLAUDE_SONNET_4_5_PRICING.cacheReadPerMillionTokens) /
+      1_000_000
+    ).toFixed(4)
+  );
+
   log.info('analyzeSwing response received', {
     responseMs,
-    inputTokens: data.usage?.input_tokens,
-    outputTokens: data.usage?.output_tokens,
+    inputTokens,
+    outputTokens,
     cacheReadTokens,
     cacheCreationTokens,
+    costUsd,
     stopReason: data.stop_reason,
   });
   if (cacheReadTokens > 0) {
-    log.info(`Cache hit: ${cacheReadTokens} tokens`, { cacheReadTokens, cacheCreationTokens });
+    log.info(`Cache hit: ${cacheReadTokens} tokens (saved $${(cacheReadTokens * CLAUDE_SONNET_4_5_PRICING.cacheReadPerMillionTokens / 1_000_000).toFixed(4)})`, {
+      cacheReadTokens,
+      cacheCreationTokens,
+    });
   } else if (cacheCreationTokens > 0) {
-    log.info(`Cache miss: wrote ${cacheCreationTokens} tokens to cache`, { cacheCreationTokens });
+    log.info(`Cache miss: wrote ${cacheCreationTokens} tokens to cache ($${(cacheCreationTokens * CLAUDE_SONNET_4_5_PRICING.cacheWritePerMillionTokens / 1_000_000).toFixed(4)})`, {
+      cacheCreationTokens,
+    });
+  }
+
+  if (import.meta.env.VITE_DEV_PREVIEW || import.meta.env.VITE_DEBUG_MODE) {
+    log.info(`💰 Analysis cost: $${costUsd} (cached: ${cacheReadTokens > 0 ? 'hit' : cacheCreationTokens > 0 ? 'miss' : 'no'})`);
   }
 
   const text = data.content[0].text;
