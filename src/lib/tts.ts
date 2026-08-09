@@ -1,6 +1,7 @@
 import type { RuleResult, SwingAnalysis } from '../types';
 import type { TtsMode } from '../store/settings';
 import { useSettingsStore } from '../store/settings';
+import { useRulesStore } from '../store/rules';
 
 // All spoken strings are Swedish; fall back to this locale when no concrete voice
 // could be resolved (the selected voice's own lang is preferred otherwise).
@@ -93,6 +94,8 @@ export const TTS_INTRO = 'Sving analyserat.';
 export const TTS_ANALYZING = 'Analyserar...';
 export const TTS_FAILED = 'Analysen misslyckades, försök igen';
 const TTS_NO_ISSUES = 'Inga fel hittades.';
+/** Header before the rules the model could not judge — never silently dropped. */
+export const TTS_UNDETERMINED = 'Kunde inte bedömas:';
 /** Spoken at the end of a session swing to signal the upcoming auto-restart (3s). */
 export const TTS_SESSION_NEXT = 'Startar nästa sving om tre sekunder.';
 
@@ -266,12 +269,32 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
   speakSequence([text], opts);
 }
 
+/** First sentence of a paragraph — the fallback when a short_verdict is missing. */
+function firstSentence(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^[\s\S]*?[.!?](?=\s|$)/);
+  return (match ? match[0] : trimmed).trim();
+}
+
 function shortVerdict(r: RuleResult): string {
-  return (r.short_verdict || r.observation || '').trim();
+  const short = r.short_verdict?.trim();
+  if (short) return short;
+  // observation is a full paragraph; reading it out loud is not a "quick" mode.
+  return firstSentence(r.observation || '');
 }
 
 function drillText(r: RuleResult): string {
   return (r.drill_suggestion || r.suggestion || '').trim();
+}
+
+/** The rule's own title, if the rule still exists in the user's rule list. */
+function ruleTitle(id: string): string {
+  return useRulesStore.getState().rules.find((r) => r.id === id)?.title.trim() ?? '';
+}
+
+/** What to name an unjudged rule: its title, else the model's own short summary. */
+function undeterminedLabel(r: RuleResult): string {
+  return ruleTitle(r.id) || shortVerdict(r);
 }
 
 /**
@@ -308,8 +331,11 @@ export function buildSpeechParts(
         ...analysis.rules,
       ];
   const failed = results.filter((r) => r.verdict === 'fail');
+  // Unjudged rules are not a clean bill of health — saying "inga fel hittades"
+  // when nothing could be assessed is the one answer that is actively misleading.
+  const undetermined = results.filter((r) => r.verdict === 'cannot_determine');
 
-  if (failed.length === 0) {
+  if (failed.length === 0 && undetermined.length === 0) {
     parts.push(TTS_NO_ISSUES);
     return parts;
   }
@@ -318,6 +344,14 @@ export function buildSpeechParts(
     if (r.observation) parts.push(r.observation.trim());
     const drill = drillText(r);
     if (drill) parts.push(drill);
+  }
+
+  if (undetermined.length > 0) {
+    parts.push(TTS_UNDETERMINED);
+    for (const r of undetermined) {
+      const label = undeterminedLabel(r);
+      if (label) parts.push(label);
+    }
   }
   return parts;
 }

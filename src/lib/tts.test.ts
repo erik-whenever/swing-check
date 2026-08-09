@@ -9,6 +9,7 @@
 // failure mode the watchdog exists for.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RuleResult, SwingAnalysis } from '../types';
 
 interface FakeUtterance {
   text: string;
@@ -57,7 +58,17 @@ let synth: FakeSynth;
 beforeEach(async () => {
   vi.resetModules();
   synth = new FakeSynth();
-  vi.stubGlobal('window', { speechSynthesis: synth });
+  // The zustand stores tts.ts reads from are `persist`-wrapped and resolve their
+  // storage off `window`; give them somewhere harmless to write so a setState in a
+  // test doesn't blow up on missing storage.
+  const kv = new Map<string, string>();
+  const localStorage = {
+    getItem: (k: string) => kv.get(k) ?? null,
+    setItem: (k: string, v: string) => void kv.set(k, v),
+    removeItem: (k: string) => void kv.delete(k),
+  };
+  vi.stubGlobal('window', { speechSynthesis: synth, localStorage });
+  vi.stubGlobal('localStorage', localStorage);
   vi.stubGlobal(
     'SpeechSynthesisUtterance',
     class {
@@ -172,5 +183,165 @@ describe('serialized speech queue', () => {
     const onEnd = vi.fn();
     speakSequence(['tyst enhet'], { onEnd });
     expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── buildSpeechParts ─────────────────────────────────────────────────────────
+// The dangerous case is `cannot_determine`: the model saying "I could not judge
+// this" must never be spoken as "inga fel hittades".
+
+function result(over: Partial<RuleResult> & { id: string }): RuleResult {
+  return {
+    verdict: 'pass',
+    confidence: 0.9,
+    relevant_frames: [1],
+    visual_evidence: '',
+    observation: '',
+    ...over,
+  };
+}
+
+function analysis(rules: RuleResult[], focus?: RuleResult): SwingAnalysis {
+  return {
+    camera_angle_detected: 'face-on',
+    frame_quality: 'good',
+    frame_quality_notes: '',
+    usable_phases_detected: [],
+    rules,
+    focus_rule: focus,
+    overall_assessment: '',
+  };
+}
+
+describe('buildSpeechParts — detailed mode', () => {
+  it('says "inga fel" only when nothing failed AND nothing was left unjudged', async () => {
+    const { buildSpeechParts } = await loadTts();
+    const parts = buildSpeechParts(
+      analysis([result({ id: 'a' }), result({ id: 'b' })]),
+      'detailed',
+    );
+    expect(parts).toEqual(['Sving analyserat.', 'Inga fel hittades.']);
+  });
+
+  it('reads out cannot_determine instead of claiming no faults were found', async () => {
+    const { buildSpeechParts, TTS_UNDETERMINED } = await loadTts();
+    const parts = buildSpeechParts(
+      analysis([
+        result({ id: 'a' }),
+        result({
+          id: 'b',
+          verdict: 'cannot_determine',
+          short_verdict: 'Handleden skymd i toppen',
+        }),
+      ]),
+      'detailed',
+    );
+    expect(parts).not.toContain('Inga fel hittades.');
+    expect(parts).toEqual([
+      'Sving analyserat.',
+      TTS_UNDETERMINED,
+      'Handleden skymd i toppen',
+    ]);
+  });
+
+  it('names an unjudged rule by its title when the rule still exists', async () => {
+    const { buildSpeechParts, TTS_UNDETERMINED } = await loadTts();
+    const { useRulesStore } = await import('../store/rules');
+    useRulesStore.setState({
+      rules: [
+        {
+          id: 'r1',
+          title: 'Huvudet stilla genom slaget',
+          description: '',
+          phase: 'impact',
+          weight: 2,
+          active: true,
+        },
+      ],
+    });
+
+    const parts = buildSpeechParts(
+      analysis([
+        result({ id: 'r1', verdict: 'cannot_determine', short_verdict: 'Oklart' }),
+      ]),
+      'detailed',
+    );
+    expect(parts).toEqual([
+      'Sving analyserat.',
+      TTS_UNDETERMINED,
+      'Huvudet stilla genom slaget',
+    ]);
+  });
+
+  it('reads failed rules first, then the unjudged ones', async () => {
+    const { buildSpeechParts, TTS_UNDETERMINED } = await loadTts();
+    const parts = buildSpeechParts(
+      analysis([
+        result({
+          id: 'a',
+          verdict: 'fail',
+          observation: 'Höften öppnar för tidigt.',
+          drill_suggestion: 'Gör pausövningen.',
+        }),
+        result({ id: 'b', verdict: 'cannot_determine', short_verdict: 'Armen utanför bild' }),
+      ]),
+      'detailed',
+    );
+    expect(parts).toEqual([
+      'Sving analyserat.',
+      'Höften öppnar för tidigt.',
+      'Gör pausövningen.',
+      TTS_UNDETERMINED,
+      'Armen utanför bild',
+    ]);
+  });
+
+  it('covers the focus rule too when it is the one that could not be judged', async () => {
+    const { buildSpeechParts, TTS_UNDETERMINED } = await loadTts();
+    const focus = result({
+      id: 'f',
+      verdict: 'cannot_determine',
+      short_verdict: 'För mörkt vid nedslag',
+    });
+    const parts = buildSpeechParts(analysis([], focus), 'detailed', 'f');
+    expect(parts).toEqual([
+      'Sving analyserat.',
+      TTS_UNDETERMINED,
+      'För mörkt vid nedslag',
+    ]);
+  });
+});
+
+describe('buildSpeechParts — quick mode', () => {
+  it('falls back to the first sentence of the observation, not the whole paragraph', async () => {
+    const { buildSpeechParts } = await loadTts();
+    const parts = buildSpeechParts(
+      analysis([
+        result({
+          id: 'a',
+          verdict: 'fail',
+          observation:
+            'Händerna är för lågt i toppen. Det gör att klubban tappar vinkel, vilket kostar fart genom bollen.',
+        }),
+      ]),
+      'quick',
+    );
+    expect(parts).toEqual(['Sving analyserat.', 'Händerna är för lågt i toppen.']);
+  });
+
+  it('prefers short_verdict when the model provided one', async () => {
+    const { buildSpeechParts } = await loadTts();
+    const parts = buildSpeechParts(
+      analysis([
+        result({
+          id: 'a',
+          verdict: 'fail',
+          short_verdict: 'Händerna för lågt i toppen',
+          observation: 'En lång förklaring. Med flera meningar.',
+        }),
+      ]),
+      'quick',
+    );
+    expect(parts).toEqual(['Sving analyserat.', 'Händerna för lågt i toppen']);
   });
 });

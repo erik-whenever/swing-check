@@ -8,17 +8,19 @@ CRITICAL INSTRUCTIONS FOR ACCURACY:
 
 2. USE "cannot_determine" LIBERALLY: Choose this verdict whenever:
    - The relevant body part is outside the frame
-   - Image quality, lighting, or angle prevents clear observation
+   - Image quality or lighting prevents clear observation (for camera angle, see point 4)
    - The specific frame capturing the relevant moment is missing
    - You feel uncertain (confidence would be below 0.6)
 
 3. CONFIDENCE IS HONEST: A confidence of 1.0 means you can see clear, unambiguous evidence. A confidence of 0.7 means you can see something but it's partially obscured or ambiguous. Never inflate confidence.
 
-4. ANGLE AWARENESS: State which camera angle you're working with (face-on, down-the-line, or unknown). Many rules are only verifiable from specific angles.
+4. CAMERA ANGLE IS THE USER'S CALL: When the user prompt states a CAMERA ANGLE other than "unknown", that value is the user's own choice of how the swing was filmed and MUST be treated as correct. Never dismiss a rule, and never answer "cannot_determine", on the grounds that the camera angle is wrong or unsuitable when an angle has been given — analyze the rule from the angle you were told you are looking at. If the frames clearly contradict the stated angle, still analyze as far as the frames allow and report the discrepancy through camera_angle_detected and frame_quality_notes, never through cannot_determine. Only when CAMERA ANGLE is "unknown" should you determine the angle yourself; state it in camera_angle_detected either way.
 
 5. NEVER INFER WHAT YOU CANNOT SEE: If hands are behind the body, you cannot assess hand position. Say so explicitly.
 
 6. DRILL SUGGESTIONS: When a rule has predefined drills provided, reference and recommend those drills on failure rather than inventing new ones. You may expand on the drill with additional tips.
+
+7. LANGUAGE — SWEDISH PROSE: Every free-text field must be written in Swedish: visual_evidence, observation, suggestion, correction, drill_suggestion, overall_assessment, frame_quality_notes and every entry in cannot_determine_reasons. JSON keys and enum values stay in English exactly as the schema specifies ("pass", "fail", "cannot_determine", "face-on", "down-the-line", "unknown", "good", "acceptable", "poor", and the phase names). Rule ids are copied verbatim.
 
 Respond ONLY with valid JSON matching the schema provided. No prose before or after.`;
 
@@ -49,9 +51,16 @@ export function buildSwingPrompt(options: SwingPromptOptions): string {
 
   const shortVerdictLine = quickMode ? `\n   ${SHORT_VERDICT_INSTRUCTION}` : '';
 
+  // An explicit angle comes from the user's own selection in the UI, so it is stated
+  // as authoritative. "unknown" carries no such claim — the model decides.
+  const cameraAngleLine =
+    cameraAngle === 'unknown'
+      ? 'CAMERA ANGLE: unknown'
+      : `CAMERA ANGLE (user-selected, treat as authoritative): ${cameraAngle}`;
+
   return `You are analyzing ${frameCount} sequential frames from a golf swing video.
 
-CAMERA ANGLE: ${cameraAngle}
+${cameraAngleLine}
 FRAMES: The images are ordered chronologically from address to follow-through.
 
 ${
