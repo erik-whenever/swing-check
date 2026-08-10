@@ -7,8 +7,10 @@ interface CountdownStepperProps {
 }
 
 /**
- * Compact vertical control for the pre-record countdown. Scroll up (or tap ▲) to add
- * a second, scroll down (or tap ▼) to remove one. Sits next to the record button.
+ * Countdown length as a chip with −/+ ends, matching the other camera-mode chips.
+ *
+ * It used to be a vertical ▲/▼ column, which read as a spinner widget and sat at a
+ * different visual altitude than every other setting on the same screen.
  */
 export function CountdownStepper({ value, onChange, disabled }: CountdownStepperProps) {
   const clamp = (n: number) => Math.max(COUNTDOWN_MIN, Math.min(COUNTDOWN_MAX, n));
@@ -24,29 +26,27 @@ export function CountdownStepper({ value, onChange, disabled }: CountdownStepper
   return (
     <div
       onWheel={handleWheel}
-      className={`flex flex-col items-center select-none rounded-xl bg-surface px-2 py-1.5
+      className={`flex flex-none items-center select-none rounded-pill bg-raised px-1
+                  text-[10.5px] font-semibold text-muted
                   ${disabled ? 'opacity-30 pointer-events-none' : ''}`}
-      aria-label="Countdown duration in seconds"
+      aria-label="Nedräkning i sekunder"
     >
-      <button
-        onClick={inc}
-        disabled={disabled || value >= COUNTDOWN_MAX}
-        aria-label="Increase countdown"
-        className="text-muted hover:text-fg disabled:opacity-30 leading-none text-lg"
-      >
-        ▲
-      </button>
-      <div className="flex items-baseline gap-0.5 my-0.5">
-        <span className="text-xl font-bold tabular-nums text-fg w-6 text-center">{value}</span>
-        <span className="text-[10px] text-muted">s</span>
-      </div>
       <button
         onClick={dec}
         disabled={disabled || value <= COUNTDOWN_MIN}
-        aria-label="Decrease countdown"
-        className="text-muted hover:text-fg disabled:opacity-30 leading-none text-lg"
+        aria-label="Kortare nedräkning"
+        className="w-6 h-7 rounded-pill text-sm leading-none hover:text-fg disabled:opacity-30"
       >
-        ▼
+        −
+      </button>
+      <span className="min-w-[2.75rem] text-center tabular-nums text-fg">⏱ {value} s</span>
+      <button
+        onClick={inc}
+        disabled={disabled || value >= COUNTDOWN_MAX}
+        aria-label="Längre nedräkning"
+        className="w-6 h-7 rounded-pill text-sm leading-none hover:text-fg disabled:opacity-30"
+      >
+        +
       </button>
     </div>
   );

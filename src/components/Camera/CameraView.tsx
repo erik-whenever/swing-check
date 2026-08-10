@@ -18,10 +18,13 @@ import { SessionSwingList } from '../Session/SessionSwingList';
 import { SessionSummaryCard } from '../Session/SessionSummaryCard';
 import { AnglePill } from '../AngleToggle';
 import { WideAngleToggle } from './WideAngleToggle';
+import { useT } from '../../lib/i18n';
+import { Button, Segmented } from '../ui';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 
 export function CameraView() {
+  const t = useT();
   const {
     videoRef,
     streamRef,
@@ -254,17 +257,15 @@ export function CameraView() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+      {/* The viewfinder is a framed card, not a full-bleed black rectangle: the cream
+          ground stays continuous, and the rounded frame is what the golfer aims into. */}
+      <div className="relative flex-1 min-h-0 mx-[14px] mb-2 rounded-[20px] overflow-hidden
+                      bg-raised border border-line flex items-center justify-center">
         {error ? (
-          <div className="p-4 text-center">
-            <p className="text-red-400 mb-2">Camera error</p>
-            <p className="text-sm text-muted">{error}</p>
-            <button
-              onClick={startStream}
-              className="mt-4 px-4 py-2 bg-accent-press rounded-lg text-sm"
-            >
-              Retry
-            </button>
+          <div className="p-6 text-center">
+            <p className="mb-1.5 text-sm font-semibold text-bad">{t('camera.error')}</p>
+            <p className="mb-4 text-xs text-muted">{error}</p>
+            <Button size="sm" onClick={startStream}>{t('camera.retry')}</Button>
           </div>
         ) : (
           <video
@@ -278,10 +279,10 @@ export function CameraView() {
 
         {/* Countdown overlay */}
         {isCounting && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
             <span
               key={countdown}
-              className="text-8xl font-bold text-white animate-ping-once select-none"
+              className="text-8xl font-semibold tabular-nums text-white animate-ping-once select-none"
               style={{ animationDuration: '0.6s' }}
             >
               {countdown === 0 ? 'GO' : countdown}
@@ -291,26 +292,37 @@ export function CameraView() {
 
         {/* Processing / progress overlay */}
         {progress !== null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 px-8">
-            <p className="text-sm font-medium text-white">Bearbetar film…</p>
-            <div className="w-full max-w-xs h-2 rounded-full bg-raised overflow-hidden">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/65 px-8">
+            <p className="text-sm font-medium text-white">{t('camera.processing')}</p>
+            <div className="w-full max-w-xs h-1.5 rounded-pill bg-white/20 overflow-hidden">
               <div
-                className="h-full bg-accent-hover transition-[width] duration-150 ease-out"
+                className="h-full rounded-pill bg-white transition-[width] duration-150 ease-out"
                 style={{ width: `${Math.round(progress * 100)}%` }}
               />
             </div>
-            <p className="text-xs text-fg-dim">{Math.round(progress * 100)}%</p>
+            <p className="text-xs tabular-nums text-white/70">{Math.round(progress * 100)} %</p>
+          </div>
+        )}
+
+        {/* The most common reason an analysis is useless is a golfer half out of
+            frame, so the instruction lives inside the frame. */}
+        {!isRecording && !isCounting && progress === null && !error && (
+          <div className="absolute inset-x-0 bottom-14 flex justify-center px-4 pointer-events-none">
+            <span className="rounded-pill bg-surface/90 backdrop-blur px-3 py-1.5
+                             text-[10px] font-medium text-accent-text text-center">
+              {t('camera.frameHint')}
+            </span>
           </div>
         )}
 
         {/* Current camera-angle badge — always visible before recording */}
-        <div className="absolute bottom-4 left-4">
+        <div className="absolute bottom-3 left-3">
           <AnglePill angle={cameraAngle} />
         </div>
 
         {/* Wide-angle (0.5×) — framing is a viewfinder decision, so the control
             sits on the viewfinder, mirroring the angle badge. */}
-        <div className="absolute bottom-4 right-4">
+        <div className="absolute bottom-3 right-3">
           <WideAngleToggle />
         </div>
 
@@ -374,76 +386,53 @@ export function CameraView() {
         </div>
       )}
 
-      {/* Range mode + TTS controls */}
-      <div className="flex-shrink-0 px-4 pt-3 flex items-center justify-between gap-2 bg-bg">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              primeSpeech(true);
-              toggleRangeMode();
-            }}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              rangeMode
-                ? 'bg-accent text-on-accent'
-                : 'bg-raised text-fg-dim hover:bg-raised-hi'
-            }`}
-          >
-            🎧 {rangeMode ? 'Hörlursläge på' : 'Hörlursläge'}
-          </button>
-          <button
-            onClick={toggleSession}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              sessionActive
-                ? 'bg-accent text-on-accent'
-                : 'bg-raised text-fg-dim hover:bg-raised-hi'
-            }`}
-          >
-            🎯 {sessionActive ? 'Avsluta session' : 'Sessionsläge'}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => {
-              primeSpeech(true);
-              setTtsEnabled(!ttsEnabled);
-            }}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
-              ttsEnabled
-                ? 'bg-raised-hi text-fg'
-                : 'bg-surface text-faint hover:bg-raised'
-            }`}
-          >
-            Röst {ttsEnabled ? 'på' : 'av'}
-          </button>
-          {ttsEnabled && (
-            <div className="flex rounded-lg overflow-hidden border border-line text-xs font-semibold">
-              {(['quick', 'detailed'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setTtsMode(mode)}
-                  className={`px-3 py-2 transition-colors ${
-                    ttsMode === mode
-                      ? 'bg-accent text-on-accent'
-                      : 'bg-surface text-muted hover:bg-raised'
-                  }`}
-                >
-                  {mode === 'quick' ? 'Kort' : 'Detalj'}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Mode chips. Headset, session, voice and countdown are all "how this
+          recording behaves" — four different control shapes for one kind of decision
+          is what made this screen read as a cockpit. They are one chip row now. */}
+      <div className="flex-shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar
+                      px-[18px] pt-2 pb-1">
+        <ModeChip active={rangeMode} onClick={() => { primeSpeech(true); toggleRangeMode(); }}>
+          🎧 {rangeMode ? t('camera.rangeOn') : t('camera.range')}
+        </ModeChip>
+        <ModeChip active={sessionActive} onClick={toggleSession}>
+          🎯 {sessionActive ? t('camera.sessionEnd') : t('camera.session')}
+        </ModeChip>
+        <ModeChip
+          active={ttsEnabled}
+          onClick={() => { primeSpeech(true); setTtsEnabled(!ttsEnabled); }}
+        >
+          🔊 {t('camera.voice')} {ttsEnabled ? t('camera.on') : t('camera.off')}
+        </ModeChip>
+        {ttsEnabled && (
+          <Segmented
+            size="sm"
+            value={ttsMode}
+            onChange={setTtsMode}
+            options={[
+              { value: 'quick', label: t('settings.voice.quick') },
+              { value: 'detailed', label: t('settings.voice.detailed') },
+            ]}
+          />
+        )}
+        <CountdownStepper
+          value={countdownSeconds}
+          onChange={setCountdownSeconds}
+          disabled={
+            isRecording || isCounting || progress !== null || (!sessionActive && anySwingBusy)
+          }
+        />
       </div>
 
-      <div className="flex-shrink-0 py-6 flex items-center justify-center gap-6 bg-bg">
+      {/* Action row. The record button owns the centre and nothing else competes with
+          it for size — upload is a fallback, not a peer. */}
+      <div className="flex-shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-[18px] py-4">
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={anySwingBusy || progress !== null || (sessionActive && isRecording)}
-          className="px-3 py-2 bg-raised hover:bg-raised-hi rounded-lg text-xs font-medium
+          className="justify-self-start text-[11px] font-semibold text-muted hover:text-fg
                      disabled:opacity-30 transition-colors"
         >
-          Upload Video
+          {t('camera.upload')}
         </button>
         <input
           ref={fileInputRef}
@@ -463,14 +452,41 @@ export function CameraView() {
           disabled={!isStreaming || (!sessionActive && anySwingBusy)}
           onToggle={handleToggleRecord}
         />
-        <CountdownStepper
-          value={countdownSeconds}
-          onChange={setCountdownSeconds}
-          disabled={
-            isRecording || isCounting || progress !== null || (!sessionActive && anySwingBusy)
-          }
-        />
+        {sessionActive ? (
+          <button
+            onClick={toggleSession}
+            className="justify-self-end text-[11px] font-semibold text-muted hover:text-fg transition-colors"
+          >
+            {t('camera.sessionEnd')}
+          </button>
+        ) : (
+          <span aria-hidden />
+        )}
       </div>
     </div>
+  );
+}
+
+/** A camera-mode toggle. All of them look alike because they all do the same kind of thing. */
+function ModeChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex-none rounded-pill px-3 py-1.5 text-[10.5px] font-semibold whitespace-nowrap
+                  transition-colors ${
+                    active ? 'bg-accent text-on-accent' : 'bg-raised text-muted hover:text-fg'
+                  }`}
+    >
+      {children}
+    </button>
   );
 }
