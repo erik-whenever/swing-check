@@ -1,9 +1,12 @@
 import { ANGLE_LABEL, CAMERA_ANGLES } from '../../lib/cameraAngle';
 import type { CameraAngle } from '../../lib/cameraAngle';
+import { useT } from '../../lib/i18n';
+import { Chip } from '../ui';
 
 /**
- * Small inline pills showing which angle(s) a rule applies to. The pill for the
- * currently-active angle is highlighted; others are muted. No `angles` = any angle.
+ * Which angle(s) a rule applies to. The angles are joined into ONE chip
+ * ("Bakifrån · Framifrån") rather than one chip each — two adjacent pills read as
+ * two separate facts, and the row already carries a phase chip next to them.
  */
 export function AngleTags({
   angles,
@@ -13,27 +16,12 @@ export function AngleTags({
   active: CameraAngle;
 }) {
   if (!angles || angles.length === 0) {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-raised text-muted">
-        Any
-      </span>
-    );
+    return <Chip tone="neutral">{ANGLE_LABEL.dtl} · {ANGLE_LABEL['face-on']}</Chip>;
   }
   return (
-    <span className="flex items-center gap-1">
-      {angles.map((a) => (
-        <span
-          key={a}
-          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide ${
-            a === active
-              ? 'bg-accent-press/40 text-accent-text'
-              : 'bg-raised text-faint'
-          }`}
-        >
-          {ANGLE_LABEL[a]}
-        </span>
-      ))}
-    </span>
+    <Chip tone={angles.includes(active) ? 'neutral' : 'outline'}>
+      {angles.map((a) => ANGLE_LABEL[a]).join(' · ')}
+    </Chip>
   );
 }
 
@@ -45,15 +33,14 @@ export function AngleFormPicker({
   angles: CameraAngle[];
   onChange: (next: CameraAngle[]) => void;
 }) {
+  const t = useT();
   const toggle = (a: CameraAngle) => {
-    onChange(
-      angles.includes(a) ? angles.filter((x) => x !== a) : [...angles, a],
-    );
+    onChange(angles.includes(a) ? angles.filter((x) => x !== a) : [...angles, a]);
   };
 
   return (
     <div>
-      <p className="text-[11px] text-faint mb-1">Verifiable from angle</p>
+      <p className="eyebrow text-muted mb-1.5">{t('rules.form.angles')}</p>
       <div className="flex gap-2">
         {CAMERA_ANGLES.map((a) => (
           <button
@@ -61,10 +48,10 @@ export function AngleFormPicker({
             type="button"
             onClick={() => toggle(a)}
             aria-pressed={angles.includes(a)}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+            className={`flex-1 py-2 rounded-pill text-xs font-semibold transition-colors ${
               angles.includes(a)
-                ? 'bg-accent-press text-on-accent'
-                : 'bg-bg border border-line text-muted hover:text-fg'
+                ? 'bg-accent text-on-accent'
+                : 'bg-raised text-muted hover:text-fg'
             }`}
           >
             {ANGLE_LABEL[a]}

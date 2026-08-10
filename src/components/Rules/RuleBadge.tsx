@@ -1,20 +1,14 @@
-const phaseColors: Record<string, string> = {
-  address: 'bg-blue-900 text-blue-300',
-  backswing: 'bg-purple-900 text-purple-300',
-  top: 'bg-indigo-900 text-indigo-300',
-  downswing: 'bg-amber-900 text-amber-300',
-  impact: 'bg-red-900 text-red-300',
-  follow: 'bg-green-900 text-green-300',
-};
+import { useT } from '../../lib/i18n';
+import type { TranslationKey } from '../../lib/i18n';
+import { Chip } from '../ui';
 
+/**
+ * Swing-phase tag. All phases share one tint on purpose: six competing hues turned
+ * every rule row into a sticker sheet, and the phase is context, not a verdict.
+ */
 export function RuleBadge({ phase }: { phase: string }) {
-  return (
-    <span
-      className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-        phaseColors[phase] || 'bg-raised text-fg-dim'
-      }`}
-    >
-      {phase}
-    </span>
-  );
+  const t = useT();
+  const key = `phase.${phase}` as TranslationKey;
+  const label = t(key);
+  return <Chip tone="accent">{label === key ? phase : label}</Chip>;
 }

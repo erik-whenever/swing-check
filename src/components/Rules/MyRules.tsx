@@ -6,10 +6,18 @@ import { RuleBadge } from './RuleBadge';
 import { AngleTags, AngleFormPicker } from './AngleTags';
 import { ruleMatchesAngle, CAMERA_ANGLES } from '../../lib/cameraAngle';
 import type { CameraAngle } from '../../lib/cameraAngle';
+import { useT } from '../../lib/i18n';
+import type { TranslationKey } from '../../lib/i18n';
 import { PHASES } from '../../types';
 import type { Rule } from '../../types';
+import { Button, Card, Chip, Toggle } from '../ui';
+
+const FIELD =
+  'w-full px-3.5 py-2.5 bg-raised rounded-chip text-sm text-fg placeholder:text-faint ' +
+  'focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow';
 
 export function MyRules() {
+  const t = useT();
   const rules = useRulesStore((s) => s.rules);
   const toggleRule = useRulesStore((s) => s.toggleRule);
   const removeRule = useRulesStore((s) => s.removeRule);
@@ -20,6 +28,7 @@ export function MyRules() {
   const cameraAngle = useSettingsStore((s) => s.cameraAngle);
 
   const [showForm, setShowForm] = useState(false);
+  const [openActions, setOpenActions] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [phase, setPhase] = useState<Rule['phase']>('backswing');
@@ -41,145 +50,146 @@ export function MyRules() {
     setShowForm(false);
   };
 
+  const visible = rules.filter((rule) => ruleMatchesAngle(rule, cameraAngle));
+
   return (
-    <div className="p-4 space-y-3">
-      {rules.length === 0 && !showForm && (
-        <p className="text-sm text-faint text-center py-8">
-          No rules added yet. Browse the Rule Library or add a custom rule.
+    <div className="px-[18px] pb-6 space-y-2">
+      {visible.length === 0 && !showForm && (
+        <p className="text-sm text-muted text-center py-10 px-6 leading-relaxed">
+          {t('rules.empty')}
         </p>
       )}
 
-      {rules
-        .filter((rule) => ruleMatchesAngle(rule, cameraAngle))
-        .map((rule) => (
-        <div
-          key={rule.id}
-          className={`p-3 rounded-lg border text-left transition-colors ${
-            rule.active
-              ? 'bg-surface border-line'
-              : 'bg-surface/50 border-line/50 opacity-60'
-          } ${
-            focusRuleId === rule.id ? 'ring-2 ring-accent-hover' : ''
-          }`}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                <span className="text-sm font-medium truncate">{rule.title}</span>
-                <RuleBadge phase={rule.phase} />
-                <AngleTags angles={rule.angles} active={cameraAngle} />
-                {rule.libraryId && (
-                  <span className="text-[10px] text-faint-2">LIB</span>
-                )}
+      {visible.map((rule) => {
+        const isFocus = focusRuleId === rule.id;
+        const actionsOpen = openActions === rule.id;
+
+        return (
+          <Card
+            key={rule.id}
+            tone={isFocus ? 'focus' : rule.active ? 'default' : 'muted'}
+            className="animate-rise-in"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12.5px] font-semibold leading-snug flex-1">{rule.title}</p>
+              {/* The star IS the control. A focus rule is a single choice, so it needs
+                  a single tap — not a button labelled "Focus" among three others. */}
+              <button
+                onClick={() => setFocusRuleId(isFocus ? null : rule.id)}
+                aria-pressed={isFocus}
+                aria-label={t('rules.focus')}
+                className={`flex-none -mt-0.5 -mr-0.5 px-1 py-0.5 rounded-pill text-[9px]
+                            font-bold tracking-[0.06em] transition-colors ${
+                              isFocus ? 'text-gold' : 'text-faint hover:text-gold'
+                            }`}
+              >
+                {isFocus ? `★ ${t('rules.focus').toUpperCase()}` : '☆'}
+              </button>
+            </div>
+
+            <p className="mt-1 text-[10.5px] leading-[1.45] text-muted">{rule.description}</p>
+
+            <div className="flex items-center gap-1.5 mt-2.5">
+              <RuleBadge phase={rule.phase} />
+              <AngleTags angles={rule.angles} active={cameraAngle} />
+              {rule.drills && rule.drills.length > 0 && (
+                <Chip tone="outline">{t('rules.drillCount', { count: rule.drills.length })}</Chip>
+              )}
+              <span className="flex-1" />
+              <button
+                onClick={() => setOpenActions(actionsOpen ? null : rule.id)}
+                aria-label={t('rules.more')}
+                aria-expanded={actionsOpen}
+                className={`px-1.5 leading-none text-base rounded-pill transition-colors ${
+                  actionsOpen ? 'text-fg bg-raised' : 'text-faint hover:text-fg'
+                }`}
+              >
+                ⋯
+              </button>
+              <Toggle
+                size="sm"
+                on={rule.active}
+                onClick={() => toggleRule(rule.id)}
+                label={rule.title}
+              />
+            </div>
+
+            {/* Solo and delete sit one tap deeper: they are rare, and one of them is
+                destructive, so neither belongs in the resting state of every card. */}
+            {actionsOpen && (
+              <div className="flex gap-2 mt-3 pt-3 border-t border-line">
+                <Button size="sm" variant="secondary" onClick={() => soloRule(rule.id)}>
+                  {t('rules.solo')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  className="ml-auto"
+                  onClick={() => removeRule(rule.id)}
+                >
+                  {t('rules.delete')}
+                </Button>
               </div>
-              <p className="text-xs text-muted line-clamp-2">
-                {rule.description}
-              </p>
-            </div>
-          </div>
-
-          {/* Drill info for library rules */}
-          {rule.drills && rule.drills.length > 0 && (
-            <div className="mt-1.5 text-[11px] text-accent">
-              {rule.drills.length} drill{rule.drills.length > 1 ? 's' : ''} available
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 mt-2">
-            <button
-              onClick={() => setFocusRuleId(focusRuleId === rule.id ? null : rule.id)}
-              className={`px-2 py-1 rounded text-[11px] ${
-                focusRuleId === rule.id
-                  ? 'bg-accent-press text-on-accent'
-                  : 'bg-raised text-muted hover:text-fg'
-              }`}
-              title="Set as focus rule"
-            >
-              Focus
-            </button>
-            <button
-              onClick={() => soloRule(rule.id)}
-              className="px-2 py-1 rounded text-[11px] bg-raised text-muted hover:text-amber-300"
-              title="Solo — deactivate all other rules"
-            >
-              Solo
-            </button>
-            <button
-              onClick={() => toggleRule(rule.id)}
-              className={`px-2 py-1 rounded text-[11px] ${
-                rule.active
-                  ? 'bg-accent-press/30 text-accent-text'
-                  : 'bg-raised text-faint'
-              }`}
-            >
-              {rule.active ? 'ON' : 'OFF'}
-            </button>
-            <button
-              onClick={() => removeRule(rule.id)}
-              className="px-2 py-1 rounded text-[11px] bg-raised text-red-400 hover:text-red-300 ml-auto"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      ))}
+            )}
+          </Card>
+        );
+      })}
 
       {/* Custom rule form */}
       {showForm ? (
-        <form onSubmit={handleSubmit} className="space-y-2 p-3 bg-surface rounded-lg border border-line">
-          <input
-            type="text"
-            placeholder="Rule title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3 py-2 bg-bg border border-line rounded-lg text-sm
-                       placeholder:text-faint focus:outline-none focus:border-accent"
-          />
-          <textarea
-            placeholder="What to check..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            className="w-full px-3 py-2 bg-bg border border-line rounded-lg text-sm
-                       placeholder:text-faint focus:outline-none focus:border-accent resize-none"
-          />
-          <select
-            value={phase}
-            onChange={(e) => setPhase(e.target.value as Rule['phase'])}
-            className="w-full px-3 py-2 bg-bg border border-line rounded-lg text-sm
-                       focus:outline-none focus:border-accent"
-          >
-            {PHASES.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-          <AngleFormPicker angles={angles} onChange={setAngles} />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="flex-1 py-2 bg-raised hover:bg-raised-hi rounded-lg text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim() || !description.trim()}
-              className="flex-1 py-2 bg-accent-press hover:bg-accent rounded-lg text-sm font-medium
-                         disabled:opacity-30 transition-colors"
-            >
-              Add
-            </button>
-          </div>
-        </form>
+        <Card className="animate-rise-in">
+          <form onSubmit={handleSubmit} className="space-y-2.5">
+            <input
+              type="text"
+              placeholder={t('rules.form.title')}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={FIELD}
+            />
+            <textarea
+              placeholder={t('rules.form.desc')}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className={`${FIELD} resize-none`}
+            />
+            {/* Phase as chips, not a <select>: six options fit on two rows, and a
+                native picker on iOS hides the choice behind a modal wheel. */}
+            <div>
+              <p className="eyebrow text-muted mb-1.5">{t('rules.form.phase')}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {PHASES.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPhase(p)}
+                    aria-pressed={phase === p}
+                    className={`rounded-pill px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                      phase === p
+                        ? 'bg-accent text-on-accent'
+                        : 'bg-raised text-muted hover:text-fg'
+                    }`}
+                  >
+                    {t(`phase.${p}` as TranslationKey)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <AngleFormPicker angles={angles} onChange={setAngles} />
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="secondary" full onClick={() => setShowForm(false)}>
+                {t('rules.form.cancel')}
+              </Button>
+              <Button type="submit" full disabled={!title.trim() || !description.trim()}>
+                {t('rules.form.save')}
+              </Button>
+            </div>
+          </form>
+        </Card>
       ) : (
-        <button
-          onClick={() => setShowForm(true)}
-          className="w-full py-2.5 border border-dashed border-line rounded-lg text-sm text-faint
-                     hover:border-line hover:text-fg-dim transition-colors"
-        >
-          + Add Custom Rule
-        </button>
+        <Button variant="dashed" size="lg" full className="mt-2" onClick={() => setShowForm(true)}>
+          {t('rules.create')}
+        </Button>
       )}
     </div>
   );
