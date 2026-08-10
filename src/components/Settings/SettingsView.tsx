@@ -9,16 +9,17 @@ import { CAMERA_ANGLES, ANGLE_LABEL } from '../../lib/cameraAngle';
 import { FlagIcon } from '../Home/FlagIcon';
 import { useT } from '../../lib/i18n';
 import type { TranslationKey } from '../../lib/i18n';
+import { SectionLabel, Segmented, Toggle } from '../ui';
 
 const FEEDBACK_EMAIL = 'erik@whenever.se';
 
-/** Representative color (the 500 shade) for each accent's preview swatch. */
+/** Preview swatch per accent — the 600 shade, i.e. what a filled button looks like. */
 const ACCENT_SWATCH: Record<Accent, string> = {
-  emerald: '#10b981',
-  blue: '#3b82f6',
-  violet: '#8b5cf6',
-  amber: '#f59e0b',
-  rose: '#f43f5e',
+  emerald: '#1d5c3d',
+  blue: '#31567d',
+  violet: '#6d4f7d',
+  amber: '#c9a24b',
+  rose: '#a34432',
 };
 
 const THEMES: Theme[] = ['system', 'light', 'dark'];
@@ -35,28 +36,32 @@ export function SettingsView() {
   const setView = useSessionStore((s) => s.setView);
 
   return (
-    <div className="h-full overflow-y-auto px-5 py-6 space-y-7">
-      <h1 className="text-2xl font-bold text-fg">{t('settings.title')}</h1>
+    <div className="h-full overflow-y-auto px-[18px] pt-2 pb-6 space-y-5">
+      <h1 className="text-base font-semibold text-fg">{t('settings.title')}</h1>
 
       {/* Appearance */}
       <Section title={t('settings.appearance')}>
         <Row label={t('settings.theme')}>
           <Segmented
+            size="sm"
             value={theme}
-            options={THEMES.map((v) => ({ value: v, label: t(`settings.theme.${v}` as TranslationKey) }))}
+            options={THEMES.map((v) => ({
+              value: v,
+              label: t(`settings.theme.${v}` as TranslationKey),
+            }))}
             onChange={setTheme}
           />
         </Row>
         <Divider />
         <Row label={t('settings.accent')} stack>
-          <div className="flex gap-3">
+          <div className="flex gap-2.5">
             {ACCENTS.map((a) => (
               <button
                 key={a}
                 onClick={() => setAccent(a)}
                 aria-label={a}
                 aria-pressed={accent === a}
-                className={`w-9 h-9 rounded-full transition-transform ${
+                className={`w-[26px] h-[26px] rounded-full transition-transform ${
                   accent === a
                     ? 'ring-2 ring-offset-2 ring-offset-surface ring-fg scale-105'
                     : 'hover:scale-105'
@@ -70,17 +75,17 @@ export function SettingsView() {
 
       {/* Language */}
       <Section title={t('settings.language')}>
-        <div className="flex gap-2">
+        <div className="flex gap-2 p-3">
           {AVAILABLE_LANGUAGES.map((lang) => (
             <button
               key={lang.code}
               onClick={() => setLanguage(lang.code)}
               aria-pressed={language === lang.code}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm
-                          font-medium border transition-colors ${
+              className={`flex flex-1 items-center justify-center gap-2 rounded-pill py-2.5
+                          text-xs font-semibold transition-colors ${
                             language === lang.code
-                              ? 'bg-accent text-on-accent border-accent'
-                              : 'bg-raised text-fg-dim border-line hover:bg-raised-hi'
+                              ? 'bg-accent text-on-accent'
+                              : 'bg-raised text-muted hover:text-fg'
                           }`}
             >
               <FlagIcon code={lang.code} />
@@ -97,6 +102,7 @@ export function SettingsView() {
               before any later analysis callback is allowed to speak. */}
           <Toggle
             on={ttsEnabled}
+            label={t('settings.voice.enable')}
             onClick={() => {
               primeSpeech(true);
               setTtsEnabled(!ttsEnabled);
@@ -108,6 +114,7 @@ export function SettingsView() {
             <Divider />
             <Row label={t('settings.voice.mode')}>
               <Segmented
+                size="sm"
                 value={ttsMode}
                 options={[
                   { value: 'quick', label: t('settings.voice.quick') },
@@ -126,6 +133,7 @@ export function SettingsView() {
       <Section title={t('settings.camera')}>
         <Row label={t('settings.camera.angle')}>
           <Segmented
+            size="sm"
             value={cameraAngle}
             options={CAMERA_ANGLES.map((a) => ({ value: a, label: ANGLE_LABEL[a] }))}
             onChange={setCameraAngle}
@@ -140,8 +148,8 @@ export function SettingsView() {
             resetOnboarding();
             setView('home');
           }}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-fg
-                     hover:bg-raised transition-colors"
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-xs font-medium
+                     text-fg hover:bg-raised transition-colors"
         >
           <span className="text-accent-text">↻</span>
           {t('settings.replayOnboarding')}
@@ -149,17 +157,17 @@ export function SettingsView() {
         <Divider />
         <a
           href={`mailto:${FEEDBACK_EMAIL}?subject=SwingCheck feedback`}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-raised transition-colors"
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-raised transition-colors"
         >
           <span className="text-accent-text">✉</span>
           <span>
-            <span className="block text-sm text-fg">{t('settings.feedback')}</span>
-            <span className="block text-xs text-muted">{t('settings.feedbackSubtitle')}</span>
+            <span className="block text-xs font-medium text-fg">{t('settings.feedback')}</span>
+            <span className="block text-[10.5px] text-muted">{t('settings.feedbackSubtitle')}</span>
           </span>
         </a>
       </Section>
 
-      <p className="text-center text-xs text-faint pt-2">{t('settings.about')}</p>
+      <p className="pt-1 text-center text-[9.5px] text-faint">{t('settings.about')}</p>
     </div>
   );
 }
@@ -190,14 +198,14 @@ function VoicePicker() {
   return (
     <Row label={t('settings.voice.voice')} stack>
       {voices.length === 0 ? (
-        <p className="text-xs text-muted">{t('settings.voice.none')}</p>
+        <p className="text-[10.5px] text-muted">{t('settings.voice.none')}</p>
       ) : (
         <>
           <select
             value={ttsVoiceURI ?? ''}
             onChange={(e) => setTtsVoiceURI(e.target.value || null)}
-            className="w-full px-3 py-2 rounded-lg bg-raised text-fg border border-line text-sm
-                       focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full rounded-chip bg-raised px-3 py-2.5 text-xs text-fg
+                       focus:outline-none focus:ring-2 focus:ring-accent/50"
           >
             <option value="">{t('settings.voice.auto')}</option>
             {voices.map((v) => (
@@ -207,7 +215,9 @@ function VoicePicker() {
             ))}
           </select>
           {activeVoice && (
-            <p className="text-xs text-muted">{t('settings.voice.voice')}: {activeVoice.name}</p>
+            <p className="text-[10.5px] text-muted">
+              {t('settings.voice.voice')}: {activeVoice.name}
+            </p>
           )}
         </>
       )}
@@ -220,10 +230,10 @@ function VoicePicker() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="px-1 mb-2 text-xs font-semibold uppercase tracking-wider text-faint">
-        {title}
-      </h2>
-      <div className="rounded-xl bg-surface border border-line overflow-hidden">{children}</div>
+      <SectionLabel>{title}</SectionLabel>
+      <div className="rounded-card border border-line bg-surface shadow-card overflow-hidden">
+        {children}
+      </div>
     </section>
   );
 }
@@ -231,60 +241,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Row({ label, children, stack }: { label: string; children: ReactNode; stack?: boolean }) {
   return (
     <div
-      className={`px-4 py-3 ${
-        stack ? 'space-y-3' : 'flex items-center justify-between gap-3'
-      }`}
+      className={`px-4 py-3 ${stack ? 'space-y-2.5' : 'flex items-center justify-between gap-3'}`}
     >
-      <span className="text-sm text-fg">{label}</span>
+      <span className="text-xs font-medium text-fg">{label}</span>
       {children}
     </div>
   );
 }
 
 function Divider() {
-  return <div className="h-px bg-line mx-4" />;
-}
-
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      onClick={onClick}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
-        on ? 'bg-accent' : 'bg-raised-hi'
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-          on ? 'translate-x-5' : ''
-        }`}
-      />
-    </button>
-  );
-}
-
-interface SegmentedProps<T extends string> {
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (value: T) => void;
-}
-
-function Segmented<T extends string>({ value, options, onChange }: SegmentedProps<T>) {
-  return (
-    <div className="flex rounded-lg bg-raised p-0.5 text-xs font-semibold">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          aria-pressed={value === opt.value}
-          className={`px-3 py-1.5 rounded-md transition-colors ${
-            value === opt.value ? 'bg-accent text-on-accent' : 'text-muted hover:text-fg'
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
+  return <div className="mx-4 h-px bg-line" />;
 }

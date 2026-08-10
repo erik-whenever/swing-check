@@ -14,8 +14,8 @@ import {
 interface Point {
   titleKey: TranslationKey;
   bodyKey: TranslationKey;
-  /** Tailwind text colour for the leading dot, ties the point to its art. */
-  accent: string;
+  /** true = the one thing this step is really pointing at (gold dot). */
+  highlight?: boolean;
 }
 
 interface Step {
@@ -39,8 +39,8 @@ const STEPS: Step[] = [
     titleKey: 'onb.angle.title',
     bodyKey: 'onb.angle.body',
     points: [
-      { titleKey: 'onb.angle.dtl', bodyKey: 'onb.angle.dtlBody', accent: 'bg-accent-text' },
-      { titleKey: 'onb.angle.faceOn', bodyKey: 'onb.angle.faceOnBody', accent: 'bg-sky-400' },
+      { titleKey: 'onb.angle.dtl', bodyKey: 'onb.angle.dtlBody' },
+      { titleKey: 'onb.angle.faceOn', bodyKey: 'onb.angle.faceOnBody', highlight: true },
     ],
   },
   {
@@ -48,9 +48,9 @@ const STEPS: Step[] = [
     titleKey: 'onb.camera.title',
     bodyKey: 'onb.camera.body',
     points: [
-      { titleKey: 'onb.camera.distance', bodyKey: 'onb.camera.distanceBody', accent: 'bg-accent-text' },
-      { titleKey: 'onb.camera.height', bodyKey: 'onb.camera.heightBody', accent: 'bg-accent-text' },
-      { titleKey: 'onb.camera.light', bodyKey: 'onb.camera.lightBody', accent: 'bg-amber-400' },
+      { titleKey: 'onb.camera.distance', bodyKey: 'onb.camera.distanceBody' },
+      { titleKey: 'onb.camera.height', bodyKey: 'onb.camera.heightBody', highlight: true },
+      { titleKey: 'onb.camera.light', bodyKey: 'onb.camera.lightBody' },
     ],
   },
   {
@@ -58,8 +58,8 @@ const STEPS: Step[] = [
     titleKey: 'onb.rules.title',
     bodyKey: 'onb.rules.body',
     points: [
-      { titleKey: 'onb.rules.library', bodyKey: 'onb.rulesBody1', accent: 'bg-accent-text' },
-      { titleKey: 'onb.rules.custom', bodyKey: 'onb.rulesBody2', accent: 'bg-accent-text' },
+      { titleKey: 'onb.rules.library', bodyKey: 'onb.rulesBody1' },
+      { titleKey: 'onb.rules.custom', bodyKey: 'onb.rulesBody2' },
     ],
   },
   {
@@ -67,12 +67,20 @@ const STEPS: Step[] = [
     titleKey: 'onb.record.title',
     bodyKey: 'onb.record.body',
     points: [
-      { titleKey: 'onb.record.voice', bodyKey: 'onb.recordBody1', accent: 'bg-accent-text' },
-      { titleKey: 'onb.record.range', bodyKey: 'onb.recordBody2', accent: 'bg-accent-text' },
+      { titleKey: 'onb.record.voice', bodyKey: 'onb.recordBody1' },
+      { titleKey: 'onb.record.range', bodyKey: 'onb.recordBody2' },
     ],
   },
 ];
 
+/**
+ * First-run tour, full-bleed fairway green.
+ *
+ * It used to be a modal card floating on a dimmed app. Full-bleed is the better
+ * choice for a first run: there is no app behind it worth peeking at yet, and the
+ * one screen a new user sees before anything else should state what the product
+ * is — a calm, green, club-house thing — rather than obscure it.
+ */
 export function OnboardingWizard() {
   const t = useT();
   const complete = useOnboardingStore((s) => s.complete);
@@ -114,54 +122,19 @@ export function OnboardingWizard() {
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center
-                  bg-slate-950/70 backdrop-blur-sm px-4 py-4
+      className={`fixed inset-0 z-50 flex justify-center bg-[#1d5c3d] text-[#f5f1e8]
                   ${closing ? 'animate-onb-backdrop-out' : 'animate-onb-backdrop-in'}`}
       role="dialog"
       aria-modal="true"
       aria-label={t(step.titleKey)}
     >
       <div
-        className={`relative w-full max-w-[420px] overflow-hidden rounded-3xl border border-white/10
-                    bg-slate-900 shadow-2xl shadow-accent-press/40
+        className={`flex w-full max-w-[430px] flex-col safe-top safe-bottom
                     ${closing ? 'animate-onb-card-out' : 'animate-onb-card-in'}`}
       >
-        {/* Skip */}
-        {!isLast && (
-          <button
-            onClick={finish}
-            className="absolute right-4 top-4 z-10 rounded-full px-3 py-1 text-xs font-medium
-                       text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
-          >
-            {t('onb.skip')}
-          </button>
-        )}
-
-        {/* Hero illustration */}
-        <div className="relative h-52 overflow-hidden bg-gradient-to-b from-slate-800/60 to-slate-900">
-          <div
-            className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2
-                       rounded-full bg-accent-hover/20 blur-3xl"
-          />
-          <div key={index} className={dir >= 0 ? 'animate-onb-art-next h-full' : 'animate-onb-art-prev h-full'} aria-hidden="true">
-            <div className="mx-auto h-full max-w-[280px] px-6 py-4">
-              <Art />
-            </div>
-          </div>
-          {step.tagKey && (
-            <span
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-accent-text/30
-                         bg-accent-hover/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-accent-text"
-            >
-              {t(step.tagKey)}
-            </span>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className="px-6 pb-6 pt-5">
-          {/* Progress dots */}
-          <div className="mb-5 flex items-center gap-2">
+        {/* Progress bars + skip */}
+        <div className="flex items-center justify-between gap-3 px-[18px] pt-4">
+          <div className="flex gap-1.5">
             {STEPS.map((_, i) => (
               <button
                 key={i}
@@ -170,59 +143,89 @@ export function OnboardingWizard() {
                   setIndex(i);
                 }}
                 aria-label={t('onb.stepOf', { current: i + 1, total })}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === index
-                    ? 'w-7 bg-accent-text'
-                    : i < index
-                      ? 'w-1.5 bg-accent-press'
-                      : 'w-1.5 bg-slate-700'
+                className={`h-1 rounded-pill transition-all duration-300 ${
+                  i === index ? 'w-6 bg-[#f5f1e8]' : 'w-4 bg-[#f5f1e8]/30'
                 }`}
               />
             ))}
           </div>
-
-          <div key={index} className={dir >= 0 ? 'animate-onb-text-next' : 'animate-onb-text-prev'}>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-accent-text/80">
-              {t('onb.stepOf', { current: index + 1, total })}
-            </p>
-            <h2 className="text-2xl font-bold leading-tight text-white">{t(step.titleKey)}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-400">{t(step.bodyKey)}</p>
-
-            {step.points && (
-              <ul className="mt-4 space-y-3">
-                {step.points.map((p) => (
-                  <li key={p.titleKey} className="flex gap-3 rounded-xl bg-slate-800/60 p-3">
-                    <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${p.accent}`} />
-                    <div>
-                      <p className="text-sm font-semibold text-white">{t(p.titleKey)}</p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{t(p.bodyKey)}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Controls */}
-          <div className="mt-6 flex items-center gap-3">
-            {index > 0 && (
-              <button
-                onClick={() => go(-1)}
-                className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-300
-                           transition-colors hover:bg-white/5"
-              >
-                {t('onb.back')}
-              </button>
-            )}
+          {!isLast && (
             <button
-              onClick={() => (isLast ? finish() : go(1))}
-              className="ml-auto flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-white
-                         shadow-lg shadow-accent-press/40 transition-colors hover:bg-accent-hover
-                         active:scale-[0.99]"
+              onClick={finish}
+              className="text-[11px] font-medium text-[#f5f1e8]/60 transition-colors hover:text-[#f5f1e8]"
             >
-              {isLast ? t('onb.start') : t('onb.next')}
+              {t('onb.skip')}
             </button>
+          )}
+        </div>
+
+        {/* Hero illustration */}
+        <div className="relative flex min-h-0 flex-1 items-center justify-center px-6 pt-4">
+          <div
+            key={index}
+            className={dir >= 0 ? 'animate-onb-art-next h-full w-full' : 'animate-onb-art-prev h-full w-full'}
+            aria-hidden="true"
+          >
+            <div className="mx-auto h-full max-h-[230px] max-w-[260px]">
+              <Art />
+            </div>
           </div>
+        </div>
+
+        {/* Body */}
+        <div key={`t-${index}`} className={`px-6 pb-2 text-center ${dir >= 0 ? 'animate-onb-text-next' : 'animate-onb-text-prev'}`}>
+          {step.tagKey && (
+            <span className="mb-3 inline-block rounded-pill bg-[#f5f1e8]/12 px-3 py-1
+                             text-[11px] font-semibold tracking-wide text-[#f5f1e8]/85">
+              {t(step.tagKey)}
+            </span>
+          )}
+          <h2 className="text-[24px] font-semibold leading-[1.15] tracking-[-0.01em]">
+            {t(step.titleKey)}
+          </h2>
+          <p className="mx-auto mt-2.5 max-w-[19rem] text-[12.5px] leading-[1.55] text-[#f5f1e8]/75">
+            {t(step.bodyKey)}
+          </p>
+
+          {step.points && (
+            <ul className="mt-4 space-y-2 text-left">
+              {step.points.map((p) => (
+                <li key={p.titleKey} className="flex gap-3 rounded-card bg-[#f5f1e8]/8 px-3.5 py-3">
+                  <span
+                    className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                      p.highlight ? 'bg-[#e0bd76]' : 'bg-[#f5f1e8]/70'
+                    }`}
+                  />
+                  <div>
+                    <p className="text-[12.5px] font-semibold">{t(p.titleKey)}</p>
+                    <p className="mt-0.5 text-[10.5px] leading-[1.45] text-[#f5f1e8]/70">
+                      {t(p.bodyKey)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Controls — inverted primary: cream fill, green label, on a green ground. */}
+        <div className="flex items-center gap-3 px-[18px] pb-4 pt-3">
+          {index > 0 && (
+            <button
+              onClick={() => go(-1)}
+              className="rounded-pill px-4 py-3.5 text-xs font-semibold text-[#f5f1e8]/75
+                         transition-colors hover:bg-[#f5f1e8]/10"
+            >
+              {t('onb.back')}
+            </button>
+          )}
+          <button
+            onClick={() => (isLast ? finish() : go(1))}
+            className="ml-auto flex-1 rounded-pill bg-[#f5f1e8] py-3.5 text-sm font-semibold
+                       text-[#1d5c3d] transition-transform active:scale-[0.99]"
+          >
+            {isLast ? t('onb.start') : t('onb.next')}
+          </button>
         </div>
       </div>
     </div>
