@@ -34,10 +34,14 @@
   låda per bildruta (rörlig inramning är svårare att bedöma, inte lättare). Marginal 20 % i
   sidled, 12 % topp, ned till markplanet via fotlandmärkena; aspekt låst till källans genom
   att expandera kortaste axeln; klampad till bilden genom att **glida**, inte krympa.
-  Utanför sanitetsbandet 25–90 % av bildytan, eller inga landmärken → hela bilden, med
-  `reason` loggad. `poseFrameGrab` beskär via `drawImage`-source-rect, långsida ≤ 900 px,
+  **Kvalitetsgrinden mäter skelettet, inte lådan:** båda axlarna, båda höfterna och minst
+  en fot måste vara närvarande i ≥ 50 % av samplen och ha medelvisibility ≥ 0,6. Area
+  grindar *inte* kvalitet — en liten låda är det önskade utfallet på stativavstånd — bara
+  ett 4 %-nät under degenererade lådor och ett 90 %-tak. Faller något → hela bilden med
+  `cropReason` + `gateDetail` loggat. `poseFrameGrab` beskär via `drawImage`-source-rect, långsida ≤ 900 px,
   quality 0,8. **~58 % färre input-tokens/bild** (466×829 mot 720×1280). Per sving loggas
-  `cropReason`/`cropBox`/`outputSize`/`savedPct` på `Session swing N analyzed`.
+  `cropReason`/`cropBox`/`cropAreaPct`/`gateDetail`/`outputSize`/`savedPct` på
+  `Session swing N analyzed`.
   **Klipp-vägen (`frameExtractor.ts`) är orörd** — den beskärs inte; E-1 (långside-cap) står kvar.
 - Regler: egna + regelbibliotek med drills, kameravinkel-filtrering.
 - Historik i IndexedDB + valfri Supabase-spegling av metadata.
@@ -128,9 +132,10 @@ sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.m
 ## Öppna trådar
 
 - **Beskärningen är ej fältverifierad.** Enhetstestad mot syntetiska landmärken, aldrig körd
-  mot en riktig range-bild. Läs `cropReason` och `savedPct` i sessionsloggen: allt annat än
-  `cropped` betyder att hela bilden skickades. `// OSÄKER:` i `poseCropBox.ts` — 25 %-golvet
-  avvisar också en legitimt liten låda (golfare långt bort), vilket är fallet med mest att vinna.
+  mot en riktig range-bild. Läs `cropReason` i sessionsloggen: allt annat än `ok` betyder att
+  hela bilden skickades, och `gateDetail` säger vilken kroppsdel som fällde den (med siffror,
+  även vid pass). `cropAreaPct` och `savedPct` visar vilka värden riktiga svingar landar på —
+  grindens trösklar (0,3 / 0,5 / 0,6) är valda på resonemang och ska tunas mot den datan.
 - **Termik vid långa sessioner otestad.** Live-inferens + analysanrop delar GPU; ingen mätning finns
   av vad 10–20 minuters kontinuerlig session gör med telefonens temperatur och takt.
   `Live pose stats` (WARN, var 5:e sek) loggar `achievedFps`/`saturated` för just detta.

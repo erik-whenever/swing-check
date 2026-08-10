@@ -150,7 +150,10 @@ export async function grabFramesAtTimes(
       cropBox: crop.rect
         ? [crop.rect.x, crop.rect.y, crop.rect.width, crop.rect.height]
         : null,
+      // Logged on every swing, pass or fail: these are the numbers the gate's
+      // thresholds get tuned against once there is field data to tune with.
       cropAreaPct: Math.round(crop.areaFrac * 1000) / 10,
+      gateDetail: crop.gateDetail,
       outputSize: [crop.output.width, crop.output.height],
       tokensPerFrame: crop.outputTokens,
       baselineTokensPerFrame: crop.baselineTokens,

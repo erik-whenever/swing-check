@@ -844,10 +844,8 @@ Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [R
 > foten aldrig syns. Aspekt låst till källans (9:16) genom att expandera **kortaste** axeln.
 > Klampning: skala ned med EN faktor (aspekten exakt) och **glid** sedan in centrum —
 > glidning framför krympning håller golfaren hel när lådan bara hänger över en kant.
-> Sanitetsband 25–90 % av bildytan; utanför det (eller inga/för få landmärken, degenererad
-> låda, okänd källstorlek) → **hela bilden** med `reason` loggad, aldrig en dålig beskärning.
 > Landmärken under visibility 0,3 utesluts (MediaPipe extrapolerar ockluderade leder), och
-> varje koordinat klampas till [0,1] innan unionen.
+> varje koordinat klampas till [0,1] innan unionen. Kvalitetsgrind: se uppföljningen nedan.
 >
 > `poseFrameGrab.grabFramesAtTimes` beskär via `drawImage` med source-rect och returnerar
 > nu `{ frames, crop }` (var `string[]`); målupplösning långsida ≤ **900 px**, aldrig
@@ -867,13 +865,41 @@ Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [R
 > Test: `poseCropBox.test.ts` (31 st) mot syntetiska landmärken — normalfall (stabil låda,
 > aspekt bevarad, ≥15 % sidmarginal, når förbi foten, cap + ingen uppskalning, determinism),
 > saknade landmärken (alla sex fallbacks var för sig) och landmärken nära bildkanten (fem
-> kantfall + glid-inte-krymp + landskapskälla). `npm test` 134/134, `npm run build` och
-> lint rena. **Ej fältverifierad** — Erik kör en session och läser `cropReason`/`savedPct`.
+> kantfall + glid-inte-krymp + landskapskälla). `npm run build` och lint rena.
+> **Ej fältverifierad** — Erik kör en session och läser `cropReason`/`savedPct`.
 >
-> **Ärlig invändning:** 25-procentsgolvet avvisar också en *legitimt* liten låda (golfare
-> långt bort), alltså precis fallet med mest att vinna. Medvetet valt enligt spec och
-> `// OSÄKER:`-märkt i koden — faller `too-small` på riktiga svingar i fält är det den
-> konstanten som ska röras, inte marginalerna.
+> **Uppföljning (2026-08-10) — arean utbytt som kvalitetsgrind.** Den ärliga invändningen
+> ovan visade sig vara hela poängen: **en liten låda är det förväntade och önskade utfallet
+> på stativavstånd**, alltså precis det fall beskärningen finns för, och 25-procentsgolvet
+> avvisade just dem. Area är fel mått på "skräpiga landmärken" — kvaliteten är en egenskap
+> hos *skelettet*, inte hos rektangeln.
+>
+> Golvet är ersatt av en **landmärkesgrind**: båda axlarna, båda höfterna och **minst en
+> fot** (OR-grupp över ankel/häl/tå) måste vara närvarande i ≥ 50 % av svingens sampel
+> (`PRESENCE_FLOOR` 0,3 på MediaPipes `visibility`) OCH ha medelvisibility ≥ 0,6. De fem
+> bär bålen och markkontakten — lådans ankare. En ensam högkonfident hand i ett hörn kan
+> inte passera, vilket var vad areagolvet trevade efter. Trösklarna: 0,3 är medvetet
+> tillåtande (`visibility` är ett *ocklusions*-mått, en höft bakom bakarmen i toppen dippar
+> utan att estimatet är fel), 0,5 skiljer "kort ockluderad" från "inte spårad", 0,6 är en
+> bedömning (tydligt sedd led ≈ 0,9+, inferrerad 0,5–0,8, gissning < 0,5) — alla tre
+> kommenterade och lätta att justera. Grinden körs **före** all geometri.
+>
+> Area är kvar som två rena skyddsnät, inte som kvalitetsmått: **4 %**-golv (under det kan
+> lådan inte vara en människa) och oförändrat **90 %**-tak. `cropReason` skiljer nu på
+> `'ok'` · `'landmarks-incomplete'` · `'landmarks-low-confidence'` · `'box-degenerate'`
+> (inkl. 4 %-nätet) · `'box-too-large'` · `'no-bounds'` · `'too-few-samples'` ·
+> `'no-source-size'`. Nytt `gateDetail` rapporterar svagaste delen med siffror
+> (`"feet present 0.20 vis 0.31"`) — **även vid pass**, så marginalen syns och trösklarna
+> kan tunas mot data. `cropAreaPct` loggas per sving oavsett utfall (rent observationellt
+> nu när area inte grindar). `LandmarkBounds` bär ett litet `skeleton`-fält
+> (presentFrac + meanVisibility per del) — beräknat där landmärkena finns, konsumerat i
+> `planCrop`. `// OSÄKER:`-markeringen borttagen; grinden mäter nu rätt sak.
+>
+> Test: `poseCropBox.test.ts` 45 st — nytt block för komplett skelett i **liten** låda
+> (~10 % av ytan → godtas, långt under gamla golvet), skelettgrinden mot **samma stora,
+> rimliga låda** i alla varianter (frisk kontroll, saknad höft, ingen fot, en fot räcker,
+> låg visibility, ockluderings-dipp godtas, frånvaro rapporteras före osäkerhet) samt två
+> ände-till-ände-fall från syntetiska sampel. `npm test` 148/148 grönt.
 
 ---
 

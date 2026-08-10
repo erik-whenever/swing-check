@@ -299,6 +299,11 @@ export function useSessionCapture({
           cropBox: crop.rect
             ? [crop.rect.x, crop.rect.y, crop.rect.width, crop.rect.height]
             : null,
+          // Area as a share of the frame, on every swing — cropped or not. Area is no
+          // longer a gate, so this is purely observational: it is how we learn what
+          // values real swings land on instead of guessing at thresholds.
+          cropAreaPct: Math.round(crop.areaFrac * 1000) / 10,
+          gateDetail: crop.gateDetail,
           outputSize: [crop.output.width, crop.output.height],
           tokensPerFrame: crop.outputTokens,
           savedTokens: (crop.baselineTokens - crop.outputTokens) * frames.length,
