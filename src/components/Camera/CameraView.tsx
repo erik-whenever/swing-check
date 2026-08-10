@@ -320,40 +320,39 @@ export function CameraView() {
           <LiveSwingPanel live={capture.live} queue={capture.queue} active={isRecording} />
         )}
 
-        {/* Recording indicator */}
-        {isRecording && (
-          <div className="absolute top-4 left-4 flex items-center gap-2">
-            <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-sm font-medium">REC</span>
-          </div>
-        )}
-
-        {/* Session swing counter — driven by the DETECTOR in continuous mode, so it
-            counts swings actually found, not recordings started. */}
-        {sessionActive && (
-          <div className="absolute top-4 inset-x-0 flex justify-center pointer-events-none">
-            <span className="px-3 py-1 rounded-full bg-black/60 text-white text-sm font-semibold">
-              🎯 {swingNumber} sving{swingNumber === 1 ? '' : 'ar'}
-              {isRecording ? ' · spelar in' : ''}
+        {/* Status strip: recording, session count, headset mode. One row of pills so
+            three independent states never fight for the same corner. */}
+        <div className="absolute top-3 inset-x-3 flex items-start gap-1.5 flex-wrap pointer-events-none">
+          {isRecording && (
+            <span className="flex items-center gap-1.5 rounded-pill bg-bad px-2.5 py-1
+                             text-[10px] font-bold tracking-wide text-white">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              REC
             </span>
-          </div>
-        )}
-
-        {/* Persistent range-mode banner */}
-        {rangeMode && (
-          <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-accent/90
-                          text-xs font-semibold text-white shadow-lg flex items-center gap-1.5">
-            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-            Hörlursläge aktivt 🎧
-          </div>
-        )}
+          )}
+          {sessionActive && (
+            <span className="rounded-pill bg-surface/90 backdrop-blur px-2.5 py-1
+                             text-[10px] font-semibold text-accent-text">
+              🎯 {t(swingNumber === 1 ? 'camera.swingCount' : 'camera.swingCountPlural', {
+                count: swingNumber,
+              })}
+              {isRecording ? ` · ${t('camera.recording')}` : ''}
+            </span>
+          )}
+          {rangeMode && (
+            <span className="ml-auto rounded-pill bg-accent px-2.5 py-1
+                             text-[10px] font-semibold text-on-accent">
+              🎧 {t('camera.rangeOn')}
+            </span>
+          )}
+        </div>
 
         {/* The engine never started the session's first utterance — without this
             the only symptom is silence, which reads as "the app is broken". */}
         {ttsEnabled && speechBlocked && (
-          <div className="absolute bottom-4 inset-x-4 px-3 py-2 rounded-lg bg-amber-500/95
-                          text-xs font-semibold text-black text-center shadow-lg">
-            🔇 Rösten blockerades av webbläsaren — tryck på Röst på
+          <div className="absolute bottom-3 inset-x-3 px-3 py-2 rounded-chip bg-gold
+                          text-[11px] font-semibold text-white text-center shadow-lift">
+            🔇 {t('camera.voiceBlocked')}
           </div>
         )}
       </div>

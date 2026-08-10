@@ -1,14 +1,32 @@
 @import "tailwindcss";
 
+/* Outfit, self-hosted (latin subset) — the PWA must render identically offline,
+   so the typeface is bundled and precached rather than fetched from Google. */
+@import "@fontsource/outfit/latin-300.css";
+@import "@fontsource/outfit/latin-400.css";
+@import "@fontsource/outfit/latin-500.css";
+@import "@fontsource/outfit/latin-600.css";
+@import "@fontsource/outfit/latin-700.css";
+
 /* ------------------------------------------------------------------ *
- * Theming
+ * Theming — "Club Cream"
  *
- * Components use semantic color utilities (bg-surface, text-muted,
- * bg-accent, …) instead of raw slate/emerald. Each maps — via @theme
- * inline — to a CSS variable that is swapped at runtime by toggling the
- * data-theme (light/dark) and data-accent (hue) attributes on <html>.
+ * Warm cream surfaces, fairway-green primary, soft pill shapes. Light is
+ * the reference direction; the dark theme is the same system rendered on
+ * a warm green-charcoal ground (never neutral slate — a cool grey next to
+ * cream reads as a bug, not a theme).
+ *
+ * Components use semantic utilities (bg-surface, text-muted, bg-accent,
+ * rounded-card, …) instead of raw palette classes. Each maps — via
+ * @theme inline — to a CSS variable swapped at runtime by the data-theme
+ * (light/dark) and data-accent (hue) attributes on <html>.
+ *
+ * Verdict colours (ok / bad / gold / chart-*) deliberately do NOT follow
+ * the accent: "passed" must stay green even when the accent is rose.
  * ------------------------------------------------------------------ */
 @theme inline {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-raised: var(--raised);
@@ -24,58 +42,107 @@
   --color-accent-hover: var(--a-500);
   --color-accent-press: var(--a-700);
   --color-accent-text: var(--accent-text);
+  --color-accent-tint: var(--accent-tint);
+
+  /* Verdict + data colours (accent-independent) */
+  --color-ok: var(--ok);
+  --color-ok-tint: var(--ok-tint);
+  --color-bad: var(--bad);
+  --color-bad-tint: var(--bad-tint);
+  --color-gold: var(--gold);
+  --color-gold-tint: var(--gold-tint);
+  --color-chart-good: var(--chart-good);
+  --color-chart-bad: var(--chart-bad);
+
+  /* Shape — one card radius everywhere, pills fully rounded */
+  --radius-card: 18px;
+  --radius-chip: 12px;
+  --radius-pill: 99px;
+
+  --shadow-card: 0 1px 2px rgb(29 36 31 / 0.04);
+  --shadow-seg: 0 1px 3px rgb(0 0 0 / 0.06);
+  --shadow-cta: 0 6px 18px var(--cta-glow);
+  --shadow-lift: 0 10px 30px var(--lift-shadow);
 }
 
-/* Surfaces & text — dark is the default (also when no attribute is set). */
+/* Light — the reference direction. */
 :root,
-[data-theme="dark"] {
-  --bg: #0f172a;        /* slate-900 */
-  --surface: #1e293b;   /* slate-800 */
-  --raised: #334155;    /* slate-700 */
-  --raised-hi: #475569; /* slate-600 */
-  --line: #334155;      /* slate-700 */
-  --fg: #f8fafc;        /* slate-50  */
-  --fg-dim: #cbd5e1;    /* slate-300 */
-  --muted: #94a3b8;     /* slate-400 */
-  --faint: #64748b;     /* slate-500 */
-  --faint-2: #475569;   /* slate-600 */
-  --on-accent: #ffffff;
-  --accent-text: var(--a-400);
-  color-scheme: dark;
-}
-
 [data-theme="light"] {
-  --bg: #f8fafc;        /* slate-50  */
-  --surface: #ffffff;
-  --raised: #f1f5f9;    /* slate-100 */
-  --raised-hi: #e2e8f0; /* slate-200 */
-  --line: #e2e8f0;      /* slate-200 */
-  --fg: #0f172a;        /* slate-900 */
-  --fg-dim: #334155;    /* slate-700 */
-  --muted: #475569;     /* slate-600 */
-  --faint: #64748b;     /* slate-500 */
-  --faint-2: #94a3b8;   /* slate-400 */
-  --on-accent: #ffffff;
-  --accent-text: var(--a-700);
+  --bg: #f5f1e8;
+  --surface: #fffdf8;
+  --raised: #efe9db;
+  --raised-hi: #e8e2d2;
+  --line: #e5ddcc;
+  --fg: #1d241f;
+  --fg-dim: #3d463f;
+  --muted: #6f7a6f;
+  --faint: #a39c88;
+  --faint-2: #c9b98f;
+  --on-accent: #f7f4ec;
+  --accent-text: var(--a-600);
+  --accent-tint: color-mix(in srgb, var(--a-600) 14%, #fffdf8);
+
+  --ok: #1d5c3d;
+  --ok-tint: #dcecdf;
+  --bad: #a34432;
+  --bad-tint: #f3ddda;
+  --gold: #b98d33;
+  --gold-tint: #f5ead1;
+  --chart-good: #8fbf9e;
+  --chart-bad: #e8b4ab;
+
+  --cta-glow: color-mix(in srgb, var(--a-700) 26%, transparent);
+  --lift-shadow: rgb(60 50 30 / 0.14);
   color-scheme: light;
 }
 
-/* Accent palettes — shade ramp consumed by the accent tokens above. */
+/* Dark — same system, warm green-charcoal ground. */
+[data-theme="dark"] {
+  --bg: #121714;
+  --surface: #1b221d;
+  --raised: #253028;
+  --raised-hi: #303d33;
+  --line: #2c372f;
+  --fg: #f2efe6;
+  --fg-dim: #d9d5c8;
+  --muted: #9aa89c;
+  --faint: #75837a;
+  --faint-2: #566057;
+  --on-accent: #f7f4ec;
+  --accent-text: var(--a-300);
+  --accent-tint: color-mix(in srgb, var(--a-400) 18%, #1b221d);
+
+  --ok: #8fc7a3;
+  --ok-tint: #1e3428;
+  --bad: #e0917f;
+  --bad-tint: #3a2320;
+  --gold: #dcb977;
+  --gold-tint: #362c17;
+  --chart-good: #6ea583;
+  --chart-bad: #b8756a;
+
+  --cta-glow: color-mix(in srgb, var(--a-500) 32%, transparent);
+  --lift-shadow: rgb(0 0 0 / 0.45);
+  color-scheme: dark;
+}
+
+/* Accent palettes — muted, club-house hues rather than neon web colours.
+   Keys are persisted in settings, so they stay put even though the ramps moved. */
 :root,
 [data-accent="emerald"] {
-  --a-300: #6ee7b7; --a-400: #34d399; --a-500: #10b981; --a-600: #059669; --a-700: #047857;
+  --a-300: #7fb894; --a-400: #4f9670; --a-500: #2a7551; --a-600: #1d5c3d; --a-700: #14472e;
 }
 [data-accent="blue"] {
-  --a-300: #93c5fd; --a-400: #60a5fa; --a-500: #3b82f6; --a-600: #2563eb; --a-700: #1d4ed8;
+  --a-300: #9db7d2; --a-400: #6b8fb5; --a-500: #446c96; --a-600: #31567d; --a-700: #244163;
 }
 [data-accent="violet"] {
-  --a-300: #c4b5fd; --a-400: #a78bfa; --a-500: #8b5cf6; --a-600: #7c3aed; --a-700: #6d28d9;
+  --a-300: #bfa8cb; --a-400: #9d80ad; --a-500: #7f6090; --a-600: #6d4f7d; --a-700: #543c61;
 }
 [data-accent="amber"] {
-  --a-300: #fcd34d; --a-400: #fbbf24; --a-500: #f59e0b; --a-600: #d97706; --a-700: #b45309;
+  --a-300: #e5cf9b; --a-400: #d7b76e; --a-500: #c9a24b; --a-600: #ac873a; --a-700: #8b6c2c;
 }
 [data-accent="rose"] {
-  --a-300: #fda4af; --a-400: #fb7185; --a-500: #f43f5e; --a-600: #e11d48; --a-700: #be123c;
+  --a-300: #dba79a; --a-400: #c8836f; --a-500: #b25a46; --a-600: #a34432; --a-700: #843626;
 }
 
 html, body, #root {
@@ -87,6 +154,39 @@ html, body, #root {
 body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Safe areas. These were referenced by the shell long before they existed as
+   utilities — under a notch the top bar was simply drawn under the status bar. */
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Uppercase eyebrow label — the recurring "HELHETSBEDÖMNING · 3 AV 4" type style. */
+@utility eyebrow {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Scrollable strips (filmstrips, chip rows) keep their bounds without a visible bar. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes ping-once {
@@ -98,6 +198,28 @@ body {
 .animate-ping-once {
   animation: ping-once 0.6s ease-out forwards;
 }
+
+/* The record button's breathing ring — a calm "armed" signal that reads at a
+   glance from a tripod, where a small red dot does not. */
+@keyframes rec-halo {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.14); opacity: 0.12; }
+}
+.animate-rec-halo { animation: rec-halo 1.8s ease-in-out infinite; }
+
+/* Cards entering a list (session swings, results) settle in rather than pop. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise-in { animation: rise-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Score rings and bars sweep up once when a result lands. */
+@keyframes sweep-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-sweep-in { animation: sweep-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 @keyframes fly-away {
   0% {
@@ -162,7 +284,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-onb-card-in, .animate-onb-card-out,
   .animate-onb-text-next, .animate-onb-text-prev,
-  .animate-onb-art-next, .animate-onb-art-prev {
+  .animate-onb-art-next, .animate-onb-art-prev,
+  .animate-rise-in, .animate-sweep-in, .animate-rec-halo {
     animation-duration: 0.01ms;
+    animation-iteration-count: 1;
   }
 }

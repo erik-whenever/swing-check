@@ -18,8 +18,10 @@ export default defineConfig({
       name: "SwingCheck",
       short_name: "SwingCheck",
       description: "Golf swing analyzer",
-      theme_color: "#000000",
-      background_color: "#000000",
+      // "Club Cream": the install splash and OS chrome should already be the app's
+      // paper tone, not a black frame the cream UI then jumps out of.
+      theme_color: "#f5f1e8",
+      background_color: "#f5f1e8",
       display: "standalone",
       orientation: "portrait",
       scope: "/",
@@ -37,7 +39,9 @@ export default defineConfig({
       // D-2). The nosimd fallback is served same-origin and runtime-cached on
       // demand (see below) rather than precached, to keep install lean.
       globPatterns: [
-        "**/*.{js,css,html,ico,png,svg}",
+        // woff2: the bundled Outfit subset — without it the offline PWA falls back to
+        // a system face and the whole layout reflows on the range.
+        "**/*.{js,css,html,ico,png,svg,woff2}",
         "models/*.task",
         "wasm/vision_wasm_internal.{js,wasm}",
       ],
