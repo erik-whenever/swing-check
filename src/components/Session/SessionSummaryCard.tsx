@@ -20,22 +20,22 @@ export function SessionSummaryCard() {
   if (!summary) return null;
 
   return (
-    <div className="px-4 py-3 border-t border-line bg-surface">
+    <div className="mx-[18px] mb-1 rounded-card border border-line bg-surface px-3.5 py-3 animate-rise-in">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold">Sessionen klar</span>
-        <span className="text-xs text-faint tabular-nums">
+        <span className="text-xs font-semibold">Sessionen klar</span>
+        <span className="text-[10.5px] text-faint tabular-nums">
           {fmtDuration(summary.durationSec)}
         </span>
         <button
           onClick={clear}
-          className="ml-auto px-2 py-1 rounded text-[10px] font-semibold text-faint
+          className="ml-auto rounded-pill px-2 py-1 text-[10px] font-semibold text-faint
                      hover:bg-raised transition-colors"
         >
           Stäng
         </button>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] tabular-nums">
         <Stat label="upptäckta" value={summary.swingsDetected} />
         <Stat label="analyserade" value={summary.swingsAnalyzed} />
         <Stat
@@ -63,7 +63,7 @@ export function SessionSummaryCard() {
       {summary.failureReasons.length > 0 && (
         <ul className="mt-1.5 space-y-0.5">
           {summary.failureReasons.map((f) => (
-            <li key={f.reason} className="text-[11px] text-red-400">
+            <li key={f.reason} className="text-[11px] text-bad">
               • {f.reason} ×{f.count}
             </li>
           ))}
@@ -83,7 +83,7 @@ function Stat({
   tone?: 'bad';
 }) {
   return (
-    <span className={tone === 'bad' ? 'text-red-400' : 'text-muted'}>
+    <span className={tone === 'bad' ? 'text-bad' : 'text-muted'}>
       <span className="font-semibold text-fg">{value}</span> {label}
     </span>
   );
