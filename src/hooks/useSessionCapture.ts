@@ -39,6 +39,7 @@ import { ANGLE_TO_PROMPT, ruleMatchesAngle } from '../lib/cameraAngle';
 import { ANALYSIS_FRAME_COUNT, type FrameMeta } from '../lib/frameExtractor';
 import { createLogger, serializeError } from '../lib/logger';
 import { grabFramesAtTimes } from '../lib/poseFrameGrab';
+import { MAX_OUTPUT_SIDE } from '../lib/poseCropBox';
 import { selectEnvelopeFrames } from '../lib/poseEnvelopeSelection';
 import { SerialQueue, type QueueStats } from '../lib/analysisQueue';
 import { sessionStats } from '../lib/sessionStats';
@@ -196,9 +197,14 @@ export function useSessionCapture({
         );
         const times = selection.picks.map((p) => p.t);
         const grabStart = performance.now();
-        const frames = await grabFramesAtTimes(window.blob, times, FRAME_QUALITY, {
+        // Pose-driven crop (Ström E): one box for the whole swing, derived at detection
+        // time from the landmarks this envelope was accepted on. Images are ~95 % of the
+        // analysis cost, and most of an uncropped frame is range background.
+        const { frames, crop } = await grabFramesAtTimes(window.blob, times, FRAME_QUALITY, {
           windowStartSec: window.startSec,
           windowEndSec: window.endSec,
+          cropBounds: report.cropBounds,
+          maxOutputSide: MAX_OUTPUT_SIDE,
         });
         const grabMs = Math.round(performance.now() - grabStart);
         const frameMeta: FrameMeta[] = selection.picks.map((p, i) => ({
@@ -288,6 +294,15 @@ export function useSessionCapture({
           frameCount: frames.length,
           impactCluster: selection.impactClusterApplied,
           usedEnvelope: selection.usedEnvelope,
+          // Crop effect, per swing — the numbers a field test verifies the saving on.
+          cropReason: crop.reason,
+          cropBox: crop.rect
+            ? [crop.rect.x, crop.rect.y, crop.rect.width, crop.rect.height]
+            : null,
+          outputSize: [crop.output.width, crop.output.height],
+          tokensPerFrame: crop.outputTokens,
+          savedTokens: (crop.baselineTokens - crop.outputTokens) * frames.length,
+          savedPct: crop.savedPct,
           windowSec: [round2(window.startSec), round2(window.endSec)],
           windowMb: round2(window.bytes / 1e6),
           windowChunks: window.chunks,

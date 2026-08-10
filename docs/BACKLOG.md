@@ -819,6 +819,62 @@ Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [R
 
 **Dokumentkrav:** bocka av här; uppdatera `swingcheck-handoff.md` ('Fungerar': frame-pipeline med kostnadsnot); notera b/a-resultat i `ROADMAP.md` M3.
 
+### [x] E-2 — Pose-styrd beskärning av analysbildrutor (sessionsvägen)
+
+> **Klart (2026-08-10, committad på `main` på begäran).** Bilderna är ~95 % av kostnaden
+> (17 st à 720×1280 ≈ 20 900 input-tokens ≈ $0,063/sving) och merparten av varje bild är
+> range-bakgrund. Vi har redan landmärken för hela svingen, så golfaren beskärs fram.
+>
+> Ny ren modul `src/lib/poseCropBox.ts`, delad i två steg med **fyra tal emellan**:
+> `computeLandmarkBounds(samples, startSec, finishSec)` (normaliserad union av ALLA
+> landmärken över **envelopen**, + `footMaxY`) körs vid **detektion**, där samplen finns;
+> `planCrop(bounds, srcW, srcH, maxOutputSide)` körs vid **grab**, första stället där
+> videons verkliga pixelmått är kända. Bara bounds korsar gränsen — en session behåller
+> varje rapport hela körningen, och landmärkes-arrayerna skulle upphäva ringbuffertens
+> konstanta minnestak.
+>
+> **EN låda för hela svingen, inte en per bildruta.** En låda som spårar per bildruta
+> andas och driftar, och en sekvens vars inramning rör sig är *svårare* att bedöma än en
+> orörd — modellen kan inte skilja kroppsrörelse från kamerarörelse.
+>
+> Regler: sidmarginal 20 % av råboxens bredd per sida (spec-golv 15 %; aspektlåset lägger
+> i praktiken på betydligt mer i sidled, vilket är det som räddar klubbhuvudet i toppen),
+> 12 % topphöjd (klubban över huvudet — aspektlåset expanderar *bredden* och ger aldrig
+> takhöjd), ned till markplanet via fotlandmärkena + 8 % (bollposition/underlag), 25 % när
+> foten aldrig syns. Aspekt låst till källans (9:16) genom att expandera **kortaste** axeln.
+> Klampning: skala ned med EN faktor (aspekten exakt) och **glid** sedan in centrum —
+> glidning framför krympning håller golfaren hel när lådan bara hänger över en kant.
+> Sanitetsband 25–90 % av bildytan; utanför det (eller inga/för få landmärken, degenererad
+> låda, okänd källstorlek) → **hela bilden** med `reason` loggad, aldrig en dålig beskärning.
+> Landmärken under visibility 0,3 utesluts (MediaPipe extrapolerar ockluderade leder), och
+> varje koordinat klampas till [0,1] innan unionen.
+>
+> `poseFrameGrab.grabFramesAtTimes` beskär via `drawImage` med source-rect och returnerar
+> nu `{ frames, crop }` (var `string[]`); målupplösning långsida ≤ **900 px**, aldrig
+> uppskalning; `FRAME_QUALITY` 0,8 oförändrad. `useSessionCapture` skickar
+> `report.cropBounds` + `MAX_OUTPUT_SIDE` och loggar per sving på `Session swing N analyzed`:
+> `cropReason`, `cropBox [x,y,w,h]` i källpixlar, `outputSize`, `tokensPerFrame`,
+> `savedTokens`, `savedPct` (`FrameGrab`-loggen har samma rad + `cropAreaPct`).
+> Uppmätt på en typisk syntetisk golfare: låda 466×829 av 720×1280 (42 % av ytan) →
+> ~515 tokens/bild mot 1 229 = **~58 % färre**, ~12 200 tokens/sving sparade.
+>
+> **Rört, som specat:** `poseCropBox.ts` (ny), `poseFrameGrab.ts`, `liveSwingDetector.ts`
+> (additivt `cropBounds` på `LiveSwingReport`), `useSessionCapture.ts`, `SegmentedSwings.tsx`
+> (ny returtyp; dev-panelen beskär **inte** — den finns för att inspektera selektionen och
+> skelett-overlayen ritas i bildens koordinater). **`frameExtractor.ts` orörd**
+> (klipp-vägen), `ANALYSIS_FRAME_COUNT` orörd.
+>
+> Test: `poseCropBox.test.ts` (31 st) mot syntetiska landmärken — normalfall (stabil låda,
+> aspekt bevarad, ≥15 % sidmarginal, når förbi foten, cap + ingen uppskalning, determinism),
+> saknade landmärken (alla sex fallbacks var för sig) och landmärken nära bildkanten (fem
+> kantfall + glid-inte-krymp + landskapskälla). `npm test` 134/134, `npm run build` och
+> lint rena. **Ej fältverifierad** — Erik kör en session och läser `cropReason`/`savedPct`.
+>
+> **Ärlig invändning:** 25-procentsgolvet avvisar också en *legitimt* liten låda (golfare
+> långt bort), alltså precis fallet med mest att vinna. Medvetet valt enligt spec och
+> `// OSÄKER:`-märkt i koden — faller `too-small` på riktiga svingar i fält är det den
+> konstanten som ska röras, inte marginalerna.
+
 ---
 
 ## Ström G — Instruktörsspår (G2) — *låst bakom Ström B*

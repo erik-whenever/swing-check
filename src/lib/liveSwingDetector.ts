@@ -21,6 +21,7 @@
 //
 // Pure: samples in, reports out. No pose, no timers, no React — unit-testable.
 
+import { computeLandmarkBounds, type LandmarkBounds } from './poseCropBox';
 import type { SwingEnvelope } from './poseEnvelope';
 import { detectSessionSwings } from './poseSegments';
 import type { PoseSample } from './poseTrajectory';
@@ -64,6 +65,16 @@ export interface LiveSwingReport {
    * not depend on which path captured the swing.
    */
   envelope: SwingEnvelope;
+  /**
+   * Union of every usable landmark over the envelope, normalized — the crop box for
+   * this swing's analysis frames (Ström E). Null when there was nothing usable to
+   * build one from, which the grab path reads as "send the whole frame".
+   *
+   * Four numbers, deliberately, not the samples they came from: a session holds every
+   * report for its whole run, and carrying landmark arrays along would undo the ring
+   * buffer's constant-memory bound.
+   */
+  cropBounds: LandmarkBounds | null;
 }
 
 export interface LiveDetectionRun {
@@ -122,6 +133,10 @@ export class LiveSwingDetector {
         detectedAtSec: nowSec,
         latencySec: nowSec - swing.anchorSec,
         envelope: e,
+        // Computed here, where the samples still exist. The window is the envelope
+        // itself: the frames that get sent all come from inside it, so landmarks from
+        // the padding around it would only inflate the box.
+        cropBounds: computeLandmarkBounds(samples, e.startSec, e.finishSec),
       });
     }
 

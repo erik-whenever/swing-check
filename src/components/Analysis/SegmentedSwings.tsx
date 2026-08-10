@@ -128,7 +128,10 @@ export function SegmentedSwings({
             visibleFrac: round(e.visibleFrac),
           });
 
-          const b64 = await grabFramesAtTimes(
+          // No `cropBounds` here on purpose: this panel exists to inspect what the
+          // envelope selected, and a crop would change what is on screen relative to
+          // the skeleton overlay drawn over it.
+          const { frames: b64 } = await grabFramesAtTimes(
             videoBlob,
             sel.picks.map((p) => p.t),
           );

@@ -1,7 +1,7 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-08.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-10.
 
 ## Tech stack
 - **Frontend:** React 19 + TypeScript + Vite 8, Tailwind v4, Zustand (vissa stores `persist`:ade).
@@ -29,6 +29,16 @@
   constrainten och ändå behålla linsen, och `matched:false` är enda sättet att se det i fält.
   Toggle: `components/Camera/WideAngleToggle.tsx` (0.5× / 1×, i sökarens nedre högra hörn).
   Testad i `lib/cameraZoom.test.ts` (klampning, saknad capability, avvikande faktiskt värde).
+- **Pose-styrd beskärning av analysbildrutor (E-2, sessionsvägen).** `lib/poseCropBox.ts`
+  bygger **EN** låda för hela svingen — unionen av alla landmärken över envelopen, aldrig en
+  låda per bildruta (rörlig inramning är svårare att bedöma, inte lättare). Marginal 20 % i
+  sidled, 12 % topp, ned till markplanet via fotlandmärkena; aspekt låst till källans genom
+  att expandera kortaste axeln; klampad till bilden genom att **glida**, inte krympa.
+  Utanför sanitetsbandet 25–90 % av bildytan, eller inga landmärken → hela bilden, med
+  `reason` loggad. `poseFrameGrab` beskär via `drawImage`-source-rect, långsida ≤ 900 px,
+  quality 0,8. **~58 % färre input-tokens/bild** (466×829 mot 720×1280). Per sving loggas
+  `cropReason`/`cropBox`/`outputSize`/`savedPct` på `Session swing N analyzed`.
+  **Klipp-vägen (`frameExtractor.ts`) är orörd** — den beskärs inte; E-1 (långside-cap) står kvar.
 - Regler: egna + regelbibliotek med drills, kameravinkel-filtrering.
 - Historik i IndexedDB + valfri Supabase-spegling av metadata.
 - TTS-uppläsning (quick/detailed), val av röst; serialiserad kö i sessionsläge.
@@ -117,6 +127,10 @@ sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.m
 
 ## Öppna trådar
 
+- **Beskärningen är ej fältverifierad.** Enhetstestad mot syntetiska landmärken, aldrig körd
+  mot en riktig range-bild. Läs `cropReason` och `savedPct` i sessionsloggen: allt annat än
+  `cropped` betyder att hela bilden skickades. `// OSÄKER:` i `poseCropBox.ts` — 25 %-golvet
+  avvisar också en legitimt liten låda (golfare långt bort), vilket är fallet med mest att vinna.
 - **Termik vid långa sessioner otestad.** Live-inferens + analysanrop delar GPU; ingen mätning finns
   av vad 10–20 minuters kontinuerlig session gör med telefonens temperatur och takt.
   `Live pose stats` (WARN, var 5:e sek) loggar `achievedFps`/`saturated` för just detta.
@@ -151,7 +165,7 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
   `useMicTrigger`/`useEnergyTrigger` (Ström A), `useLiveSwingDetection` (D-5 p2), `useSessionCapture` (D-5 p3).
 - `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `cameraZoom`, `supabase`, `tts`, `i18n`, `logger`, `geo`,
   `audioTrigger`; pose: `poseDetector`/`poseTrajectory`/`poseConnections`/`poseEnvelope`/
-  `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`; live: `poseRingBuffer`/`livePoseLoop`/
+  `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`/`poseCropBox`; live: `poseRingBuffer`/`livePoseLoop`/
   `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`.
 - `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).

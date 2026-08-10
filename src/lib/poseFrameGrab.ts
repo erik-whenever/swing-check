@@ -17,8 +17,15 @@
 // grabber PROBES the loaded element — seek past the end, see where it lands, and
 // compare that against both candidate end times. Cheap, and it answers with the
 // browser's own behaviour rather than our model of it.
+//
+// CROPPING (Ström E). When `cropBounds` is supplied the frames are cut down to one
+// shared box around the golfer instead of the full sensor frame — see poseCropBox.ts
+// for why it is one box for the whole swing and not one per frame. The crop is applied
+// here, as a source-rect on drawImage, so the decode still reads the full frame but
+// only the interesting rectangle is ever encoded to JPEG.
 
 import { createLogger } from './logger';
+import { planCrop, type CropPlan, type LandmarkBounds } from './poseCropBox';
 
 const log = createLogger('FrameGrab');
 
@@ -41,6 +48,29 @@ export interface GrabOptions {
   windowStartSec?: number;
   /** Recording-clock second the window ends — the second half of the probe. */
   windowEndSec?: number;
+  /**
+   * Pose-derived landmark bounds for the whole swing (`computeLandmarkBounds`). Supply
+   * these to crop every frame to ONE shared box around the golfer — same box for every
+   * frame, so the framing does not move through the sequence. Omit (or pass null) and
+   * the whole frame is grabbed, exactly as before.
+   */
+  cropBounds?: LandmarkBounds | null;
+  /**
+   * Longest side of the emitted frame, px. Defaults to the historical `GRAB_MAX_WIDTH`
+   * so the dev preview is untouched; the session path passes `MAX_OUTPUT_SIDE`.
+   */
+  maxOutputSide?: number;
+}
+
+export interface GrabResult {
+  /** Base64 JPEG per requested time, in order. */
+  frames: string[];
+  /**
+   * What happened to the crop — the rect in SOURCE pixels, the emitted size, and the
+   * estimated token saving. Carried out so the caller can put it on its per-swing line
+   * rather than in a log entry nobody correlates.
+   */
+  crop: CropPlan;
 }
 
 export async function grabFramesAtTimes(
@@ -48,7 +78,7 @@ export async function grabFramesAtTimes(
   timesSec: number[],
   quality = 0.8,
   options: GrabOptions = {},
-): Promise<string[]> {
+): Promise<GrabResult> {
   const url = URL.createObjectURL(videoBlob);
   const video = document.createElement('video');
   video.muted = true;
@@ -72,19 +102,63 @@ export async function grabFramesAtTimes(
     // (that reads Infinity until the container is fully parsed).
     const { offset, mediaEnd } = await resolveTimeBase(video, options);
 
+    // ONE box for the whole swing, resolved here because this is the first place the
+    // video's real pixel dimensions are known. `planCrop` never throws: a missing or
+    // unreasonable box comes back as a whole-frame plan with the reason attached.
+    const crop = planCrop(
+      options.cropBounds ?? null,
+      video.videoWidth,
+      video.videoHeight,
+      options.maxOutputSide ?? GRAB_MAX_WIDTH,
+    );
+
     const canvas = document.createElement('canvas');
-    canvas.width = Math.min(video.videoWidth, GRAB_MAX_WIDTH);
-    canvas.height = Math.round((canvas.width / video.videoWidth) * video.videoHeight);
+    canvas.width = crop.output.width;
+    canvas.height = crop.output.height;
     const ctx = canvas.getContext('2d')!;
+    const src = crop.rect ?? {
+      x: 0,
+      y: 0,
+      width: video.videoWidth,
+      height: video.videoHeight,
+    };
 
     const out: string[] = [];
     for (const time of timesSec) {
       const t = Math.min(mediaEnd - 0.05, Math.max(0, time - offset));
       await seekTo(video, t);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        video,
+        src.x,
+        src.y,
+        src.width,
+        src.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
       out.push(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
     }
-    return out;
+
+    // One line per grab = one line per swing. WARN because the in-app log panel shows
+    // nothing below it, and this is the number a field test is supposed to verify.
+    log.warn('Analysis frames grabbed', {
+      frames: out.length,
+      sourceSize: [video.videoWidth, video.videoHeight],
+      cropReason: crop.reason,
+      cropBox: crop.rect
+        ? [crop.rect.x, crop.rect.y, crop.rect.width, crop.rect.height]
+        : null,
+      cropAreaPct: Math.round(crop.areaFrac * 1000) / 10,
+      outputSize: [crop.output.width, crop.output.height],
+      tokensPerFrame: crop.outputTokens,
+      baselineTokensPerFrame: crop.baselineTokens,
+      savedPct: crop.savedPct,
+      savedTokensTotal: (crop.baselineTokens - crop.outputTokens) * out.length,
+    });
+
+    return { frames: out, crop };
   } finally {
     URL.revokeObjectURL(url);
   }
