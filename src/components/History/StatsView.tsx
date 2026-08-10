@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
 import { useHistory } from '../../hooks/useHistory';
 import { useRulesStore } from '../../store/rules';
+import { useSessionStore } from '../../store/session';
+import { useT } from '../../lib/i18n';
 import type { Rule, RuleResult } from '../../types';
+import { Button, Card, VerdictBars } from '../ui';
 
 type Verdict = RuleResult['verdict'];
 
@@ -22,8 +25,11 @@ const MIN_DATA = 3;
  * migration) and ranks rules by pass-rate so the ones that "need work" surface first.
  */
 export function StatsView() {
+  const t = useT();
   const { records, loading } = useHistory();
   const rules = useRulesStore((s) => s.rules);
+  const focusRuleId = useSessionStore((s) => s.focusRuleId);
+  const setFocusRuleId = useSessionStore((s) => s.setFocusRuleId);
 
   const stats = useMemo<RuleStat[]>(() => {
     // useHistory returns newest-first; reverse to oldest-first for the trend.
@@ -60,24 +66,44 @@ export function StatsView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-faint">Laddar statistik…</p>
+        <p className="text-sm text-muted">{t('stats.loading')}</p>
       </div>
     );
   }
 
+  // Ranking by pass-rate only pays off if the screen also offers the move it implies:
+  // the weakest rule with real data is the one worth making the focus.
+  const weakest = stats.find((s) => s.passRate !== null && s.verdicts.length >= MIN_DATA);
+  const suggestFocus = weakest && weakest.rule.id !== focusRuleId;
+
   return (
-    <div className="p-4">
-      <p className="text-xs text-faint mb-4">
-        {records.length} {records.length === 1 ? 'sving' : 'svingar'} analyserade
+    <div className="px-[18px] pb-6">
+      <p className="mb-3 px-1 text-[10.5px] text-muted">
+        {t('stats.analyzed', { count: records.length })}
       </p>
 
       {stats.length === 0 ? (
-        <p className="text-sm text-faint">Inga aktiva regler att visa statistik för.</p>
+        <p className="px-1 text-sm text-muted">{t('stats.none')}</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {stats.map((stat) => (
             <RuleStatCard key={stat.rule.id} stat={stat} />
           ))}
+        </div>
+      )}
+
+      {suggestFocus && (
+        <div className="mt-3 flex items-start gap-2.5 rounded-card bg-ok-tint px-3.5 py-3">
+          <span className="mt-0.5 text-base leading-none" aria-hidden>🎯</span>
+          <div className="flex-1">
+            <p className="text-[10.5px] leading-[1.45] text-ok">
+              <span className="font-semibold">{t('stats.suggestion')}</span>{' '}
+              {t('stats.suggestionBody', { rule: weakest.rule.title })}
+            </p>
+            <Button size="sm" className="mt-2" onClick={() => setFocusRuleId(weakest.rule.id)}>
+              {t('rules.focus')}
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -85,16 +111,17 @@ export function StatsView() {
 }
 
 function RuleStatCard({ stat }: { stat: RuleStat }) {
+  const t = useT();
   const { rule, verdicts, passRate, assessed } = stat;
   const hasData = verdicts.length >= MIN_DATA;
   const pct = passRate !== null ? Math.round(passRate * 100) : null;
 
   return (
-    <div className="p-3 bg-surface rounded-lg border border-line">
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <span className="text-sm font-medium truncate">{rule.title}</span>
+    <Card>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="truncate text-[12.5px] font-semibold">{rule.title}</span>
         {pct !== null ? (
-          <span className={`text-sm font-semibold ${pctColor(pct)}`}>{pct}%</span>
+          <span className={`text-[13px] font-bold tabular-nums ${pctColor(pct)}`}>{pct} %</span>
         ) : (
           <span className="text-xs text-faint">—</span>
         )}
@@ -103,41 +130,19 @@ function RuleStatCard({ stat }: { stat: RuleStat }) {
       {hasData ? (
         <>
           <VerdictBars verdicts={verdicts.slice(-SPARK_WINDOW)} />
-          <p className="text-[11px] text-faint mt-1.5">
-            {assessed} bedömda av {verdicts.length} senaste
+          <p className="mt-1.5 text-[9.5px] text-faint">
+            {t('stats.assessed', { assessed, total: verdicts.length })}
           </p>
         </>
       ) : (
-        <p className="text-xs text-faint">För lite data</p>
+        <p className="text-[10.5px] text-faint">{t('stats.tooLittle')}</p>
       )}
-    </div>
+    </Card>
   );
-}
-
-/** A compact bar strip: one bar per swing, coloured by verdict. */
-function VerdictBars({ verdicts }: { verdicts: Verdict[] }) {
-  return (
-    <div className="flex items-end gap-0.5 h-8" aria-hidden>
-      {verdicts.map((v, i) => (
-        <div
-          key={i}
-          className={`flex-1 rounded-sm ${barColor(v)}`}
-          style={{ height: v === 'pass' ? '100%' : v === 'fail' ? '45%' : '20%' }}
-          title={v}
-        />
-      ))}
-    </div>
-  );
-}
-
-function barColor(v: Verdict): string {
-  if (v === 'pass') return 'bg-green-400';
-  if (v === 'fail') return 'bg-red-400';
-  return 'bg-line';
 }
 
 function pctColor(pct: number): string {
-  if (pct >= 70) return 'text-green-400';
-  if (pct >= 40) return 'text-yellow-400';
-  return 'text-red-400';
+  if (pct >= 70) return 'text-ok';
+  if (pct >= 40) return 'text-gold';
+  return 'text-bad';
 }
