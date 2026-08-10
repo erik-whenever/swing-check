@@ -1,18 +1,10 @@
+import { useState } from 'react';
 import type { RuleResult } from '../../types';
 import { useRulesStore } from '../../store/rules';
 import { mapDetectedAngle, ANGLE_LABEL } from '../../lib/cameraAngle';
 import type { CameraAngle } from '../../lib/cameraAngle';
-
-const verdictStyles = {
-  pass: { bg: 'bg-green-900/50', border: 'border-green-700', text: 'text-green-300', label: 'PASS' },
-  fail: { bg: 'bg-red-900/50', border: 'border-red-700', text: 'text-red-300', label: 'FAIL' },
-  cannot_determine: {
-    bg: 'bg-yellow-900/50',
-    border: 'border-yellow-700',
-    text: 'text-yellow-300',
-    label: 'N/A',
-  },
-};
+import { useT } from '../../lib/i18n';
+import { VerdictDot } from '../ui';
 
 interface Props {
   result: RuleResult;
@@ -20,10 +12,20 @@ interface Props {
   detectedAngle?: 'face-on' | 'down-the-line' | 'unknown';
 }
 
-export function RuleResultCard({ result, isFocus, detectedAngle }: Props) {
+/**
+ * One rule as a row in the verdict list.
+ *
+ * This used to be a full tinted card per rule, which made a four-rule analysis four
+ * competing colour blocks with no scannable answer to "what failed?". The row now
+ * carries only the verdict and the name; everything the model said unfolds on tap,
+ * so the detail is one gesture away instead of permanently in the way.
+ */
+export function RuleResultRow({ result, isFocus, detectedAngle }: Props) {
+  const t = useT();
   const rules = useRulesStore((s) => s.rules);
   const rule = rules.find((r) => r.id === result.id);
-  const style = verdictStyles[result.verdict];
+  // Failures are the reason this screen exists — those start open.
+  const [open, setOpen] = useState(result.verdict === 'fail');
 
   // A cannot_determine on an angle-specific rule, where the footage isn't from that
   // angle, gets a precise "Requires X angle" message instead of the generic one.
@@ -33,66 +35,86 @@ export function RuleResultCard({ result, isFocus, detectedAngle }: Props) {
     result.verdict === 'cannot_determine' &&
     requiredAngles.length === 1 &&
     (detected === null || !requiredAngles.includes(detected));
-  const requiredLabel = wrongAngle ? ANGLE_LABEL[requiredAngles[0]] : null;
+
+  // Quick mode omits visual_evidence/observation; short_verdict is then all the
+  // model returned, so show that rather than two empty rows.
+  const details = [
+    result.visual_evidence,
+    result.observation,
+    !result.visual_evidence && !result.observation ? result.short_verdict : null,
+  ].filter(Boolean) as string[];
+
+  const hasDetail =
+    wrongAngle ||
+    details.length > 0 ||
+    !!result.suggestion ||
+    !!result.correction ||
+    !!result.drill_suggestion;
 
   return (
-    <div
-      className={`p-3 rounded-lg border ${style.bg} ${style.border} ${
-        isFocus ? 'ring-1 ring-accent-hover' : ''
-      }`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium truncate">
+    <div className={isFocus ? 'bg-gold-tint/40' : ''}>
+      <button
+        onClick={() => hasDetail && setOpen((o) => !o)}
+        aria-expanded={hasDetail ? open : undefined}
+        className="w-full flex items-center gap-2.5 px-3.5 py-3 text-left"
+      >
+        <VerdictDot verdict={result.verdict} />
+        <span className={`flex-1 text-xs leading-snug ${isFocus ? 'font-semibold' : 'font-medium'}`}>
           {rule?.title || result.id}
         </span>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs text-muted">
-            {Math.round(result.confidence * 100)}%
+        {isFocus && (
+          <span className="text-[9px] font-bold tracking-[0.06em] text-gold">
+            {t('analysis.focus').toUpperCase()}
           </span>
+        )}
+        {hasDetail && (
           <span
-            className={`px-2 py-0.5 rounded text-xs font-bold ${style.text} ${style.bg}`}
+            className={`text-faint text-[10px] leading-none transition-transform duration-200 ${
+              open ? 'rotate-180' : ''
+            }`}
+            aria-hidden
           >
-            {style.label}
+            ▾
           </span>
-        </div>
-      </div>
+        )}
+      </button>
 
-      {wrongAngle ? (
-        <p className="text-xs text-amber-300 font-medium flex items-center gap-1">
-          <span>⚠</span> Requires {requiredLabel} angle
-        </p>
-      ) : (
-        <>
-          {/* Quick mode omits visual_evidence/observation; short_verdict is all
-              the model returned, so show that rather than two empty rows. */}
-          {result.visual_evidence && (
-            <p className="text-xs text-fg-dim mb-1">{result.visual_evidence}</p>
-          )}
-          {result.observation ? (
-            <p className="text-xs text-muted">{result.observation}</p>
+      {open && hasDetail && (
+        <div className="px-3.5 pb-3 pl-[42px] space-y-1.5">
+          {wrongAngle ? (
+            <p className="text-[11px] font-medium text-gold">
+              ⚠ {t('analysis.requiresAngle', { angle: ANGLE_LABEL[requiredAngles[0]] })}
+            </p>
           ) : (
-            !result.visual_evidence &&
-            result.short_verdict && (
-              <p className="text-xs text-muted">{result.short_verdict}</p>
-            )
+            details.map((d, i) => (
+              <p
+                key={i}
+                className={`text-[11px] leading-[1.45] ${i === 0 ? 'text-fg-dim' : 'text-muted'}`}
+              >
+                {d}
+              </p>
+            ))
           )}
-        </>
-      )}
 
-      {result.suggestion && (
-        <p className="text-xs text-accent-text mt-2">
-          Tip: {result.suggestion}
-        </p>
-      )}
-      {result.correction && (
-        <p className="text-xs text-amber-400 mt-2">
-          Correction: {result.correction}
-        </p>
-      )}
-      {result.drill_suggestion && (
-        <p className="text-xs text-blue-400 mt-2">
-          Drill: {result.drill_suggestion}
-        </p>
+          {result.suggestion && (
+            <p className="text-[11px] leading-[1.45] text-accent-text">
+              {t('analysis.tip')}: {result.suggestion}
+            </p>
+          )}
+          {result.correction && (
+            <p className="text-[11px] leading-[1.45] text-gold">
+              {t('analysis.correction')}: {result.correction}
+            </p>
+          )}
+          {result.drill_suggestion && (
+            <p className="text-[11px] leading-[1.45] text-muted">
+              {t('analysis.drill')}: {result.drill_suggestion}
+            </p>
+          )}
+          <p className="pt-0.5 text-[10px] text-faint tabular-nums">
+            {Math.round(result.confidence * 100)} %
+          </p>
+        </div>
       )}
     </div>
   );

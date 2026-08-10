@@ -5,6 +5,7 @@ import { useToastStore } from '../../store/toast';
 import { exportSwingClip, isClipExportSupported, type OverlayLine } from '../../lib/videoExport';
 import type { RuleResult } from '../../types';
 import { createLogger } from '../../lib/logger';
+import { Button } from '../ui';
 
 const log = createLogger('ShareButton');
 
@@ -73,20 +74,15 @@ export function ShareButton() {
   };
 
   return (
-    <button
-      onClick={handleShare}
-      disabled={busy}
-      className="w-full py-3 bg-accent hover:bg-accent-hover text-on-accent rounded-lg text-sm
-                 font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-    >
+    <Button variant="secondary" size="lg" full onClick={handleShare} disabled={busy}>
       {busy ? (
         <>
-          <span className="w-4 h-4 border-2 border-on-accent border-t-transparent rounded-full animate-spin" />
+          <span className="w-4 h-4 border-2 border-accent-text border-t-transparent rounded-full animate-spin" />
           Skapar klipp…
         </>
       ) : (
-        <>📤 Dela sving</>
+        'Dela klipp'
       )}
-    </button>
+    </Button>
   );
 }

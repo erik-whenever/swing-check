@@ -16,16 +16,20 @@ import {
 
 /** Delay after feedback before the next swing auto-records in a session. */
 const SESSION_RESTART_MS = 3000;
-import { RuleResultCard } from './RuleResult';
+import { RuleResultRow } from './RuleResult';
 import { FrameViewer } from './FrameViewer';
 import { ShareButton } from './ShareButton';
 import { AnglePill } from '../AngleToggle';
 import { ruleMatchesAngle, ANGLE_TO_PROMPT } from '../../lib/cameraAngle';
 import { createLogger } from '../../lib/logger';
+import { useT } from '../../lib/i18n';
+import type { TranslationKey } from '../../lib/i18n';
+import { Button, Card, Chip } from '../ui';
 
 const log = createLogger('AnalysisView');
 
 export function AnalysisView() {
+  const t = useT();
   // Single-swing view: renders swings[0]. A session holding N swings gets its own
   // view in D-5 pass 2; the state layer below is already per swing (ADR-003 §5.4).
   const swing = useSessionStore(selectPrimarySwing);
@@ -194,27 +198,21 @@ export function AnalysisView() {
 
   if (activeRules.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <p className="text-muted mb-4">
-          No active rules. Add rules before analyzing.
-        </p>
-        <button
-          onClick={() => setView('rules')}
-          className="px-4 py-2 bg-accent-press rounded-lg text-sm"
-        >
-          Go to Rules
-        </button>
-      </div>
+      <EmptyState
+        message={t('analysis.noRules')}
+        action={t('analysis.toRules')}
+        onAction={() => setView('rules')}
+      />
     );
   }
 
   if (status === 'extracting' || status === 'analyzing') {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6">
-        <div className="w-10 h-10 border-4 border-accent-press border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm text-muted">Analyzing your swing...</p>
-        <p className="text-xs text-faint mt-1">
-          {frames.length} frames sent to Claude Vision
+        <div className="w-10 h-10 border-[3px] border-accent border-t-transparent rounded-full animate-spin mb-5" />
+        <p className="text-sm font-medium text-fg">{t('analysis.working')}</p>
+        <p className="mt-1 text-xs text-muted">
+          {t('analysis.workingSub', { count: frames.length })}
         </p>
       </div>
     );
@@ -222,161 +220,163 @@ export function AnalysisView() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <p className="text-red-400 mb-2">Analysis failed</p>
-        <p className="text-sm text-muted mb-4">{error}</p>
-        <button
-          onClick={() => {
-            clearSwings();
-            setView('camera');
-          }}
-          className="px-4 py-2 bg-accent-press rounded-lg text-sm"
-        >
-          Try Again
-        </button>
-      </div>
+      <EmptyState
+        title={t('analysis.failed')}
+        message={error}
+        action={t('analysis.retry')}
+        onAction={() => {
+          clearSwings();
+          setView('camera');
+        }}
+      />
     );
   }
 
   if (!analysis) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <p className="text-muted">No analysis yet. Record a swing first.</p>
-        <button
-          onClick={() => setView('camera')}
-          className="mt-4 px-4 py-2 bg-accent-press rounded-lg text-sm"
-        >
-          Go to Camera
-        </button>
-      </div>
+      <EmptyState
+        message={t('analysis.empty')}
+        action={t('analysis.toCamera')}
+        onAction={() => setView('camera')}
+      />
     );
   }
 
   const { focus_rule, rules: ruleResults, overall_assessment, frame_quality, cannot_determine_reasons } =
     analysis;
 
+  // The focus rule LEADS the list rather than sitting in a section of its own: it is
+  // the same kind of thing as the rest, just the one that matters today.
+  const allResults = focus_rule ? [focus_rule, ...ruleResults] : ruleResults;
+  const passed = allResults.filter((r) => r.verdict === 'pass').length;
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="p-4 space-y-4">
+      <div className="px-[18px] pt-1 pb-6 space-y-3">
+        {/* Frame quality is a caveat on every verdict below it, so it belongs next to
+            the title rather than buried in a row of metadata. */}
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">{t('analysis.title')}</h2>
+          <Chip tone={QUALITY_TONE[frame_quality] ?? 'neutral'}>
+            {t(`analysis.quality.${frame_quality}` as TranslationKey)}
+          </Chip>
+        </div>
+
         {/* Session control: swing counter + end button (auto-restart loop is running) */}
         {sessionActive && (
-          <div className="flex items-center justify-between gap-3 p-3 bg-accent/10 border border-accent/40 rounded-lg">
-            <span className="text-sm font-semibold text-accent-text">
-              🎯 Session · Sving {swingNumber}
+          <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-card bg-accent-tint">
+            <span className="text-xs font-semibold text-accent-text">
+              🎯 {t('analysis.session', { n: swingNumber })}
             </span>
-            <button
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => {
                 clearRestartTimer();
                 cancelSpeech();
                 endSession();
               }}
-              className="px-3 py-1.5 rounded-md bg-raised hover:bg-raised-hi text-xs font-semibold transition-colors"
             >
-              Avsluta session
-            </button>
+              {t('camera.sessionEnd')}
+            </Button>
           </div>
         )}
 
-        {/* Stop speech */}
         {speaking && (
-          <button
-            onClick={stopSpeaking}
-            className="w-full py-2.5 bg-raised hover:bg-raised-hi rounded-lg text-sm
-                       font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            ⏹ Stoppa uppläsning
-          </button>
+          <Button variant="secondary" full onClick={stopSpeaking}>
+            ⏹ {t('analysis.stopSpeech')}
+          </Button>
         )}
 
-        {/* Frame viewer */}
         <FrameViewer frames={frames} />
 
-        {/* Quality badge + the angle this swing was analyzed with */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`px-2 py-0.5 rounded text-xs font-medium ${
-              frame_quality === 'good'
-                ? 'bg-green-900 text-green-300'
-                : frame_quality === 'acceptable'
-                  ? 'bg-yellow-900 text-yellow-300'
-                  : 'bg-red-900 text-red-300'
-            }`}
-          >
-            {frame_quality} quality
-          </span>
-          {analysisAngle && (
-            <span className="flex items-center gap-1 text-xs text-muted">
-              Analyzed as <AnglePill angle={analysisAngle} />
-            </span>
-          )}
-          <span className="text-xs text-faint">
-            detected: {analysis.camera_angle_detected}
-          </span>
-        </div>
+        {/* Overall assessment. The gold eyebrow carries the score, so the number and
+            the sentence explaining it are read as one thing. */}
+        <Card>
+          <p className="eyebrow text-gold mb-1.5">
+            {t('analysis.overall')} ·{' '}
+            {t('analysis.passOf', { pass: passed, total: allResults.length })}
+          </p>
+          <p className="text-xs leading-[1.55] text-fg-dim">{overall_assessment}</p>
+        </Card>
 
-        {/* Overall assessment */}
-        <div className="p-3 bg-surface rounded-lg border border-line">
-          <p className="text-sm">{overall_assessment}</p>
-        </div>
-
-        {/* Focus rule result */}
-        {focus_rule && (
-          <div>
-            <h3 className="text-xs uppercase tracking-wide text-accent-text mb-2 font-semibold">
-              Focus Rule
-            </h3>
-            <RuleResultCard
-              result={focus_rule}
-              isFocus
+        {/* One card, one row per rule — see RuleResultRow for why. */}
+        <Card padded={false} className="overflow-hidden divide-y divide-line">
+          {allResults.map((result) => (
+            <RuleResultRow
+              key={result.id}
+              result={result}
+              isFocus={!!focus_rule && result.id === focus_rule.id}
               detectedAngle={analysis.camera_angle_detected}
             />
-          </div>
-        )}
+          ))}
+        </Card>
 
-        {/* Standard rule results */}
-        <div>
-          <h3 className="text-xs uppercase tracking-wide text-faint mb-2 font-semibold">
-            Rules
-          </h3>
-          <div className="space-y-2">
-            {ruleResults.map((result) => (
-              <RuleResultCard
-                key={result.id}
-                result={result}
-                detectedAngle={analysis.camera_angle_detected}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Cannot determine reasons */}
         {cannot_determine_reasons && cannot_determine_reasons.length > 0 && (
-          <div className="p-3 bg-surface/50 rounded-lg border border-line/50">
-            <h4 className="text-xs font-medium text-muted mb-1">
-              Could not determine
-            </h4>
-            <ul className="text-xs text-faint space-y-1">
+          <div className="px-1">
+            <p className="eyebrow text-muted mb-1">{t('analysis.cannotDetermine')}</p>
+            <ul className="space-y-0.5 text-[11px] leading-[1.5] text-faint">
               {cannot_determine_reasons.map((reason, i) => (
-                <li key={i}>- {reason}</li>
+                <li key={i}>· {reason}</li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Share the swing as a clip with feedback overlay */}
-        <ShareButton />
+        {/* Which angle this verdict is valid for. Secondary, so it sits at the end. */}
+        <div className="flex items-center gap-1.5 flex-wrap px-1 text-[10.5px] text-muted">
+          {analysisAngle && (
+            <>
+              {t('analysis.analyzedAs')} <AnglePill angle={analysisAngle} className="!bg-raised" />
+            </>
+          )}
+          <span className="text-faint">
+            · {t('analysis.detected', { angle: analysis.camera_angle_detected })}
+          </span>
+        </div>
 
-        {/* New swing button */}
-        <button
-          onClick={() => {
-            clearSwings();
-            setView('camera');
-          }}
-          className="w-full py-3 bg-accent-press hover:bg-accent rounded-lg text-sm font-medium transition-colors"
-        >
-          Record New Swing
-        </button>
+        <div className="flex gap-2 pt-1">
+          <div className="flex-1">
+            <ShareButton />
+          </div>
+          <Button
+            size="lg"
+            className="flex-1"
+            onClick={() => {
+              clearSwings();
+              setView('camera');
+            }}
+          >
+            {t('analysis.newSwing')}
+          </Button>
+        </div>
       </div>
+    </div>
+  );
+}
+
+const QUALITY_TONE: Record<string, 'ok' | 'gold' | 'bad'> = {
+  good: 'ok',
+  acceptable: 'gold',
+  poor: 'bad',
+};
+
+function EmptyState({
+  title,
+  message,
+  action,
+  onAction,
+}: {
+  title?: string;
+  message: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-10 text-center">
+      {title && <p className="mb-1.5 text-sm font-semibold text-bad">{title}</p>}
+      <p className="mb-5 text-sm leading-relaxed text-muted">{message}</p>
+      <Button onClick={onAction}>{action}</Button>
     </div>
   );
 }
