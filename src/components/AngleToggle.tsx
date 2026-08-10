@@ -1,6 +1,7 @@
 import { useSettingsStore } from '../store/settings';
 import { ANGLE_LABEL, CAMERA_ANGLES } from '../lib/cameraAngle';
 import type { CameraAngle } from '../lib/cameraAngle';
+import { Segmented } from './ui';
 
 /** DTL | Face-on segmented toggle, bound to the global camera angle. */
 export function AngleToggle() {
@@ -8,26 +9,13 @@ export function AngleToggle() {
   const setCameraAngle = useSettingsStore((s) => s.setCameraAngle);
 
   return (
-    <div
-      role="group"
-      aria-label="Camera angle"
-      className="flex rounded-lg overflow-hidden border border-line text-xs font-semibold"
-    >
-      {CAMERA_ANGLES.map((angle) => (
-        <button
-          key={angle}
-          onClick={() => setCameraAngle(angle)}
-          aria-pressed={cameraAngle === angle}
-          className={`px-3 py-1.5 transition-colors ${
-            cameraAngle === angle
-              ? 'bg-accent text-white'
-              : 'bg-surface text-muted hover:bg-raised'
-          }`}
-        >
-          {ANGLE_LABEL[angle]}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      value={cameraAngle}
+      onChange={setCameraAngle}
+      size="sm"
+      ariaLabel="Kameravinkel"
+      options={CAMERA_ANGLES.map((angle) => ({ value: angle, label: ANGLE_LABEL[angle] }))}
+    />
   );
 }
 
@@ -41,8 +29,8 @@ export function AnglePill({
 }) {
   return (
     <span
-      className={`px-2 py-0.5 rounded-full bg-bg/80 border border-accent-hover/60
-                  text-[11px] font-bold text-accent-text tracking-wide ${className}`}
+      className={`inline-flex items-center rounded-pill px-2.5 py-1 text-[10.5px] font-semibold
+                  bg-surface/90 text-accent-text backdrop-blur ${className}`}
     >
       {ANGLE_LABEL[angle]}
     </span>

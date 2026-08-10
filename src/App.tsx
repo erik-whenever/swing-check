@@ -79,8 +79,11 @@ function App() {
         {view === 'settings' && <SettingsView />}
       </div>
 
-      {/* Bottom nav */}
-      <nav className="flex-shrink-0 flex border-t border-line bg-bg/95 backdrop-blur safe-bottom">
+      {/* Bottom nav. The active tab is marked by a tinted capsule behind the icon
+          rather than colour alone — on a bright range screen a hue shift on a 24px
+          glyph is not a legible "you are here". */}
+      <nav className="flex-shrink-0 flex items-stretch gap-0.5 px-2 pt-1.5 border-t border-line
+                      bg-surface/90 backdrop-blur safe-bottom">
         {tabs.map((tab) => {
           const active = view === tab.key;
           return (
@@ -88,23 +91,28 @@ function App() {
               key={tab.key}
               onClick={() => setView(tab.key)}
               aria-current={active ? 'page' : undefined}
-              className={`group flex-1 flex flex-col items-center gap-1 pt-2 pb-1.5 text-[10px] font-medium
-                          transition-colors duration-150 ${
+              className={`group flex-1 flex flex-col items-center gap-1 pt-1 pb-1.5 text-[10px]
+                          font-semibold transition-colors duration-150 ${
                             active ? 'text-accent-text' : 'text-faint hover:text-fg-dim'
                           }`}
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={active ? 2.2 : 1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="w-6 h-6 transition-transform duration-150 group-active:scale-90"
-                aria-hidden
+              <span
+                className={`flex items-center justify-center h-7 w-11 rounded-pill
+                            transition-colors duration-200 ${active ? 'bg-accent-tint' : ''}`}
               >
-                <path d={icons[tab.key]} />
-              </svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={active ? 2.1 : 1.7}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-[22px] h-[22px] transition-transform duration-150 group-active:scale-90"
+                  aria-hidden
+                >
+                  <path d={icons[tab.key]} />
+                </svg>
+              </span>
               {t(tab.labelKey)}
             </button>
           );
