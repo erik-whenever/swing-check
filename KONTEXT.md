@@ -51,6 +51,7 @@ Telefon (PWA)
 - **Loggning:** använd `createLogger('Modul')` (`src/lib/logger.ts`). ERROR skickas vidare till Workern/D1.
 - **State:** en Zustand-store per domän (`session`, `settings`, `rules`, `onboarding`, `toast`). UI-läge styrs av `view` i `session`-storen, inte av en router.
 - **i18n:** all användartext via `useT()` / `src/lib/i18n.ts`. Språk autodetekteras (browser-locale + geo), men manuellt val vinner alltid.
+- **Utseende:** semantiska utilities (`bg-surface`, `text-muted`, `rounded-card`) — aldrig råa palettklasser som `bg-slate-800`. Kort-, knapp- och chipformer går via `src/components/ui/`. Se [docs/design-system.md](docs/design-system.md).
 - **Kameravinkel:** internt `'dtl' | 'face-on'` (`src/lib/cameraAngle.ts`); översätts till promptens vokabulär (`down-the-line`/`face-on`) vid anrop.
 - **Kommentarer:** förklara *varför*, inte *vad*. Befintlig kod har hög andel motiverande kommentarer — matcha den stilen.
 - **Osäkerhet flaggas i koden** med `// OSÄKER: …` + kort riskbedömning, hellre än att gissas bort.
@@ -62,7 +63,7 @@ Telefon (PWA)
 | Cloudflare Worker + D1 | Enkel edge-proxy nära användaren; D1 räcker för logglagring utan separat DB. |
 | IndexedDB via `idb-keyval` | Videoblobbar är för stora för localStorage; måste fungera offline. |
 | Zustand | Lättviktig store utan boilerplate; `persist` för inställningar/regler. |
-| Tailwind v4 | Snabb mobil-UI-iteration; tema/accent via `data-`-attribut på `<html>`. |
+| Tailwind v4 | Snabb mobil-UI-iteration; tema/accent via `data-`-attribut på `<html>`. Visuellt system: [docs/design-system.md](docs/design-system.md). |
 | Supabase (valfritt) | Cross-device-historik utan att bygga egen backend; hålls icke-blockerande. |
 | Claude Sonnet 4.5 | Multimodal bildrute-analys med strukturerad JSON-output. |
 

@@ -43,6 +43,14 @@
   `cropReason`/`cropBox`/`cropAreaPct`/`gateDetail`/`outputSize`/`savedPct` på
   `Session swing N analyzed`.
   **Klipp-vägen (`frameExtractor.ts`) är orörd** — den beskärs inte; E-1 (långside-cap) står kvar.
+- **Visuell identitet "Club Cream" (2026-08-10).** Krämiga ytor, fairway-grön accent,
+  pillerformer, Outfit (självhostat + precachat → identisk rendering offline). Tokens i
+  `src/index.css`, primitiver i `src/components/ui/` (`Card`/`Button`/`Chip`/`Segmented`/
+  `Toggle`/`ScoreRing`/`Sparkline`). Domfärger (`ok`/`bad`/`gold`/`chart-*`) är frikopplade
+  från `data-accent` så "godkänd" förblir grön oavsett vald accent. Två klasser som
+  användes men aldrig existerade är nu riktiga: `safe-top`/`safe-bottom` (+ `viewport-fit=cover`
+  i `index.html` — utan den är `env(safe-area-inset-*)` alltid 0 på iOS) och `@keyframes fadeIn`.
+  **Ej enhetsverifierad** — se [design-system.md](design-system.md) → *Kända avgränsningar*.
 - Regler: egna + regelbibliotek med drills, kameravinkel-filtrering.
 - Historik i IndexedDB + valfri Supabase-spegling av metadata.
 - TTS-uppläsning (quick/detailed), val av röst; serialiserad kö i sessionsläge.
@@ -172,6 +180,8 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
   `audioTrigger`; pose: `poseDetector`/`poseTrajectory`/`poseConnections`/`poseEnvelope`/
   `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`/`poseCropBox`; live: `poseRingBuffer`/`livePoseLoop`/
   `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`.
+- `src/components/ui/` — delade primitiver (`Card`, `Button`, `Chip`/`VerdictDot`, `Segmented`,
+  `Toggle`, `ScoreRing`, `Sparkline`/`VerdictBars`). Allt kortformat/pillerformat går via dessa.
 - `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).
 

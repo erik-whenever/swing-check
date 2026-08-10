@@ -30,6 +30,38 @@ Strömmarna A, B och C är isolerade och kan köras samtidigt i **separata git-w
 
 ---
 
+## Ström UI — Visuell identitet "Club Cream"
+
+Ad hoc-ström (utanför A/B/C/D/E), begärd 2026-08-10. Branch: `stream-ui`.
+
+### [x] UI-1 — Club Cream: tokens, primitiver och omgjorda vyer
+
+> **Klart (2026-08-10).** Ny visuell baslinje enligt designexporten: krämiga ytor,
+> fairway-grön accent, pillerformer, Outfit (självhostat + precachat). Tokens i
+> `src/index.css`, primitiver i nya `src/components/ui/`. Alla produktvyer ombyggda
+> (hem, kamera, analys, historik, statistik, regler, bibliotek, inställningar,
+> onboarding, toast/banner/sessionsytor).
+>
+> **Utöver ren omtemning:** analysvyn är EN domlista i stället för fyra tävlande
+> färgkort (detaljer fälls ut vid tryck); kameravyns sju kontroller i tre former är
+> EN chip-rad; tillstånd bärs av form, inte bara färg; destruktiva regelåtgärder
+> ligger ett tryck djupare; i18n täcker nu de ombyggda vyerna på båda språken
+> (analysvyn var hårdkodad engelska, historiken hårdkodad svenska).
+>
+> **Två latenta buggar fixade på vägen:** `safe-top`/`safe-bottom` användes av skalet
+> men fanns aldrig som utilities (toppbaren ritades under notchen) — nu definierade,
+> plus `viewport-fit=cover` i `index.html` utan vilken `env(safe-area-inset-*)` alltid
+> är 0 på iOS. Samma sak för `@keyframes fadeIn`. `Rules/RuleList.tsx` borttagen (död kod).
+>
+> **Verifierat:** `npm run build`, `npm run lint` (0 nya fel — de 2 kvarvarande är
+> pre-existerande i `FrameLightbox.tsx`/`useHistory.ts`), `npm test` 148/148, och
+> `npm run dev` serverar de nya utilities:arna. **Ej sedd på en iPhone** —
+> safe-area-ändringen är det första som ska kontrolleras där.
+>
+> Dokumentation: [design-system.md](design-system.md).
+
+---
+
 ## Ström A — Voice-triggad svingstart
 
 Hands-free svingstart i hörlurs-session: användaren säger "start" (eller klappar) i mikrofonen. Sekventiell internt (delar audio-infra + session-store). Ger ett pålitligt svingstart-ankare som kringgår pixel-diff i session-läge.
