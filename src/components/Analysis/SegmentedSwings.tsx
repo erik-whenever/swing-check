@@ -2,7 +2,7 @@
 //
 // Production still assumes ONE swing per clip: `frameExtractor.extractFrames` runs
 // `detectSwingEnvelope` over the whole span and returns one set of ANALYSIS_FRAME_COUNT
-// frames. Feed it a 64-second range session and you get 20 frames smeared across the
+// frames. Feed it a 64-second range session and you get one budget smeared across the
 // whole clip — the silent failure ADR-003 exists to fix.
 //
 // This component renders what the SEGMENTED chain sees instead: `detectSessionSwings`

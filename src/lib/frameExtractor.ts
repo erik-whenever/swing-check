@@ -57,8 +57,15 @@ interface MotionCurve {
  * cover every swing phase (setup → follow-through needs several frames per phase).
  * Deliberate cost trade-off — ~2× Vision input per swing is accepted. This is the
  * ONLY place the number lives; callers import it rather than hardcoding a count.
+ *
+ * Raised 20 → 32 (2026-08-11) because the price of a frame moved. 20 was chosen
+ * when a frame cost 1 229 tokens; after the pose crop (Ström E) a frame measures
+ * 213–231. At ~220 that is ~7 000 input tokens per swing — LESS than the worst
+ * single swing we have measured at 20 frames, so the budget is bought back out of
+ * the crop rather than added on top. What it buys is resolution inside the swing:
+ * the envelope is ~1.6 s, so 32 frames is one every ~50 ms against ~85 ms before.
  */
-export const ANALYSIS_FRAME_COUNT = 20;
+export const ANALYSIS_FRAME_COUNT = 32;
 
 // ── Tunables (motion fallback) ───────────────────────────────────────────────
 // The pose/envelope path (poseEnvelope.ts) is the PRIMARY selector; the pixel-diff

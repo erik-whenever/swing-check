@@ -43,7 +43,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { analyzeSwing } from '../lib/api';
 import { ANGLE_TO_PROMPT, ruleMatchesAngle } from '../lib/cameraAngle';
-import { ANALYSIS_FRAME_COUNT, type FrameMeta } from '../lib/frameExtractor';
+import {
+  ANALYSIS_FRAME_COUNT,
+  type FrameMeta,
+  type SwingPhase,
+} from '../lib/frameExtractor';
 import { createLogger, serializeError } from '../lib/logger';
 import { grabFramesAtTimes } from '../lib/poseFrameGrab';
 import { MAX_OUTPUT_SIDE } from '../lib/poseCropBox';
@@ -54,6 +58,7 @@ import { buildSpeechParts, enqueueSpeech, TTS_FAILED } from '../lib/tts';
 import type { LiveLoopStats } from '../lib/livePoseLoop';
 import type { LiveSwingReport } from '../lib/liveSwingDetector';
 import type { MaterializedWindow, VideoChunkRing } from '../lib/videoChunkRing';
+import type { Rule } from '../types';
 import { useRulesStore } from '../store/rules';
 import { useSettingsStore } from '../store/settings';
 import { useSessionStore, type SwingTimings } from '../store/session';
@@ -230,13 +235,18 @@ export function useSessionCapture({
       try {
         // ── Frames ────────────────────────────────────────────────────────────
         updateSwing(swingId, { status: 'extracting' });
-        // The SAME allocation the clip path runs, on the same envelope object the
-        // gate accepted — not a re-derivation from the reported boundaries.
+        // The same allocation the clip path runs, on the same envelope object the
+        // gate accepted — not a re-derivation from the reported boundaries. The one
+        // difference: session mode knows which rules are about to judge this swing,
+        // so it tells the selector where to spend the cluster budget. The clip path
+        // has the same rules available but is deliberately left on the verified
+        // impact-cluster default (worst-case-wins).
         const selection = selectEnvelopeFrames(
           report.envelope,
           ANALYSIS_FRAME_COUNT,
           report.envelope.startSec,
           report.envelope.finishSec,
+          { clusterPhases: rulePhasesToSwingPhases(activeRules) },
         );
         const times = selection.picks.map((p) => p.t);
         const grabStart = performance.now();
@@ -337,6 +347,17 @@ export function useSessionCapture({
           frameCount: frames.length,
           impactCluster: selection.impactClusterApplied,
           usedEnvelope: selection.usedEnvelope,
+          // Budget accounting, per swing. At 32 frames over a ~1.6 s envelope the
+          // uniform baseline and the phase clusters sit close enough that DEDUPE_SEC
+          // can start merging them — `framesRequested` vs `framesAfterDedupe` is the
+          // only way to see that happening in the field instead of guessing at it.
+          // `clusterPhases` says where the cluster budget went and `clusterAllocation`
+          // how much each phase asked for, against `allocation` for what survived.
+          framesRequested: selection.requested,
+          framesAfterDedupe: selection.picks.length,
+          clusterPhases: selection.clusterPhases,
+          clusterAllocation: selection.clusterAllocation,
+          allocation: selection.allocation,
           // Crop effect, per swing — the numbers a field test verifies the saving on.
           cropReason: crop.reason,
           cropBox: crop.rect
@@ -488,4 +509,19 @@ function round2(n: number): number {
 
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
+}
+
+/**
+ * Rule phases → the selector's phase vocabulary.
+ *
+ * The two enums are near-identical — `Rule.phase` says `follow` where `SwingPhase`
+ * says `follow-through` — but they are separate types on purpose: one names what a
+ * rule looks at, the other what a frame was anchored to. Translating here rather
+ * than merging them keeps `poseEnvelopeSelection.ts` free of any notion of a rule,
+ * which is what lets it stay pure timestamp logic under test.
+ *
+ * Duplicates and ordering are the selector's problem — it normalizes both.
+ */
+function rulePhasesToSwingPhases(rules: Rule[]): SwingPhase[] {
+  return rules.map((r) => (r.phase === 'follow' ? 'follow-through' : r.phase));
 }

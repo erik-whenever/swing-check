@@ -170,25 +170,6 @@ Detaljerad patch-för-patch-historik finns i [ADR-002](decisions/ADR-002-stream-
   settings-storen; ingen UI, den sätts från storen. **Klipp-vägen i `AnalysisView` är orörd** —
   där har användaren uttryckligen bett om en analys (worst-case-wins). `npm test` 164/164,
   build ren, lint 0 nya.
-- **Bildrutebudget 20 → 32 + fasklustring (2026-08-11).** `ANALYSIS_FRAME_COUNT` höjd
-  eftersom priset per bildruta flyttat sig: 20 sattes vid 1 229 tokens/bild, efter
-  beskärningen mäter en bild 213–231. Vid ~220 blir 32 bilder ~7 000 input-tokens —
-  **mindre än den dyraste sving vi mätt vid 20 bildrutor**, så budgeten är köpt ur
-  beskärningen, inte lagd ovanpå. Samtidigt lade selektionen alltid klustret på impact,
-  medan regler om **downswing-sekvensering** (startar höften före axlarna?) utspelar sig i
-  övergången topp→downswing där nästan inga bildrutor hamnade — användaren fick
-  `cannot_determine` på just den regeln i produktion. `selectEnvelopeFrames` tar nu
-  `options.clusterPhases`: klusterbudgeten (fortsatt 0,4-andel) delas jämnt över de
-  distinkta faser de aktiva reglerna tittar på, var och en centrerad på fasens mittpunkt i
-  envelopen. **Utan `clusterPhases` är beteendet bit för bit som förut** (kluster på impact
-  när impact är bekräftad) — klipp-vägen skickar inget och står därmed orörd.
-  Klusterspacing 0,06 → **0,033** och `max(…, sampleDt)`-golvet borttaget: placeringen
-  *härleds* ur pose (15 fps, dt 0,067) men bildrutan *hämtas* ur videon (30 fps), så golvet
-  slängde halva källans tidsupplösning. Faslabel-toleransen behåller `sampleDt`-golvet — den
-  frågan (*är den här rutan i toppen?*) begränsas av pose. Nytt per sving i loggen:
-  `framesRequested`, `framesAfterDedupe`, `clusterPhases`, `clusterAllocation`, `allocation`.
-  Ny `poseEnvelopeSelection.test.ts` (9 test); regressionsgoldens omräknade (26/25/26).
-  `npm test` 187/187, build ren, lint 0 nya.
 
 ### Ström A — Voice-start
 A-1 + A-2 klara (`useMicTrigger`, `EnergyTrigger` + `useEnergyTrigger`): adaptiv amplitud-trigger med

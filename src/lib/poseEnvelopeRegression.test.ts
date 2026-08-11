@@ -27,8 +27,11 @@ import type { PoseSample } from './poseTrajectory';
 /** Production frame budget — must equal frameExtractor.ts's ANALYSIS_FRAME_COUNT
  *  (the single source of truth for frames/swing sent to Claude), which selectViaPose
  *  forwards straight into selectEnvelopeFrames. Kept as a local literal (not an import)
- *  so the harness stays self-contained; bump both together if the production count moves. */
-const BUDGET = 20;
+ *  so the harness stays self-contained; bump both together if the production count moves.
+ *  20 → 32 (2026-08-11). NOTE that these fixtures exercise the CLIP path, which passes no
+ *  `clusterPhases` — so this harness keeps pinning the impact-cluster default, which is
+ *  exactly what it should do: phase clustering is opt-in and must not move the baseline. */
+const BUDGET = 32;
 
 /**
  * Tolerance for time asserts, in sample frames (from the fixture's own dt) plus a float
@@ -73,10 +76,11 @@ const GOLDENS: EnvelopeGolden[] = [
     impactSec: 7.85,
     clippedTail: false,
     impactClusterApplied: true,
-    // 16, not BUDGET: with a confident impact the cluster (spacing 0.06s) overlaps
+    // 26, not BUDGET: with a confident impact the cluster (spacing 0.033s) overlaps
     // the uniform baseline over this short (~1.6s) envelope, and dedupe (0.03s)
     // merges the near-duplicates. This is exactly what production sends to Claude.
-    frameCount: 16,
+    // 16 → 26 (2026-08-11): budget 20 → 32 with a tighter cluster spacing.
+    frameCount: 26,
   },
   {
     fixture: 'dtl-clipped',
@@ -85,7 +89,12 @@ const GOLDENS: EnvelopeGolden[] = [
     impactSec: null,
     clippedTail: true,
     impactClusterApplied: false,
-    frameCount: BUDGET,
+    // 25, not BUDGET (2026-08-11). This clip's envelope is ~0.75 s, which at
+    // DEDUPE_SEC (0.03 s ≈ one 30 fps source frame) holds 25 DISTINCT frames — the
+    // budget is capped by the clip, not lost. It was 20 = BUDGET before only because
+    // the old budget happened to fit; see `fittable()` in poseEnvelopeSelection.ts
+    // for why the cap is applied up front rather than left to greedy dedupe.
+    frameCount: 25,
   },
   {
     fixture: 'face-on',
@@ -110,7 +119,10 @@ const GOLDENS: EnvelopeGolden[] = [
     // more pick and dedupe merges it. A consequence of the envelope move above, not
     // an independent budget regression — dtl-full (16) and dtl-clipped (20) are
     // unchanged, which is what rules out a selection-side cause.
-    frameCount: 15,
+    // 15 → 26 (2026-08-11): budget 20 → 32. Landing on the same 26 as dtl-full is a
+    // coincidence of two similar envelope lengths, not a ceiling — dtl-clipped's 25
+    // shows the count still tracks the clip.
+    frameCount: 26,
   },
 ];
 
