@@ -37,6 +37,17 @@ export interface AnalysisUsage {
   costUsd: number;
   /** Round-trip time of the Vision call itself. */
   visionMs: number;
+  // The request shape that produced the numbers above. Carried alongside them because
+  // token counts are meaningless without it: output scales with the rule count and the
+  // schema quick mode picks, so a latency change can only be attributed with both in view.
+  /** Quick mode asks for the lean schema — the biggest single lever on output size. */
+  quickMode: boolean;
+  /** The `max_tokens` ceiling that was sent. */
+  maxTokens: number;
+  /** Rules the model was asked to judge. */
+  activeRuleCount: number;
+  /** Images sent with the request. */
+  frameCount: number;
 }
 
 export async function analyzeSwing(
@@ -160,17 +171,35 @@ export async function analyzeSwing(
     cacheCreationTokens,
     costUsd,
     visionMs: responseMs,
+    quickMode,
+    maxTokens,
+    activeRuleCount: rules.length,
+    frameCount: frames.length,
   });
 
+  // WARN, not INFO: this fires once per swing, and the in-app log panel used for field
+  // verification shows nothing below WARN — at INFO the effect of every token/latency
+  // optimisation was invisible on the phone, which is the only place it matters.
+  //
   // visionMs is the same measurement the session log reports under that name — one
   // greppable key across both lines, so output size and generation latency can be
   // correlated in the field. stopReason 'max_tokens' means the ceiling was too low.
-  log.info('analyzeSwing response received', {
+  //
+  // quickMode/maxTokens/activeRuleCount/frameCount sit next to visionMs because
+  // generation dominates the call: output scales with the rule count and with the schema
+  // quick mode selects, so latency is only explainable with the request shape in view.
+  // tokensPerFrame divides the UNCACHED input by the image count — the prompt and system
+  // blocks sit before the cache breakpoint, so `inputTokens` is essentially image cost,
+  // and this is the number that moves when frames are cropped or downscaled.
+  log.warn('analyzeSwing response received', {
     visionMs: responseMs,
     outputTokens,
     maxTokens,
     quickMode,
+    activeRuleCount: rules.length,
+    frameCount: frames.length,
     inputTokens,
+    tokensPerFrame: frames.length > 0 ? Math.round(inputTokens / frames.length) : 0,
     cacheReadTokens,
     cacheCreationTokens,
     costUsd,
@@ -194,8 +223,10 @@ export async function analyzeSwing(
     });
   }
 
+  // Also WARN, for the same reason as the response line above: one line per swing, and
+  // the panel that shows it starts at WARN.
   if (import.meta.env.VITE_DEV_PREVIEW || import.meta.env.VITE_DEBUG_MODE) {
-    log.info(`💰 Analysis cost: $${costUsd} (cached: ${cacheReadTokens > 0 ? 'hit' : cacheCreationTokens > 0 ? 'miss' : 'no'})`);
+    log.warn(`💰 Analysis cost: $${costUsd} (cached: ${cacheReadTokens > 0 ? 'hit' : cacheCreationTokens > 0 ? 'miss' : 'no'})`);
   }
 
   const text = data.content[0].text;

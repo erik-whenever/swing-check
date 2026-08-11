@@ -230,7 +230,7 @@ export function useSessionCapture({
           focusRuleId: focusRuleId ?? undefined,
           cameraAngle: ANGLE_TO_PROMPT[cameraAngle],
           quickMode: ttsEnabled && ttsMode === 'quick',
-          onUsage: (usage) => sessionStats.recordCost(usage.costUsd),
+          onUsage: (usage) => sessionStats.recordUsage(usage),
         });
         const visionMs = Math.round(performance.now() - visionStart);
         timings.analysisMs = sinceAnchorMs();

@@ -26,6 +26,7 @@
 // Pure apart from the final log line: no React, no DOM, no timers. Unit-testable.
 
 import { createLogger } from './logger';
+import type { AnalysisUsage } from './api';
 
 const log = createLogger('SessionStats');
 
@@ -62,6 +63,17 @@ export interface SessionSummary {
   maxWindowMb: number;
   /** Sum of the per-analysis cost `api.ts` already computes. */
   totalCostUsd: number;
+  // The three numbers below explain totalCostUsd and visionMs rather than restating them:
+  // generation dominates the call, output scales with the rule count, and quick mode picks
+  // the schema. Without them a session's cost or latency cannot be attributed to a cause.
+  /** Schema the analyses asked for. Last value seen — null when nothing was analysed. */
+  quickMode: boolean | null;
+  /** Median output tokens per analysis. The number that tracks generation latency. */
+  medianOutputTokens: number | null;
+  /** Median UNCACHED input tokens per analysis — essentially the image cost. */
+  medianInputTokens: number | null;
+  /** Rules judged per analysis. Last value seen — null when nothing was analysed. */
+  activeRuleCount: number | null;
   /** Unique failure messages with counts, most frequent first. */
   failureReasons: { reason: string; count: number }[];
 }
@@ -91,6 +103,10 @@ class SessionStatsCollector {
   private maxWindowMb = 0;
 
   private costUsd = 0;
+  private outputTokens: number[] = [];
+  private inputTokens: number[] = [];
+  private quickMode: boolean | null = null;
+  private activeRuleCount: number | null = null;
   private failures = new Map<string, number>();
 
   /** Start a session: zero everything and begin recording. */
@@ -113,6 +129,10 @@ class SessionStatsCollector {
     this.lastRingEvicted = 0;
     this.maxWindowMb = 0;
     this.costUsd = 0;
+    this.outputTokens = [];
+    this.inputTokens = [];
+    this.quickMode = null;
+    this.activeRuleCount = null;
     this.failures = new Map();
   }
 
@@ -171,10 +191,22 @@ class SessionStatsCollector {
     this.failures.set(reason, (this.failures.get(reason) ?? 0) + 1);
   }
 
-  /** Cost of one analysis, as `api.ts` computed it. */
-  recordCost(usd: number): void {
+  /**
+   * Token accounting for one analysis, exactly as `api.ts` reported it.
+   *
+   * `quickMode`/`activeRuleCount` describe the request, not a measurement, so they are
+   * kept as the last value seen rather than aggregated: both can change mid-session
+   * (the TTS mode toggle, editing rules) and the last one is what the tail of the
+   * session actually ran with. Tokens are kept per analysis so the summary can report
+   * medians — one 40 s outlier skews a mean the same way it does for `visionMs`.
+   */
+  recordUsage(usage: AnalysisUsage): void {
     if (!this.active) return;
-    this.costUsd += usd;
+    this.costUsd += usage.costUsd;
+    this.outputTokens.push(usage.outputTokens);
+    this.inputTokens.push(usage.inputTokens);
+    this.quickMode = usage.quickMode;
+    this.activeRuleCount = usage.activeRuleCount;
   }
 
   /**
@@ -231,6 +263,10 @@ class SessionStatsCollector {
       ringEvicted: this.ringEvicted,
       maxWindowMb: round2(this.maxWindowMb),
       totalCostUsd: parseFloat(this.costUsd.toFixed(4)),
+      quickMode: this.quickMode,
+      medianOutputTokens: median(this.outputTokens),
+      medianInputTokens: median(this.inputTokens),
+      activeRuleCount: this.activeRuleCount,
       failureReasons: [...this.failures.entries()]
         .map(([reason, count]) => ({ reason, count }))
         .sort((a, b) => b.count - a.count),

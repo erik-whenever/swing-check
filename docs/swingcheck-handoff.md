@@ -123,13 +123,26 @@ Detaljerad patch-för-patch-historik finns i [ADR-002](decisions/ADR-002-stream-
   modul-singleton, ingen ny store) samlar under sessionen och loggar **en WARN-rad
   `Session summary`** vid `endSession()`: `durationSec`, `swingsDetected/Analyzed/Failed`,
   `detectedMs`/`framesMs`/`visionMs` som `{median, p95}`, `spokenMedianMs`, `poseDetectionRate`,
-  `achievedFpsMedian`, `ringEvicted`, `maxWindowMb`, `totalCostUsd`, `failureReasons`.
+  `achievedFpsMedian`, `ringEvicted`, `maxWindowMb`, `totalCostUsd`, `quickMode`,
+  `medianOutputTokens`, `medianInputTokens`, `activeRuleCount`, `failureReasons`.
   **Det är raden att utvärdera ett fälttest mot** — de per-sving-rader som redan finns är rätt
   granularitet för en sving och fel för en 20-minuterssession. Livscykeln ligger i storen
   (`startSession`→`begin()`, `endSession`→`end()`, `lastSummary` för UI:t) eftersom `endSession`
   anropas från tre ställen. Additivt: `api.ts` `options.onUsage` (kostnaden var beräknad men
   aldrig returnerad) och `useLiveSwingDetection.onStats` (vidarebefordrar `LivePoseLoop.onStats`).
   Samma siffror visas på kameravyn efter avslutad session via `Session/SessionSummaryCard.tsx`.
+- **Token-/kostnadsdata synlig i fält (2026-08-11).** `analyzeSwing response received` och
+  `💰 Analysis cost` gick från INFO till **WARN** — logpanelen på telefonen visar bara WARN, så
+  effekten av varje token-/latensoptimering var osynlig just där den mäts. Båda kör en gång per
+  sving. Svarsraden bär nu även `activeRuleCount`, `frameCount` och `tokensPerFrame`
+  (= `inputTokens / frameCount`; prompt + system ligger före cache-brytpunkten, så `inputTokens`
+  är i praktiken bildkostnaden) bredvid befintliga `visionMs`/`outputTokens`/`maxTokens`/`quickMode`
+  — generering dominerar anropet, och output skalar med regelantal och det schema `quickMode`
+  väljer, så latens går inte att förklara utan requestens form. `AnalysisUsage` utökad med samma
+  fyra fält; `sessionStats.recordCost(usd)` → **`recordUsage(usage)`**, och sammanfattningen bär
+  `quickMode`/`medianOutputTokens`/`medianInputTokens`/`activeRuleCount` (medianer av samma skäl som
+  `visionMs`; requestens form är sista sedda värdet, eftersom den kan ändras mitt i en session).
+  Ingen logikändring — bara loggnivå och loggfält. `npm test` 149/149, build + lint rena.
 
 ### Ström A — Voice-start
 A-1 + A-2 klara (`useMicTrigger`, `EnergyTrigger` + `useEnergyTrigger`): adaptiv amplitud-trigger med

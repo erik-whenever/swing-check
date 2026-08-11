@@ -1,5 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sessionStats } from './sessionStats';
+import type { AnalysisUsage } from './api';
+
+/** An `AnalysisUsage` with only the fields a test cares about spelled out. */
+function usage(partial: Partial<AnalysisUsage> = {}): AnalysisUsage {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    costUsd: 0,
+    visionMs: 0,
+    quickMode: false,
+    maxTokens: 2000,
+    activeRuleCount: 0,
+    frameCount: 0,
+    ...partial,
+  };
+}
 
 // The collector is a module singleton (one session at a time by construction), so
 // every test starts from `begin()`.
@@ -13,7 +31,7 @@ describe('sessionStats', () => {
     sessionStats.recordDetected(800);
     sessionStats.recordAnalyzed({ framesMs: 1000, visionMs: 3000 });
     sessionStats.recordFailure('nope');
-    sessionStats.recordCost(1);
+    sessionStats.recordUsage(usage({ costUsd: 1, outputTokens: 500 }));
     expect(sessionStats.end()).toBeNull();
 
     // And a fresh session starts from zero, not from the ignored traffic.
@@ -22,6 +40,8 @@ describe('sessionStats', () => {
     expect(summary.swingsDetected).toBe(0);
     expect(summary.totalCostUsd).toBe(0);
     expect(summary.detectedMs.median).toBeNull();
+    expect(summary.medianOutputTokens).toBeNull();
+    expect(summary.quickMode).toBeNull();
   });
 
   it('summarizes a session with medians and p95', () => {
@@ -58,9 +78,29 @@ describe('sessionStats', () => {
   });
 
   it('sums analysis cost', () => {
-    sessionStats.recordCost(0.0123);
-    sessionStats.recordCost(0.0456);
+    sessionStats.recordUsage(usage({ costUsd: 0.0123 }));
+    sessionStats.recordUsage(usage({ costUsd: 0.0456 }));
     expect(sessionStats.end()!.totalCostUsd).toBeCloseTo(0.0579, 4);
+  });
+
+  it('reports median tokens and the last request shape seen', () => {
+    sessionStats.recordUsage(
+      usage({ inputTokens: 3000, outputTokens: 400, quickMode: true, activeRuleCount: 5 })
+    );
+    sessionStats.recordUsage(
+      usage({ inputTokens: 3200, outputTokens: 900, quickMode: true, activeRuleCount: 5 })
+    );
+    // Request shape changed mid-session (TTS mode toggled, a rule added) — the summary
+    // reports what the tail of the session actually ran with, not an average of shapes.
+    sessionStats.recordUsage(
+      usage({ inputTokens: 3100, outputTokens: 1800, quickMode: false, activeRuleCount: 6 })
+    );
+
+    const s = sessionStats.end()!;
+    expect(s.medianInputTokens).toBe(3100);
+    expect(s.medianOutputTokens).toBe(900);
+    expect(s.quickMode).toBe(false);
+    expect(s.activeRuleCount).toBe(6);
   });
 
   it('accumulates pose counters across loop restarts', () => {
