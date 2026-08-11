@@ -61,6 +61,19 @@
   användes men aldrig existerade är nu riktiga: `safe-top`/`safe-bottom` (+ `viewport-fit=cover`
   i `index.html` — utan den är `env(safe-area-inset-*)` alltid 0 på iOS) och `@keyframes fadeIn`.
   **Ej enhetsverifierad** — se [design-system.md](design-system.md) → *Kända avgränsningar*.
+- **Kameravyns kontrollmodell (UI-2, 2026-08-11).** Skärmen bär tre saker: sökare,
+  **ett** lägesval och inspelningsknappen. Lägesvalet är ett `Segmented`
+  **"En sving | Session"** — det enda som ändrar vad inspelningsknappen gör — med en
+  förklarande rad under. Att växla till "En sving" är också hur en session avslutas
+  (den gamla dubbletten i actionraden är borta). Allt annat som styr *hur* en
+  inspelning beter sig — nedräkning, uppläsning på/av + Kort/Detalj, hörlursstyrning —
+  bor i `Camera/RecordSettingsSheet.tsx` bakom en kugge; kuggen tonas i accentfärg när
+  något där inne avviker från standard. Sökaren visar bara **fångsttillstånd**
+  (REC + svingantal), aldrig lägestillstånd.
+  **"Hörlursläge" heter nu "Hörlursknappen styr inspelningen"** — `useRangeMode` är ren
+  *inmatning* (tyst ljudloop → Media Session `play`/`pause`/`nexttrack`), inte ljud ut;
+  det gamla namnet antydde motsatsen och blandades ihop med `ttsEnabled`. Switchen är
+  låst på i sessionsläge eftersom `startSession()` tvingar på loopen ändå.
 - Regler: egna + regelbibliotek med drills, kameravinkel-filtrering.
 - Historik i IndexedDB + valfri Supabase-spegling av metadata.
 - TTS-uppläsning (quick/detailed), val av röst; serialiserad kö i sessionsläge.
@@ -251,6 +264,8 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
 - `src/components/ui/` — delade primitiver (`Card`, `Button`, `Chip`/`VerdictDot`, `Segmented`,
   `Toggle`, `ScoreRing`, `Sparkline`/`VerdictBars`). Allt kortformat/pillerformat går via dessa.
 - `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
+  `Camera/RecordSettingsSheet.tsx` håller allt som styr *hur* en inspelning beter sig;
+  `CameraView` håller bara lägesvalet och inspelningsknappen (UI-2).
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).
 
 ## Miljövariabler

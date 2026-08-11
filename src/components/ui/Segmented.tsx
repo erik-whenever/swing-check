@@ -10,6 +10,7 @@ export function Segmented<T extends string>({
   size = 'md',
   full,
   ariaLabel,
+  disabled,
 }: {
   value: T;
   options: { value: T; label: string }[];
@@ -18,6 +19,8 @@ export function Segmented<T extends string>({
   /** Stretch each option to equal width (page-level tabs); off = hug content. */
   full?: boolean;
   ariaLabel?: string;
+  /** Locks the whole control — the active option stays readable, just not switchable. */
+  disabled?: boolean;
 }) {
   const pad = size === 'sm' ? 'px-2.5 py-1 text-[10px]' : 'px-3 py-[7px] text-[11px]';
 
@@ -25,7 +28,9 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className={`flex rounded-pill bg-raised p-[3px] ${full ? 'w-full' : 'inline-flex'}`}
+      className={`flex rounded-pill bg-raised p-[3px] ${full ? 'w-full' : 'inline-flex'} ${
+        disabled ? 'opacity-40 pointer-events-none' : ''
+      }`}
     >
       {options.map((opt) => {
         const active = value === opt.value;
@@ -34,6 +39,7 @@ export function Segmented<T extends string>({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
+            disabled={disabled}
             className={`rounded-pill font-semibold transition-all duration-200 whitespace-nowrap
                         ${pad} ${full ? 'flex-1' : ''} ${
                           active

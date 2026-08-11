@@ -12,7 +12,7 @@ import {
 import { useSettingsStore } from '../../store/settings';
 import { cancelSpeech, isSpeaking, primeSpeech, speak, TTS_ANALYZING } from '../../lib/tts';
 import { RecordButton } from './RecordButton';
-import { CountdownStepper } from './CountdownStepper';
+import { RecordSettingsSheet } from './RecordSettingsSheet';
 import { LiveSwingPanel } from './LiveSwingPanel';
 import { SessionSwingList } from '../Session/SessionSwingList';
 import { SessionSummaryCard } from '../Session/SessionSummaryCard';
@@ -64,15 +64,12 @@ export function CameraView() {
   const requestAutoRecord = useSessionStore((s) => s.requestAutoRecord);
 
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
-  const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
-  const ttsMode = useSettingsStore((s) => s.ttsMode);
-  const setTtsMode = useSettingsStore((s) => s.setTtsMode);
   const cameraAngle = useSettingsStore((s) => s.cameraAngle);
   const countdownSeconds = useSettingsStore((s) => s.countdownSeconds);
-  const setCountdownSeconds = useSettingsStore((s) => s.setCountdownSeconds);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     startStream();
@@ -332,8 +329,10 @@ export function CameraView() {
           <LiveSwingPanel live={capture.live} queue={capture.queue} active={isRecording} />
         )}
 
-        {/* Status strip: recording, session count, headset mode. One row of pills so
-            three independent states never fight for the same corner. */}
+        {/* Status strip: capture state only — am I rolling, and how many swings so far.
+            Mode and settings state belong to the controls below; a headset pill up here
+            was a second place to read the same thing, and in a session it was always on
+            anyway. */}
         <div className="absolute top-3 inset-x-3 flex items-start gap-1.5 flex-wrap pointer-events-none">
           {isRecording && (
             <span className="flex items-center gap-1.5 rounded-pill bg-bad px-2.5 py-1
@@ -349,12 +348,6 @@ export function CameraView() {
                 count: swingNumber,
               })}
               {isRecording ? ` · ${t('camera.recording')}` : ''}
-            </span>
-          )}
-          {rangeMode && (
-            <span className="ml-auto rounded-pill bg-accent px-2.5 py-1
-                             text-[10px] font-semibold text-on-accent">
-              🎧 {t('camera.rangeOn')}
             </span>
           )}
         </div>
@@ -386,42 +379,56 @@ export function CameraView() {
         </div>
       )}
 
-      {/* Mode chips. Headset, session, voice and countdown are all "how this
-          recording behaves" — four different control shapes for one kind of decision
-          is what made this screen read as a cockpit. They are one chip row now. */}
-      <div className="flex-shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar
-                      px-[18px] pt-2 pb-1">
-        <ModeChip active={rangeMode} onClick={() => { primeSpeech(true); toggleRangeMode(); }}>
-          🎧 {rangeMode ? t('camera.rangeOn') : t('camera.range')}
-        </ModeChip>
-        <ModeChip active={sessionActive} onClick={toggleSession}>
-          🎯 {sessionActive ? t('camera.sessionEnd') : t('camera.session')}
-        </ModeChip>
-        <ModeChip
-          active={ttsEnabled}
-          onClick={() => { primeSpeech(true); setTtsEnabled(!ttsEnabled); }}
-        >
-          🔊 {t('camera.voice')} {ttsEnabled ? t('camera.on') : t('camera.off')}
-        </ModeChip>
-        {ttsEnabled && (
-          <Segmented
-            size="sm"
-            value={ttsMode}
-            onChange={setTtsMode}
-            options={[
-              { value: 'quick', label: t('settings.voice.quick') },
-              { value: 'detailed', label: t('settings.voice.detailed') },
-            ]}
-          />
-        )}
-        <CountdownStepper
-          value={countdownSeconds}
-          onChange={setCountdownSeconds}
+      {/* Mode row. Exactly ONE decision lives here — clip or continuous — because it is
+          the only control on this screen that changes what the record button does. The
+          rest (countdown, readout, headset button) are settings and sit behind the gear.
+          Switching to "single swing" is also how a session ends, so there is no longer a
+          second end-session control fighting with the first. */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-[18px] pt-2">
+        <Segmented
+          size="md"
+          ariaLabel={t('camera.mode')}
+          value={sessionActive ? 'session' : 'single'}
+          onChange={(next) => {
+            if ((next === 'session') !== sessionActive) void toggleSession();
+          }}
+          options={[
+            { value: 'single', label: t('camera.mode.single') },
+            { value: 'session', label: t('camera.mode.session') },
+          ]}
+          // A session must always be endable — that is how the golfer stops the camera.
+          // Starting one mid-clip is what has to be blocked.
           disabled={
-            isRecording || isCounting || progress !== null || (!sessionActive && anySwingBusy)
+            !sessionActive &&
+            (isRecording || isCounting || progress !== null || anySwingBusy)
           }
         />
+        <button
+          onClick={() => setSettingsOpen(true)}
+          aria-label={t('camera.settings')}
+          aria-haspopup="dialog"
+          className={`ml-auto flex-none grid place-items-center w-9 h-9 rounded-pill
+                      transition-colors ${
+                        // Tinted whenever something in there deviates from the default,
+                        // so the gear itself reports that overrides are active.
+                        rangeMode || !ttsEnabled
+                          ? 'bg-accent-tint text-accent-text'
+                          : 'bg-raised text-muted hover:text-fg'
+                      }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+               strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]" aria-hidden>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
       </div>
+
+      {/* One line saying what the chosen mode actually does. "Session" meant nothing on
+          its own — this is the cheapest place to say it. */}
+      <p className="flex-shrink-0 px-[18px] pt-1.5 text-[10.5px] leading-[1.45] text-muted">
+        {t(sessionActive ? 'camera.mode.sessionHint' : 'camera.mode.singleHint')}
+      </p>
 
       {/* Action row. The record button owns the centre and nothing else competes with
           it for size — upload is a fallback, not a peer. */}
@@ -452,41 +459,20 @@ export function CameraView() {
           disabled={!isStreaming || (!sessionActive && anySwingBusy)}
           onToggle={handleToggleRecord}
         />
-        {sessionActive ? (
-          <button
-            onClick={toggleSession}
-            className="justify-self-end text-[11px] font-semibold text-muted hover:text-fg transition-colors"
-          >
-            {t('camera.sessionEnd')}
-          </button>
-        ) : (
-          <span aria-hidden />
-        )}
+        {/* Balances the grid so the record button stays centred. */}
+        <span aria-hidden />
       </div>
-    </div>
-  );
-}
 
-/** A camera-mode toggle. All of them look alike because they all do the same kind of thing. */
-function ModeChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      className={`flex-none rounded-pill px-3 py-1.5 text-[10.5px] font-semibold whitespace-nowrap
-                  transition-colors ${
-                    active ? 'bg-accent text-on-accent' : 'bg-raised text-muted hover:text-fg'
-                  }`}
-    >
-      {children}
-    </button>
+      <RecordSettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        rangeMode={rangeMode}
+        onToggleRangeMode={toggleRangeMode}
+        sessionActive={sessionActive}
+        countdownDisabled={
+          isRecording || isCounting || progress !== null || (!sessionActive && anySwingBusy)
+        }
+      />
+    </div>
   );
 }

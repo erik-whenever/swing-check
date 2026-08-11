@@ -41,15 +41,25 @@ const translations = {
     'camera.retry': 'Försök igen',
     'camera.session': 'Sessionsläge',
     'camera.sessionEnd': 'Avsluta session',
-    'camera.range': 'Hörlursläge',
-    'camera.rangeOn': 'Hörlursläge på',
-    'camera.voice': 'Röst',
-    'camera.on': 'på',
-    'camera.off': 'av',
+    'camera.mode': 'Inspelningsläge',
+    'camera.mode.single': 'En sving',
+    'camera.mode.session': 'Session',
+    'camera.mode.singleHint': 'Spela in en sving i taget och få analysen direkt efteråt.',
+    'camera.mode.sessionHint':
+      'Kameran rullar. Varje sving hittas, analyseras och läses upp medan du slår vidare.',
+    'camera.settings': 'Inspelningsinställningar',
+    'camera.settings.close': 'Klar',
+    'camera.settings.countdown': 'Nedräkning',
+    'camera.settings.countdownHint': 'Sekunder från tryck till inspelning.',
+    'camera.settings.remote': 'Hörlursknappen styr inspelningen',
+    'camera.settings.remoteHint':
+      'Play/paus på hörlurarna startar och stoppar inspelningen, och avbryter uppläsningen. Dubbeltryck avslutar sessionen.',
+    'camera.settings.remoteInSession': 'Alltid på i sessionsläge — sessionen är handsfree.',
     'camera.swingCount': '{count} sving',
     'camera.swingCountPlural': '{count} svingar',
     'camera.recording': 'spelar in',
-    'camera.voiceBlocked': 'Rösten blockerades av webbläsaren — tryck på Röst på',
+    'camera.voiceBlocked':
+      'Rösten blockerades av webbläsaren — slå på den igen i inspelningsinställningarna',
 
     // Analysis
     'analysis.title': 'Din analys',
@@ -197,10 +207,10 @@ const translations = {
       'Tryck på den stora knappen, en nedräkning startar och svingen analyseras automatiskt.',
     'onb.record.voice': 'Röstuppläsning',
     'onb.recordBody1':
-      'Slå på Röst för att få feedbacken uppläst — välj Kort för en snabb dom eller Detalj för hela analysen.',
-    'onb.record.range': 'Hörlursläge',
+      'Under kugghjulet slår du på uppläsning — välj Kort för en snabb dom eller Detalj för hela analysen.',
+    'onb.record.range': 'Hörlursstyrning',
     'onb.recordBody2':
-      'På rangen kan du styra inspelningen med hörlurarnas knapp och lyssna på resultatet utan att titta på skärmen.',
+      'På rangen kan hörlurarnas play/paus-knapp starta och stoppa inspelningen, så du slipper titta på skärmen. Slås på automatiskt i sessionsläge.',
   },
   en: {
     'nav.home': 'Home',
@@ -240,15 +250,25 @@ const translations = {
     'camera.retry': 'Retry',
     'camera.session': 'Session mode',
     'camera.sessionEnd': 'End session',
-    'camera.range': 'Headset mode',
-    'camera.rangeOn': 'Headset mode on',
-    'camera.voice': 'Voice',
-    'camera.on': 'on',
-    'camera.off': 'off',
+    'camera.mode': 'Recording mode',
+    'camera.mode.single': 'Single swing',
+    'camera.mode.session': 'Session',
+    'camera.mode.singleHint': 'Record one swing at a time and get the analysis right after.',
+    'camera.mode.sessionHint':
+      'The camera keeps rolling. Every swing is found, analysed and read aloud while you keep hitting.',
+    'camera.settings': 'Recording settings',
+    'camera.settings.close': 'Done',
+    'camera.settings.countdown': 'Countdown',
+    'camera.settings.countdownHint': 'Seconds from tap to recording.',
+    'camera.settings.remote': 'Headset button controls recording',
+    'camera.settings.remoteHint':
+      'Play/pause on the headset starts and stops recording, and interrupts the readout. Double-press ends the session.',
+    'camera.settings.remoteInSession': 'Always on in session mode — the session is hands-free.',
     'camera.swingCount': '{count} swing',
     'camera.swingCountPlural': '{count} swings',
     'camera.recording': 'recording',
-    'camera.voiceBlocked': 'The browser blocked speech — tap Voice on',
+    'camera.voiceBlocked':
+      'The browser blocked speech — turn it back on in recording settings',
 
     // Analysis
     'analysis.title': 'Your analysis',
@@ -396,10 +416,10 @@ const translations = {
       'Tap the big button, a countdown starts and your swing is analysed automatically.',
     'onb.record.voice': 'Voice readout',
     'onb.recordBody1':
-      'Turn on Voice to hear the feedback — choose Quick for a fast verdict or Detail for the full analysis.',
-    'onb.record.range': 'Range mode',
+      'Behind the gear you turn on the readout — choose Quick for a fast verdict or Detail for the full analysis.',
+    'onb.record.range': 'Headset control',
     'onb.recordBody2':
-      'At the range, control recording with your headset button and listen to the result without looking at the screen.',
+      'At the range, the headset play/pause button can start and stop recording so you never look at the screen. Turns on automatically in session mode.',
   },
 } as const;
 
