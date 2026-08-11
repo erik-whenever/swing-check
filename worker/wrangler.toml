@@ -8,9 +8,9 @@ compatibility_date = "2024-01-01"
 # Apply migrations (0001 client_logs, 0002 api_usage):
 #   npx wrangler d1 migrations apply swingcheck-logs --remote
 [[d1_databases]]
-binding = "DB"
+binding = "swingcheck-logs"
 database_name = "swingcheck-logs"
-database_id = "REPLACE_WITH_DATABASE_ID"
+database_id = "da971970-b8d0-4d35-b976-08d3394baaf4"
 migrations_dir = "migrations"
 
 # ── Proxy hardening (W-1, ARCHITECTURE_REVIEW_2026-07.md → R2) ─────────────────
@@ -22,7 +22,7 @@ migrations_dir = "migrations"
 # dev origins ONLY, so a deploy without this value 403:s the real app. Put the app's own
 # origin here even when the app and the Worker share a domain: browsers send Origin on
 # same-origin POSTs too.
-ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = "https://swing-check-henna.vercel.app/,http://localhost:5173,http://127.0.0.1:5173"
 
 # The model the proxy pins every request to; the client's `model` field is ignored.
 # Keep in sync with the price table in src/lib/api.ts.
