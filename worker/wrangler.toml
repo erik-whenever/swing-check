@@ -2,10 +2,45 @@ name = "swingcheck-api"
 main = "worker.ts"
 compatibility_date = "2024-01-01"
 
-# Persistent storage for client logs. Fill in database_id after running:
+# Persistent storage for client logs + the daily proxy call counter. Fill in database_id
+# after running:
 #   npx wrangler d1 create swingcheck-logs
+# Apply migrations (0001 client_logs, 0002 api_usage):
+#   npx wrangler d1 migrations apply swingcheck-logs --remote
 [[d1_databases]]
 binding = "DB"
 database_name = "swingcheck-logs"
 database_id = "REPLACE_WITH_DATABASE_ID"
 migrations_dir = "migrations"
+
+# ── Proxy hardening (W-1, ARCHITECTURE_REVIEW_2026-07.md → R2) ─────────────────
+# Every value below has a code default in worker.ts; set them here to override.
+[vars]
+# REQUIRED IN PRODUCTION. Comma-separated origin allowlist, matched exactly against the
+# request's Origin header, which is echoed back in Access-Control-Allow-Origin only on a
+# match (403 otherwise, preflight included). Unset → the Worker falls back to localhost
+# dev origins ONLY, so a deploy without this value 403:s the real app. Put the app's own
+# origin here even when the app and the Worker share a domain: browsers send Origin on
+# same-origin POSTs too.
+ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+
+# The model the proxy pins every request to; the client's `model` field is ignored.
+# Keep in sync with the price table in src/lib/api.ts.
+MODEL_ID = "claude-sonnet-4-5"
+
+# Ceiling for `max_tokens`. The client may ask for less (quick mode sends 600) but never
+# more; an absent or invalid value gets this ceiling.
+MAX_TOKENS = "2000"
+
+# Request bodies larger than this are rejected with 413 before the JSON is parsed.
+# 30 MB ≈ well above a 20-frame analysis; raise only with the frame budget.
+BODY_MAX_BYTES = "31457280"
+
+# Proxied calls allowed per UTC day before 429. Counted in D1 (api_usage). If the DB
+# binding is missing or the write fails, the cap is skipped and the call goes through —
+# the wallet guard must never be what stops a swing from being analysed.
+DAILY_CALL_CAP = "300"
+
+# Secrets (never in this file — set with `npx wrangler secret put <NAME>`):
+#   ANTHROPIC_API_KEY  required
+#   LOG_READ_KEY       optional, guards GET /api/log

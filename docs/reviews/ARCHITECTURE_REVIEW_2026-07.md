@@ -54,7 +54,16 @@ Bara för den statiska prefixen — och bilder cachas aldrig (varje sving har un
 **Sannolikhet:** hög — tre mekanismer (omarbetad pixel-diff, röstankare, pose) och **noll** av dem verifierade på riktiga klipp; F1 öppen sedan 2026-06-01.
 **Billigaste mitigering:** kör det befintliga testklippet (9.58 s, impact ≈ 6–7 s) genom `npm run dev` + `VITE_DEV_PREVIEW`, läs `Swing detection summary`-loggen. En kväll, noll kod. Detta är den billigaste informationen i hela projektet och den har hoppats över i fem veckor medan två nya detekteringssystem byggts.
 
-### R2 — Öppen Anthropic-proxy
+### R2 — Öppen Anthropic-proxy — ✅ **ÅTGÄRDAD 2026-08-11 (W-1, branch `worker-hardening`)**
+> Stängd i `worker/worker.ts` med fyra lager: origin-allowlist (`ALLOWED_ORIGINS`, eko:ad
+> `Access-Control-Allow-Origin` + `Vary: Origin`, preflight och `/api/log` inkluderade, annars 403),
+> storleksgräns före `JSON.parse` (`BODY_MAX_BYTES`, 413), server-side-pinnad `model` (`MODEL_ID`) +
+> klampad `max_tokens` (`MAX_TOKENS`) med `system`/`messages`/`cache_control` orörda så
+> prompt-cachningen överlever, och ett dagligt tak i D1 (`api_usage`, `DAILY_CALL_CAP`, 429) som
+> medvetet fail-open:ar om DB saknas. Täckt av `worker/worker.test.ts` (14 offline-tester).
+> **Kvarstår för Erik:** sätta prod-origin i `ALLOWED_ORIGINS` och köra D1-migrationen — tills dess
+> 403:ar prod (fail-closed by design). Detaljer: `docs/BACKLOG.md` → Ström W.
+
 **Går sönder först:** plånboken. `worker/worker.ts:31-41` + CORS `*`: vem som helst med URL:en (ligger i klientbundlen) kör godtyckliga anrop på din nyckel — inklusive dyrare modeller än din egen app använder.
 **Blast radius:** hela API-budgeten; i värsta fall nyckel-missbruk som flaggar kontot. För G2: absolut stopp.
 **Sannolikhet:** medel idag (låg upptäckbarhet, personligt bruk), **certain** den dag appen delas.

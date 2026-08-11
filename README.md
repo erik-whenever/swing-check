@@ -39,11 +39,32 @@ npm run dev            # lokal utveckling — använd alltid detta för att veri
 | `VITE_DEV_PREVIEW` | nej | Visar bildrute-preview + 🐞 Logs-panel under utveckling. |
 | `ANTHROPIC_API_KEY` | ja (Worker) | Sätts som secret i Workern — når aldrig klienten. |
 | `LOG_READ_KEY` | nej (Worker) | Skyddar `GET /api/log`. |
+| `ALLOWED_ORIGINS` | **ja i prod** (Worker) | Kommaseparerad origin-allowlist för proxyn och `/api/log`. |
+| `MODEL_ID` | nej (Worker) | Modell som proxyn pinnar till. Default `claude-sonnet-4-5`. |
+| `MAX_TOKENS` | nej (Worker) | Tak för `max_tokens`. Default 2000. |
+| `BODY_MAX_BYTES` | nej (Worker) | Request-body över detta → 413. Default 30 MB. |
+| `DAILY_CALL_CAP` | nej (Worker) | Proxy-anrop per UTC-dygn före 429. Default 300. |
+
+Worker-vars sätts i `worker/wrangler.toml` under `[vars]`; secrets med `npx wrangler secret put <NAMN>`.
 
 ## Backend
 
 En enda Cloudflare Worker (`worker/worker.ts`) med två ansvar: proxa Anthropic (så att API-nyckeln
 aldrig når klienten) och ta emot klientens ERROR-loggar på `/api/log` (lagras i D1).
+
+Worker-URL:en ligger i klartext i klientbundlen, så proxyn är **inte** en öppen passthrough. Fyra
+lager (se `docs/swingcheck-handoff.md` → *Säkerhetsmodell (Worker)*):
+
+1. **Origin-allowlist** — `Origin` måste finnas i `ALLOWED_ORIGINS`, annars 403 (även preflight och
+   `/api/log`). Osatt variabel ⇒ endast localhost tillåts, dvs. prod 403:ar tills den sätts.
+2. **Storleksgräns** — body > `BODY_MAX_BYTES` → 413, före JSON-parse.
+3. **Pinning** — klientens `model` ignoreras och `max_tokens` klampas till `MAX_TOKENS`.
+   `system`/`messages`/`cache_control` går igenom orörda så prompt-cachningen håller.
+4. **Dagstak** — räknas i D1 (`api_usage`); över `DAILY_CALL_CAP` → 429. Saknad D1 → taket hoppas
+   över (analysen får aldrig falla på loggdatabasen).
+
+Innan första deployen med detta: `npx wrangler d1 migrations apply swingcheck-logs --remote`.
+Testerna körs offline med `npx vitest run worker/worker.test.ts`.
 
 ## Supabase-historik (valfritt)
 

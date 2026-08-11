@@ -854,6 +854,59 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > och ska få en även utan bekräftad impact (worst-case-wins, ADR-002: impact är polish, aldrig
 > bärande). Två nya test i `sessionStats.test.ts`. `npm test` **164/164**, build ren, lint 0 nya.
 > **Ej fältverifierad** — se *Öppna trådar* i handoffen.
+>
+> **Bildrutebudget 32 + fasklustring KLAR (2026-08-11).** Två ändringar med samma orsak:
+> selektionen var kalibrerad för en kostnadsbild och en regelbild som båda flyttat sig.
+>
+> (1) **`ANALYSIS_FRAME_COUNT` 20 → 32.** 20 sattes när en bildruta kostade 1 229 tokens;
+> efter beskärningen mäter en bildruta 213–231. Vid ~220 blir 32 bilder ~7 000 input-tokens,
+> **mindre än den dyraste sving vi mätt vid 20 bildrutor** — budgeten är alltså köpt ur
+> beskärningen, inte lagd ovanpå. Vad den köper: envelopen är ~1,6 s, så 32 rutor är en var
+> ~50 ms mot ~85 ms förut.
+>
+> (2) **Impact-klustret generaliserat till ett FASKLUSTER.** Klustret satt alltid på impact.
+> Det är rätt för en regel om träffen och fel för varje regel som avgörs någon annanstans:
+> en regel om **downswing-sekvensering** (startar höften rotationen före axlarna?) utspelar
+> sig i övergången topp→downswing, där ett impact-centrerat kluster lägger nästan inga rutor.
+> Användaren fick `cannot_determine` på precis den regeln i produktion. `selectEnvelopeFrames`
+> tar nu `options.clusterPhases`; klusterbudgeten (oförändrad 0,4-andel) delas jämnt över de
+> distinkta faserna de aktiva reglerna bär, var och en centrerad på fasens mittpunkt i
+> envelopen (`backswing` = mitt mellan start och topp, `downswing` = mitt mellan topp och
+> impact, osv). Impact är en fas som alla andra när en regel ber om den.
+>
+> **Baslinjen kan inte kollapsa (worst-case-wins):** utan `clusterPhases` — eller med en tom
+> lista — är resultatet bit för bit det gamla (kluster på impact när impact är bekräftad,
+> annars ren likformig baslinje). Klipp-vägen skickar inget och är därmed orörd, vilket också
+> är vad regressionsharnessen fortsätter pinna. En fas vars mittpunkt **inte går att lokalisera**
+> (allt inre saknar referens utan bekräftad impact) tas bort i stället för att gissas fram —
+> ett kluster på en gissad tidpunkt spenderar 40 % av budgeten på en tid som kan ligga var som
+> helst, vilket är sämre än den likformiga baslinjen det ersatte.
+>
+> **Klusterspacing 0,06 → 0,033, `max(…, envelope.sampleDt)`-golvet borttaget.** Golvet
+> blandade ihop två klockor: placeringen *härleds* ur pose (15 fps → dt 0,067), men rutan
+> *hämtas* ur videon, som spelas in i **30 fps**. Vi spacade alltså i den upplösning vi
+> hittade svingen med, inte den vi kan sampla den i — halva källans tidsupplösning kastad.
+> 0,033 ≈ en 30 fps-videoruta, det verkliga golvet. Faslabel-toleransen är nu en **egen**
+> konstant som behåller `sampleDt`-golvet: frågan *"är den här rutan i toppen?"* begränsas
+> av pose, till skillnad från placeringen.
+>
+> **Bugg hittad och fixad på vägen — dedupe var inte monoton i budgeten.** `dtl-clipped`
+> (~0,75 s envelope) gav **20 rutor vid budget 20 och 16 vid budget 32**: den giriga dedupen
+> jämför mot senast *behållna* pick, så ett för tätt rutnät med avstånd g ∈ [0,015, 0,03)
+> kollapsar till varannan pick — slutavstånd 2g, långt över gränsen. Ny `fittable()` begär
+> bara så många likformiga rutor som spannet rymmer vid `DEDUPE_SEC`, med marginal så
+> flyttalsbrus inte avgör saken. `dtl-clipped` ger nu **25**. `DEDUPE_SEC` orört.
+>
+> **Ny logg per sving:** `framesRequested`, `framesAfterDedupe`, `clusterPhases`,
+> `clusterAllocation` (avsikt) och `allocation` (utfall efter dedupe) — så det går att se i
+> fält om dedupe äter budgeten vid 32 i stället för att gissa.
+>
+> Nytt enhetstest `poseEnvelopeSelection.test.ts` (9 test: budget/ändpunkter, dedupe-avstånd
+> + monotonitet, fasklustring med två regler i olika faser, impact som vanlig fas, dubbletter,
+> olokaliserbara faser, och fallbacket till impact-kluster när fasinformation saknas).
+> Regressionsgoldens omräknade: `dtl-full` 16→26, `dtl-clipped` 20→25, `face-on` 15→26.
+> `npm test` **187/187**, build ren, lint 0 nya. **Ej fältverifierad** — kostnaden per sving
+> vid 32 rutor ska läsas mot `💰 Analysis cost` på Eriks nästa session.
 
 **Mål (kvar):** fälttrimning av takt-trösklarna (`MOTION_ESCALATE_SPEED`, `ACTIVE_DWELL_SEC`) mot
 Eriks `Live pose stats`-data, och verifiering av fMP4-fönsterklippet på faktisk iPhone-hårdvara.
@@ -1009,6 +1062,68 @@ Relationstabell med explicit, återkallbart samtycke per relation; RLS så trän
 
 ### [ ] G2-2 — Tränarvy
 Elevlista → svingar med regelutfall försorterade mot tränarens regeluppsättning → text-/röstkommentar tillbaka till eleven.
+
+---
+
+## Ström W — Worker-härdning
+
+Stänger säkerhets-/kostnadsriskerna i `worker/worker.ts`. Utgår från
+[ARCHITECTURE_REVIEW_2026-07.md](reviews/ARCHITECTURE_REVIEW_2026-07.md) → **R2** (den enda risken i
+repot som kan kosta riktiga pengar utan symptom). Branch: `worker-hardening`.
+
+**Konfliktzon:** `worker/worker.ts`, `worker/wrangler.toml`, `worker/migrations/*.sql`. Rör ingen
+appkod — `src/lib/api.ts` är oförändrad.
+
+### [x] W-1 — Stäng den öppna Anthropic-proxyn
+
+> **Klart (2026-08-11).** Fyra lager i `worker/worker.ts`, billigast först:
+> **(1) Origin-allowlist** — `ALLOWED_ORIGINS` (kommaseparerad) matchas exakt mot `Origin` och
+> eko:as tillbaka i `Access-Control-Allow-Origin` endast vid träff; annars 403 utan ACAO-header.
+> `Vary: Origin` på allt. Preflight (OPTIONS) följer samma regel. Gäller även `/api/log`.
+> **(2) Storleksgräns** — `BODY_MAX_BYTES` (default 30 MB) kollas mot `Content-Length` och sedan mot
+> faktiskt antal bytes, **före** `JSON.parse` → 413.
+> **(3) Server-side-pinning** — klientens `model` ignoreras, `MODEL_ID` (default `claude-sonnet-4-5`)
+> används. `system`/`messages`/`cache_control` skickas vidare **oförändrade** (prompt-cachningen
+> nycklar på exakt prefix).
+> **(4) Dagligt tak** — ny D1-tabell `api_usage(day, calls)`
+> (`migrations/0002_create_api_usage.sql`), upsert med `RETURNING` per proxy-anrop; över
+> `DAILY_CALL_CAP` (default 300) → 429 utan att ringa Anthropic. **Saknad/trasig DB → warn + släpp
+> igenom** — taket får aldrig vara det som stoppar en svinganalys.
+>
+> **Avvikelse från specen (medveten):** `max_tokens` **klampas** i stället för att skrivas över —
+> `MAX_TOKENS` (default 2000) är taket, en klient som ber om mindre får mindre. Rakt överskrivning
+> hade raderat quick modes 600-tak, dvs. ändrat appbeteende i härdningens namn. Skyddet är detsamma:
+> ingen kan be om mer än taket.
+>
+> **Andra avvikelsen:** `GET /api/log` utan `Origin`-header (curl/terminal) släpps igenom — den vägen
+> vaktas av `LOG_READ_KEY`, och en strikt origin-koll där hade dödat logg-avläsningen från terminalen
+> utan att stänga något. Allt annat utan `Origin` → 403.
+>
+> **Verifierat:** nytt `worker/worker.test.ts` (vitest, 14 st, helt offline — global `fetch` stubbad
+> och upstream-requesten inspekterad, fejkad D1) täcker hela acceptansen: otillåten origin → 403 utan
+> ACAO, preflight samma regel, `model:'claude-opus-4-8'` → körs på pinnad modell, `max_tokens: 999999`
+> → 2000 och 600 → 600, `system`/`messages`/`cache_control` byte-för-byte oförändrade, för stor body →
+> 413 utan upstream-anrop, tredje anropet med tak 2 → 429 utan upstream-anrop, saknad/trasig D1 → 200.
+> `npm test` 187/187, `npx eslint worker/` rent, `tsc --noEmit` på workern rent.
+>
+> **Kvar för Erik (kräver deploy, ej agentkörbart):** sätt `ALLOWED_ORIGINS` till prod-origin i
+> `worker/wrangler.toml` (utan den 403:ar prod — fail-closed är avsiktligt, prod-origin gissas inte),
+> kör `npx wrangler d1 migrations apply swingcheck-logs --remote` för `api_usage`, och bekräfta efter
+> deploy att `cache_read_input_tokens` fortfarande är > 0 i analysloggen.
+>
+> Dokumentation: `README.md` + `docs/swingcheck-handoff.md` (miljövariabler + säkerhetsmodell),
+> R2 markerad åtgärdad i [ARCHITECTURE_REVIEW_2026-07.md](reviews/ARCHITECTURE_REVIEW_2026-07.md).
+
+**Mål:** `worker/worker.ts` vidarebefordrar i dag godtycklig JSON till `api.anthropic.com` med
+`ANTHROPIC_API_KEY`, med CORS `*`, ingen origin-koll, ingen modell-allowlist, inget `max_tokens`-tak
+och ingen rate limit — och Worker-URL:en ligger i klartext i PWA-bundeln. Stäng det.
+
+**Acceptans:** icke-tillåten origin → 403; `model:'claude-opus-4-8'` i bodyn → körs ändå på pinnad
+modell; body över taket → 413; över dagstaket → 429; appen oförändrad lokalt och i prod med
+`cache_read_input_tokens` fortfarande > 0.
+
+**Dokumentkrav:** bocka av här; uppdatera `swingcheck-handoff.md` (miljövariabler + säkerhetsmodell);
+notera i `docs/reviews/ARCHITECTURE_REVIEW_2026-07.md` att R2 är åtgärdad med datum.
 
 ---
 

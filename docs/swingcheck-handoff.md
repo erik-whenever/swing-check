@@ -1,7 +1,7 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-10.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-11.
 
 ## Tech stack
 - **Frontend:** React 19 + TypeScript + Vite 8, Tailwind v4, Zustand (vissa stores `persist`:ade).
@@ -170,6 +170,25 @@ Detaljerad patch-för-patch-historik finns i [ADR-002](decisions/ADR-002-stream-
   settings-storen; ingen UI, den sätts från storen. **Klipp-vägen i `AnalysisView` är orörd** —
   där har användaren uttryckligen bett om en analys (worst-case-wins). `npm test` 164/164,
   build ren, lint 0 nya.
+- **Bildrutebudget 20 → 32 + fasklustring (2026-08-11).** `ANALYSIS_FRAME_COUNT` höjd
+  eftersom priset per bildruta flyttat sig: 20 sattes vid 1 229 tokens/bild, efter
+  beskärningen mäter en bild 213–231. Vid ~220 blir 32 bilder ~7 000 input-tokens —
+  **mindre än den dyraste sving vi mätt vid 20 bildrutor**, så budgeten är köpt ur
+  beskärningen, inte lagd ovanpå. Samtidigt lade selektionen alltid klustret på impact,
+  medan regler om **downswing-sekvensering** (startar höften före axlarna?) utspelar sig i
+  övergången topp→downswing där nästan inga bildrutor hamnade — användaren fick
+  `cannot_determine` på just den regeln i produktion. `selectEnvelopeFrames` tar nu
+  `options.clusterPhases`: klusterbudgeten (fortsatt 0,4-andel) delas jämnt över de
+  distinkta faser de aktiva reglerna tittar på, var och en centrerad på fasens mittpunkt i
+  envelopen. **Utan `clusterPhases` är beteendet bit för bit som förut** (kluster på impact
+  när impact är bekräftad) — klipp-vägen skickar inget och står därmed orörd.
+  Klusterspacing 0,06 → **0,033** och `max(…, sampleDt)`-golvet borttaget: placeringen
+  *härleds* ur pose (15 fps, dt 0,067) men bildrutan *hämtas* ur videon (30 fps), så golvet
+  slängde halva källans tidsupplösning. Faslabel-toleransen behåller `sampleDt`-golvet — den
+  frågan (*är den här rutan i toppen?*) begränsas av pose. Nytt per sving i loggen:
+  `framesRequested`, `framesAfterDedupe`, `clusterPhases`, `clusterAllocation`, `allocation`.
+  Ny `poseEnvelopeSelection.test.ts` (9 test); regressionsgoldens omräknade (26/25/26).
+  `npm test` 187/187, build ren, lint 0 nya.
 
 ### Ström A — Voice-start
 A-1 + A-2 klara (`useMicTrigger`, `EnergyTrigger` + `useEnergyTrigger`): adaptiv amplitud-trigger med
@@ -243,6 +262,39 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
 | `VITE_DEV_PREVIEW` | nej | Bildrute-preview, segmenteringsvy + 🐞 Logs-panel. |
 | `ANTHROPIC_API_KEY` | ja (Worker) | Secret i Workern — når aldrig klienten. |
 | `LOG_READ_KEY` | nej (Worker) | Skyddar `GET /api/log`. |
+| `ALLOWED_ORIGINS` | **ja i prod** (Worker) | Kommaseparerad origin-allowlist. Osatt → endast localhost-origins ⇒ prod 403:ar. |
+| `MODEL_ID` | nej (Worker) | Modellen proxyn pinnar till. Default `claude-sonnet-4-5`. |
+| `MAX_TOKENS` | nej (Worker) | Tak för `max_tokens`. Default 2000. |
+| `BODY_MAX_BYTES` | nej (Worker) | Body över detta → 413. Default 30 MB. |
+| `DAILY_CALL_CAP` | nej (Worker) | Proxy-anrop per UTC-dygn före 429. Default 300. |
+
+> Worker-vars sätts i `worker/wrangler.toml` (`[vars]`); secrets med
+> `npx wrangler secret put <NAMN>`. Nya D1-tabellen `api_usage` kräver
+> `npx wrangler d1 migrations apply swingcheck-logs --remote`.
+
+## Säkerhetsmodell (Worker)
+Worker-URL:en ligger i klartext i PWA-bundeln, så proxyn är **inte** en passthrough (W-1, stänger
+[R2](reviews/ARCHITECTURE_REVIEW_2026-07.md)). Fyra lager i `worker/worker.ts`, billigast först:
+
+1. **Origin-allowlist.** `Origin` matchas exakt mot `ALLOWED_ORIGINS` och eko:as tillbaka i
+   `Access-Control-Allow-Origin` bara vid träff — annars 403 utan ACAO-header. `Vary: Origin` på
+   allt; preflight följer samma regel; gäller även `/api/log`. Undantag: `GET /api/log` utan
+   `Origin` (curl) släpps igenom, vaktad av `LOG_READ_KEY` i stället. **Fail-closed:** osatt
+   `ALLOWED_ORIGINS` ⇒ bara localhost tillåts, prod 403:ar. Lägg in appens egen origin även när app
+   och Worker delar domän — webbläsare skickar `Origin` på same-origin-POST också.
+2. **Storleksgräns.** `Content-Length` och sedan faktiskt antal bytes mot `BODY_MAX_BYTES`, **före**
+   `JSON.parse` → 413.
+3. **Server-side-pinning.** Klientens `model` ignoreras (`MODEL_ID` används); `max_tokens` **klampas**
+   till `MAX_TOKENS` (klienten får be om mindre — quick mode skickar 600 — aldrig mer).
+   `system`/`messages`/`cache_control` skickas vidare **byte-för-byte**: prompt-cachningen nycklar på
+   exakt prefix, så minsta omskrivning där gör varje analys till en cache-*write*. Regressionsvakt:
+   `worker/worker.test.ts`.
+4. **Dagligt tak.** `api_usage(day, calls)` i D1, upsert per proxy-anrop; över `DAILY_CALL_CAP` → 429
+   utan upstream-anrop. **Saknad eller trasig DB → warn + släpp igenom** (avsiktligt fail-open —
+   taket skyddar plånboken men får aldrig vara det som stoppar en svinganalys).
+
+Ingen auth i proxyn — den är onödig för G1 (en användare, känd origin). För G2 (delade konton) blir
+origin-kollen otillräcklig och behöver kompletteras med Supabase-session, se Ström B.
 
 > **Pose-assets:** `public/wasm/` + `public/models/*.task` är gitignorade och byggs av
 > `npm run pose:assets` (körs som `prebuild`). Saknas de i en deploy dör pose-init på båda delegaterna.
