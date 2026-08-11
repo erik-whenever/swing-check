@@ -1,7 +1,10 @@
 // SwingCheck API Worker
 //
-// Two responsibilities: proxy the Anthropic Messages API (so ANTHROPIC_API_KEY never
-// reaches the client) and receive client ERROR logs on /api/log (stored in D1).
+// Three responsibilities: proxy the Anthropic Messages API (so ANTHROPIC_API_KEY never
+// reaches the client), receive client ERROR logs on /api/log (stored in D1), and receive
+// batched all-level debug logs on /log (printed via console.log for `wrangler tail`,
+// never stored — the native/Capacitor build's only way to surface a log line at all,
+// since no Web Inspector attaches to a headless CI-built WKWebView; see BACKLOG F-0).
 //
 // The proxy is deliberately NOT a general-purpose passthrough. The Worker URL ships in
 // the PWA bundle in cleartext, so anything the proxy forwards unchecked is something a
@@ -51,6 +54,8 @@ export default {
 
     const { pathname } = new URL(request.url);
     const isLogEndpoint = pathname.endsWith('/api/log');
+    // '/api/log' also ends with '/log', so this must be checked second and exclude it.
+    const isRemoteLogEndpoint = !isLogEndpoint && pathname.endsWith('/log');
 
     // Preflight follows the same rule as the real request: an origin that is not on the
     // list never gets an Access-Control-Allow-Origin header back.
@@ -62,18 +67,26 @@ export default {
     // A browser sends Origin on every cross-origin request and on every non-GET request.
     // The one legitimate caller without an Origin is a terminal reading logs back
     // (GET /api/log), which has its own guard in LOG_READ_KEY — so only that path is
-    // exempt. Everything else, Origin missing included, must be on the list.
+    // exempt. Everything else, Origin missing included, must be on the list. This also
+    // guards /log — it has no auth of its own, so the allowlist is its only gate; the
+    // native build's origin must be added to ALLOWED_ORIGINS for it to reach this Worker.
     const originExempt = isLogEndpoint && request.method === 'GET' && origin === null;
     if (!originAllowed && !originExempt) {
       console.warn('[origin] rejected', JSON.stringify({ origin, pathname, method: request.method }));
       return forbiddenOrigin(origin);
     }
 
-    // ── Client log endpoint ──────────────────────────────────────────────────
+    // ── Client log endpoint (persisted, ERROR-only) ──────────────────────────
     if (isLogEndpoint) {
       if (request.method === 'POST') return handleLogWrite(request, env, cors);
       if (request.method === 'GET') return handleLogQuery(request, env, cors);
       return new Response('Method not allowed', { status: 405, headers: cors });
+    }
+
+    // ── Batched remote debug sink (blind native debugging, not persisted) ────
+    if (isRemoteLogEndpoint) {
+      if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: cors });
+      return handleRemoteLog(request, cors);
     }
 
     // ── Anthropic proxy (default) ────────────────────────────────────────────
@@ -364,6 +377,94 @@ async function handleLogQuery(
   } catch (err) {
     return json({ error: 'query failed', detail: String(err) }, 500, cors);
   }
+}
+
+// ── Batched remote debug sink ─────────────────────────────────────────────────
+//
+// The native (Capacitor/WKWebView) build has no attached Web Inspector, so this is the
+// only way its logs leave the device (src/lib/logger.ts, VITE_REMOTE_LOG). No auth, no
+// storage — entries are printed with console.log so `wrangler tail` becomes the debugger.
+// Guarded only by the origin allowlist above, a body size cap, and a per-sessionId rate
+// limit. Anything that needs to survive a `wrangler tail` session belongs on /api/log.
+
+const REMOTE_LOG_MAX_BYTES = 100 * 1024;
+const REMOTE_LOG_RATE_LIMIT = 60;
+const REMOTE_LOG_RATE_WINDOW_MS = 60_000;
+/** Isolate-local only — resets when the Worker recycles. Fine here: the origin allowlist
+ *  is the real gate, this just blunts a single loud client during a debugging session. */
+const remoteLogRateState = new Map<string, { count: number; windowStart: number }>();
+
+interface RemoteLogEntry {
+  timestamp?: number;
+  level?: string;
+  module?: string;
+  message?: string;
+  data?: unknown;
+  sessionId?: string;
+  userAgent?: string;
+}
+
+function isRemoteLogRateLimited(sessionId: string): boolean {
+  const now = Date.now();
+  // Cheap unbounded-growth guard: a lone client can only ever hold one live window entry,
+  // so a map this large means stale sessions have piled up — sweep them.
+  if (remoteLogRateState.size > 500) {
+    for (const [key, state] of remoteLogRateState) {
+      if (now - state.windowStart >= REMOTE_LOG_RATE_WINDOW_MS) remoteLogRateState.delete(key);
+    }
+  }
+
+  const state = remoteLogRateState.get(sessionId);
+  if (!state || now - state.windowStart >= REMOTE_LOG_RATE_WINDOW_MS) {
+    remoteLogRateState.set(sessionId, { count: 1, windowStart: now });
+    return false;
+  }
+  state.count += 1;
+  return state.count > REMOTE_LOG_RATE_LIMIT;
+}
+
+async function handleRemoteLog(request: Request, cors: Record<string, string>): Promise<Response> {
+  const declaredLength = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declaredLength) && declaredLength > REMOTE_LOG_MAX_BYTES) {
+    return new Response(null, { status: 413, headers: cors });
+  }
+
+  const raw = await request.arrayBuffer();
+  if (raw.byteLength > REMOTE_LOG_MAX_BYTES) {
+    return new Response(null, { status: 413, headers: cors });
+  }
+
+  let payload: { entries?: RemoteLogEntry[] };
+  try {
+    payload = JSON.parse(new TextDecoder().decode(raw));
+  } catch {
+    return new Response(null, { status: 204, headers: cors });
+  }
+
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  if (entries.length === 0) return new Response(null, { status: 204, headers: cors });
+
+  const sessionId = String(entries[0]?.sessionId ?? 'unknown').slice(0, 128);
+  if (isRemoteLogRateLimited(sessionId)) {
+    return new Response(null, { status: 429, headers: cors });
+  }
+
+  for (const entry of entries) {
+    console.log(
+      '[remote]',
+      JSON.stringify({
+        sessionId,
+        timestamp: entry.timestamp,
+        level: entry.level ?? 'INFO',
+        module: entry.module,
+        message: entry.message,
+        data: entry.data,
+        userAgent: entry.userAgent,
+      }),
+    );
+  }
+
+  return new Response(null, { status: 204, headers: cors });
 }
 
 function json(body: unknown, status: number, cors: Record<string, string>): Response {

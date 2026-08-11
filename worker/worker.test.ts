@@ -240,3 +240,86 @@ describe('daily call cap', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('POST /log (batched remote debug sink)', () => {
+  function logRequest(body: unknown, headers: Record<string, string> = {}) {
+    return new Request('https://api.example/log', {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function entryBatch(sessionId: string, count = 1) {
+    return {
+      entries: Array.from({ length: count }, (_, i) => ({
+        timestamp: 1000 + i,
+        level: 'WARN',
+        module: 'Test',
+        message: `entry ${i}`,
+        sessionId,
+        userAgent: 'test-agent',
+      })),
+    };
+  }
+
+  it('accepts a batch, prints each entry with console.log, and never touches D1', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const res = await worker.fetch(logRequest(entryBatch('s1', 3)), baseEnv() as never);
+    expect(res.status).toBe(204);
+    expect(logSpy).toHaveBeenCalledTimes(3);
+    expect(String(logSpy.mock.calls[0][0])).toContain('[remote]');
+  });
+
+  it('is guarded by the origin allowlist like every other route', async () => {
+    const res = await worker.fetch(
+      new Request('https://api.example/log', {
+        method: 'POST',
+        headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' },
+        body: JSON.stringify(entryBatch('s1')),
+      }),
+      baseEnv() as never,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects a body over 100KB with 413', async () => {
+    const res = await worker.fetch(
+      logRequest(entryBatch('s1'), { 'Content-Length': String(200 * 1024) }),
+      baseEnv() as never,
+    );
+    expect(res.status).toBe(413);
+  });
+
+  it('rejects unparseable JSON gracefully with 204 (never crashes)', async () => {
+    const res = await worker.fetch(
+      new Request('https://api.example/log', {
+        method: 'POST',
+        headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+        body: '{not json',
+      }),
+      baseEnv() as never,
+    );
+    expect(res.status).toBe(204);
+  });
+
+  it('rate-limits a single sessionId past 60 requests/min with 429', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const env = baseEnv() as never;
+    let last: Response | undefined;
+    for (let i = 0; i < 61; i++) {
+      last = await worker.fetch(logRequest(entryBatch('flood-session')), env);
+    }
+    expect(last?.status).toBe(429);
+  });
+
+  it('does not rate-limit a different sessionId', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const env = baseEnv() as never;
+    for (let i = 0; i < 60; i++) {
+      await worker.fetch(logRequest(entryBatch('session-a')), env);
+    }
+    const res = await worker.fetch(logRequest(entryBatch('session-b')), env);
+    expect(res.status).toBe(204);
+  });
+});
