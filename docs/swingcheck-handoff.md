@@ -32,15 +32,25 @@
 - **Pose-styrd beskärning av analysbildrutor (E-2, sessionsvägen).** `lib/poseCropBox.ts`
   bygger **EN** låda för hela svingen — unionen av alla landmärken över envelopen, aldrig en
   låda per bildruta (rörlig inramning är svårare att bedöma, inte lättare). Marginal 20 % i
-  sidled, 12 % topp, ned till markplanet via fotlandmärkena; aspekt låst till källans genom
-  att expandera kortaste axeln; klampad till bilden genom att **glida**, inte krympa.
+  sidled, 12 % topp, ned till markplanet via fotlandmärkena; klampad till bilden genom att
+  **glida**, inte krympa.
+  **Ingen aspektlåsning (2026-08-11).** Lådan låstes tidigare till källans 9:16, vilket
+  gjorde beskärningen verkningslös i produktion: en golfare är hög och smal (kroppslåda
+  ≈ 1142 px av 1280), och låst till 0,5625 tvingades bredden till ≈ 642 px av 720 → två
+  svingar i rad med `cropAreaPct` 79,6 och 100, `cropReason 'box-too-large'`. Vision
+  accepterar godtycklig aspekt; inget krävde ratiot. I stället gäller ett **golv på hur
+  smal lådan får bli** — `MIN_WIDTH_TO_HEIGHT` 0,30 (bredd ≥ 0,30 × höjd), som ger klubban
+  svängrum utan att dra in bakgrunden. En naturligt bredare låda lämnas orörd. Klampning
+  sker per axel, så överhäng i sidled inte längre kostar höjd. **90 %-taket avvisar inte
+  längre** — en låda som fyller bilden betyder bara att beskärningen inte ger något, så den
+  klampas och används (`'box-too-large'` borttaget; 4 %-golvet och `'box-degenerate'` kvar).
   **Kvalitetsgrinden mäter skelettet, inte lådan:** båda axlarna, båda höfterna och minst
   en fot måste vara närvarande i ≥ 50 % av samplen och ha medelvisibility ≥ 0,6. Area
   grindar *inte* kvalitet — en liten låda är det önskade utfallet på stativavstånd — bara
   ett 4 %-nät under degenererade lådor och ett 90 %-tak. Faller något → hela bilden med
   `cropReason` + `gateDetail` loggat. `poseFrameGrab` beskär via `drawImage`-source-rect, långsida ≤ 900 px,
-  quality 0,8. **~58 % färre input-tokens/bild** (466×829 mot 720×1280). Per sving loggas
-  `cropReason`/`cropBox`/`cropAreaPct`/`gateDetail`/`outputSize`/`savedPct` på
+  quality 0,8. Per sving loggas
+  `cropReason`/`cropBox`/`cropAreaPct`/`cropAspect`/`gateDetail`/`outputSize`/`savedPct` på
   `Session swing N analyzed`.
   **Klipp-vägen (`frameExtractor.ts`) är orörd** — den beskärs inte; E-1 (långside-cap) står kvar.
 - **Visuell identitet "Club Cream" (2026-08-10).** Krämiga ytor, fairway-grön accent,
@@ -152,11 +162,14 @@ sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.m
 
 ## Öppna trådar
 
-- **Beskärningen är ej fältverifierad.** Enhetstestad mot syntetiska landmärken, aldrig körd
-  mot en riktig range-bild. Läs `cropReason` i sessionsloggen: allt annat än `ok` betyder att
-  hela bilden skickades, och `gateDetail` säger vilken kroppsdel som fällde den (med siffror,
-  även vid pass). `cropAreaPct` och `savedPct` visar vilka värden riktiga svingar landar på —
-  grindens trösklar (0,3 / 0,5 / 0,6) är valda på resonemang och ska tunas mot den datan.
+- **Beskärningen är ej fältverifierad efter borttaget aspektlås (2026-08-11).** Första
+  fältdatan fällde själva geometrin, inte grinden — se *Fungerar* ovan. Läs `cropReason` i
+  sessionsloggen: allt annat än `ok` betyder att hela bilden skickades, och `gateDetail`
+  säger vilken kroppsdel som fällde den (med siffror, även vid pass). `cropAreaPct`,
+  `cropAspect` och `savedPct` visar vilka värden riktiga svingar landar på — en down-the-line-
+  sving ska nu ge en hög smal låda nära golvet 0,30; kommer aspekten tillbaka nära källans
+  0,5625 är det något som fortfarande fyrkantar lådan. Grindens trösklar (0,3 / 0,5 / 0,6)
+  och `MIN_WIDTH_TO_HEIGHT` är valda på resonemang och ska tunas mot den datan.
 - **Termik vid långa sessioner otestad.** Live-inferens + analysanrop delar GPU; ingen mätning finns
   av vad 10–20 minuters kontinuerlig session gör med telefonens temperatur och takt.
   `Live pose stats` (WARN, var 5:e sek) loggar `achievedFps`/`saturated` för just detta.

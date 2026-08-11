@@ -932,6 +932,39 @@ Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [R
 > rimliga låda** i alla varianter (frisk kontroll, saknad höft, ingen fot, en fot räcker,
 > låg visibility, ockluderings-dipp godtas, frånvaro rapporteras före osäkerhet) samt två
 > ände-till-ände-fall från syntetiska sampel. `npm test` 148/148 grönt.
+>
+> **Uppföljning (2026-08-11) — aspektlåset borttaget; det gjorde beskärningen verkningslös.**
+> Produktionen visade två svingar i rad med `cropAreaPct` **79,6** respektive **100** och
+> `cropReason 'box-too-large'` — lådan avvisades helt, alltså noll besparing. Orsak:
+> låsningen till källans 9:16 (min spec ovan, felaktig). En golfare är hög och smal —
+> kroppslådan ≈ 1142 px av 1280 — och låst till 0,5625 tvingas bredden till ≈ 642 px av 720,
+> alltså nästan hela bilden. **Inget kräver att den levererade bilden matchar källans
+> bildförhållande; Vision accepterar godtycklig aspekt.**
+>
+> Låset är ersatt av ett **golv på hur smal lådan får bli**: `MIN_WIDTH_TO_HEIGHT` = 0,30 —
+> bredden ≥ 0,30 × höjden, vilket ger klubban svängrum i sidled utan att dra in hela
+> bakgrunden. Är den naturliga lådan bredare (face-on, adressställning) lämnas den orörd;
+> golvet vidgar, det smalnar aldrig. Sidmarginal 20 %, toppmarginal 12 % och utvidgningen
+> ned till markplanet är oförändrade — utan låset gör de nu det arbete de var tänkta att göra.
+> Klampningen sker **per axel** i stället för med en gemensam skalfaktor: en låda som hänger
+> över i sidled kostar inte längre höjd.
+>
+> **90 %-taket avvisar inte längre.** En låda som täcker nästan hela bilden är inget fel —
+> den betyder att beskärningen inte ger något här, och det ärliga svaret är att skicka den
+> lådan (avvisningen skickade ändå hela bilden, samma pixlar via en väg som rapporterade
+> fel). `MAX_AREA_FRAC` och `'box-too-large'` är borta; **4 %-golvet och `'box-degenerate'`
+> är kvar**. Nytt `CropPlan.aspect` loggas som `cropAspect` bredvid `cropAreaPct` i båda
+> loggraderna — med låset borta är formen fri, och den är andra halvan av svaret på vad
+> riktiga svingar landar på.
+>
+> Test: `poseCropBox.test.ts` 53 st. Nytt block **hög smal golfare** som reproducerar
+> produktionsfallet (1143 px hög, 115 px bred kroppslåda → gamla koden: `box-too-large`,
+> nya: `ok`, aspekt ≈ 0,32, ~57 % av ytan, > 60 % färre tokens) och nytt block **stor låda
+> godtas** (~95 %-låda beskärs; låda som spiller över åt alla håll klampas till bildramen
+> och används; per-axel-klampning kostar ingen höjd). Alla aspektassertioner mot källans
+> ratio är utbytta mot golvet — en beskärning som kommer tillbaka med källans form är nu
+> *felet*, inte målet. `npm test` 157/157, build + lint rena. **Ej fältverifierad** — Erik
+> läser `cropAreaPct`/`cropAspect` på nästa session.
 
 ---
 

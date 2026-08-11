@@ -5,16 +5,25 @@
 // no video, no canvas.
 //
 // The cases the crop has to survive in the field, and what each locks in:
-//   • normal      — one stable box over the whole swing, aspect preserved, output
-//                   capped, and a real token saving.
+//   • normal      — one stable box over the whole swing, output capped, and a real
+//                   token saving.
+//   • tall golfer — the case that made the crop worthless in production: a tall narrow
+//                   body box must produce a tall narrow crop. Under the old lock to the
+//                   source's 9:16 this exact box came back as `box-too-large`.
 //   • distant     — a COMPLETE skeleton in a SMALL box is accepted. This is the case
 //                   the crop exists for (golfer at tripod distance) and the one an
 //                   area-based quality floor used to throw away.
 //   • bad skeleton— missing or never-confident landmarks are rejected even when the
 //                   box itself looks perfectly reasonable. Quality is a property of
 //                   the landmarks, not of the rectangle.
-//   • near-edge   — a golfer against the frame border: the box stays inside the
-//                   source and keeps its aspect exactly.
+//   • near-edge   — a golfer against the frame border: the box stays inside the source
+//                   and keeps at least the minimum width.
+//   • huge box    — a box covering nearly the whole frame is USED, clamped, never
+//                   rejected. "Cropping gains nothing here" is not an error.
+//
+// THE ASPECT IS NOT ASSERTED AGAINST THE SOURCE any more, in either direction — it is
+// asserted against the `MIN_WIDTH_TO_HEIGHT` floor (0.30). A crop that comes back at the
+// source's ratio is now the failure, not the goal.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -33,6 +42,8 @@ const DT = 1 / 15;
 const SRC_W = 720;
 const SRC_H = 1280;
 const SRC_ASPECT = SRC_W / SRC_H;
+/** `MIN_WIDTH_TO_HEIGHT` in poseCropBox.ts — the floor that replaced the aspect lock. */
+const MIN_ASPECT = 0.3;
 
 interface Pt {
   x: number;
@@ -200,10 +211,21 @@ describe('planCrop — normal case', () => {
     expect(plan.gateDetail).toMatch(/present 1\.00 vis 0\.90/);
   });
 
-  it('keeps the source aspect ratio (9:16) so nothing is scaled unevenly', () => {
+  it('does NOT square itself off to the source ratio — a golfer is narrower than 9:16', () => {
     const r = plan.rect!;
-    expect(r.width / r.height).toBeCloseTo(SRC_ASPECT, 2);
-    expect(plan.output.width / plan.output.height).toBeCloseTo(SRC_ASPECT, 2);
+    expect(r.width / r.height).toBeLessThan(SRC_ASPECT);
+    expect(r.width / r.height).toBeGreaterThanOrEqual(MIN_ASPECT);
+    // The output preserves whatever shape the rect has; `fit` only scales.
+    expect(plan.output.width / plan.output.height).toBeCloseTo(r.width / r.height, 2);
+    expect(plan.aspect).toBeCloseTo(r.width / r.height, 3);
+  });
+
+  it('leaves a naturally wide-enough box alone — the floor only widens, never narrows', () => {
+    // This box margins out to ≈ 282 × 829 px, and 282 > 0.30 × 829, so the floor is
+    // not reached and the width is exactly what the side margins made it.
+    const r = plan.rect!;
+    const rawWidth = (b.maxX - b.minX) * SRC_W;
+    expect(r.width).toBeCloseTo(rawWidth * 1.4, 0);
   });
 
   it('stays inside the source frame', () => {
@@ -247,7 +269,9 @@ describe('planCrop — normal case', () => {
     expect(tall.reason).toBe('ok');
     expect(tall.rect!.height).toBeGreaterThan(MAX_OUTPUT_SIDE);
     expect(tall.output.height).toBe(MAX_OUTPUT_SIDE);
-    expect(tall.output.width / tall.output.height).toBeCloseTo(SRC_ASPECT, 2);
+    // This one IS narrow enough to hit the floor, so it comes out at exactly 0.30 —
+    // roughly half the width the old 9:16 lock would have forced.
+    expect(tall.output.width / tall.output.height).toBeCloseTo(MIN_ASPECT, 2);
   });
 
   it('saves a meaningful share of the tokens a 720×1280 frame costs', () => {
@@ -260,6 +284,51 @@ describe('planCrop — normal case', () => {
 
   it('is deterministic — the same bounds give byte-identical framing', () => {
     expect(planCrop(b, SRC_W, SRC_H).rect).toEqual(plan.rect);
+  });
+});
+
+describe('planCrop — a TALL NARROW golfer gets a tall narrow crop', () => {
+  // THE PRODUCTION FAILURE, reproduced. Down-the-line at close range: the body box is
+  // ≈ 1143 px of a 1280 px frame high and only ≈ 115 px wide. Locked to the source's
+  // 0.5625 that height forced the width out to the full 720 px, so the box covered the
+  // entire frame and came back `box-too-large` — two swings in a row logged cropAreaPct
+  // 79.6 and 100, i.e. no saving at all. Nothing requires the delivered image to match
+  // the source ratio, and this is what it costs to pretend otherwise.
+  const tallGolfer = bounds({ minX: 0.42, minY: 0.03, maxX: 0.58, maxY: 0.923 });
+  const plan = planCrop(tallGolfer, SRC_W, SRC_H);
+
+  it('crops instead of rejecting the box', () => {
+    expect(plan.reason).toBe('ok');
+    expect(plan.rect).not.toBeNull();
+  });
+
+  it('comes out far narrower than the source ratio, on the minimum-width floor', () => {
+    const r = plan.rect!;
+    const aspect = r.width / r.height;
+    expect(aspect).toBeLessThan(SRC_ASPECT * 0.6);
+    // Just above 0.30, not exactly on it: the floor is taken from the box's height
+    // BEFORE it is clamped into the frame (1372 px here, clamped to 1280), so a box
+    // taller than the frame keeps a little extra width. Generous in the safe direction
+    // — more sideways room for the club — and never narrower than the floor.
+    expect(aspect).toBeGreaterThanOrEqual(MIN_ASPECT);
+    expect(aspect).toBeLessThan(MIN_ASPECT + 0.05);
+    expect(plan.aspect).toBeCloseTo(aspect, 3);
+  });
+
+  it('keeps the full height — height is never traded away for a ratio', () => {
+    expect(plan.rect!.height).toBe(SRC_H);
+  });
+
+  it('turns the box the old lock rejected into a real saving', () => {
+    // Under the lock this was 100 % of the frame; the width floor puts it near 57 %.
+    expect(plan.areaFrac).toBeLessThan(0.6);
+    expect(plan.savedPct).toBeGreaterThan(60);
+  });
+
+  it('still covers every raw landmark', () => {
+    const r = plan.rect!;
+    expect(r.x).toBeLessThanOrEqual(tallGolfer.minX * SRC_W);
+    expect(r.x + r.width).toBeGreaterThanOrEqual(tallGolfer.maxX * SRC_W);
   });
 });
 
@@ -282,7 +351,7 @@ describe('planCrop — a complete skeleton in a SMALL box is accepted', () => {
 
   it('is where the saving is largest — the further away, the more background goes', () => {
     expect(plan.savedPct).toBeGreaterThan(40);
-    expect(plan.rect!.width / plan.rect!.height).toBeCloseTo(SRC_ASPECT, 2);
+    expect(plan.rect!.width / plan.rect!.height).toBeCloseTo(MIN_ASPECT, 2);
   });
 
   it('still stops at the 4 % net, which no person can be under', () => {
@@ -436,12 +505,6 @@ describe('planCrop — other fallbacks to the whole frame', () => {
     wholeFrame(plan);
   });
 
-  it('box above the 90 % area ceiling — nothing worth cropping', () => {
-    const plan = planCrop(bounds({ minX: 0.02, minY: 0.02, maxX: 0.98, maxY: 0.98 }), SRC_W, SRC_H);
-    expect(plan.reason).toBe('box-too-large');
-    wholeFrame(plan);
-  });
-
   it('unknown source size (video metadata not loaded)', () => {
     const plan = planCrop(null, 0, 0);
     expect(plan.reason).toBe('no-source-size');
@@ -455,6 +518,45 @@ describe('planCrop — other fallbacks to the whole frame', () => {
   });
 });
 
+describe('planCrop — a very large box is USED, not rejected', () => {
+  // There is no upper area gate any more. A box that covers nearly the whole frame is
+  // not a fault: it means the golfer fills the frame and cropping buys little. The
+  // honest response is to send that box — rejecting it sent the whole frame anyway,
+  // which is the same pixels via a path that reported a failure.
+  it('accepts a box covering ~95 % of the frame and crops to it', () => {
+    const plan = planCrop(bounds({ minX: 0.15, minY: 0.09, maxX: 0.845, maxY: 0.9 }), SRC_W, SRC_H);
+    expect(plan.reason).toBe('ok');
+    expect(plan.rect).not.toBeNull();
+    expect(plan.areaFrac).toBeGreaterThan(0.9);
+    expect(plan.areaFrac).toBeLessThan(1);
+    const r = plan.rect!;
+    expect(r.x).toBeGreaterThanOrEqual(0);
+    expect(r.y).toBeGreaterThanOrEqual(0);
+    expect(r.x + r.width).toBeLessThanOrEqual(SRC_W);
+    expect(r.y + r.height).toBeLessThanOrEqual(SRC_H);
+  });
+
+  it('clamps a box that overflows the frame on every side, and still crops', () => {
+    const plan = planCrop(bounds({ minX: 0.02, minY: 0.02, maxX: 0.98, maxY: 0.98 }), SRC_W, SRC_H);
+    expect(plan.reason).toBe('ok');
+    // Margins push this well past the frame in both axes; clamping lands it exactly on
+    // the frame, which is the whole image — arrived at by using the box, not by failing.
+    expect(plan.rect).toEqual({ x: 0, y: 0, width: SRC_W, height: SRC_H });
+    expect(plan.areaFrac).toBe(1);
+  });
+
+  it('clamps each axis independently — an overflowing width costs no height', () => {
+    // Wide and tall: the width overflows, the height does not. Under the aspect lock a
+    // single scale factor shrank BOTH, so overhanging sideways used to cost real height.
+    const plan = planCrop(bounds({ minX: 0.05, minY: 0.3, maxX: 0.95, maxY: 0.72 }), SRC_W, SRC_H);
+    expect(plan.reason).toBe('ok');
+    const r = plan.rect!;
+    expect(r.width).toBe(SRC_W);
+    // 0.42 × 1280 raw height + the 12 %/8 % margins, untouched by the width clamp.
+    expect(r.height).toBeCloseTo(1.2 * 0.42 * SRC_H, 0);
+  });
+});
+
 describe('planCrop — landmarks near the frame edge', () => {
   const cases: [string, LandmarkBounds][] = [
     ['hard against the left edge', bounds({ minX: 0, minY: 0.2, maxX: 0.3, maxY: 0.85 })],
@@ -465,11 +567,12 @@ describe('planCrop — landmarks near the frame edge', () => {
   ];
 
   for (const [name, b] of cases) {
-    it(`${name}: rect stays inside the source and keeps the aspect`, () => {
+    it(`${name}: rect stays inside the source and keeps the minimum width`, () => {
       const plan = planCrop(b, SRC_W, SRC_H);
       if (!plan.rect) {
-        // A legitimate outcome, but never a silent one.
-        expect(['box-too-large', 'box-degenerate']).toContain(plan.reason);
+        // A legitimate outcome, but never a silent one. Only the floor can produce it
+        // now — there is no upper area gate left.
+        expect(plan.reason).toBe('box-degenerate');
         return;
       }
       const r = plan.rect;
@@ -479,7 +582,10 @@ describe('planCrop — landmarks near the frame edge', () => {
       expect(r.height).toBeGreaterThan(0);
       expect(r.x + r.width).toBeLessThanOrEqual(SRC_W);
       expect(r.y + r.height).toBeLessThanOrEqual(SRC_H);
-      expect(r.width / r.height).toBeCloseTo(SRC_ASPECT, 2);
+      // The invariant that replaced the aspect lock. It survives clamping: clamping the
+      // width only ever happens at the frame edge, where the frame's own ratio (0.5625)
+      // is already above the floor.
+      expect(r.width / r.height).toBeGreaterThanOrEqual(MIN_ASPECT - 0.01);
     });
   }
 
@@ -496,10 +602,13 @@ describe('planCrop — landmarks near the frame edge', () => {
     expect(r.y + r.height).toBeGreaterThanOrEqual(b.maxY * SRC_H);
   });
 
-  it('a landscape source locks to ITS aspect, not to 9:16', () => {
+  it('a landscape source does not impose ITS shape either — the box is the box', () => {
     const plan = planCrop(bounds({ minX: 0.35, minY: 0.2, maxX: 0.65, maxY: 0.7 }), 1920, 1080);
     expect(plan.rect).not.toBeNull();
-    expect(plan.rect!.width / plan.rect!.height).toBeCloseTo(1920 / 1080, 2);
+    const aspect = plan.rect!.width / plan.rect!.height;
+    // The margins alone decide it: 1.4 × 576 wide by 1.2 × 540 high.
+    expect(aspect).toBeCloseTo((1.4 * 0.3 * 1920) / (1.2 * 0.5 * 1080), 2);
+    expect(aspect).not.toBeCloseTo(1920 / 1080, 2);
     expect(Math.max(plan.output.width, plan.output.height)).toBeLessThanOrEqual(
       MAX_OUTPUT_SIDE,
     );

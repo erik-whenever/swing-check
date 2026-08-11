@@ -32,8 +32,16 @@
 // least one foot tracked confidently through the swing. Box AREA is explicitly not a
 // quality signal: a small box is the expected and wanted outcome at tripod distance —
 // the case cropping exists for — and an earlier 25 % area floor rejected exactly those
-// swings. Area now only carries a 4 % net under boxes that cannot be a person at all,
-// plus the unchanged 90 % ceiling where there is nothing left to gain.
+// swings. Area now only carries a 4 % net under boxes that cannot be a person at all.
+//
+// THE OUTPUT DOES NOT MATCH THE SOURCE ASPECT, deliberately. The box used to be locked
+// to the source's 9:16, which made the crop very nearly worthless in production: a
+// golfer is tall and narrow (measured body box ≈ 1142 px of 1280 high), and locking that
+// to 0.5625 forced the width out to ≈ 642 px of 720 — two swings in a row came back at
+// cropAreaPct 79.6 and 100. We were paying for background sideways to satisfy a ratio
+// nothing needs; Vision accepts an arbitrary aspect. What replaces the lock is a FLOOR on
+// how narrow the box may get (`MIN_WIDTH_TO_HEIGHT`), which gives the club room to sweep
+// without dragging the whole frame back in. A naturally wider box is left alone.
 //
 // Pure: no canvas, no video, no React. Unit-tested with synthetic landmarks.
 
@@ -45,18 +53,29 @@ import type { PoseSample } from './poseTrajectory';
  * The spec floor is 0.15; we sit above it because the club sweeps well outside the
  * body and a clipped club head at the top of the backswing is a lost rule.
  *
- * In practice the aspect lock below adds far more than this: a golfer's landmark box
- * is much narrower than 9:16, so locking the aspect widens it by roughly half a body
- * width on each side regardless. This margin is the floor under that, and the thing
- * that still bites on a wide face-on box.
+ * With the aspect lock gone this margin is doing real work again rather than being
+ * swallowed by it — on a down-the-line box it is now most of the sideways room the
+ * club gets, with `MIN_WIDTH_TO_HEIGHT` underneath as the floor.
  */
 const SIDE_MARGIN_FRAC = 0.2;
 /**
  * Headroom above the topmost landmark, as a fraction of the box height. Same reason
- * as the sides: at the top of the backswing the club is above the head, and the
- * aspect lock expands the WIDTH (the shorter axis), so it never buys headroom.
+ * as the sides: at the top of the backswing the club is above the head, and nothing
+ * else in the geometry buys headroom.
  */
 const TOP_MARGIN_FRAC = 0.12;
+/**
+ * FLOOR ON HOW NARROW THE BOX MAY GET — what replaced the aspect lock (see the header).
+ *
+ * The lock tied the width to the source's 9:16 and thereby to a ratio the delivered
+ * image has no reason to honour, which cost us nearly the whole saving on a tall golfer.
+ * The real requirement is narrower than that: the club sweeps sideways well past the
+ * body, so the box needs lateral room proportional to the golfer's HEIGHT, not to the
+ * frame's shape. 0.30 × height is about a club's swing arc either side of a down-the-line
+ * body box, and roughly half what the 9:16 lock forced. A box that is naturally wider
+ * than this (face-on, or an address stance) is left exactly as the margins made it.
+ */
+const MIN_WIDTH_TO_HEIGHT = 0.3;
 /**
  * Extension below the FEET, as a fraction of the box height — this is what puts the
  * ball position and the turf in frame instead of cutting at the shoes.
@@ -79,8 +98,6 @@ const NO_FOOT_GROUND_FRAC = 0.25;
  * height — already further away than the camera can usefully resolve.
  */
 const MIN_AREA_FRAC = 0.04;
-/** Above this the crop saves nothing worth the risk of clipping something. */
-const MAX_AREA_FRAC = 0.9;
 /**
  * THE QUALITY GATE. A crop is only as trustworthy as the skeleton it was derived from,
  * so we test the skeleton, not the box: both shoulders, both hips, and at least one
@@ -189,7 +206,6 @@ export interface CropRect {
  *  landmarks-incomplete      a required part was absent for too much of the swing.
  *  landmarks-low-confidence  the parts were there, but never confidently tracked.
  *  box-degenerate            the box cannot be a person (zero-sized, or under the 4 % net).
- *  box-too-large             the golfer already fills the frame; nothing to gain.
  *  no-bounds                 not one usable landmark in the envelope.
  *  too-few-samples           fewer contributing samples than a swing can have.
  *  no-source-size            video metadata not loaded — dimensions unknown.
@@ -199,7 +215,6 @@ export type CropReason =
   | 'landmarks-incomplete'
   | 'landmarks-low-confidence'
   | 'box-degenerate'
-  | 'box-too-large'
   | 'no-bounds'
   | 'too-few-samples'
   | 'no-source-size';
@@ -211,6 +226,14 @@ export interface CropPlan {
   output: { width: number; height: number };
   /** Fraction of the source frame area the rect covers (1 when not cropping). */
   areaFrac: number;
+  /**
+   * Width / height of what gets sent. Logged next to `areaFrac` because with the aspect
+   * lock gone this is now free to vary, and it is how we see WHICH shape real swings
+   * produce — a down-the-line box should come out tall and narrow, near the
+   * `MIN_WIDTH_TO_HEIGHT` floor, and a value sitting exactly at the source's ratio would
+   * mean something is still squaring the box off.
+   */
+  aspect: number;
   /** `ok`, or why the crop was skipped. Always logged. */
   reason: CropReason;
   /**
@@ -362,35 +385,37 @@ export function planCrop(
       : bounds.footMaxY * sourceHeight + GROUND_MARGIN_FRAC * rawH;
   bottom = Math.max(bottom, groundY);
 
-  // ── Aspect lock to the source (9:16 on the phone) ─────────────────────────
-  // Expand the SHORTER axis only, so nothing is scaled unevenly downstream. For a
-  // golfer this is nearly always the width.
+  // ── Minimum width, NOT an aspect lock ─────────────────────────────────────
+  // The delivered image is under no obligation to match the source's ratio, and
+  // matching it is what made this crop worthless on a tall golfer (see the header).
+  // Only the floor applies, and only when the box is below it: widen around the centre
+  // so the golfer stays centred. Height is never touched here — a tall narrow box is
+  // the CORRECT answer for a down-the-line swing.
   let w = right - left;
   let h = bottom - top;
   let cx = (left + right) / 2;
   let cy = (top + bottom) / 2;
-  const targetAspect = sourceWidth / sourceHeight;
-  if (w / h < targetAspect) {
-    w = h * targetAspect;
-  } else {
-    h = w / targetAspect;
-  }
+  const minWidth = MIN_WIDTH_TO_HEIGHT * h;
+  if (w < minWidth) w = minWidth;
 
   // ── Clamp into the frame ──────────────────────────────────────────────────
-  // Shrink first (same aspect on both sides, so one scale factor keeps the ratio
-  // exact), then slide the centre back inside. Sliding beats shrinking: it keeps the
-  // golfer whole when the box merely hangs over an edge.
-  const scale = Math.min(1, sourceWidth / w, sourceHeight / h);
-  w *= scale;
-  h *= scale;
+  // Per axis now that there is no ratio to preserve, so a box that overhangs sideways
+  // no longer loses height to keep an aspect it does not have. Then slide the centre
+  // back inside: sliding beats shrinking, because it keeps the golfer whole when the
+  // box merely hangs over an edge.
+  w = Math.min(w, sourceWidth);
+  h = Math.min(h, sourceHeight);
   cx = clamp(cx, w / 2, sourceWidth - w / 2);
   cy = clamp(cy, h / 2, sourceHeight - h / 2);
 
   const areaFrac = (w * h) / (sourceWidth * sourceHeight);
-  // Note the asymmetry, and that it is deliberate: the floor is a net under nonsense
-  // (see MIN_AREA_FRAC), the ceiling is a genuine "nothing to gain" decision.
+  // Only a floor. A box covering nearly the whole frame is not an ERROR — it just means
+  // the crop buys nothing here, and the honest response is to send that box rather than
+  // reject it and send the whole frame anyway (the old `box-too-large` did the latter,
+  // which cost the saving on every swing where the box was merely large). It is already
+  // clamped to the frame above, so "use it" is always safe. `cropAreaPct` in the field
+  // log stays the measure this is tuned against.
   if (areaFrac < MIN_AREA_FRAC) return whole('box-degenerate', gate.detail);
-  if (areaFrac > MAX_AREA_FRAC) return whole('box-too-large', gate.detail);
 
   // Integer rect, re-clamped after rounding so drawImage never reads outside the frame.
   const width = Math.max(1, Math.min(Math.round(w), sourceWidth));
@@ -469,10 +494,15 @@ function finish(
 ): CropPlan {
   const outputTokens = estimateImageTokens(output.width, output.height);
   const baselineTokens = estimateImageTokens(BASELINE_FRAME.width, BASELINE_FRAME.height);
+  // From the rect when there is one — `output` has been rounded by `fit`, and the rect is
+  // what was actually decided. Whole-frame plans fall back to the output, which then IS
+  // the frame's shape.
+  const shape = rect ?? output;
   return {
     rect,
     output,
     areaFrac,
+    aspect: Math.round((shape.width / shape.height) * 1000) / 1000,
     reason,
     gateDetail,
     outputTokens,
