@@ -93,8 +93,11 @@ Ad hoc-ström (utanför A/B/C/D/E), begärd 2026-08-10. Branch: `stream-ui`.
 >
 > **Verifierat:** `npm run build`, `npm run lint` (28 problem, identiskt med baslinjen —
 > inga nya), `npx vitest run` 202/202, och `npm run dev` transformerar alla rörda moduler.
-> `/` i dev svarar 500 från miniflare (`fetch failed` i `@cloudflare/vite-plugin`) —
-> reproducerar utan dessa ändringar och är orelaterat. **Ej sedd på en iPhone.**
+> `/` i dev svarar 500 från miniflare (`fetch failed` i `@cloudflare/vite-plugin` →
+> `dispatchFetch`, dvs. innan någon appmodul är inblandad). **Ej isolerat mot en ren
+> baslinje** — men felet ligger i Worker-uppstarten och inga Worker-filer är rörda här.
+> **Ej sedd på en iPhone** — kontrollera sveparket mot safe-area och att lägesvalet
+> går att träffa med tumme på tripodavstånd.
 >
 > **Kvar av UI-revisionen (ej påbörjat):** tabbaren till 4 flikar (analys är en
 > utfallsskärm, inte en flik), ett sessionsband synligt i alla vyer, och
