@@ -60,6 +60,46 @@ Ad hoc-ström (utanför A/B/C/D/E), begärd 2026-08-10. Branch: `stream-ui`.
 >
 > Dokumentation: [design-system.md](design-system.md).
 
+### [x] UI-2 — Kameravyn: ett lägesval istället för en chiprad
+
+> **Klart (2026-08-11).** UI-1 samlade kameravyns sju kontroller till EN chiprad, men
+> raden blandade fortfarande fyra olika sorters beslut i samma pillerform — läge
+> (Session), inmatningsmetod (Hörlursläge), utmatning (Röst + Kort/Detalj) och en
+> persisterad inställning (nedräkning) — och scrollade i sidled, så man kunde inte veta
+> att allt syntes.
+>
+> - **Ett `Segmented` "En sving | Session"** är nu enda kontrollen på raden. Det är det
+>   enda valet som ändrar vad inspelningsknappen gör. Att växla till "En sving" avslutar
+>   sessionen, så textknappen "Avsluta session" i actionraden (dubblett av chipen med
+>   samma handler) är borta.
+> - **En förklarande rad under lägesvalet.** "Session" bar ingen betydelse på egen hand;
+>   `camera.mode.singleHint` / `camera.mode.sessionHint` säger vad läget gör.
+> - **`RecordSettingsSheet`** (nytt svepark bakom en kugge) håller nedräkning,
+>   uppläsning på/av + Kort/Detalj, och hörlursstyrning. Kuggen tonas i accentfärg när
+>   något där inne avviker från standard, så raden rapporterar aktiva överstyrningar
+>   utan att visa dem.
+> - **🎧-pillen borttagen ur sökaren.** Den upprepade tillstånd som kontrollerna under
+>   redan bar, och i en session var den alltid på. Sökaren visar nu bara fångsttillstånd
+>   (REC + svingantal).
+> - **"Hörlursläge" → "Hörlursknappen styr inspelningen"** med en rad som säger exakt
+>   vad knappen gör i varje läge. Det är ren *inmatning* via Media Session, inte ljud ut
+>   — det gamla namnet antydde motsatsen. I sessionsläge är switchen låst på, eftersom
+>   `startSession()` tvingar på loopen ändå.
+> - `Segmented` fick ett additivt `disabled`. Lägesväljaren låses bara i riktningen
+>   "starta session mitt i ett klipp" — en pågående session måste alltid gå att avsluta.
+> - i18n: `camera.range`/`camera.rangeOn`/`camera.voice`/`camera.on`/`camera.off`
+>   borttagna, `camera.mode.*` + `camera.settings.*` tillagda på båda språken.
+>   Onboardingens hörlurssteg omskrivet till samma begrepp.
+>
+> **Verifierat:** `npm run build`, `npm run lint` (28 problem, identiskt med baslinjen —
+> inga nya), `npx vitest run` 202/202, och `npm run dev` transformerar alla rörda moduler.
+> `/` i dev svarar 500 från miniflare (`fetch failed` i `@cloudflare/vite-plugin`) —
+> reproducerar utan dessa ändringar och är orelaterat. **Ej sedd på en iPhone.**
+>
+> **Kvar av UI-revisionen (ej påbörjat):** tabbaren till 4 flikar (analys är en
+> utfallsskärm, inte en flik), ett sessionsband synligt i alla vyer, och
+> `SessionSummaryCard` flyttad till hemvyn.
+
 ---
 
 ## Ström A — Voice-triggad svingstart
