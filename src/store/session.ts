@@ -17,8 +17,17 @@ type View = 'home' | 'camera' | 'rules' | 'analysis' | 'history' | 'preview' | '
  *   analyzing  — frames sent to Claude Vision, waiting for the verdict
  *   done       — `analysis` is populated
  *   failed     — `error` is populated; terminal until the swing is discarded
+ *   skipped    — deliberately not analyzed (no confident impact, see `requireImpact`
+ *                in store/settings.ts). Distinct from `failed`: nothing went wrong,
+ *                the swing was judged not to be a swing before any cost was incurred.
  */
-export type SwingStatus = 'detected' | 'extracting' | 'analyzing' | 'done' | 'failed';
+export type SwingStatus =
+  | 'detected'
+  | 'extracting'
+  | 'analyzing'
+  | 'done'
+  | 'failed'
+  | 'skipped';
 
 /**
  * The latency chain for one swing, measured from its anchor (impact when confident,

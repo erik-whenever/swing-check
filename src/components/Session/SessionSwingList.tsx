@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<SwingStatus, string> = {
   analyzing: 'analyserar',
   done: 'klar',
   failed: 'misslyckades',
+  skipped: 'ingen träff',
 };
 
 const STATUS_TONE: Record<SwingStatus, ChipTone> = {
@@ -29,6 +30,8 @@ const STATUS_TONE: Record<SwingStatus, ChipTone> = {
   analyzing: 'accent',
   done: 'ok',
   failed: 'bad',
+  // Neutral, not 'bad': skipping a non-swing is the gate working, not a failure.
+  skipped: 'neutral',
 };
 
 export function SessionSwingList() {
@@ -92,6 +95,10 @@ function SwingRow({ swing, index }: { swing: SessionSwing; index: number }) {
           {swing.error}
           <span className="text-faint"> — sessionen fortsätter</span>
         </p>
+      )}
+
+      {swing.status === 'skipped' && swing.error && (
+        <p className="mt-1.5 text-[11px] text-muted">{swing.error}</p>
       )}
 
       {/* The latency chain, per swing: impact → frames → verdict → spoken. This is

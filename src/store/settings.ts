@@ -49,6 +49,24 @@ interface SettingsState {
    */
   wideAngle: boolean;
   setWideAngle: (v: boolean) => void;
+  /**
+   * Session mode only: analyze a detected swing ONLY when its envelope carries a
+   * confident impact (`envelope.impact !== null`).
+   *
+   * The gate exists because a false detection — walking past the camera — costs the
+   * same as a real swing and more: the stretched envelope makes the pose crop box
+   * cover nearly the whole frame, so the images are the most expensive ones we ever
+   * send. Production logs put one such detection at $0.0408, ahead of real swings in
+   * the serial queue, and read aloud in the headphones. Every false detection so far
+   * has `impactSec === null`; every real swing has a confident impact.
+   *
+   * Defaults on, and is a setting rather than a constant because the discriminator is
+   * a field hypothesis: if the range shows it rejecting real swings, it can be turned
+   * off without a deploy. The clip path in AnalysisView is NOT gated — there the user
+   * explicitly asked for an analysis (worst-case-wins).
+   */
+  requireImpact: boolean;
+  setRequireImpact: (v: boolean) => void;
 }
 
 export const COUNTDOWN_MIN = 0;
@@ -90,6 +108,8 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       wideAngle: false,
       setWideAngle: (wideAngle) => set({ wideAngle }),
+      requireImpact: true,
+      setRequireImpact: (requireImpact) => set({ requireImpact }),
     }),
     { name: 'swingcheck-settings' }
   )

@@ -43,8 +43,21 @@ export interface SessionSummary {
   swingsDetected: number;
   /** Swings that got a Vision verdict. */
   swingsAnalyzed: number;
-  /** Swings that failed at any stage. Detected − analyzed − failed = still in flight. */
+  /**
+   * Swings that failed at any stage.
+   * Detected − analyzed − failed − skipped = still in flight.
+   */
   swingsFailed: number;
+  /**
+   * Swings the impact gate declined to analyze (`requireImpact`, no confident impact).
+   *
+   * Counted apart from `swingsFailed` on purpose: a failure is something that went
+   * wrong, this is the gate doing its job — and the two answer opposite questions
+   * about a session. A high number here next to a plausible swing count is how a gate
+   * that is too strict on the range shows itself; the per-swing WARN carries the
+   * envelope figures needed to judge which it was.
+   */
+  swingsSkippedNoImpact: number;
   /** Anchor → the detector accepted the swing. Structural ~0.6–1.1 s. */
   detectedMs: Distribution;
   /** Anchor → frames ready. Chain value, so it INCLUDES `detectedMs`. */
@@ -91,6 +104,7 @@ class SessionStatsCollector {
   private swingsDetected = 0;
   private swingsAnalyzed = 0;
   private swingsFailed = 0;
+  private swingsSkippedNoImpact = 0;
 
   private poseSamples = 0;
   private posesDetected = 0;
@@ -121,6 +135,7 @@ class SessionStatsCollector {
     this.swingsDetected = 0;
     this.swingsAnalyzed = 0;
     this.swingsFailed = 0;
+    this.swingsSkippedNoImpact = 0;
     this.poseSamples = 0;
     this.posesDetected = 0;
     this.lastLoopSamples = 0;
@@ -192,6 +207,18 @@ class SessionStatsCollector {
   }
 
   /**
+   * The impact gate declined a detected swing before any frame grab or Vision call.
+   *
+   * Deliberately NOT routed through `recordFailure`: it must not inflate
+   * `swingsFailed` and must not appear under `failureReasons`, where every entry is
+   * something to fix. Nothing was spent on this swing — that is the point of it.
+   */
+  recordSkippedNoImpact(): void {
+    if (!this.active) return;
+    this.swingsSkippedNoImpact++;
+  }
+
+  /**
    * Token accounting for one analysis, exactly as `api.ts` reported it.
    *
    * `quickMode`/`activeRuleCount` describe the request, not a measurement, so they are
@@ -253,6 +280,7 @@ class SessionStatsCollector {
       swingsDetected: this.swingsDetected,
       swingsAnalyzed: this.swingsAnalyzed,
       swingsFailed: this.swingsFailed,
+      swingsSkippedNoImpact: this.swingsSkippedNoImpact,
       detectedMs: distribution(this.detected),
       framesMs: distribution(this.frames),
       visionMs: distribution(this.vision),

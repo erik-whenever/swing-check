@@ -32,6 +32,13 @@
 //
 // A FAILING SWING IS A FAILING SWING, not a failing session: every stage records
 // `failed` on that swing and returns. Detection and the queue carry on.
+//
+// NOT EVERY DETECTION IS A SWING. The queue's first act is an impact gate: without a
+// confident impact on the envelope the swing is marked `skipped` and nothing is spent
+// on it (see the gate in `runSwing`). It sits inside the queued work rather than in
+// `onSwing` on purpose — settings are read at run time, and the swing still gets its
+// window cut and its row in the session list, so a gated detection is visible instead
+// of silently absent.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { analyzeSwing } from '../lib/api';
@@ -169,7 +176,43 @@ export function useSessionCapture({
       // Read settings and rules at RUN time, not at detection time: a session can
       // outlive a settings change, and the swing should be analyzed against what is
       // true when it is analyzed.
-      const { ttsEnabled, ttsMode, cameraAngle } = useSettingsStore.getState();
+      const { ttsEnabled, ttsMode, cameraAngle, requireImpact } =
+        useSettingsStore.getState();
+
+      // ── Impact gate ───────────────────────────────────────────────────────
+      // Before the frame grab and before Vision, because everything expensive is
+      // downstream of here. A detection without a confident impact is, on every
+      // production log so far, not a swing — someone walking past the camera. It is
+      // not merely a wasted call either: the stretched envelope makes the pose crop
+      // box cover nearly the whole frame (93.9 % measured), so the false detection
+      // costs MORE than a real swing ($0.0408), takes its place in the serial queue
+      // ahead of real swings, and gets read aloud in the headphones.
+      //
+      // Skipped, not failed: nothing went wrong. The WARN below carries the envelope
+      // figures because the open question is the opposite one — whether this gate
+      // rejects real swings on the range. `requireImpact` is the off switch for that.
+      if (requireImpact && report.envelope.impact === null) {
+        updateSwing(swingId, {
+          status: 'skipped',
+          error: 'Ingen bekräftad träff — analysen hoppades över',
+          timings: { ...timings },
+        });
+        sessionStats.recordSkippedNoImpact();
+        const [envStart, envEnd] = report.envelopeSec;
+        log.warn('Session swing skipped — no confident impact', {
+          swingIndex,
+          envelopeSec: [round2(envStart), round2(envEnd)],
+          envelopeDurationSec: round2(envEnd - envStart),
+          verticalExcursion: round3(report.excursion),
+          peakSpeed: round2(report.peakSpeed),
+          // Why the envelope logic itself declined to call an impact — without it the
+          // four numbers above say a swing was rejected but not on what grounds.
+          impactReason: report.envelope.impactReason,
+          clippedTail: report.envelope.clippedTail,
+        });
+        return;
+      }
+
       const focusRuleId = useSessionStore.getState().focusRuleId;
       const sessionId = useSessionStore.getState().sessionId;
       const activeRules = useRulesStore
@@ -441,4 +484,8 @@ export function useSessionCapture({
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }

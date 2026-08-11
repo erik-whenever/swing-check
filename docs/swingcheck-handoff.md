@@ -153,6 +153,23 @@ Detaljerad patch-för-patch-historik finns i [ADR-002](decisions/ADR-002-stream-
   `quickMode`/`medianOutputTokens`/`medianInputTokens`/`activeRuleCount` (medianer av samma skäl som
   `visionMs`; requestens form är sista sedda värdet, eftersom den kan ändras mitt i en session).
   Ingen logikändring — bara loggnivå och loggfält. `npm test` 149/149, build + lint rena.
+- **Impact-grind i sessionsläget (2026-08-11).** `runSwing` analyserar bara svingar vars
+  envelope bär en **bekräftad impact** (`envelope.impact !== null`) — saknas den hoppas
+  bildruteextraktion, Vision-anrop och tal över helt. Fältdatan som fällde beslutet: en falsk
+  detektion (någon gick förbi kameran) gav `impactSec null · verticalExcursion 0,088 ·
+  peakSpeed 0,72` och kostade **$0,0408 — mer än en riktig sving**, eftersom det utsträckta
+  envelope:t gav en beskärningslåda på 93,9 % av bilden. Den lade sig dessutom i den seriella
+  kön framför riktiga svingar och lästes upp i hörlurarna. Samtliga falska detektioner i
+  dagens loggar har `impactSec null`; riktiga svingar har bekräftad impact.
+  Ny sving-status **`skipped`** (skild från `failed` — inget gick fel), nytt
+  sammanfattningsfält **`swingsSkippedNoImpact`** (räknas inte som fel och syns inte under
+  `failureReasons`), och WARN-raden `Session swing skipped — no confident impact` bär
+  `swingIndex`/`envelopeSec`/`envelopeDurationSec`/`verticalExcursion`/`peakSpeed`
+  (+ `impactReason`/`clippedTail`) — datan som avgör den **öppna** frågan om grinden avvisar
+  riktiga svingar på rangen. Avstängbar via ny inställning `requireImpact` (default `true`) i
+  settings-storen; ingen UI, den sätts från storen. **Klipp-vägen i `AnalysisView` är orörd** —
+  där har användaren uttryckligen bett om en analys (worst-case-wins). `npm test` 164/164,
+  build ren, lint 0 nya.
 
 ### Ström A — Voice-start
 A-1 + A-2 klara (`useMicTrigger`, `EnergyTrigger` + `useEnergyTrigger`): adaptiv amplitud-trigger med
@@ -170,6 +187,12 @@ sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.m
   sving ska nu ge en hög smal låda nära golvet 0,30; kommer aspekten tillbaka nära källans
   0,5625 är det något som fortfarande fyrkantar lådan. Grindens trösklar (0,3 / 0,5 / 0,6)
   och `MIN_WIDTH_TO_HEIGHT` är valda på resonemang och ska tunas mot den datan.
+- **Impact-grinden är ej fältverifierad (2026-08-11).** Den avvisar allt utan bekräftad
+  impact i sessionsläge, valt på att *varje* falsk detektion i dagens loggar saknade impact —
+  men inte på data om hur ofta riktiga svingar saknar den på rangen. Läs
+  `Session swing skipped — no confident impact` och sammanfattningens `swingsSkippedNoImpact`:
+  ligger antalet nära antalet verkliga slag är grinden för strikt → sätt `requireImpact: false`
+  i settings-storen och granska `impactReason` i de skippade raderna.
 - **Termik vid långa sessioner otestad.** Live-inferens + analysanrop delar GPU; ingen mätning finns
   av vad 10–20 minuters kontinuerlig session gör med telefonens temperatur och takt.
   `Live pose stats` (WARN, var 5:e sek) loggar `achievedFps`/`saturated` för just detta.

@@ -822,6 +822,38 @@ Utforskar pose-estimering som väg till pålitlig svingfas-detektering (eskaleri
 > median/p95, no-op utanför session, felräkning, kostnadssumma, loop-/ring-omstart, dubbel `end`).
 > Build + lint (0 nya) + test **97/97** rena. **Ej fältverifierad** — raden finns för att läsas
 > efter Eriks rangesession.
+>
+> **Impact-grind i sessionsläget KLAR (2026-08-11) — fältdata fällde beslutet.** En falsk
+> detektion (någon gick förbi kameran) gav `impactSec null · verticalExcursion 0,088 ·
+> peakSpeed 0,72` och kostade **$0,0408 — mer än en riktig sving**: det utsträckta envelope:t
+> gav en beskärningslåda på 93,9 % av bilden, så den falska detektionen skickade de dyraste
+> bilder vi någonsin skickar. Den lade sig dessutom i den seriella kön framför riktiga svingar
+> och lästes upp i hörlurarna. Samtliga falska detektioner i dagens loggar har `impactSec null`;
+> riktiga svingar har bekräftad impact.
+>
+> `runSwing` (`useSessionCapture.ts`) kollar nu `report.envelope.impact` **före**
+> bildruteextraktion och Vision — saknas den hoppas hela analysen över: ingen frame-grab, inget
+> API-anrop, inget tal. Grinden ligger i den köade funktionen, inte i `onSwing`, av två skäl:
+> inställningar läses vid körtid, och svingen får ändå sitt fönster klippt och sin rad i
+> sessionsvyn, så en avvisad detektion syns i stället för att tyst utebli.
+>
+> **Skild från fel, hela vägen:** ny sving-status `skipped` (egen etikett/ton i
+> `SessionSwingList`, neutral — grinden som gör sitt jobb är inget fel) och nytt
+> sammanfattningsfält **`swingsSkippedNoImpact`** via `sessionStats.recordSkippedNoImpact()`,
+> som medvetet **inte** går via `recordFailure` (skulle blåsa upp `swingsFailed` och hamna
+> under `failureReasons`, där varje rad är något att åtgärda). Kortet visar fältet bara när
+> det inträffat.
+>
+> **WARN-raden är hela poängen:** `Session swing skipped — no confident impact` bär
+> `swingIndex`, `envelopeSec`, `envelopeDurationSec`, `verticalExcursion`, `peakSpeed` samt
+> `impactReason`/`clippedTail` — datan som avgör den öppna frågan, om grinden avvisar *riktiga*
+> svingar på rangen. Ny inställning **`requireImpact` (default `true`)** i settings-storen är
+> avstängningen om den visar sig för strikt; ingen UI, den sätts från storen.
+>
+> **Klipp-vägen i `AnalysisView` är orörd** — där har användaren uttryckligen bett om en analys
+> och ska få en även utan bekräftad impact (worst-case-wins, ADR-002: impact är polish, aldrig
+> bärande). Två nya test i `sessionStats.test.ts`. `npm test` **164/164**, build ren, lint 0 nya.
+> **Ej fältverifierad** — se *Öppna trådar* i handoffen.
 
 **Mål (kvar):** fälttrimning av takt-trösklarna (`MOTION_ESCALATE_SPEED`, `ACTIVE_DWELL_SEC`) mot
 Eriks `Live pose stats`-data, och verifiering av fMP4-fönsterklippet på faktisk iPhone-hårdvara.

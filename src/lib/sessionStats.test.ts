@@ -77,6 +77,29 @@ describe('sessionStats', () => {
     ]);
   });
 
+  it('counts impact-gated swings apart from failures', () => {
+    sessionStats.recordDetected(800);
+    sessionStats.recordDetected(900);
+    sessionStats.recordSkippedNoImpact();
+    sessionStats.recordFailure('API error 529');
+
+    const s = sessionStats.end()!;
+    expect(s.swingsSkippedNoImpact).toBe(1);
+    // The whole point of the separate counter: a skipped swing is not a failure and
+    // must not show up as one, in either the count or the reasons list.
+    expect(s.swingsFailed).toBe(1);
+    expect(s.failureReasons).toEqual([{ reason: 'API error 529', count: 1 }]);
+  });
+
+  it('starts a fresh session with the skip counter zeroed', () => {
+    sessionStats.recordSkippedNoImpact();
+    expect(sessionStats.end()!.swingsSkippedNoImpact).toBe(1);
+    // Between sessions the recorder is inert, and the next session starts from zero.
+    sessionStats.recordSkippedNoImpact();
+    sessionStats.begin();
+    expect(sessionStats.end()!.swingsSkippedNoImpact).toBe(0);
+  });
+
   it('sums analysis cost', () => {
     sessionStats.recordUsage(usage({ costUsd: 0.0123 }));
     sessionStats.recordUsage(usage({ costUsd: 0.0456 }));

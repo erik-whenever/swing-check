@@ -43,6 +43,11 @@ export function SessionSummaryCard() {
           value={summary.swingsFailed}
           tone={summary.swingsFailed > 0 ? 'bad' : undefined}
         />
+        {/* Neutral tone: a skipped swing is the impact gate saving a call, not an
+            error. Shown only when it happened, so a clean session stays uncluttered. */}
+        {summary.swingsSkippedNoImpact > 0 && (
+          <Stat label="utan träff" value={summary.swingsSkippedNoImpact} />
+        )}
         <Stat label="kostnad" value={`$${summary.totalCostUsd.toFixed(2)}`} />
       </div>
 
