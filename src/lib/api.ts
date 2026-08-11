@@ -1,5 +1,5 @@
 import type { Rule, SwingAnalysis } from '../types';
-import { SYSTEM_PROMPT, buildSwingPrompt } from './prompt';
+import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote } from './prompt';
 import { createLogger } from './logger';
 
 const log = createLogger('API');
@@ -130,6 +130,9 @@ export async function analyzeSwing(
           // static rules must precede the per-swing images for the cache to be hit.
           content: [
             { type: 'text' as const, text: prompt, cache_control: { type: 'ephemeral' as const } },
+            // Everything below the breakpoint is per-swing and must never enter the cached
+            // prefix — the frame count included, since dedupe makes it drift between swings.
+            { type: 'text' as const, text: buildFrameCountNote(frames.length) },
             ...imageContent,
           ],
         },

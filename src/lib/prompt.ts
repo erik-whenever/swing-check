@@ -27,9 +27,23 @@ Respond ONLY with valid JSON matching the schema provided. No prose before or af
 interface SwingPromptOptions {
   rules: Rule[];
   focusRuleId?: string | null;
-  frameCount: number;
+  /**
+   * Deliberately NOT interpolated into the prompt. The frame selection dedupes, so the
+   * count drifts (16–19) between swings of the same session; interpolating it changed the
+   * cached prefix on nearly every swing and the cache never hit. The exact count is sent
+   * after the cache breakpoint instead — see `buildFrameCountNote`.
+   */
+  frameCount?: number;
   cameraAngle?: 'face-on' | 'down-the-line' | 'unknown';
   quickMode?: boolean;
+}
+
+/**
+ * The one piece of frame information that varies per swing. Belongs AFTER the cache
+ * breakpoint, next to the images themselves.
+ */
+export function buildFrameCountNote(frameCount: number): string {
+  return `The ${frameCount} frames of this swing follow, numbered 1-${frameCount} in chronological order.`;
 }
 
 const SHORT_VERDICT_INSTRUCTION =
@@ -55,7 +69,7 @@ function formatDrills(rule: Rule): string {
 }
 
 export function buildSwingPrompt(options: SwingPromptOptions): string {
-  const { rules, focusRuleId, frameCount, cameraAngle = 'unknown', quickMode = false } = options;
+  const { rules, focusRuleId, cameraAngle = 'unknown', quickMode = false } = options;
 
   const focusRule = rules.find((r) => r.id === focusRuleId);
   const standardRules = rules.filter((r) => r.id !== focusRuleId);
@@ -144,7 +158,7 @@ ${QUICK_BREVITY_INSTRUCTION}`
   "cannot_determine_reasons": ["frame 4 is too dark to assess impact position"]
 }`;
 
-  return `You are analyzing ${frameCount} sequential frames from a golf swing video.
+  return `You are analyzing a sequence of still frames from a golf swing video.
 
 ${cameraAngleLine}
 FRAMES: The images are ordered chronologically from address to follow-through.
