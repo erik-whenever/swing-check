@@ -2,10 +2,41 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 import { cloudflare } from "@cloudflare/vite-plugin";
 
+/**
+ * Build identity, exposed as `import.meta.env.VITE_APP_VERSION`.
+ *
+ * Written into the shaft dataset's `manifest.json` (see src/lib/dataset/) so an
+ * exported set can be traced back to the code that selected its frames — the frame
+ * selection is the thing under active development, so "which build produced this"
+ * is the first question a surprising dataset raises. Falls back to the package
+ * version alone outside a git checkout; never fails the build.
+ */
+function buildVersion(): string {
+  let version = "0.0.0";
+  try {
+    version = JSON.parse(readFileSync("package.json", "utf8")).version ?? version;
+  } catch { /* keep the fallback */ }
+  try {
+    const sha = execSync("git rev-parse --short HEAD", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return sha ? `${version}+${sha}` : version;
+  } catch {
+    return version;
+  }
+}
+
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(buildVersion()),
+  },
   server: {
     host: true,
     allowedHosts: ["obliged-shimmer-untreated.ngrok-free.dev"],

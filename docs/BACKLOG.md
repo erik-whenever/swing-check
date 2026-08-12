@@ -1170,6 +1170,62 @@ notera i `docs/reviews/ARCHITECTURE_REVIEW_2026-07.md` att R2 är åtgärdad med
 
 ---
 
+## Ström S — Skaftdetektering (dataset + annotering)
+
+Nytt spår, **parallellt med pose**. Mål: 2-punkts skaftdetektering (butt + hosel) på de
+analys-frames `selectEnvelopeFrames` redan väljer. Spec: [shaft/annotation-spec.md](shaft/annotation-spec.md).
+Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`,
+`poseEnvelopeSelection.ts` och Vision-anropet är låsta för det här spåret.
+
+**Konfliktzon:** `src/lib/dataset/*` (ny), `src/components/Dev/*` (ny). Enda rörda delade filer:
+`src/App.tsx` (dev-route), `src/store/session.ts` (`View`-union), `vite.config.ts` (`VITE_APP_VERSION`).
+
+### [x] S-1 — Dev-verktyg för datasetextraktion
+
+> **Klart (2026-08-12).** Ny vy **"Dataset extractor"** bakom `VITE_DEV_PREVIEW` (launcher nere
+> till höger; lazy-laddad så `@mediapipe` inte dras in i huvudbundeln). Användaren väljer en
+> eller flera videofiler, märker varje klipp med `source` (web|own), `slowmo` och en notis
+> **före** körning, och får en ZIP tillbaka.
+>
+> **Kedjan är produktionens, oförändrad** — `extractPoseTrajectory` → `detectSessionSwings` →
+> per sving `selectEnvelopeFrames(envelope, ANALYSIS_FRAME_COUNT)` → `grabFramesAtTimes`.
+> Ingen logik kopierad, inga produktionsfiler rörda. Enda dev-steget är CULLEN: ny ren funktion
+> `cullToPhaseTargets` (`src/lib/dataset/phaseQuota.ts`) skär 32 frames/sving till **max 7** genom
+> att dela ut frames en i taget till den fas som ligger längst under sin målvikt och fortfarande
+> har frames kvar (Hamilton med kapacitet — deterministiskt, och en tom fas låter sin andel flyta
+> vidare i stället för att gå förlorad). Målvikterna (downswing 34 %) står nu i specen och speglas
+> av `PHASE_TARGET_WEIGHTS`.
+>
+> **Frames tas i full upplösning, ingen beskärning, kvalitet 0,92** (`maxOutputSide: Infinity`,
+> inga `cropBounds`). Ström E:s crop är rätt för Vision-anropet och fel här — att sätta två punkter
+> med sub-skaftbredds-noggrannhet är precis det en nedskalning kastar bort.
+>
+> **`phase` är specens 7-värdesattribut**, inte kodens `SwingPhase`: `follow-through` delas i
+> `through` och `finish` (ny ren `derivePhase`, `datasetPhase.ts`), eftersom ett skaft i
+> följdrörelse är ett streak och ett skaft i finishen en statisk linje. Att bredda `SwingPhase`
+> hade betytt att redigera `poseEnvelopeSelection.ts`.
+>
+> **ZIP utan nytt beroende:** `zip.ts` skriver store-metod (ingen deflate — JPEG är redan
+> entropikodad, så komprimering ger ~0–2 %). ~120 rader, CRC-32 är enda algoritmen. Ingen ZIP64:
+> arkiv över 4 GiB **vägras** i stället för att skrivas trasiga.
+>
+> **`id` är stabilt och härlett** ur `clipName`+`swingIndex`+`frameIndex`
+> (`<slug>-<FNV-1a(filnamn)>_s00_f00`), aldrig slumpat — annoteringar matchar frames efter en
+> omkörning. Hashen finns för att snarlika filnamn annars kan sluga till samma sträng och tyst
+> skriva över varandras frames i arkivet.
+>
+> `vite.config.ts` exponerar nu `VITE_APP_VERSION` = `<paketversion>+<git sha>`, som skrivs i
+> `manifest.json` så ett dataset namnger bygget som valde dess frames.
+>
+> **Verifierat:** `npm run build` rent (DatasetExtractorView i egen chunk, 14,7 kB),
+> `npm run lint` 28 problem = identiskt med baslinjen (inga nya, inga i de nya filerna),
+> `npx vitest run` 223/223 (21 nya: `phaseQuota.test.ts` mot fördelning/degradering/determinism,
+> `zip.test.ts` mot APPNOTE-bytes + CRC-32-vektorn), och `npm run dev` transformerar alla nya
+> moduler. **Ej körd på riktiga klipp** — Erik kör första omgången och kontrollerar att
+> fasfördelningen i sammanfattningen landar nära måltalen.
+
+---
+
 ## Avklarat
 
 _(CC flyttar avbockade uppgifter hit med datum och en mening om vad som gjordes, så listan ovan hålls fokuserad på återstående arbete.)_

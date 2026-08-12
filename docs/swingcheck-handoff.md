@@ -209,6 +209,13 @@ cooldown, kalibrering och TTS-ack. **Ej enhets-/fältverifierad** (mäts i A-5).
 sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.md).
 > Notera: ADR-003 omdefinierar röst till **sessionskontroll** ("starta session"), inte per-slag-trigger.
 
+### Ström S — Skaftdetektering (dataset)
+S-1 klar (2026-08-12): dev-vyn **⚗︎ Dataset extractor** (`src/components/Dev/`, bakom
+`VITE_DEV_PREVIEW`) kör produktionskedjan över valda videofiler och exporterar en ZIP med
+frames + `manifest.json` för CVAT-annotering. Kedjan är oförändrad — enda dev-steget är cullen
+till 7 frames/sving mot specens fasvikter. **Ej körd på riktiga klipp än.** Spec + körinstruktion:
+[shaft/annotation-spec.md](shaft/annotation-spec.md); status: [BACKLOG.md](BACKLOG.md) Ström S.
+
 ## Öppna trådar
 
 - **Beskärningen är ej fältverifierad efter borttaget aspektlås (2026-08-11).** Första
@@ -248,7 +255,8 @@ stilla sekvensen; impact ≈ första rörliga bildrutan efter) och tar ett ±1,2
 Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som motiverade Ström D.
 
 **Verifiering:** `npm run dev` (aldrig en build — SW-cache serverar gammal kod).
-`VITE_DEV_PREVIEW=true` ger bildrute-preview, segmenteringsvy och 🐞 Logs-panelen (visar WARN).
+`VITE_DEV_PREVIEW=true` ger bildrute-preview, segmenteringsvy, ⚗︎ Dataset extractor och
+🐞 Logs-panelen (visar WARN).
 
 ## Komponentstruktur
 > Endast de mest centrala filerna; full karta finns i koden.
@@ -260,10 +268,12 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
 - `src/lib/` — `frameExtractor`, `api`, `prompt`, `cameraAngle`, `cameraZoom`, `supabase`, `tts`, `i18n`, `logger`, `geo`,
   `audioTrigger`; pose: `poseDetector`/`poseTrajectory`/`poseConnections`/`poseEnvelope`/
   `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`/`poseCropBox`; live: `poseRingBuffer`/`livePoseLoop`/
-  `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`.
+  `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`;
+  `dataset/` (dev-only, skaftannotering: `extractDataset`/`phaseQuota`/`datasetPhase`/`zip`).
 - `src/components/ui/` — delade primitiver (`Card`, `Button`, `Chip`/`VerdictDot`, `Segmented`,
   `Toggle`, `ScoreRing`, `Sparkline`/`VerdictBars`). Allt kortformat/pillerformat går via dessa.
-- `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`.
+- `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`,
+  `Dev/` (dev-only: `DatasetExtractorView`, bakom `VITE_DEV_PREVIEW`).
   `Camera/RecordSettingsSheet.tsx` håller allt som styr *hur* en inspelning beter sig;
   `CameraView` håller bara lägesvalet och inspelningsknappen (UI-2).
 - `worker/worker.ts` — Anthropic-proxy + `/api/log` (D1).
@@ -274,7 +284,8 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
 | `VITE_API_URL` | ja | Worker-endpoint som proxar Anthropic. |
 | `VITE_SUPABASE_URL` | nej | Cross-device-historik (med nyckeln nedan). |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | nej | Publishable key för Supabase. |
-| `VITE_DEV_PREVIEW` | nej | Bildrute-preview, segmenteringsvy + 🐞 Logs-panel. |
+| `VITE_DEV_PREVIEW` | nej | Bildrute-preview, segmenteringsvy, ⚗︎ Dataset extractor + 🐞 Logs-panel. |
+| `VITE_APP_VERSION` | nej | Sätts av bygget (`<paketversion>+<git sha>`); skrivs i skaftdatasetets `manifest.json`. |
 | `ANTHROPIC_API_KEY` | ja (Worker) | Secret i Workern — når aldrig klienten. |
 | `LOG_READ_KEY` | nej (Worker) | Skyddar `GET /api/log`. |
 | `ALLOWED_ORIGINS` | **ja i prod** (Worker) | Kommaseparerad origin-allowlist. Osatt → endast localhost-origins ⇒ prod 403:ar. |

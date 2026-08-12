@@ -1,0 +1,52 @@
+[
+  {
+    "name": "shaft",
+    "color": "#fa3253",
+    "type": "skeleton",
+    "attributes": [
+      {
+        "name": "view",
+        "mutable": true,
+        "input_type": "select",
+        "default_value": "dtl",
+        "values": ["dtl", "face_on", "other"]
+      },
+      {
+        "name": "blur",
+        "mutable": true,
+        "input_type": "select",
+        "default_value": "none",
+        "values": ["none", "mild", "severe"]
+      },
+      {
+        "name": "phase",
+        "mutable": true,
+        "input_type": "select",
+        "default_value": "address",
+        "values": ["address", "backswing", "top", "downswing", "impact", "through", "finish"]
+      },
+      {
+        "name": "no_shaft",
+        "mutable": true,
+        "input_type": "checkbox",
+        "default_value": "false",
+        "values": ["false"]
+      }
+    ],
+    "sublabels": [
+      {
+        "name": "butt",
+        "color": "#ff0000",
+        "type": "points",
+        "attributes": []
+      },
+      {
+        "name": "hosel",
+        "color": "#00ff00",
+        "type": "points",
+        "attributes": []
+      }
+    ],
+    "svg": "<circle r=\"1.5\" stroke=\"black\" fill=\"#ff0000\" cx=\"20.0\" cy=\"20.0\" data-type=\"element node\" data-element-id=\"1\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"butt\"></circle><circle r=\"1.5\" stroke=\"black\" fill=\"#00ff00\" cx=\"40.0\" cy=\"40.0\" data-type=\"element node\" data-element-id=\"2\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"hosel\"></circle><line x1=\"20.0\" y1=\"20.0\" x2=\"40.0\" y2=\"40.0\" stroke=\"black\" data-type=\"edge\" data-node-from=\"1\" data-node-to=\"2\"></line>"
+  }
+]

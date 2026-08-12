@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useSessionStore } from './store/session';
 import { useSettingsStore } from './store/settings';
 import { detectLanguageByGeo } from './lib/geo';
@@ -18,6 +18,17 @@ import { DevLogPanel } from './components/DevLogPanel';
 import { UpdateBanner } from './components/UpdateBanner';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
+
+/**
+ * Dev-only shaft-dataset extractor. LAZY on purpose: it pulls in `poseTrajectory`,
+ * which statically imports `@mediapipe/tasks-vision`, and a static import here would
+ * drag the whole vision runtime into the main bundle for every user.
+ */
+const DatasetExtractorView = lazy(() =>
+  import('./components/Dev/DatasetExtractorView').then((m) => ({
+    default: m.DatasetExtractorView,
+  })),
+);
 
 /** Minimal 24×24 stroke icons (inherit currentColor) so each tab reads at a glance. */
 const icons = {
@@ -77,6 +88,13 @@ function App() {
         {view === 'analysis' && <AnalysisView />}
         {view === 'history' && <HistoryList />}
         {view === 'settings' && <SettingsView />}
+        {DEV_PREVIEW && view === 'dataset' && (
+          <Suspense
+            fallback={<p className="p-4 text-xs text-muted">Loading dataset extractor…</p>}
+          >
+            <DatasetExtractorView />
+          </Suspense>
+        )}
       </div>
 
       {/* Bottom nav. The active tab is marked by a tinted capsule behind the icon
@@ -124,6 +142,19 @@ function App() {
       <UpdateBanner />
 
       {!onboarded && <OnboardingWizard />}
+
+      {/* Dev-only launcher for the dataset extractor. Bottom-RIGHT so it never
+          overlaps the log panel's launcher, which sits bottom-left at the same height. */}
+      {DEV_PREVIEW && view !== 'dataset' && (
+        <button
+          onClick={() => setView('dataset')}
+          className="fixed bottom-20 right-3 z-50 px-3 py-2 rounded-full bg-slate-800/90 border
+                     border-slate-600 text-xs font-mono font-semibold text-slate-200 shadow-lg
+                     backdrop-blur"
+        >
+          ⚗︎ Dataset
+        </button>
+      )}
 
       {DEV_PREVIEW && <DevLogPanel />}
     </div>

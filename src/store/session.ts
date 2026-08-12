@@ -5,7 +5,18 @@ import type { FrameMeta } from '../lib/frameExtractor';
 import type { CameraAngle } from '../lib/cameraAngle';
 import { sessionStats, type SessionSummary } from '../lib/sessionStats';
 
-type View = 'home' | 'camera' | 'rules' | 'analysis' | 'history' | 'preview' | 'settings';
+// `dataset` is the dev-only shaft-annotation extractor (VITE_DEV_PREVIEW). It is a
+// route, not a tab: App.tsx renders it only behind the flag, so in a production build
+// the value is unreachable.
+type View =
+  | 'home'
+  | 'camera'
+  | 'rules'
+  | 'analysis'
+  | 'history'
+  | 'preview'
+  | 'settings'
+  | 'dataset';
 
 /**
  * Lifecycle of ONE swing (ADR-003 §5.4). Per swing, not per session — that is the

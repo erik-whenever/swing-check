@@ -28,6 +28,10 @@ public/models/*.task
 # Pose WASM runtime — copied from node_modules via `npm run pose:wasm`
 public/wasm/
 
+# Skaftannotering — bilder och exporter, publiceras aldrig (identifierbara personer)
+data/shaft/*
+!data/shaft/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
