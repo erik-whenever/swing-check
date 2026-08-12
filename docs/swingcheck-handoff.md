@@ -88,6 +88,16 @@ Frysta landmark-fixturer i `src/lib/__fixtures__/` (`dtl-full`, `dtl-clipped`, `
 före varje ändring i pose-logiken. Nya fixturer exporteras med knappen i dev-previewen
 (`FramePreview.tsx`, bakom `VITE_DEV_PREVIEW`). Dok: [pose-detection.md](pose-detection.md).
 
+### Offline-utvärdering av Vision — `npm run eval:vision`
+Harness i `scripts/vision-eval/` som mäter **hur ofta Vision svarar samma sak tre gånger
+på exakt samma bildrutor**, för fem skaftberoende regler mot tre kroppsregler som
+kontrollgrupp. Kör produktionens egen kedja (`poseEnvelope`/`poseEnvelopeSelection`/
+`poseSegments`/`poseCropBox`/`prompt` bundlas oförändrade med esbuild och körs i Node) på
+de frysta fixturerna + Eriks klipp. Tre steg, och `run` vägrar spendera utan `--yes`.
+**Rör ingen produktionskod och hamnar aldrig i bundeln.** Byggd 2026-08-12, rapporten ännu
+inte genererad — kräver klippen i `experiments/clips/` och klartecken för ~$1 i anrop.
+Dok: [experiments/README-vision-eval.md](experiments/README-vision-eval.md), BACKLOG M-1.
+
 ## Arkitekturbeslut som styr pose-arbetet
 
 - **[ADR-002](decisions/ADR-002-stream-d-envelope-inversion.md) — envelope som primär selektor.**

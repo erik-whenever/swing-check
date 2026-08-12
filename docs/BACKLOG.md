@@ -1096,6 +1096,65 @@ Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [R
 
 ---
 
+## Ström M — Mätning (offline, ingen produktionspåverkan)
+
+Ad hoc-ström. Utvärderingsharness som mäter appens egna antaganden mot data. Rör aldrig
+produktionsflödet — allt ligger i `scripts/`, importeras aldrig från `src/`, hamnar aldrig
+i bundeln.
+
+### [~] M-1 — Offline-utvärderingsharness: Vision på skaftberoende regler
+
+> **Byggd och verifierad end-to-end (2026-08-12); rapporten återstår att generera.**
+> `scripts/vision-eval.mjs` + `scripts/vision-eval/` (`npm run eval:vision`, tre steg:
+> `frames` → `run --yes` → `report`). Mäter hur ofta Vision svarar **samma sak tre gånger
+> på exakt samma bildrutor** — samstämmigheten är proxyn för tillförlitlighet. Fem
+> skaftberoende regler (svingplan, skaftläge P2, across-the-line/laid-off, klubbväg,
+> klubbladsläge vid impact) mot **tre kroppsregler som kontrollgrupp** i samma request:
+> utan den går "skaftet är svårt" inte att skilja från "bildrutorna är svåra", och bara
+> det första motiverar egen skaftdetektering.
+>
+> **Produktionskedjan körs, inte en kopia av den.** `poseEnvelope`,
+> `poseEnvelopeSelection`, `poseSegments`, `poseCropBox` och `prompt` bundlas oförändrade
+> med esbuild och körs i Node (de importerar sina tunga grannar `import type`-only, så
+> ingen MediaPipe följer med). `ANALYSIS_FRAME_COUNT` läses ur `frameExtractor.ts`-källan i
+> stället för att kopieras. Enda evalen definierar själv är regeluppsättningen — regler är
+> användardata. `frameExtractor.ts`, `poseSegments.ts` och produktionsprompten är orörda.
+> Headless Chrome används **bara** för att avkoda video och encoda JPEG (ingen ffmpeg på
+> maskinen, node-canvas avkodar inte H.264).
+>
+> **Två upplösningar med en variabel.** Samma beskärningslåda och samma JPEG-kvalitet i
+> båda; bara pixelantalet skiljer (`current` = långsida ≤ 900 px, `full` = lådan i källans
+> upplösning). Beskärning och skalning ändrar båda hur många pixlar som hamnar på skaftet,
+> och varieras båda kan rapporten inte säga vilken som spelade roll.
+>
+> **Fynd redan under bygget:** på en 720×1280-källa är den beskurna lådan ofta **redan**
+> kortare än 900 px, så `full` blir samma bildrutor byte för byte. Harnessen upptäcker
+> det, **hoppar över det andra anropet** och säger det i rapporten i stället för att betala
+> två gånger för samma request. Att en sving hamnar där är i sig ett svar: skaftreglerna
+> går då inte att laga med fler pixlar från den inspelningen — taket sitter i kameran.
+>
+> **Verifierat:** hela kedjan körd end-to-end på syntetiska klipp (rätt varaktighet och
+> upplösning) plus ett mockat Vision-svar → 5 svingar, 24 anrop, komplett rapport med alla
+> tabeller. Produktionens selektion gav samma envelope-tider som regressionsviternas
+> golden-värden (`dtl-full` 6,78–8,31 s, impact 7,85 s). `npm test` och `npm run lint`
+> orörda — inga `.ts`/`.tsx` är ändrade.
+>
+> **Kvar (kräver Erik):** (1) lägg `dtl-full`/`face-on`/`session-multi`-klippen i
+> `experiments/clips/` — fixturerna i repot bär koordinater, inte pixlar; (2) klartecken
+> för ~24–30 riktiga Claude-anrop (~$1), samma regel som E-1. Sedan
+> `npm run eval:vision all --yes` → rapporten. Bocka av när den finns.
+>
+> Dokumentation: [experiments/README-vision-eval.md](experiments/README-vision-eval.md).
+> Rapport (när körd): `docs/experiments/vision-shaft-reliability.md`.
+
+**Mål:** Veta om egen skaftdetektering behövs, mätt på våra befintliga bildrutor i stället
+för gissat.
+
+**Acceptans:** rapport genererad för minst 5 svingar, tabell med samstämmighet per regel
+och upplösning, varje modellsvar ordagrant. Ingen produktionskod ändrad.
+
+---
+
 ## Ström G — Instruktörsspår (G2) — *låst bakom Ström B*
 
 Stubbar; detaljspecas när M5 (Ström B) är klar. Ramar: [ROADMAP.md](ROADMAP.md) → *G2 — Instruktörsspåret* (pilotdesign, pris/intäktsdelning, data/samtycke).

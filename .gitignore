@@ -28,6 +28,12 @@ public/models/*.task
 # Pose WASM runtime — copied from node_modules via `npm run pose:wasm`
 public/wasm/
 
+# Offline Vision evaluation (scripts/vision-eval.mjs): source clips, extracted frames and
+# raw model responses. Erik's own recordings plus a few hundred JPEGs and MBs of JSON —
+# the generated report in docs/experiments/ is the artefact worth keeping.
+# Root-anchored: an unanchored `experiments/` would also swallow docs/experiments/.
+/experiments/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

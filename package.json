@@ -13,6 +13,7 @@
     "pose:model": "node scripts/download-pose-model.mjs",
     "pose:wasm": "node scripts/copy-pose-wasm.mjs",
     "pose:assets": "npm run pose:model && npm run pose:wasm",
+    "eval:vision": "node scripts/vision-eval.mjs",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy"
   },
