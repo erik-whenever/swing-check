@@ -22,7 +22,7 @@ migrations_dir = "migrations"
 # dev origins ONLY, so a deploy without this value 403:s the real app. Put the app's own
 # origin here even when the app and the Worker share a domain: browsers send Origin on
 # same-origin POSTs too.
-ALLOWED_ORIGINS = "https://swing-check-henna.vercel.app/,http://localhost:5173,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = "https://swing-check-henna.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
 
 # The model the proxy pins every request to; the client's `model` field is ignored.
 # Keep in sync with the price table in src/lib/api.ts.

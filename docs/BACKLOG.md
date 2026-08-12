@@ -1155,6 +1155,310 @@ och upplösning, varje modellsvar ordagrant. Ingen produktionskod ändrad.
 
 ---
 
+## Ström F — Onboarding-diagnos + regelrekommendation
+
+Nytt förstagångsflöde: **välkomst → ladda upp klipp → auto-trim med justerbara handtag →
+diagnosanalys → styrkor + förbättringsområden → föreslaget regelset → prioritering →
+utsläpp i sessionsläge.** Vänder på appens grundproblem: i dag måste användaren välja ur
+14 biblioteksregler innan appen har sagt något — alltså krävs den kunskap appen finns för
+att leverera. Diagnosen är ett **nytt promptläge** (öppen bedömning), skilt från dagens
+regelutvärdering.
+
+Beslutsunderlag, med varje antagande utskrivet:
+[ADR-004](decisions/ADR-004-onboarding-diagnos.md). Branch: `stream-f`.
+
+> **Två saker i backloggen absorberas av F:** ROADMAP beslutsfork 1:s *manuella
+> trim-slider* (byggs i F-3 och betalar sig i två spår) och UI-2:s kvarvarande punkt
+> *"tabbaren till 4 flikar"* (skärps till tre flikar i F-9).
+
+**Konfliktzon:** `src/lib/prompt.ts` (endast **additivt** — `buildSwingPrompt` får inte
+röras, prompt-cachen nycklar på exakt prefix), `src/lib/diagnosis.ts` (ny),
+`src/store/rules.ts`, `src/store/onboarding.ts`, `src/components/Onboarding/`,
+`src/components/Diagnosis/` (ny), `src/App.tsx` + `src/components/NavBar.tsx` (endast F-9).
+**Rör INTE** `poseEnvelope.ts`, `poseSegments.ts`, `frameExtractor.ts` eller
+`SwingRecord` — F konsumerar dem, ändrar dem aldrig.
+**Korsning mot Ström E:** E-1 rör `frameExtractor.ts`; F rör den inte alls. Landar E-1
+först ärver F-2 den mindre bildrutan gratis.
+**Korsning mot Ström B:** F är helt lokal (ADR-004 §3). B-3 lägger `user_id` senare —
+`DiagnosisRecord` är formad additivt för det, men F skriver aldrig till Supabase.
+
+### [ ] F-1 — Diagnos-promptläge: kontrakt, validering, mappning (ren, ingen UI)
+
+**Mål:** Ett nytt promptläge som ger **öppen bedömning** i stället för dom per regel, och
+vars svar mappas mot befintliga `lib-*`-id:n *i samma anrop*. Ingen UI, inga riktiga
+Claude-anrop utom det enda mätanropet nedan.
+
+**Att göra:**
+
+- `src/lib/prompt.ts`, **additivt**: `DIAGNOSIS_SYSTEM_PROMPT` + `buildDiagnosisPrompt({
+  catalog, cameraAngle })`. `buildSwingPrompt` och `SYSTEM_PROMPT` **oförändrade** —
+  `prompt.test.ts` ska vara grön utan ändringar. Behåll ordagrant de tre reglerna som
+  redan bär kvaliteten: svensk prosa i fritextfält, `cannot_determine` liberalt,
+  användarvald kameravinkel som auktoritativ.
+- Katalogen i prompten = `RULE_LIBRARY` filtrerad på vald vinkel, som
+  `id · titel · fas · vinkel · beskrivning`. Instruktion: varje fynd bär **antingen** ett
+  `library_id` **ur listan** **eller** `null`. Aldrig ett påhittat id.
+- `src/lib/diagnosis.ts` (ny, ren, testbar): typerna `DiagnosisFinding` /
+  `DiagnosisReport` (schema i ADR-004 §1) + `validateDiagnosis(raw)`:
+  1. okänt `library_id` → behandlas som `null` **och** `log.warn('Diagnosis: unknown
+     library_id', …)`;
+  2. `confidence < 0.6` → visas ej som rekommendation (samma tal som systempromptens
+     egen gräns, inte ett andra);
+  3. tak: max 3 styrkor + 3 förbättringar, sorterade på `severity × confidence`;
+  4. dubbletter mot befintliga regler filtreras via `hasLibraryRule`.
+- `src/lib/api.ts`, **additivt**: `analyzeDiagnosis(frames, catalog, options)` som
+  återanvänder transporten, `onUsage` och kostnadsberäkningen. Rör inte `analyzeSwing`.
+- **Ett** riktigt anrop, på Eriks klartecken, enbart för att mäta att svaret ryms i
+  Workerns `MAX_TOKENS` (2000) — ADR-004 antagande **A3**. Gör det inte det: notera att
+  `MAX_TOKENS` måste höjas i `worker/wrangler.toml` (kräver Eriks deploy) och fortsätt
+  inte bygga UI ovanpå ett avhugget svar.
+
+**Acceptans:** `buildSwingPrompt`-utdata byte-för-byte oförändrad (test).
+`validateDiagnosis` avvisar hallucinerat id, lågkonfidenta fynd, överflöd och dubbletter —
+enhetstestat mot handskrivna svar, inklusive ett trasigt/avhugget. Ett verkligt svar ryms
+i 2000 output-tokens, eller så är avvikelsen dokumenterad. Inga riktiga Claude-anrop i
+testsviten.
+
+**Dokumentkrav:** bocka av här; ADR-004 §1 uppdateras med **mätta** siffror (svarslängd,
+kostnad, andel `library_id: null`) — de är antaganden i dag; `swingcheck-handoff.md`:
+lägg diagnosläget under *Fungerar* med kostnadsnot.
+
+### [ ] F-2 — Svingfönster ur ett uppladdat klipp: detektion + grab mot explicit spann
+
+**Mål:** Ge trim-UI:t (F-3) exakt det underlag det behöver: kandidatspann **med skäl när
+det blir noll**, och en väg att greppa bildrutor ur ett spann som **användaren** valt.
+Ingen UI.
+
+**Kontext (verifierat):** klipp-vägen kör i dag `extractFrames` → `selectViaPose` →
+`detectSwingEnvelope` — **en** envelope över hela klippet; `detectSessionSwings` körs
+aldrig på klipp-vägen. Den ger utöver N kandidater också `rejected[].reason` och
+`segmentation.diagnostics` (varje burst med `culledBy`) — det är skillnaden mellan
+"ingen sving" och "ingen sving, därför att".
+
+**Att göra:**
+
+- Ny ren modul `src/lib/clipSwings.ts`: `findClipSwings(samples)` som kör
+  `detectSessionSwings` och returnerar kandidater + fallback-spann i den ordning ADR-004
+  §2 anger: (a) accepterade svingar, (b) längsta bursten märkt osäker, (c) pixel-diff-
+  fönstret, (d) klippets mitt ± 1,5 s. **Aldrig tomt, aldrig ett kast.**
+- Klampa varje returnerat spann mot `MIN/MAX_ENVELOPE_SEC` (0,7–3,0 s) och behåll impact
+  **bara** när den ligger inuti spannet — trimmen får inte uppfinna en impact.
+- **Verifiera A2:** fungerar `poseFrameGrab.grabFramesAtTimes` mot en **hel uppladdad
+  fil** (den är skriven för materialiserade fönster ur chunk-ringen)? Om ja: använd den —
+  då följer beskärningen med och diagnosbildrutan kostar ~220 tokens i stället för ~1 229.
+  Om nej: dokumentera varför och använd `extractFrames`-vägen med **16** bildrutor i
+  stället för 32, så kostnaden ändå halveras. Gissa inte — mät.
+- **Duration-gate** (ADR-004 A5): mät hur lång tid `extractPoseTrajectory` tar på 15/30/60 s
+  klipp och sätt gränsen på mätdata, inte på 30 s för att det står i ADR:n.
+- `poseEnvelope.ts` / `poseSegments.ts` / `frameExtractor.ts` **orörda**.
+
+**Acceptans:** `findClipSwings` returnerar ett användbart spann för alla fyra fixturerna
+inklusive `dtl-clipped` (som ger noll accepterade svingar → fallback (b) med skäl) —
+enhetstestat mot de frysta fixturerna, inget nytt fixturbehov. A2 är avgjord med en
+mätning, inte ett antagande. Vald bildrutebudget och dess kostnad står i loggen.
+
+**Dokumentkrav:** bocka av här; ADR-004 §2 + antagandetabellen (A2, A5) uppdateras med
+utfallet; `docs/pose-detection.md`: ny rubrik om klipp-vägens segmentering.
+
+### [ ] F-3 — Trim-UI: justerbara handtag ovanpå auto-trimmen
+
+**Mål:** Användaren ser det föreslagna spannet och kan flytta det. Detta är också ROADMAP
+beslutsfork 1:s **manuella trim-slider** — den byggs här och gör diagnosen möjlig även när
+pose inte kan köra.
+
+**Att göra:**
+
+- `src/components/Diagnosis/TrimView.tsx`: tidslinje med start-/slut-handtag, en
+  förhandsvisad bildruta som följer handtaget, och ett förvalt spann från F-2.
+- Seek på **uppsläpp**, inte kontinuerligt under dragning (A7 — prova båda på enhet och
+  skriv ned vilken som vann). `poseFrameGrab`:s 3 s seek-timeout är förebilden: en
+  hängande seek får aldrig låsa vyn.
+- Handtagen klampas till 0,7–3,0 s. Ett spann pipeline hade avvisat ska inte gå att välja.
+- Flera hittade svingar → låt användaren välja vilken (enkel lista, inte en karusell).
+- Noll hittade svingar → visa fallback-spannet med rak text ("vi är inte säkra — dra
+  handtagen"), aldrig en återvändsgränd. `rejected[].reason` visas endast bakom
+  `VITE_DEV_PREVIEW`.
+- "Hoppa över diagnosen → välj regler själv" synlig i **detta** steg och i alla följande.
+- Club Cream-primitiver (`Card`, `Button`, `Segmented`) — inga råa palettklasser; detta är
+  produkt-UI, inte en dev-yta.
+
+**Acceptans:** ett uppladdat klipp ger ett förvalt spann inom en sekund efter att pose
+körts; handtagen går att träffa med tummen; klampningen syns (handtaget tar emot); ett
+klipp utan detekterad sving går ändå att trimma manuellt hela vägen till en analys.
+Verifierat i `npm run dev`, inte i en build.
+
+**Dokumentkrav:** bocka av här; notera i `ROADMAP.md` beslutsfork 1 att trim-slidern är
+byggd (med datum) och vad det betyder för pose-forken; `design-system.md`: trimvyn under
+bärande UX-beslut.
+
+### [ ] F-4 — Diagnoskörning + rapportvy (styrkor / förbättringsområden)
+
+**Mål:** Kör diagnosanalysen på det trimmade spannet och visa utfallet som något en
+golfare vill läsa: vad du gör bra, vad som ger mest tillbaka att jobba på.
+
+**Att göra:**
+
+- `src/components/Diagnosis/DiagnosisRunner.tsx` + `DiagnosisReportView.tsx`.
+- Progress med **ärliga** delsteg (hittar sving → hämtar bilder → analyserar). Ingen falsk
+  snabbhet; anropet är mätt till 26–46 s för en sessionssving och blir längre här.
+- Styrkor först, sedan förbättringsområden sorterade på `severity × confidence`. Varje
+  fynd visar `visual_evidence` (så påståendet går att kontrollera mot bilden) och
+  `why_it_matters`.
+- Fynd med `library_id: null` visas som **observation utan regel**, egen etikett, och
+  skapar ingenting. Logga dem (`Diagnosis: unmatched finding`) — ett återkommande sådant
+  är en lucka i biblioteket, inte en bugg.
+- `onUsage` → logga kostnad, tokenantal och `visionMs` per diagnos på WARN.
+- **Kostnadsmedförande:** riktiga anrop körs endast på Eriks klartecken. Jämför 16 mot 32
+  bildrutor på **samma** klipp (A4), max 5+5 anrop.
+
+**Acceptans:** en diagnos på ett verkligt klipp ger 2–3 styrkor och 2–3
+förbättringsområden som Erik bedömer som *rimliga* för den svingen; kostnad och latens
+loggade; hoppa-över fungerar mitt i körningen utan att lämna skräptillstånd.
+
+**Dokumentkrav:** bocka av här; ADR-004 §1 + A4/A8 uppdateras med utfallet — **inklusive
+om kvaliteten inte höll**, då gäller alternativ A (kuraterade startpaket) och det ska stå
+här; `swingcheck-handoff.md` under *Fungerar*.
+
+### [ ] F-5 — Föreslaget regelset → rules-storen
+
+**Mål:** Förvandla accepterade fynd till faktiska regler, utan att en hallucination någonsin
+blir en regel.
+
+**Att göra:**
+
+- Förslagsvy: en rad per föreslagen regel med bibliotekets titel, fas, vinkel och
+  motiveringen från diagnosen. **Varje rad är av-/påbockningsbar** — användaren godkänner
+  setet, appen påtvingar det inte.
+- Vid bekräftelse: `addFromLibrary(libRule)` per godkänd rad. Endast fynd med giltigt
+  `library_id` kan nå hit (grinden ligger i F-1:s validering). Dubbletter filtreras via
+  `hasLibraryRule`.
+- Vinkelkonflikt visas i klartext: en regel som kräver den andra kameravinkeln läggs till
+  men märks — samma mönster som biblioteksvyn redan har ("en nedtonad rad skriver ut
+  varför").
+- `priority` sätts från diagnosens ordning (fältet införs i F-6; körs F-6 först är detta
+  bara att skriva det).
+
+**Acceptans:** godkänt set hamnar i `swingcheck-rules` och överlever omladdning; inga
+dubbletter vid omkörd diagnos; ett fynd utan `library_id` kan inte skapa en regel via
+någon väg i UI:t.
+
+**Dokumentkrav:** bocka av här; `swingcheck-handoff.md`: regel-storens nya väg in.
+
+### [ ] F-6 — Fokusläge i rules-storen: persistens, icke-destruktiv exklusivitet, ordning
+
+**Mål:** Göra "alla aktiva" respektive "en i taget" till ett representerbart val. I dag är
+det ingetdera: `focusRuleId` ligger i den **icke-persisterade** session-storen och
+försvinner vid omladdning, och `soloRule` är **destruktivt** — vilka regler som var aktiva
+går inte att återställa.
+
+**Att göra:**
+
+- Flytta `focusRuleId` till `store/rules.ts` (persisterad). `session.focusRuleId` blir en
+  tunn selektor under övergången så inga konsumenter behöver röras i samma pass
+  (`AnalysisView`, `StatsView`, `MyRules`, `useSessionCapture`, `tts.ts`).
+- Nytt `evaluationMode: 'all' | 'focus'`. I `'focus'` skickas **bara** fokusregeln till
+  prompten; `active` rörs aldrig, så att växla tillbaka återställer allt. `soloRule`
+  används **inte** som mekanism för fokusläget.
+- Additivt `priority?: number` på `Rule`, satt av diagnosen (F-5) — `rules[]` har i dag
+  ingen ordning alls utom insättningsordning.
+- **Migration:** persisterad data finns redan hos användare. Nya fält fylls med defaults
+  (`evaluationMode: 'all'`, `focusRuleId: null`, `priority` odefinierad); `rules[]` skrivs
+  aldrig om.
+- Default vid utsläpp: `'all'` med diagnosens topprioriterade regel som fokus. Motivet och
+  motkraften står i ADR-004 §4 — svarslängden skalar med regelantalet, så färre regler är
+  genuint snabbare. `AnalysisUsage` bär redan `activeRuleCount`/`visionMs`, alltså är
+  valet mätbart utan nytt arbete: **mät, flytta defaulten om datan säger det.**
+
+**Acceptans:** fokusregeln överlever omladdning och PWA-omstart; `'focus'` → `'all'`
+återställer exakt de regler som var aktiva innan; enhetstest på migrationen (gammal
+persisterad form → ny) och på lägesväxlingen; ingen konsument av `focusRuleId` trasig.
+
+**Dokumentkrav:** bocka av här; ADR-004 §4 uppdateras med vald default + mätdata;
+`swingcheck-handoff.md`: rules-storens modell.
+
+### [ ] F-7 — Diagnosen sparas lokalt (formad för konto senare)
+
+**Mål:** Diagnosen ska gå att läsa igen och jämföra mot — utan konto, utan Supabase, utan
+att bryta lokalt-först-garantin.
+
+**Att göra:**
+
+- `DiagnosisRecord` (ADR-004 §3) i `idb-keyval` med prefix `diagnosis-`, samma mönster som
+  historikens `swing-`-prefix. Fälten: `id`, `timestamp`, `frames`, `cameraAngle`,
+  `trimSec`, `report`, `appliedRuleIds`, `videoBlob?`.
+- **Videon sparas bara på användarens val** — historiken har `MAX_RECORDS = 10` och
+  utrymmet är redan knappt.
+- **Ingen Supabase-kod i F.** Formen är additiv så B-3 kan lägga `user_id` senare; skriv
+  inget fält i förskott.
+- Ingång från Plan-fliken: "Din diagnos" + "Kör om diagnos" (bakom bekräftelse — en
+  diagnos kostar pengar).
+
+**Acceptans:** diagnosen överlever omstart och läses tillbaka utan Supabase; appen
+fungerar oförändrat med `SUPABASE_DISABLED = true`; en omkörd diagnos ersätter inte den
+gamla tyst.
+
+**Dokumentkrav:** bocka av här; `swingcheck-handoff.md`: datamodellen; notera i
+`docs/supabase-auth.md` att B-3 ärver `DiagnosisRecord` när auth finns.
+
+### [ ] F-8 — Flödet ihopsatt: välkomst → … → utsläpp i sessionsläge
+
+**Mål:** Sju steg som hänger ihop, med en utgång i varje. Ersätter dagens fem statiska
+informationsskärmar.
+
+**Att göra:**
+
+- Bygg om `OnboardingWizard` till flödet: välkomst → ladda upp/spela in → trim (F-3) →
+  diagnos (F-4) → rapport (F-4) → regelset (F-5) → prioritering (F-6) → **utsläpp i
+  sessionsläge** (landar i Träna med sessionsläget förvalt och fokusregeln satt).
+- Behåll de befintliga informationsstegen om **kameravinkel** och **kameraplacering** —
+  de är förutsättningar för att klippet ska vara analyserbart, och de är billiga. Slå ihop
+  dem till ett steg före uppladdningen.
+- `useOnboardingStore` växer från `completed: boolean` till ett steg-tillstånd som
+  överlever en omladdning mitt i flödet (en 40-sekunders analys är precis när telefonen
+  låser sig).
+- **Hoppa över** i varje steg → dagens beteende (tom app, biblioteket öppet), inte en
+  halvfärdig diagnos.
+- i18n: alla nya strängar på **båda** språken. `onb.*`-nycklar för de borttagna stegen
+  städas bort i samma pass.
+
+**Acceptans:** en ny användare går från första start till en satt fokusregel och ett
+rullande sessionsläge utan att öppna regelbiblioteket; avbrott mitt i flödet (omladdning,
+hoppa över) lämnar aldrig ett halvt regelset; båda språken kompletta.
+
+**Dokumentkrav:** bocka av här; `swingcheck-handoff.md`: förstagångsflödet; ADR-004:
+status → *Antagen* om flödet står, annars vad som ströks och varför.
+
+### [ ] F-9 — Informationsarkitektur: tre flikar, analys som utfallsskärm
+
+**Mål:** Tabbaren speglar vad appen gör. **Ersätter UI-2:s kvarvarande punkt** ("tabbaren
+till 4 flikar") — tre, inte fyra, med motiveringen i ADR-004 §5.
+
+**Att göra:**
+
+- Fem flikar → **Träna** (Hem + Kamera), **Plan** (regelset + fokus/ordning + diagnos),
+  **Utveckling** (svingar + statistik, dagens två inre flikar oförändrade).
+- **Analys lämnar tabbaren** och blir en utfallsskärm ovanpå Träna (öppnas även från en
+  rad i Utveckling). Som flik går den i dag att trycka på och landa på ingenting.
+- `HomeView`:s hälsning + statkort blir Trännas översta yta; `SessionSummaryCard` flyttar
+  dit (UI-2:s kvarvarande punkt).
+- **Sessionsband i skalet**, inte i en flik, så en pågående session syns från Plan och
+  Utveckling (UI-2:s kvarvarande punkt).
+- `keepCameraMounted` måste fortsätta gälla — den finns för att sessionsloopens ström,
+  headset-audio och Media Session ska överleva rundturen.
+- Inställningar behåller sin kugge i `NavBar` (den har redan ingen flik).
+- **Hård gräns:** max **ett tryck** från Träna till en rullande kamera. Klarar designen
+  inte det är fyra flikar det rätta svaret — säg det då i stället för att pressa in tre.
+
+**Acceptans:** tre flikar; analysvyn nås bara med en analys att visa; kameran är ett tryck
+bort från Träna; sessionsbandet syns i alla tre flikarna; hands-free-loopen fungerar
+oförändrat (verifierat i `npm run dev`, inte i en build).
+
+**Dokumentkrav:** bocka av här **och** stryk motsvarande rad under UI-2 ("kvar av
+UI-revisionen") med hänvisning hit; `design-system.md`: informationsarkitekturen;
+`swingcheck-handoff.md`: vylistan.
+
+---
+
 ## Ström G — Instruktörsspår (G2) — *låst bakom Ström B*
 
 Stubbar; detaljspecas när M5 (Ström B) är klar. Ramar: [ROADMAP.md](ROADMAP.md) → *G2 — Instruktörsspåret* (pilotdesign, pris/intäktsdelning, data/samtycke).
