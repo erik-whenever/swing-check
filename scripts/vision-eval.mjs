@@ -39,9 +39,11 @@ async function stageRun() {
   const { readFile } = await import('node:fs/promises');
   const { join } = await import('node:path');
   const { REPO_ROOT } = await import('./vision-eval/production-modules.mjs');
-  const index = JSON.parse(
-    await readFile(join(REPO_ROOT, 'experiments', 'frames', 'index.json'), 'utf8'),
-  );
+  const index = await readFile(join(REPO_ROOT, 'experiments', 'frames', 'index.json'), 'utf8')
+    .then(JSON.parse)
+    .catch(() => {
+      throw new Error('No extracted frames yet. Run `npm run eval:vision frames` first.');
+    });
   // `full` sets that came out identical to `current` are not re-sent — same bytes, same
   // request — so they must not be in the estimate either.
   const comparable = index.resolutionComparable ?? index.swings;
