@@ -78,6 +78,38 @@ COCO Keypoints 1.0.
 
 ---
 
+## Källmaterial: hämta klipp från r/GolfSwing
+
+`scripts/fetch-reddit-clips.mjs` bygger en klipplista ur subredditens **publika
+JSON-listning** (ingen auth, ingen API-nyckel). Den paginerar med `after`, väntar minst
+2 s mellan requests och **avbryter vid 429**. Endast native Reddit-video behålls;
+korspostar, externa länkar, bilder och borttagna poster hoppas över.
+
+```powershell
+# Klipplista (default: sort=top, time=year, pages=5 → data/shaft/urls.txt)
+node scripts/fetch-reddit-clips.mjs
+# Flaggor: --sort top|new|hot  --time all|year|month  --pages N  --out data/shaft/urls.txt
+node scripts/fetch-reddit-clips.mjs --sort top --time all --pages 10
+```
+
+Skriptet skriver **bara** i `data/shaft/`:
+
+- `urls.txt` — en permalink per rad, för `yt-dlp -a`.
+- `sources.json` — per post `{id, permalink, title, created_utc, duration}`, så en frame i
+  manifestet kan spåras till Reddit-tråden den kom från.
+
+Ladda sedan ner videorna med `yt-dlp` (Windows/PowerShell):
+
+```powershell
+yt-dlp.exe -f bv -a data/shaft/urls.txt -o "%(id)s.mp4"
+```
+
+`-f bv` tar bästa video-only-strömmen (ingen ljudmux behövs för frame-extraktion) och
+`%(id)s.mp4` namnger filen efter Reddit-post-id:t, samma id som `sources.json` bär.
+Klippen är personidentifierbara — de stannar lokalt och gitignoras (se *Persondata*).
+
+---
+
 ## Verktyget: Dataset extractor (dev-only)
 
 Frames plockas inte för hand. Vyn **"Dataset extractor"** (bakom `VITE_DEV_PREVIEW`)

@@ -1224,6 +1224,39 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > moduler. **Ej körd på riktiga klipp** — Erik kör första omgången och kontrollerar att
 > fasfördelningen i sammanfattningen landar nära måltalen.
 
+### [x] S-2 — Klipphämtare från r/GolfSwing
+
+> **Klart (2026-08-13).** `scripts/fetch-reddit-clips.mjs` bygger en klipplista ur subredditens
+> **publika JSON-listning** (ingen auth). Paginerar med `after`, beskrivande User-Agent, **minst
+> 2 s mellan requests** och **avbryter vid 429**. Filtrerar till native Reddit-video
+> (`is_video && media.reddit_video`); korspostar, externa länkar, bilder och borttagna poster
+> hoppas över. Dedupe på post-id över sidgränser.
+>
+> Skriver **bara** i `data/shaft/` (guard mot `--out` utanför → fel): `urls.txt` (en permalink/rad
+> för `yt-dlp -a`) och `sources.json` (`{id, permalink, title, created_utc, duration}` per post, så
+> en frame spåras till Reddit-tråden). CLI: `--sort top|new|hot` (top), `--time all|year|month`
+> (year, gäller bara top), `--pages` (5), `--out` (`data/shaft/urls.txt`).
+>
+> README-avsnitt i specen (*Källmaterial*) om skript + `yt-dlp.exe -f bv -a urls.txt -o "%(id)s.mp4"`
+> (Windows/PowerShell). **Verifierat:** arg-parsing och write-guards körda offline; lint rent på den
+> nya filen. Live-hämtning **ej körd här** (sandbox-IP:t 403:as av Reddit) — Erik kör på sin maskin.
+
+### [x] S-3 — Automatisk slow motion-detektering per sving
+
+> **Klart (2026-08-13).** `slowmo` härleds nu ur svingens **envelope-varaktighet** i stället för en
+> per-klipp-kryssruta — ett klipp kan bära både en normal och en slow-mo-rep, så egenskapen hör till
+> **svingen**, inte filen. Ren + enhetstestad `deriveSlowmo(envelopeDurationSec, mode)`
+> (`src/lib/dataset/slowmo.ts`): tröskel **3,0 s** som kommenterad konstant `SLOWMO_ENVELOPE_THRESHOLD_SEC`
+> (normal sving ~1,2–2,0 s, slow-mo väsentligt längre). Manifestet bär `slowmo` (bool),
+> `envelopeDurationSec` (number) och `slowmoMode` per frame + `slowmoThresholdSec` på toppnivå, så
+> tröskeln kan omprövas utan omextrahering.
+>
+> Manuell override i UI:t: `auto | force-normal | force-slowmo` (default `auto`), och manifestet bär
+> vilket läge som användes. Körsammanfattningen visar andel slow-mo-frames mot **15 %-taket**
+> (`SLOWMO_FRAME_CAP_FRAC`) och varnar (gold) vid överskridande. **Produktionskoden oförändrad**
+> (frameExtractor, poseEnvelope, poseSegments, poseEnvelopeSelection, Vision). **Verifierat:**
+> `npm run build` rent, `npx vitest run` 231/231 (8 nya i `slowmo.test.ts`), lint rent på nya filerna.
+
 ---
 
 ## Avklarat

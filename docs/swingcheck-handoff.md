@@ -1,7 +1,12 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-11.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-13.
+>
+> **Senast (2026-08-13, stream-shaft):** S-2 klipphämtare `scripts/fetch-reddit-clips.mjs`
+> (r/GolfSwing publik JSON → `data/shaft/urls.txt` + `sources.json`, för `yt-dlp -a`) och
+> S-3 automatisk slow-mo per sving (härledd ur envelope-varaktighet, tröskel 3,0 s;
+> `slowmo`+`envelopeDurationSec`+`slowmoMode` i manifestet, override auto/force i UI). Se BACKLOG Ström S.
 
 ## Tech stack
 - **Frontend:** React 19 + TypeScript + Vite 8, Tailwind v4, Zustand (vissa stores `persist`:ade).
