@@ -21,6 +21,7 @@ import {
   type ExtractProgress,
 } from '../../lib/dataset/extractDataset';
 import { MAX_FRAMES_PER_SWING } from '../../lib/dataset/phaseQuota';
+import { SLOWMO_MODES, type SlowmoMode } from '../../lib/dataset/slowmo';
 import type { ClipSource } from '../../lib/dataset/datasetTypes';
 
 type Status = 'idle' | 'running' | 'done' | 'error';
@@ -49,7 +50,9 @@ export function DatasetExtractorView() {
       // that matters, since the spec forbids publishing the set either way but the
       // provenance is what a licence question would be answered from.
       source: 'own',
-      slowmo: false,
+      // `auto` derives slow-motion per swing from the envelope duration; the force modes
+      // are the manual escape hatch for a clip the derivation gets wrong.
+      slowmoMode: 'auto',
       notes: '',
     }));
     setClips((prev) => [...prev, ...added]);
@@ -169,14 +172,22 @@ export function DatasetExtractorView() {
                   </select>
                 </label>
 
-                <label className="flex items-center gap-1.5 text-muted">
-                  <input
-                    type="checkbox"
-                    checked={clip.slowmo}
+                <label className="flex items-center gap-1.5">
+                  <span className="text-muted">slow-mo</span>
+                  <select
+                    value={clip.slowmoMode}
                     disabled={running}
-                    onChange={(e) => patch(clip.key, { slowmo: e.target.checked })}
-                  />
-                  slow-mo
+                    onChange={(e) =>
+                      patch(clip.key, { slowmoMode: e.target.value as SlowmoMode })
+                    }
+                    className="rounded-md border border-line bg-raised px-2 py-1 text-[11px] text-fg"
+                  >
+                    {SLOWMO_MODES.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <span className="text-faint font-mono">
@@ -244,6 +255,11 @@ export function DatasetExtractorView() {
                 candidate
               </div>
             )}
+            <div className={run.slowmo.overCap ? 'text-gold' : 'text-fg-dim'}>
+              slow-mo {run.slowmo.frames} frame{run.slowmo.frames === 1 ? '' : 's'} ·{' '}
+              {run.slowmo.pct.toFixed(1)}% of {run.slowmo.capPct.toFixed(0)}% cap
+              {run.slowmo.overCap && ' — over cap, rebalance the set'}
+            </div>
           </div>
 
           <div className="rounded-lg border border-line bg-surface p-3">

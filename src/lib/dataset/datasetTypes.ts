@@ -4,6 +4,8 @@
 // folder exists to turn clips into a ZIP a human annotates in CVAT
 // (docs/shaft/annotation-spec.md); it reads the production chain, it never feeds it.
 
+import type { SlowmoMode } from './slowmo';
+
 /**
  * The seven frame phases from the annotation spec's `phase` attribute.
  *
@@ -36,6 +38,10 @@ export const SHAFT_PHASES: ShaftPhase[] = [
 /** Where a clip came from — set by hand in the UI before the run, per clip. */
 export type ClipSource = 'web' | 'own';
 
+// `SlowmoMode` and the slow-motion derivation live in `slowmo.ts` (pure + unit-tested);
+// re-exported here so manifest consumers get it from the same module as the shapes.
+export type { SlowmoMode } from './slowmo';
+
 /** The per-frame record written to `manifest.json`. One object per exported JPEG. */
 export interface FrameMetadata {
   /**
@@ -57,7 +63,19 @@ export interface FrameMetadata {
   /** Confident impact in clip seconds, or null when the envelope did not verify one. */
   impactSec: number | null;
   source: ClipSource;
+  /**
+   * Whether this frame's swing was filmed in slow motion. Derived per SWING from
+   * `envelopeDurationSec` (or forced by `slowmoMode`), never per clip — a clip can hold
+   * both a normal and a slow-motion rep. See `deriveSlowmo` in `slowmo.ts`.
+   */
   slowmo: boolean;
+  /**
+   * Duration of the swing's envelope in seconds (`finishSec − startSec`), written so the
+   * slow-motion threshold can be re-evaluated from the manifest without re-extracting.
+   */
+  envelopeDurationSec: number;
+  /** Which override produced `slowmo`: `auto` derived it, the force modes set it. */
+  slowmoMode: SlowmoMode;
   /** Free-text note set per clip in the UI. Empty string when none. */
   notes: string;
 }
@@ -72,6 +90,11 @@ export interface DatasetManifest {
   frameQuality: number;
   /** Cap applied per swing after phase culling. */
   maxFramesPerSwing: number;
+  /**
+   * Envelope-duration threshold (seconds) that `auto` mode used to derive `slowmo`, so
+   * the derivation is reproducible from the manifest alone. See `deriveSlowmo`.
+   */
+  slowmoThresholdSec: number;
   /** The target phase weights the cull aimed at, for reference when annotating. */
   phaseTargets: Record<ShaftPhase, number>;
   clipCount: number;

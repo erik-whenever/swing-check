@@ -45,6 +45,12 @@ import {
   cullToPhaseTargets,
   tallyPhases,
 } from './phaseQuota';
+import {
+  SLOWMO_ENVELOPE_THRESHOLD_SEC,
+  SLOWMO_FRAME_CAP_FRAC,
+  deriveSlowmo,
+  type SlowmoMode,
+} from './slowmo';
 import { base64ToBytes, buildZip, type ZipEntry } from './zip';
 
 const log = createLogger('DatasetExtract');
@@ -56,7 +62,12 @@ export const FRAME_QUALITY = 0.92;
 export interface ClipInput {
   file: File;
   source: ClipSource;
-  slowmo: boolean;
+  /**
+   * How slow motion is decided for this clip's swings: `auto` derives it per swing from
+   * the envelope duration, the force modes override it. Slow motion itself is a per-SWING
+   * property (a clip can hold both), so this is only the override, not the answer.
+   */
+  slowmoMode: SlowmoMode;
   notes: string;
 }
 
@@ -93,6 +104,19 @@ export interface DatasetRun {
   frames: ExtractedFrame[];
   /** Frames per phase, and the same as a percentage next to the spec's targets. */
   distribution: PhaseDistribution[];
+  /** Share of frames drawn from slow-motion swings, against the spec's 15 % cap. */
+  slowmo: SlowmoSummary;
+}
+
+export interface SlowmoSummary {
+  /** Frames whose swing was flagged slow motion. */
+  frames: number;
+  /** Share of the run's frames, percent. */
+  pct: number;
+  /** The spec's cap, percent. */
+  capPct: number;
+  /** True when `pct` exceeds `capPct` — the run leans too hard on slow motion. */
+  overCap: boolean;
 }
 
 export interface PhaseDistribution {
@@ -163,6 +187,10 @@ export async function extractDataset(
           swing.envelope.startSec,
           swing.envelope.finishSec,
         ];
+        // Slow motion is decided PER SWING from how long its envelope lasts (or forced
+        // by the clip's mode) — a clip can carry both a normal and a slow rep.
+        const envelopeDurationSec = envelopeSec[1] - envelopeSec[0];
+        const slowmo = deriveSlowmo(envelopeDurationSec, clip.slowmoMode);
         const { frames: jpegs } = await grabFramesAtTimes(
           clip.file,
           kept.map((k) => k.t),
@@ -183,7 +211,9 @@ export async function extractDataset(
             envelopeSec: [round3(envelopeSec[0]), round3(envelopeSec[1])],
             impactSec: swing.impactSec === null ? null : round3(swing.impactSec),
             source: clip.source,
-            slowmo: clip.slowmo,
+            slowmo,
+            envelopeDurationSec: round3(envelopeDurationSec),
+            slowmoMode: clip.slowmoMode,
             notes: clip.notes,
           },
         }));
@@ -230,7 +260,17 @@ export async function extractDataset(
     clips: results,
     frames,
     distribution: distribution(frames.map((f) => f.meta)),
+    slowmo: slowmoSummary(frames.map((f) => f.meta)),
   };
+}
+
+/** Slow-motion frame share of a run, against the spec's cap. */
+export function slowmoSummary(metas: { slowmo: boolean }[]): SlowmoSummary {
+  const total = metas.length;
+  const frames = metas.filter((m) => m.slowmo).length;
+  const pct = total > 0 ? round1((frames / total) * 100) : 0;
+  const capPct = round1(SLOWMO_FRAME_CAP_FRAC * 100);
+  return { frames, pct, capPct, overCap: pct > capPct };
 }
 
 /** Phase mix of a run, as counts and as percentages against the spec's targets. */
@@ -253,6 +293,7 @@ export function buildDatasetZip(run: DatasetRun): Blob {
     extractedAt: run.extractedAt,
     frameQuality: FRAME_QUALITY,
     maxFramesPerSwing: MAX_FRAMES_PER_SWING,
+    slowmoThresholdSec: SLOWMO_ENVELOPE_THRESHOLD_SEC,
     phaseTargets: PHASE_TARGET_WEIGHTS,
     clipCount: run.clips.length,
     swingCount: run.clips.reduce((sum, c) => sum + c.swings.length, 0),
