@@ -14,7 +14,16 @@
 // when there are enough frames, and degrades sensibly when a phase is empty — its
 // share flows to the next-hungriest phase instead of being lost.
 //
-// Pure: picks in, a subset out. No envelope, no video, no React.
+// THE DEFICIT RUNS ACROSS THE WHOLE EXPORT, NOT PER SWING. Balancing inside one swing
+// cannot reach the light phases at all: `finish` is 6 % of a 7-frame budget = 0.42
+// frames, so it rounds to zero in EVERY swing and a 50-swing run exports zero finish
+// frames — a phase the spec asks for is silently absent from the dataset. Carrying the
+// deficit forward fixes that arithmetically: after ~17 frames finish is owed a whole
+// one and wins the next deal outright. The state is threaded through the call (in and
+// out), never held at module level — the cull stays a pure function, and a caller that
+// wants per-swing behaviour just passes a fresh state.
+//
+// Pure: picks + state in, a subset + the next state out. No envelope, no video, no React.
 
 import { SHAFT_PHASES, type ShaftPhase } from './datasetTypes';
 
@@ -57,6 +66,34 @@ export interface PhasedPick {
 }
 
 /**
+ * The running deficit, carried from one swing's cull to the next.
+ *
+ * Immutable by convention: `cullToPhaseTargets` never writes to the state it is given,
+ * it returns the successor. Hold it in a local across the run's loop.
+ */
+export interface PhaseQuotaState {
+  /** Frames dealt to each phase so far in this export. */
+  dealt: Record<ShaftPhase, number>;
+  /** Frames dealt in total — the denominator each phase's target share is taken of. */
+  total: number;
+}
+
+/** A fresh, empty run state. A cull given this behaves exactly like a per-swing cull. */
+export function createPhaseQuotaState(): PhaseQuotaState {
+  const dealt = {} as Record<ShaftPhase, number>;
+  for (const p of SHAFT_PHASES) dealt[p] = 0;
+  return { dealt, total: 0 };
+}
+
+/** What a cull returns: the frames to keep, and the state the next swing starts from. */
+export interface PhaseCullResult<T> {
+  /** The kept picks, in time order. */
+  kept: T[];
+  /** Successor state — pass it to the next swing's cull. The input is left untouched. */
+  state: PhaseQuotaState;
+}
+
+/**
  * Ideal per-phase counts for a budget of `total` frames, before availability is known.
  * Reported in the UI next to what was actually kept.
  */
@@ -66,24 +103,29 @@ export function targetCounts(
 ): Record<ShaftPhase, number> {
   const available = {} as Record<ShaftPhase, number>;
   for (const p of SHAFT_PHASES) available[p] = total;
-  return allocate(total, available, weights);
+  return allocate(total, available, weights, createPhaseQuotaState()).quota;
 }
 
 /**
- * Keep at most `max` of `picks`, chosen so the phase distribution sits as close to
- * `weights` as the available frames allow.
+ * Keep at most `max` of `picks`, chosen so the phase distribution of the WHOLE RUN so
+ * far — `state` plus this swing — sits as close to `weights` as the available frames
+ * allow.
  *
  * Returns picks in time order. Fewer picks than `max` are returned unchanged (there is
- * nothing to choose). Never returns more than it was given.
+ * nothing to choose), but they still count towards the running deficit. Never returns
+ * more than it was given.
  */
 export function cullToPhaseTargets<T extends PhasedPick>(
   picks: T[],
   max: number = MAX_FRAMES_PER_SWING,
+  state: PhaseQuotaState = createPhaseQuotaState(),
   weights: Record<ShaftPhase, number> = PHASE_TARGET_WEIGHTS,
-): T[] {
+): PhaseCullResult<T> {
   const byTime = [...picks].sort((a, b) => a.t - b.t);
-  if (max <= 0) return [];
-  if (byTime.length <= max) return byTime;
+  if (max <= 0) return { kept: [], state };
+  // Nothing to choose — but these frames are still exported, so the run's deficit has
+  // to see them or the next swing over-corrects for a shortfall that never happened.
+  if (byTime.length <= max) return { kept: byTime, state: record(state, byTime) };
 
   const groups = new Map<ShaftPhase, T[]>();
   for (const p of byTime) {
@@ -94,7 +136,7 @@ export function cullToPhaseTargets<T extends PhasedPick>(
 
   const available = {} as Record<ShaftPhase, number>;
   for (const p of SHAFT_PHASES) available[p] = groups.get(p)?.length ?? 0;
-  const quota = allocate(max, available, weights);
+  const { quota, state: next } = allocate(max, available, weights, state);
 
   const kept: T[] = [];
   for (const phase of SHAFT_PHASES) {
@@ -102,33 +144,48 @@ export function cullToPhaseTargets<T extends PhasedPick>(
     if (!list) continue;
     kept.push(...spread(list, quota[phase]));
   }
-  return kept.sort((a, b) => a.t - b.t);
+  return { kept: kept.sort((a, b) => a.t - b.t), state: next };
+}
+
+/** Fold picks the cull did not choose between into the running deficit. */
+function record(state: PhaseQuotaState, picks: PhasedPick[]): PhaseQuotaState {
+  const dealt = { ...state.dealt };
+  for (const p of picks) dealt[p.phase]++;
+  return { dealt, total: state.total + picks.length };
 }
 
 /**
  * Deal `total` units over the phases, one at a time, always to the phase furthest
- * below its ideal share that still has capacity. Ties break in swing order, so the
- * result is fully determined by the inputs.
+ * below its target share of the run SO FAR that still has capacity in this swing.
+ *
+ * The deficit is measured against `frac[p] × (frames dealt in the whole run, including
+ * the one being placed)` — so a phase skipped in earlier swings arrives here already
+ * owed frames and outbids the phases that got theirs. Ties break in swing order, so
+ * the result is fully determined by the inputs.
  */
 function allocate(
   total: number,
   available: Record<ShaftPhase, number>,
   weights: Record<ShaftPhase, number>,
-): Record<ShaftPhase, number> {
+  state: PhaseQuotaState,
+): { quota: Record<ShaftPhase, number>; state: PhaseQuotaState } {
   const sum = SHAFT_PHASES.reduce((acc, p) => acc + Math.max(0, weights[p]), 0);
-  const ideal = {} as Record<ShaftPhase, number>;
-  const out = {} as Record<ShaftPhase, number>;
+  const frac = {} as Record<ShaftPhase, number>;
+  const quota = {} as Record<ShaftPhase, number>;
+  const dealt = { ...state.dealt };
+  let dealtTotal = state.total;
   for (const p of SHAFT_PHASES) {
-    ideal[p] = sum > 0 ? (total * Math.max(0, weights[p])) / sum : 0;
-    out[p] = 0;
+    frac[p] = sum > 0 ? Math.max(0, weights[p]) / sum : 0;
+    quota[p] = 0;
   }
 
   for (let n = 0; n < total; n++) {
+    const runTotal = dealtTotal + 1;
     let best: ShaftPhase | null = null;
     let bestDeficit = -Infinity;
     for (const p of SHAFT_PHASES) {
-      if (out[p] >= available[p]) continue;
-      const deficit = ideal[p] - out[p];
+      if (quota[p] >= available[p]) continue;
+      const deficit = frac[p] * runTotal - dealt[p];
       if (deficit > bestDeficit) {
         bestDeficit = deficit;
         best = p;
@@ -136,9 +193,11 @@ function allocate(
     }
     // Every phase is full: the picks simply do not contain `total` frames.
     if (best === null) break;
-    out[best]++;
+    quota[best]++;
+    dealt[best]++;
+    dealtTotal = runTotal;
   }
-  return out;
+  return { quota, state: { dealt, total: dealtTotal } };
 }
 
 /**

@@ -1,12 +1,19 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-13.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-03.
 >
-> **Senast (2026-08-13, stream-shaft):** S-2 klipphämtare `scripts/fetch-reddit-clips.mjs`
+> **Senast (2026-09-03, stream-shaft):** S-4 egen acceptansgrind för datasetextraktion
+> (`src/lib/dataset/datasetGate.ts` — `isSwing` orörd, den lösare grinden omprövar bara det
+> produktionen förkastade; `clippedTail` och envelopes upp till 12 s släpps in, exkursionsgolvet
+> kvar, >3 s taggas `suspectMultiSwing`) och S-5 faskvot som bär över mellan svingar
+> (`PhaseQuotaState` in/ut, löpande underskott över hela exporten — annars får `finish` aldrig
+> en frame). Se BACKLOG Ström S.
+>
+> **Tidigare (2026-08-13):** S-2 klipphämtare `scripts/fetch-reddit-clips.mjs`
 > (r/GolfSwing publik JSON → `data/shaft/urls.txt` + `sources.json`, för `yt-dlp -a`) och
 > S-3 automatisk slow-mo per sving (härledd ur envelope-varaktighet, tröskel 3,0 s;
-> `slowmo`+`envelopeDurationSec`+`slowmoMode` i manifestet, override auto/force i UI). Se BACKLOG Ström S.
+> `slowmo`+`envelopeDurationSec`+`slowmoMode` i manifestet, override auto/force i UI).
 
 ## Tech stack
 - **Frontend:** React 19 + TypeScript + Vite 8, Tailwind v4, Zustand (vissa stores `persist`:ade).
@@ -217,8 +224,22 @@ sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.m
 ### Ström S — Skaftdetektering (dataset)
 S-1 klar (2026-08-12): dev-vyn **⚗︎ Dataset extractor** (`src/components/Dev/`, bakom
 `VITE_DEV_PREVIEW`) kör produktionskedjan över valda videofiler och exporterar en ZIP med
-frames + `manifest.json` för CVAT-annotering. Kedjan är oförändrad — enda dev-steget är cullen
-till 7 frames/sving mot specens fasvikter. **Ej körd på riktiga klipp än.** Spec + körinstruktion:
+frames + `manifest.json` för CVAT-annotering. Produktionskedjan är oförändrad — **två** steg är
+dev-only: den lösare grinden (S-4) och cullen till 7 frames/sving mot specens fasvikter (S-5).
+
+S-4 (2026-09-03): `datasetGate.ts` accepterar det produktionen förkastar när `envelope.valid`,
+varaktigheten ligger i [0,6 s, 12,0 s] och topphastigheten klarar 0,4 × refSpeed — alltså
+`clippedTail`, dålig synlighet, långa nedsving och cooldown. Exkursionsgolvet (0,08) är kvar:
+bollplock är inga svingar. Envelopes > 3 s taggas `suspectMultiSwing` i stället för att delas.
+`gate`/`clippedTail`/`hasConfidentImpact`/`suspectMultiSwing` per frame i manifestet.
+**Kompromiss:** tre av produktionens trösklar är modulprivata och speglas i `datasetGate.ts`
+(filen är låst för Ström S) — driften bevakas av bisektionstester mot riktiga `isSwing`.
+
+S-5 (2026-09-03): faskvoten balanseras över hela exporten via `PhaseQuotaState` som trådas
+in och ut ur `cullToPhaseTargets`; per sving går det inte, `finish` (6 % av 7) avrundas då
+alltid till noll. Mätt över 10 svingar: max 0,9 pe från målen.
+
+**Ej körd på riktiga klipp än.** Spec + körinstruktion:
 [shaft/annotation-spec.md](shaft/annotation-spec.md); status: [BACKLOG.md](BACKLOG.md) Ström S.
 
 ## Öppna trådar
@@ -274,7 +295,7 @@ Tunables överst i `frameExtractor.ts`. Detta är precis begränsningen som moti
   `audioTrigger`; pose: `poseDetector`/`poseTrajectory`/`poseConnections`/`poseEnvelope`/
   `poseEnvelopeSelection`/`poseSegments`/`poseFrameGrab`/`poseCropBox`; live: `poseRingBuffer`/`livePoseLoop`/
   `liveSwingDetector`; session: `videoChunkRing`/`analysisQueue`/`sessionStats`;
-  `dataset/` (dev-only, skaftannotering: `extractDataset`/`phaseQuota`/`datasetPhase`/`zip`).
+  `dataset/` (dev-only, skaftannotering: `extractDataset`/`datasetGate`/`phaseQuota`/`datasetPhase`/`zip`).
 - `src/components/ui/` — delade primitiver (`Card`, `Button`, `Chip`/`VerdictDot`, `Segmented`,
   `Toggle`, `ScoreRing`, `Sparkline`/`VerdictBars`). Allt kortformat/pillerformat går via dessa.
 - `src/components/` — `Camera/`, `Analysis/`, `Session/`, `Rules/`, `History/`, `Home/`, `Settings/`, `Onboarding/`,

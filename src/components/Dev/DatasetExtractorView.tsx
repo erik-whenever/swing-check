@@ -21,6 +21,7 @@ import {
   type ExtractProgress,
 } from '../../lib/dataset/extractDataset';
 import { MAX_FRAMES_PER_SWING } from '../../lib/dataset/phaseQuota';
+import { MULTI_SWING_SUSPECT_SEC } from '../../lib/dataset/datasetGate';
 import { SLOWMO_MODES, type SlowmoMode } from '../../lib/dataset/slowmo';
 import type { ClipSource } from '../../lib/dataset/datasetTypes';
 
@@ -119,7 +120,9 @@ export function DatasetExtractorView() {
           {ANALYSIS_FRAME_COUNT} frames) over the clips below, keeps at most{' '}
           {MAX_FRAMES_PER_SWING} frames per swing weighted towards the downswing, and
           exports full-resolution JPEGs plus <code>manifest.json</code> as a ZIP for
-          shaft annotation. Dev-only; nothing here touches capture or analysis.
+          shaft annotation. Swings the analysis gate rejects but that are still good
+          training data (clipped tail, slow motion) are kept and tagged{' '}
+          <code>dataset-relaxed</code>. Dev-only; nothing here touches capture or analysis.
         </p>
       </header>
 
@@ -260,6 +263,17 @@ export function DatasetExtractorView() {
               {run.slowmo.pct.toFixed(1)}% of {run.slowmo.capPct.toFixed(0)}% cap
               {run.slowmo.overCap && ' — over cap, rebalance the set'}
             </div>
+            <div className="text-fg-dim">
+              gate: {run.gates.production} production · {run.gates.relaxed} dataset-relaxed
+              {totals.swings > 0 &&
+                ` (${Math.round((run.gates.relaxed / totals.swings) * 100)}% loosened)`}
+            </div>
+            {run.gates.suspectMultiSwing > 0 && (
+              <div className="text-gold">
+                {run.gates.suspectMultiSwing} swing(s) tagged suspectMultiSwing — envelope
+                over {MULTI_SWING_SUSPECT_SEC}s, check in CVAT that each is one rep
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-line bg-surface p-3">
@@ -299,9 +313,11 @@ export function DatasetExtractorView() {
               </tbody>
             </table>
             <p className="mt-2 text-[10px] text-faint leading-relaxed">
-              Per-swing quotas are exact; the run total drifts from the targets when a
-              swing has no frames in some phase (no confident impact, a clipped tail),
-              since that share flows to the next-hungriest phase rather than being lost.
+              The quota is balanced across the whole run, not per swing — a phase as light
+              as finish (6 % of {MAX_FRAMES_PER_SWING} frames) can never win a frame inside
+              one swing, so its deficit carries forward until it does. Residual drift is a
+              phase some swings had no frames in at all (no confident impact, a clipped
+              tail); that share flows to the next-hungriest phase rather than being lost.
             </p>
           </div>
 
@@ -322,13 +338,19 @@ export function DatasetExtractorView() {
                       {clip.swings.reduce((sum, s) => sum + s.frames.length, 0)} frames
                     </div>
                     {clip.swings.map((s) => (
-                      <div key={s.swingIndex} className="text-faint pl-2">
+                      <div
+                        key={s.swingIndex}
+                        className={s.gate === 'production' ? 'text-faint pl-2' : 'text-muted pl-2'}
+                      >
                         #{s.swingIndex} [{s.envelopeSec[0].toFixed(2)}→
                         {s.envelopeSec[1].toFixed(2)}]{' '}
                         {s.impactSec === null
                           ? 'no impact'
                           : `impact ${s.impactSec.toFixed(2)}`}{' '}
                         · {s.selectedCount}→{s.frames.length} frames
+                        {s.gate === 'dataset-relaxed' && ' · relaxed'}
+                        {s.clippedTail && ' · clipped tail'}
+                        {s.suspectMultiSwing && ' · multi-swing?'}
                       </div>
                     ))}
                     {clip.rejected.map((r, j) => (

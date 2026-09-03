@@ -4,6 +4,7 @@
 // folder exists to turn clips into a ZIP a human annotates in CVAT
 // (docs/shaft/annotation-spec.md); it reads the production chain, it never feeds it.
 
+import type { DatasetGate } from './datasetGate';
 import type { SlowmoMode } from './slowmo';
 
 /**
@@ -42,6 +43,10 @@ export type ClipSource = 'web' | 'own';
 // re-exported here so manifest consumers get it from the same module as the shapes.
 export type { SlowmoMode } from './slowmo';
 
+// `DatasetGate` and the relaxed gate live in `datasetGate.ts`, re-exported for the
+// same reason — a manifest reader should need one import for every field it sees.
+export type { DatasetGate } from './datasetGate';
+
 /** The per-frame record written to `manifest.json`. One object per exported JPEG. */
 export interface FrameMetadata {
   /**
@@ -76,6 +81,25 @@ export interface FrameMetadata {
   envelopeDurationSec: number;
   /** Which override produced `slowmo`: `auto` derived it, the force modes set it. */
   slowmoMode: SlowmoMode;
+  // ── Acceptance provenance (see datasetGate.ts) ──
+  // Written per frame, but all four are properties of the SWING. They are here so the
+  // quality of the two gates' populations can be compared once annotations come back,
+  // without joining the manifest against anything.
+  /**
+   * Which gate admitted the swing. `production` = `isSwing` accepted it unchanged;
+   * `dataset-relaxed` = production rejected it and the dev gate took it anyway.
+   */
+  gate: DatasetGate;
+  /** The swing's envelope had no settled finish (clip cut short). Production rejects these. */
+  clippedTail: boolean;
+  /** A confident impact was found — i.e. the frames got an impact cluster, not a uniform baseline. */
+  hasConfidentImpact: boolean;
+  /**
+   * The envelope is longer than one swing should be and may contain several. Flagged,
+   * not dropped: the frames are still worth annotating, they just need a human eye in
+   * CVAT before the swing is treated as one rep.
+   */
+  suspectMultiSwing: boolean;
   /** Free-text note set per clip in the UI. Empty string when none. */
   notes: string;
 }
@@ -97,8 +121,17 @@ export interface DatasetManifest {
   slowmoThresholdSec: number;
   /** The target phase weights the cull aimed at, for reference when annotating. */
   phaseTargets: Record<ShaftPhase, number>;
+  /**
+   * Envelope-duration window (seconds) the dataset-relaxed gate accepted, and the
+   * duration above which a swing was flagged `suspectMultiSwing` — written for the same
+   * reason as `slowmoThresholdSec`: the gate can be re-argued from the manifest alone.
+   */
+  relaxedEnvelopeSecRange: [number, number];
+  multiSwingSuspectSec: number;
   clipCount: number;
   swingCount: number;
+  /** How many swings each gate contributed, and how many carry the multi-swing flag. */
+  swingsByGate: { production: number; relaxed: number; suspectMultiSwing: number };
   frameCount: number;
   frames: FrameMetadata[];
 }

@@ -1257,6 +1257,66 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > (frameExtractor, poseEnvelope, poseSegments, poseEnvelopeSelection, Vision). **Verifierat:**
 > `npm run build` rent, `npx vitest run` 231/231 (8 nya i `slowmo.test.ts`), lint rent på nya filerna.
 
+### [x] S-4 — Egen acceptansgrind för datasetextraktion
+
+> **Klart (2026-09-03).** Ny ren modul `src/lib/dataset/datasetGate.ts`: extraktorn har nu en
+> **egen, lösare grind** i dev-lagret. `isSwing` är **orörd** — `detectSessionSwings` kör som
+> förut, och `collectDatasetSwings` omprövar bara det den lade i `rejected`. Motivet är omvänd
+> ekonomi: ett falskt positiv i analysen kostar ett Vision-anrop, medan en bortkastad sving i
+> datasetet är en sving ingen kan annotera.
+>
+> **Accepteras** när `envelope.valid`, varaktigheten ligger i **[0,6 s, 12,0 s]** och
+> topphastigheten klarar produktionens tröskel (0,4 × refSpeed). Alltså släpps `clippedTail`,
+> handledssynlighet, nedsvingsgränserna och cooldown. **Den vertikala exkursionen (0,08) är
+> kvar** — plockade bollar är inga svingar. Envelopes över **3,0 s** körs vidare oförändrat och
+> taggas `suspectMultiSwing: true` för granskning i CVAT i stället för att delas här (att dela
+> dem hade betytt att implementera om segmenteringen i dev-lagret).
+>
+> Manifestet bär per frame `gate` (`production` | `dataset-relaxed`), `clippedTail`,
+> `hasConfidentImpact` och `suspectMultiSwing`, plus toppnivå `swingsByGate`,
+> `relaxedEnvelopeSecRange` och `multiSwingSuspectSec` så grinden kan omprövas ur manifestet
+> ensamt. Sammanfattningen och `Clip extracted`-loggen visar antal per grind; svingraderna
+> märks `· relaxed` / `· clipped tail` / `· multi-swing?`. Svingarna sorteras på envelope-start
+> över båda grindarna, så `swingIndex` — och därmed frame-id:n — förblir tidsordnade.
+>
+> **Kompromiss att känna till:** `MIN_PEAK_SPEED_FRAC`, `MIN_VERTICAL_EXCURSION` och
+> `MAX_ENVELOPE_SEC` är modulprivata i `poseSegments.ts` och får inte exporteras (filen är låst
+> för Ström S), så de **speglas** som konstanter i `datasetGate.ts`. Driften bevakas: tre tester
+> bisekterar riktiga `isSwing` kring varje speglat värde, så en ändrad tröskel i produktionen
+> **failar högljutt** i stället för att dev-grinden tyst använder ett gammalt tal. Cooldown
+> tillämpas inte längre på de räddade svingarna — två överlappande paddade grannsegment kan
+> alltså ge två poster av samma rörelse; `suspectMultiSwing` och annotatörens öga i CVAT är
+> skyddet tills det visar sig vara ett problem i praktiken.
+
+### [x] S-5 — Faskvot som bär över mellan svingar
+
+> **Klart (2026-09-03).** `cullToPhaseTargets` fördelade tidigare **inom en sving**, vilket gör
+> lågviktade faser matematiskt onåbara: `finish` är 6 % av 7 frames = 0,42 och avrundas till noll
+> i *varje* sving, så en körning på 50 svingar exporterade **noll** finish-frames. Kvoten räknas
+> nu som ett **löpande underskott över hela exporten**: per fas hålls `dealt`, och varje frame
+> går till den fas som ligger längst under `målvikt × (frames utdelade hittills + 1)` och
+> fortfarande har frames kvar i den aktuella svingen.
+>
+> **Rent, inget modulnivå-tillstånd:** ny `PhaseQuotaState` skickas in och ut
+> (`cullToPhaseTargets(picks, max, state) → { kept, state }`, `createPhaseQuotaState()`).
+> Ingången muteras aldrig; `extractDataset` trådar en lokal genom hela körningen, klipp
+> inräknade. En färsk state ger exakt gamla beteendet, så `targetCounts` är oförändrad.
+> En sving som ligger **under** budgeten räknas också in, annars överkompenserar nästa sving
+> för ett underskott som aldrig fanns.
+>
+> **Mätt** över 10 svingar med en realistisk 32-framesselektion: största avvikelse **0,9 pe**
+> (address 8,6/8, impact 17,1/18, finish 5,7/6) — alla faser representerade. Testen täcker
+> att finish får frames över en serie om 10 svingar, att hela fördelningen ligger inom
+> **3 procentenheter** från målen, att staten inte muteras och att en färsk state beter sig
+> som förut.
+>
+> **Verifierat (S-4 + S-5):** `npm run build` rent, `npx vitest run` **259/259** (21 nya i
+> `datasetGate.test.ts`, phaseQuota-svitens fördelningstester utökade), `npm run lint`
+> 42 problem = **identiskt med baslinjen** (verifierat genom stash-jämförelse, inga nya).
+> `git diff main` mot `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`,
+> `poseEnvelopeSelection.ts` och Vision-anropet: **tom**. Ej körd på riktiga klipp — Erik kör
+> första omgången och kontrollerar grind-uppdelningen och fasfördelningen i sammanfattningen.
+
 ---
 
 ## Avklarat

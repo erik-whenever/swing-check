@@ -5,14 +5,21 @@
 //
 //   extractPoseTrajectory()   pose samples for the whole clip        (poseTrajectory.ts)
 //     → detectSessionSwings() one segment per swing, gated           (poseSegments.ts)
-//       → selectEnvelopeFrames(envelope, ANALYSIS_FRAME_COUNT, …)    (poseEnvelopeSelection.ts)
-//         → cullToPhaseTargets(…, MAX_FRAMES_PER_SWING)              (phaseQuota.ts — dev only)
-//           → grabFramesAtTimes(quality 0.92, full frame)            (poseFrameGrab.ts)
+//       → collectDatasetSwings() re-judge the rejects, looser        (datasetGate.ts — dev only)
+//         → selectEnvelopeFrames(envelope, ANALYSIS_FRAME_COUNT, …)  (poseEnvelopeSelection.ts)
+//           → cullToPhaseTargets(…, MAX_FRAMES_PER_SWING, state)     (phaseQuota.ts — dev only)
+//             → grabFramesAtTimes(quality 0.92, full frame)          (poseFrameGrab.ts)
 //
 // That matters more than convenience: a shaft detector will run on the frames
-// production sends, so the dataset has to be drawn from the same selection. The only
-// dev-side step is the CULL, which subsets those 32 frames down to a number a human
-// can annotate — it removes frames, it never picks different ones.
+// production sends, so the dataset has to be drawn from the same selection. Two steps
+// are dev-side only, and neither reaches into production:
+//
+//   - the GATE, which takes swings production's `isSwing` refused (clipped tail, slow
+//     motion past the 3 s cap) because a labelling budget and an analysis budget want
+//     different things. `isSwing` is untouched; the extra swings are tagged `gate`.
+//   - the CULL, which subsets those 32 frames down to a number a human can annotate.
+//     It removes frames, it never picks different ones. Its phase deficit runs across
+//     the WHOLE export, so the light phases get their share (see phaseQuota.ts).
 //
 // FULL RESOLUTION, NO CROP. `maxOutputSide: Infinity` and no `cropBounds`, so the JPEG
 // is the source frame untouched. The Ström E crop is right for the Vision call (it
@@ -31,6 +38,14 @@ import { detectSessionSwings } from '../poseSegments';
 import { extractPoseTrajectory } from '../poseTrajectory';
 import { derivePhase } from './datasetPhase';
 import {
+  DATASET_MAX_ENVELOPE_SEC,
+  DATASET_MIN_ENVELOPE_SEC,
+  MULTI_SWING_SUSPECT_SEC,
+  collectDatasetSwings,
+  gateCounts,
+  type DatasetGate,
+} from './datasetGate';
+import {
   APP_VERSION,
   SHAFT_PHASES,
   frameId,
@@ -42,8 +57,10 @@ import {
 import {
   MAX_FRAMES_PER_SWING,
   PHASE_TARGET_WEIGHTS,
+  createPhaseQuotaState,
   cullToPhaseTargets,
   tallyPhases,
+  type PhaseQuotaState,
 } from './phaseQuota';
 import {
   SLOWMO_ENVELOPE_THRESHOLD_SEC,
@@ -83,6 +100,12 @@ export interface SwingResult {
   impactSec: number | null;
   /** Frames `selectEnvelopeFrames` returned, before the cull — for the summary. */
   selectedCount: number;
+  /** Which gate admitted this swing (see datasetGate.ts). */
+  gate: DatasetGate;
+  /** Envelope had no settled finish. Accepted here, rejected by production. */
+  clippedTail: boolean;
+  /** Envelope long enough to possibly hold more than one swing — needs a human eye. */
+  suspectMultiSwing: boolean;
   frames: ExtractedFrame[];
 }
 
@@ -106,6 +129,18 @@ export interface DatasetRun {
   distribution: PhaseDistribution[];
   /** Share of frames drawn from slow-motion swings, against the spec's 15 % cap. */
   slowmo: SlowmoSummary;
+  /** How many swings each acceptance gate contributed across the whole run. */
+  gates: GateSummary;
+}
+
+/** Swing counts per acceptance gate — the run's answer to "how much did we loosen?". */
+export interface GateSummary {
+  /** Swings production's `isSwing` accepted unchanged. */
+  production: number;
+  /** Swings only the dataset-relaxed gate accepted. */
+  relaxed: number;
+  /** Swings flagged `suspectMultiSwing`, across both gates. */
+  suspectMultiSwing: number;
 }
 
 export interface SlowmoSummary {
@@ -150,6 +185,10 @@ export async function extractDataset(
   const results: ClipResult[] = [];
   const frames: ExtractedFrame[] = [];
   const startedAt = new Date();
+  // The phase deficit runs across the WHOLE export, clips included — otherwise a light
+  // phase like `finish` never wins a deal and the dataset simply lacks it. Threaded
+  // through every cull below; `cullToPhaseTargets` never mutates what it is handed.
+  let quota: PhaseQuotaState = createPhaseQuotaState();
 
   for (const [clipIndex, clip] of clips.entries()) {
     if (signal?.aborted) break;
@@ -165,10 +204,14 @@ export async function extractDataset(
       if (signal?.aborted) break;
 
       const session = detectSessionSwings(samples);
+      // Production's verdict first, then the dev gate over what it rejected. Ordered by
+      // envelope start, so `swingIndex` — and therefore every frame id — is time-ordered
+      // regardless of which gate found the swing.
+      const detected = collectDatasetSwings(session);
       report('grabbing', 0);
 
       const swings: SwingResult[] = [];
-      for (const [swingIndex, swing] of session.swings.entries()) {
+      for (const [swingIndex, swing] of detected.swings.entries()) {
         if (signal?.aborted) break;
         // Exactly production's call — bounded to this segment, budget ANALYSIS_FRAME_COUNT.
         const selection = selectEnvelopeFrames(
@@ -181,7 +224,9 @@ export async function extractDataset(
           t: pick.t,
           phase: derivePhase(pick.t, swing.envelope),
         }));
-        const kept = cullToPhaseTargets(phased, MAX_FRAMES_PER_SWING);
+        const culled = cullToPhaseTargets(phased, MAX_FRAMES_PER_SWING, quota);
+        const kept = culled.kept;
+        quota = culled.state;
 
         const envelopeSec: [number, number] = [
           swing.envelope.startSec,
@@ -214,6 +259,10 @@ export async function extractDataset(
             slowmo,
             envelopeDurationSec: round3(envelopeDurationSec),
             slowmoMode: clip.slowmoMode,
+            gate: swing.gate,
+            clippedTail: swing.envelope.clippedTail,
+            hasConfidentImpact: swing.impactSec !== null,
+            suspectMultiSwing: swing.suspectMultiSwing,
             notes: clip.notes,
           },
         }));
@@ -223,27 +272,36 @@ export async function extractDataset(
           envelopeSec,
           impactSec: swing.impactSec,
           selectedCount: selection.picks.length,
+          gate: swing.gate,
+          clippedTail: swing.envelope.clippedTail,
+          suspectMultiSwing: swing.suspectMultiSwing,
           frames: swingFrames,
         });
         frames.push(...swingFrames);
-        report('grabbing', (swingIndex + 1) / session.swings.length);
+        report('grabbing', (swingIndex + 1) / detected.swings.length);
       }
 
       results.push({
         clipName,
         poseSamples: samples.length,
         swings,
-        rejected: session.rejected.map(
+        // Only what NEITHER gate wanted — the reason is the relaxed gate's, since that
+        // is the one that had the final say.
+        rejected: detected.rejected.map(
           (r) => `[${r.candidate.startSec.toFixed(2)}–${r.candidate.endSec.toFixed(2)}] ${r.reason}`,
         ),
       });
 
       // WARN so it surfaces in the in-app panel — the extractor runs on a phone too.
+      const counts = gateCounts(detected.swings);
       log.warn('Clip extracted', {
         clipName,
         poseSamples: samples.length,
-        swings: session.swings.length,
-        rejected: session.rejected.length,
+        swings: detected.swings.length,
+        viaProductionGate: counts.production,
+        viaRelaxedGate: counts.relaxed,
+        suspectMultiSwing: counts.suspectMultiSwing,
+        rejected: detected.rejected.length,
         frames: swings.reduce((sum, s) => sum + s.frames.length, 0),
         segmentationReason: session.segmentation.reason ?? null,
       });
@@ -261,6 +319,7 @@ export async function extractDataset(
     frames,
     distribution: distribution(frames.map((f) => f.meta)),
     slowmo: slowmoSummary(frames.map((f) => f.meta)),
+    gates: gateCounts(results.flatMap((c) => c.swings)),
   };
 }
 
@@ -295,8 +354,11 @@ export function buildDatasetZip(run: DatasetRun): Blob {
     maxFramesPerSwing: MAX_FRAMES_PER_SWING,
     slowmoThresholdSec: SLOWMO_ENVELOPE_THRESHOLD_SEC,
     phaseTargets: PHASE_TARGET_WEIGHTS,
+    relaxedEnvelopeSecRange: [DATASET_MIN_ENVELOPE_SEC, DATASET_MAX_ENVELOPE_SEC],
+    multiSwingSuspectSec: MULTI_SWING_SUSPECT_SEC,
     clipCount: run.clips.length,
     swingCount: run.clips.reduce((sum, c) => sum + c.swings.length, 0),
+    swingsByGate: run.gates,
     frameCount: run.frames.length,
     frames: run.frames.map((f) => f.meta),
   };

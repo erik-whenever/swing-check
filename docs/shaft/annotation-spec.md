@@ -166,7 +166,8 @@ manifest.json
 ```
 
 `manifest.json` har en toppnivå (`appVersion`, `extractedAt`, `frameQuality`,
-`maxFramesPerSwing`, `phaseTargets`, antal) plus `frames: []` med ett objekt per bild:
+`maxFramesPerSwing`, `slowmoThresholdSec`, `phaseTargets`, `relaxedEnvelopeSecRange`,
+`multiSwingSuspectSec`, `swingsByGate`, antal) plus `frames: []` med ett objekt per bild:
 
 ```json
 {
@@ -180,6 +181,12 @@ manifest.json
   "impactSec": 7.85,
   "source": "own",
   "slowmo": false,
+  "envelopeDurationSec": 1.6,
+  "slowmoMode": "auto",
+  "gate": "production",
+  "clippedTail": false,
+  "hasConfidentImpact": true,
+  "suspectMultiSwing": false,
   "notes": ""
 }
 ```
@@ -194,6 +201,40 @@ frames i arkivet.
 inget som tränas mot. Utan verifierad impact (då selektionen ändå faller till uniform
 baslinje, ADR-002) finns ingen top/impact att ankra på och fasgränserna blir en generisk
 svingform. Annotatören ser framen och rättar i CVAT.
+
+### Acceptansgrind
+
+Extraktorn har en **egen, lösare grind** än produktionens `isSwing`
+(`src/lib/dataset/datasetGate.ts`). Skälet är att ekonomin är omvänd: ett falskt positiv i
+analysen kostar ett Vision-anrop och feedback på ett bollplock, medan en bortkastad sving
+i datasetet är en sving ingen kan annotera — och precis de svingar produktionen vägrar
+analysera är de kantfall en skaftdetektor måste överleva. `isSwing` är **orörd**; den
+lösare grinden körs efter och tar upp det produktionen förkastade.
+
+En kandidat accepteras när `envelope.valid`, envelope-varaktigheten ligger i
+**[0,6 s, 12,0 s]** och topphastigheten klarar produktionens tröskel (0,4 × refSpeed).
+Alltså släpps `clippedTail`, dålig handledssynlighet, nedsvingsgränserna och cooldown.
+Kvar står den **vertikala exkursionen** (0,08) — händer som aldrig gick upp är ett
+bollplock, och ett bollplock är ingen sving hur hungrigt datasetet än är.
+
+Envelopes över **3,0 s** (produktionens en-svings-tak) kan spänna över flera svingar. De
+körs vidare oförändrat och taggas `suspectMultiSwing: true` i stället för att delas här —
+att dela dem hade betytt att implementera om segmenteringen i dev-lagret. Annotatören
+kontrollerar dem i CVAT.
+
+Varje frame bär `gate` (`production` | `dataset-relaxed`), `clippedTail`,
+`hasConfidentImpact` och `suspectMultiSwing`, så kvaliteten på de lösare fallen kan mätas
+separat när annoteringarna kommer tillbaka. Körsammanfattningen visar hur många svingar
+varje grind bidrog med.
+
+### Fasfördelning över körningen
+
+Faskvoten balanseras över **hela exporten**, inte per sving. Per sving går det inte: en
+fas så lätt som `finish` (6 % av 7 frames = 0,42) avrundas till noll i varje enskild
+sving, och en körning på 50 svingar exporterar då noll finish-frames. Underskottet bärs
+i stället framåt mellan svingar tills fasen vinner en tilldelning. Mätt över 10 svingar
+med en realistisk 32-framesselektion ligger varje fas inom **0,9 procentenheter** från
+sitt mål (finish 5,7 % mot 6 %).
 
 ### Gränser
 
