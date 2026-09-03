@@ -1317,6 +1317,39 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > `poseEnvelopeSelection.ts` och Vision-anropet: **tom**. Ej körd på riktiga klipp — Erik kör
 > första omgången och kontrollerar grind-uppdelningen och fasfördelningen i sammanfattningen.
 
+### [x] S-6 — Kalibreringsset ur exporterna
+
+> **Klart (2026-09-03).** `scripts/build-calibration-set.mjs` drar de 100 frames som annoteras
+> **oberoende av båda annotatörerna** och därefter blir permanent evalset. Läser alla `.zip` i
+> `data/shaft/exports/` (central directory + `zlib.inflateRawSync` — inget nytt beroende), slår
+> ihop manifesten till en pool och **avbryter vid dubbletter av `id`**: samma klipp i två exporter
+> betyder att bildens bytes inte är garanterat identiska med metadatan, vilket är precis vad
+> reservationslistan finns för att förhindra.
+>
+> **Deterministiskt:** poolen sorteras på `id` och blandas med mulberry32 seedad från konstanten
+> `SELECTION_SEED` (`0x5caff01d`) — samma indata ger alltid samma 100 ids oavsett läsordning.
+> Fasfördelning downswing 40 / impact 15 / top 12 / backswing 12 / through 9 / address 7 /
+> finish 5; en fas som inte räcker fylls upp från `downswing`, och räcker inte den heller tas
+> resten från övriga faser med en **varning i `summary.md`** (poolen är då för liten).
+> **Max 1 frame per sving** när poolen tillåter det — två frames ur samma sving är nästan samma
+> bild i en överensstämmelsemätning. Taket *höjs ett steg i taget* när poolen har färre svingar
+> än setet behöver frames, i stället för att släppas helt (annars stackas hela bristen på den
+> sving som råkar ligga först i blandningen). `source` balanseras mot ~50/50 web/own.
+>
+> Utdata i `data/shaft/calibration/`: `calibration.zip` (`frames/<id>.jpg` + `manifest.json` med
+> samma per-frame-format som indata plus `calibration: true`), `reserved-ids.txt` (ett id per rad
+> — **bannlysta från träning**) och `summary.md` (faktisk fas-/källfördelning, pool, exporter,
+> varningar). Skriptet skriver **aldrig utanför `data/shaft/`** (guard före varje skrivning).
+>
+> **Verifierat på riktiga data:** 4 exporter → pool 1435 frames / 205 svingar, inga dubbletter;
+> draget gav 100 frames, alla fasmål exakt, 50/50 web/own, **100 svingar** (max 1 per sving).
+> `calibration.zip` läses av .NET:s `ZipFile` (101 poster) och JPEG-magic stämmer.
+> `npx vitest run scripts/build-calibration-set.test.mjs` 15/15 — determinism (även mot omkastad
+> läsordning), att seeden faktiskt styr draget, fasmål, downswing-utfyllnad, max 1 per sving,
+> källbalans, samt en ZIP-rundtur läsare↔skrivare. Spec-avsnitt tillagt i
+> [shaft/annotation-spec.md](shaft/annotation-spec.md) (*Kalibreringssetet: dra, reservera,
+> respektera*).
+
 ---
 
 ## Avklarat

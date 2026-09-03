@@ -3,7 +3,16 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-03.
 >
-> **Senast (2026-09-03, stream-shaft):** S-4 egen acceptansgrind för datasetextraktion
+> **Senast (2026-09-03, stream-shaft):** S-6 kalibreringsset —
+> `scripts/build-calibration-set.mjs` drar 100 frames ur ZIP:arna i `data/shaft/exports/`
+> (deterministiskt: id-sorterad pool + seedad PRNG, konstanten `SELECTION_SEED`; fasfördelning
+> downswing 40/impact 15/top 12/backswing 12/through 9/address 7/finish 5; max 1 frame per sving;
+> ~50/50 web/own) och skriver `data/shaft/calibration/` — `calibration.zip`, `reserved-ids.txt`
+> och `summary.md`. **`reserved-ids.txt` är bindande:** de 100 ids:en är permanent evalset och
+> får aldrig ingå i träningsdata. Körd på riktiga data: pool 1435 frames / 205 svingar → 100
+> frames, alla fasmål exakt, 100 olika svingar, 50/50 källa.
+>
+> **Tidigare samma dag (stream-shaft):** S-4 egen acceptansgrind för datasetextraktion
 > (`src/lib/dataset/datasetGate.ts` — `isSwing` orörd, den lösare grinden omprövar bara det
 > produktionen förkastade; `clippedTail` och envelopes upp till 12 s släpps in, exkursionsgolvet
 > kvar, >3 s taggas `suspectMultiSwing`) och S-5 faskvot som bär över mellan svingar

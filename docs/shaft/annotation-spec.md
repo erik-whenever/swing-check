@@ -67,7 +67,9 @@ ska hållas i synk för hand.
 ## Kalibreringsset
 100 frames (viktade mot downswing) annoteras **oberoende av båda annotatörerna** före
 produktionsannotering. Målvärde: **medianavvikelse < 0,5 skaftbredd**. Setet blir därefter
-permanent evalset och **tränas aldrig på**.
+permanent evalset och **tränas aldrig på**. Setet dras med
+`scripts/build-calibration-set.mjs` — se *[Kalibreringssetet: dra, reservera,
+respektera](#kalibreringssetet-dra-reservera-respektera)* längst ned.
 
 ## Persondata
 Datasetet innehåller identifierbara personer och **publiceras aldrig**. Bilder och exporter
@@ -245,3 +247,82 @@ skrivas trasiga. Ligger inte i närheten för en handannoteringsomgång.
 Exporten läser produktionskoden och matar aldrig tillbaka i den: ingen store-skrivning,
 inget Vision-anrop, ingen `SwingRecord`. `frameExtractor.ts`, `poseEnvelope.ts`,
 `poseSegments.ts` och `poseEnvelopeSelection.ts` är oförändrade.
+
+---
+
+## Kalibreringssetet: dra, reservera, respektera
+
+`scripts/build-calibration-set.mjs` drar de 100 frames som utgör kalibreringssetet ur
+de exporterade ZIP:arna i `data/shaft/exports/`. Setet har två liv, i den ordningen:
+
+1. **Annotatörsöverenskommelse.** Båda annotatörerna sätter sina två punkter på samma
+   100 bilder, oberoende av varandra, *innan* produktionsannoteringen börjar. Utfallet
+   mäts mot målvärdet ovan (medianavvikelse < 0,5 skaftbredd). Punkter som systematiskt
+   glider isär betyder att specen är otydlig, inte att någon annoterar slarvigt — då
+   skärps specen och setet annoteras om.
+2. **Permanent evalset.** Efter kalibreringen är samma 100 frames det setet varje
+   skaftdetektor mäts på. Därför får de **aldrig ingå i träningsdata**.
+
+### `reserved-ids.txt` är bindande
+
+`data/shaft/calibration/reserved-ids.txt` innehåller ett frame-id per rad — exakt de
+frames som ligger i kalibreringssetet. **All framtida träningsdatabyggnad måste läsa
+filen och filtrera bort dessa ids.** En frame som både tränats på och mäts på ger ett
+memoreringsvärde, inte ett generaliseringsvärde, och det syns inte på siffran: den blir
+bara omotiverat bra. Ids är stabila och härledda (`frameId`, se
+[`src/lib/dataset/datasetTypes.ts`](../../src/lib/dataset/datasetTypes.ts)), så
+filtreringen fungerar även mot en ny export av samma klipp.
+
+### Så dras setet
+
+```bash
+node scripts/build-calibration-set.mjs
+node scripts/build-calibration-set.mjs --dry-run            # pool + urval, skriver inget
+node scripts/build-calibration-set.mjs --exports <dir> --out <dir>
+```
+
+Skriptet läser alla `.zip` i `data/shaft/exports/` (`frames/` + `manifest.json` ur var
+och en) och slår ihop manifesten till en pool. **Dubbletter av `id` avbryter körningen**
+och listas: samma klipp har då extraherats i två exporter, och de två bildernas bytes är
+inte garanterat identiska eftersom selektionen kan ha ändrats mellan körningarna — en
+frame i evalsetet vars pixlar inte matchar metadatan är precis det reservationslistan
+finns för att förhindra. Ta bort den äldre exporten och kör om.
+
+**Fasfördelning** (summerar till 100, samma viktning mot downswing som tabellen ovan):
+
+| `downswing` | `impact` | `top` | `backswing` | `through` | `address` | `finish` |
+|---:|---:|---:|---:|---:|---:|---:|
+| 40 | 15 | 12 | 12 | 9 | 7 | 5 |
+
+Räcker inte en fas till fylls bristen från `downswing`. Räcker inte `downswing` heller
+tas resten från övriga faser — det loggas som en **varning i `summary.md`** och betyder
+att poolen är för liten för ett spec-enligt set.
+
+**Urvalet är deterministiskt.** Poolen sorteras på `id` och blandas med en seedad PRNG
+(`SELECTION_SEED`, konstant i filen), så samma indata alltid ger samma 100 ids oavsett
+vilken ordning ZIP:arna lästes i. Ändra **inte** seeden efter att annoteringen startat:
+reservationslistan skulle byta innehåll och redan annoterade evalframes bli
+träningsbara. Fler exporter i `exports/` ändrar däremot draget — det är väntat, och
+skälet till att utdatan är en artefakt som sparas snarare än något som regenereras vid
+behov.
+
+**Spridning.** Max **1 frame per sving** när poolen tillåter det — två frames ur samma
+sving är nästan samma bild och köper en bråkdel av vad två frames ur olika svingar köper
+i en överensstämmelsemätning. Har poolen färre svingar än setet behöver frames höjs taket
+ett steg i taget i stället för att släppas helt. `source` balanseras mot ungefär hälften
+`web`, hälften `own`: webbklipp och egna klipp skiljer sig i kamera, bildutsnitt och
+kompression, och en kalibreringssiffra dragen ur bara det ena säger lite om det andra.
+
+### Utdata (`data/shaft/calibration/`)
+
+| Fil | Innehåll |
+|---|---|
+| `calibration.zip` | `frames/<id>.jpg` + `manifest.json` — samma metadataformat per frame som indata, plus `calibration: true` (och `exportFile`, vilket arkiv bilden lyftes ur). |
+| `reserved-ids.txt` | Ett id per rad. Listan över frames som är bannlysta från träning. |
+| `summary.md` | Faktisk fas- och källfördelning, antal svingar, poolens storlek, vilka exporter som ingick, samt varningar när draget inte kunde följa specen. |
+
+Skriptet skriver **aldrig utanför `data/shaft/`** (kontrolleras före varje skrivning) och
+lägger inga nya beroenden till projektet: ZIP läses med `node:zlib` och skrivs med samma
+store-metod-skrivare som [`src/lib/dataset/zip.ts`](../../src/lib/dataset/zip.ts).
+Urvalsfunktionen är ren och enhetstestad i `scripts/build-calibration-set.test.mjs`
+(determinism, fasfördelning, max 1 per sving).
