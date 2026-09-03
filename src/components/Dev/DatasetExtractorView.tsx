@@ -46,10 +46,10 @@ export function DatasetExtractorView() {
     const added: QueuedClip[] = Array.from(files).map((file, i) => ({
       key: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${i}`,
       file,
-      // `own` is the safer default: mis-tagging your own footage as web is the one
-      // that matters, since the spec forbids publishing the set either way but the
-      // provenance is what a licence question would be answered from.
-      source: 'own',
+      // `web` is the default because most clips in the set are downloaded ones; own
+      // footage is the exception you tag by hand. Provenance still matters (the spec
+      // forbids publishing the set either way), so check the tag before a run.
+      source: 'web',
       // `auto` derives slow-motion per swing from the envelope duration; the force modes
       // are the manual escape hatch for a clip the derivation gets wrong.
       slowmoMode: 'auto',
@@ -167,8 +167,8 @@ export function DatasetExtractorView() {
                     onChange={(e) => patch(clip.key, { source: e.target.value as ClipSource })}
                     className="rounded-md border border-line bg-raised px-2 py-1 text-[11px] text-fg"
                   >
-                    <option value="own">own</option>
                     <option value="web">web</option>
+                    <option value="own">own</option>
                   </select>
                 </label>
 
