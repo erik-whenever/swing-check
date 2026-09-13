@@ -67,8 +67,9 @@ describe('phaseQuotas', () => {
       backswing: 21, // 14 %
       top: 15, // 10 %
       through: 15, // 10 %
-      address: 12, // 8 %
+      address: 9, // 6 %
       finish: 9, // 6 %
+      idle: 3, // 2 %
     });
   });
 
@@ -79,8 +80,9 @@ describe('phaseQuotas', () => {
       backswing: 14,
       top: 10,
       through: 10,
-      address: 8,
+      address: 6,
       finish: 6,
+      idle: 2,
     });
   });
 

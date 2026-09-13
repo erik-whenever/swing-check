@@ -23,7 +23,7 @@
         "mutable": true,
         "input_type": "select",
         "default_value": "address",
-        "values": ["address", "backswing", "top", "downswing", "impact", "through", "finish"]
+        "values": ["idle", "address", "backswing", "top", "downswing", "impact", "through", "finish"]
       },
       {
         "name": "no_shaft",

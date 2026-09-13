@@ -104,28 +104,38 @@ En medvetet satt `outside` är data; en gissning är brus.
 |---|---|---|
 | `view` | annotatören | `dtl` \| `face_on` \| `other` |
 | `blur` | annotatören | `none` \| `mild` \| `severe` — se *[`blur` — mät, gissa inte](#blur--mät-gissa-inte)* |
-| `phase` | **extraktorn** | `address` \| `backswing` \| `top` \| `downswing` \| `impact` \| `through` \| `finish` |
+| `phase` | **annotatören** | `idle` \| `address` \| `backswing` \| `top` \| `downswing` \| `impact` \| `through` \| `finish` |
 | `no_shaft` | annotatören | bool — `true` = noll punkter placerade, behålls som negativt exempel |
 
-### `phase` annoteras inte för hand
+### `phase` sätts av annotatören
 
-**Fasen härleds av extraktorn ur svingens envelope och står i `manifest.json`.** Den fylls i
-från manifestet **när tasken skapas** och annotatören ska **varken sätta eller ändra den** —
-hoppa förbi fältet i CVAT.
+**Fasen sätts av annotatören för hand** tills fashärledningen förbättrats — se
+[öppen fråga F5](../oppna-fragor.md#f5--fashärledningen-från-envelope-har-50--felfrekvens).
 
-Skälet är mätt: i kalibreringen satte de två annotatörerna samma fas på bara **56 av 97**
-frames (58 %), vilket är den lägsta siffran i hela mätningen. Det är inte slarv utan en
-omöjlig uppgift — var `top` slutar och `downswing` börjar går inte att se på en stillbild,
-medan extraktorn har hela envelopen och en tidsstämpel. Handpåläggning bytte alltså ut ett
-konsekvent maskinellt värde mot två oense mänskliga.
+Bakgrund: batch-01 visade att extraktorn satte fel fas på ungefär hälften av frames mot
+manuell bedömning. Att förifylls ett fel värde gav fler rättningar än noll förifyllningar
+och sparade ingen tid. Annotatören sätter därför `phase` direkt i CVAT som vilket annat
+attribut som helst.
 
-**Värdet är ungefärligt, och det är avsiktligt.** `phase` är ett *viktnings*attribut — det
-styr hur frames fördelas i draget (se *Fasfördelning — målvikter*) och hur utfall
-grupperas — det **tränas aldrig mot**. För svingar utan verifierad impact
-(`hasConfidentImpact: false`) finns ingen top/impact att ankra på, selektionen faller till
-uniform baslinje (ADR-002) och fasgränserna blir en generisk svingform; se
-*[Fasfördelning över körningen](#fasfördelning-över-körningen)*. En ungefärlig fas som är
-ungefärlig på **samma sätt** för alla frames är precis vad ett viktningsattribut behöver.
+**Fasernas innebörd:**
+
+- **`idle`** — spelaren håller i klubban utan att vara i eller direkt inför en sving: före
+  uppställning, mellan slag, efter att svinget är avslutat och spelaren tagit ett steg.
+  Skilj från `address` (spelaren i definierad uppställning inför ett *kommande* slag) och
+  `finish` (slutposition omedelbart efter ett *genomfört* slag).
+- **`address`** — definierad uppställning inför slag.
+- **`backswing`** — uppsvingen.
+- **`top`** — toppen av svingen.
+- **`downswing`** — nedsvingen.
+- **`impact`** — impact-zonen.
+- **`through`** — genomsvingen efter impact (klubban i rörelse).
+- **`finish`** — slutpositionen; klubban stillastående bakom huvudet.
+
+**`phase` är ett viktningsattribut** — det styr hur frames fördelas i draget
+(se *Fasfördelning — målvikter*) och hur utfall grupperas — det **tränas aldrig mot**. För
+svingar utan verifierad impact (`hasConfidentImpact: false`) finns ingen top/impact att
+ankra på och fasgränserna är en generisk svingform; se
+*[Fasfördelning över körningen](#fasfördelning-över-körningen)*.
 
 ## Zoomregel
 `blur=severe` annoteras på **minst 200 % zoom** — streakets mittpunkt går inte att sätta i
@@ -145,7 +155,8 @@ minsta andelarna.
 
 | Fas | Målvikt |
 |---|---|
-| `address` | 8 % |
+| `idle` | 2 % |
+| `address` | 6 % |
 | `backswing` | 14 % |
 | `top` | 10 % |
 | `downswing` | **34 %** |
@@ -361,9 +372,10 @@ inget som tränas mot. Utan verifierad impact (`hasConfidentImpact: false`, då 
 ändå faller till uniform baslinje, ADR-002) finns ingen top/impact att ankra på och
 fasgränserna blir en generisk svingform.
 
-**Manifestets `phase` är det värde som gäller.** Det fylls i i CVAT när tasken skapas och
-rättas **inte** för hand — se *[`phase` annoteras inte för hand](#phase-annoteras-inte-för-hand)*
-för varför handpåläggning gjorde attributet sämre, inte bättre.
+**Manifestets `phase` är det härledda startvärdet.** Det sätts sedan av annotatören för
+hand i CVAT — se *[`phase` sätts av annotatören](#phase-sätts-av-annotatören)*. Det
+annoterade värdet är auktoritativt; `scripts/reconcile-phase.mjs` slår ihop dem och
+skriver `phase-corrected.json` som träningspipelines ska läsa.
 
 ### Acceptansgrind
 
@@ -581,7 +593,7 @@ vinkelskillnad över ±180-sömmen, samt jämförelselogiken på syntetiska expo
 
 ---
 
-## Träningsbatchar: dra, exkludera, förifyll
+## Träningsbatchar: dra, exkludera
 
 Kalibreringssetet är evalset och tränas aldrig på. Allt annat i poolen är
 annoteringsbart, och `scripts/build-training-batch.mjs` skär ut det i batchar.
@@ -619,7 +631,7 @@ skiljer:
 - **Faskvoterna** kommer från specens målvikter ovan, upplösta till hela frames med största
   resten (jämför [F4 i öppna frågor](../oppna-fragor.md) — kalibreringssetets kvoter gör
   det *inte*). För `--n 150`: downswing 51, impact 27, backswing 21, top 15, through 15,
-  address 12, finish 9.
+  address 9, finish 9, idle 3.
 - **Seeden** är `TRAINING_SEED`, skild från kalibreringens `SELECTION_SEED`. Delad seed
   hade korrelerat de två blandningarna, så träningsbatchen hade dragits mot just de frames
   som nätt och jämnt missade kalibreringsurvalet — träningsdata av evalsetets närmaste
@@ -631,17 +643,22 @@ skiljer:
 |---|---|
 | `batch.zip` | `frames/<id>.jpg` + `manifest.json`, samma per-frame-format som exporterna plus `trainingBatch`. Manifestet bär `phase` per frame. |
 | `ids.txt` | Ett id per rad. Läses automatiskt som exkludering av nästa batch. |
-| `prefill-phase.xml` | Förifylld `phase` för CVAT — se nedan. |
 | `labels-frame-meta.json` | Etikettschemat taggen kräver. |
+| `prefill-phase.xml` | **Skrivs ej** — förifyllning inaktiverad, se nedan. |
 | `summary.md` | Exkludering, fas- och källfördelning, exporter, varningar. |
 
-### Förifylld `phase` i CVAT
+### Förifylld `phase` i CVAT — AVSTÄNGD
 
-Specen säger att `phase` fylls från manifestet vid tasksskapande. Det går. Formatet nedan
-är verifierat mot CVAT:s dokumentation, inte antaget:
+> ⚠️ **`prefill-phase.xml` skrivs inte av `build-training-batch.mjs` tills vidare.**
+> Fashärledningen hade ~50 % felfrekvens mot manuell bedömning på batch-01 — fler
+> rättningar än noll förifyllningar. Annotatören sätter `phase` för hand som vilket annat
+> attribut som helst. Se [öppen fråga F5](../oppna-fragor.md#f5--fashärledningen-från-envelope-har-50--felfrekvens).
+
+Förmågan att generera `prefill-phase.xml` finns kvar i `prefillPhaseXml()` i skriptet och
+kan återaktiveras när fashärledningen är tillräckligt bra. Det verifierade formatet är:
 
 ```bash
-cvat-cli task create "shaft batch-01" \
+cvat-cli task create "shaft batch-XX" \
   --labels labels-frame-meta.json \
   --annotation_path prefill-phase.xml \
   --annotation_format "CVAT 1.1" \
@@ -668,8 +685,7 @@ går bara att förifylla genom att skicka med ett skelettobjekt per frame, allts
 punkter — precis den styrning annoteringen ska vara fri från. Följden är att `phase` i
 exporten hamnar som en tagg-annotering och inte i `annotations[].attributes` där
 `view`/`blur`/`no_shaft` sitter. `scripts/measure-calibration.mjs` läser `phase` därifrån och
-får tomma fashinkar mot en batch med det här schemat; manifestet bär fasen oavsett och är
-den auktoritativa källan.
+får tomma fashinkar mot en batch med det här schemat; manifestet bär fasen oavsett.
 
 Skriptet skriver **aldrig utanför `data/shaft/`** och lägger inga nya beroenden till
 projektet. Exkludering, faskvoter och determinism är enhetstestade i

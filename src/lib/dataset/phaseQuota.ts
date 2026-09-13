@@ -50,7 +50,8 @@ export const MAX_FRAMES_PER_SWING = 7;
  * Sums to 1. Kept in sync with the table in docs/shaft/annotation-spec.md.
  */
 export const PHASE_TARGET_WEIGHTS: Record<ShaftPhase, number> = {
-  address: 0.08,
+  idle: 0.02,
+  address: 0.06,
   backswing: 0.14,
   top: 0.1,
   downswing: 0.34,

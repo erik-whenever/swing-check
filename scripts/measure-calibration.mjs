@@ -78,7 +78,7 @@ export const ATTRIBUTES = ['phase', 'view', 'blur'];
 
 /** Value order per attribute, so tables read in swing/severity order, not hash order. */
 export const ATTRIBUTE_VALUES = {
-  phase: ['address', 'backswing', 'top', 'downswing', 'impact', 'through', 'finish'],
+  phase: ['idle', 'address', 'backswing', 'top', 'downswing', 'impact', 'through', 'finish'],
   view: ['dtl', 'face_on', 'other'],
   blur: ['none', 'mild', 'severe'],
 };

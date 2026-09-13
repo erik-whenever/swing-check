@@ -8,15 +8,20 @@ import type { DatasetGate } from './datasetGate';
 import type { SlowmoMode } from './slowmo';
 
 /**
- * The seven frame phases from the annotation spec's `phase` attribute.
+ * The eight frame phases from the annotation spec's `phase` attribute.
  *
  * NOT the same set as `SwingPhase` in frameExtractor.ts: the spec splits the code's
  * single `follow-through` into `through` (the club still travelling) and `finish`
  * (the held end position), because those look completely different to a shaft
  * detector — one is a motion streak, the other is a static club behind the head.
  * The mapping lives in `datasetPhase.ts`.
+ *
+ * `idle` covers frames where the player is standing with the club outside any swing:
+ * before setup, after a completed swing, or between shots. Distinct from `address`
+ * (defined pre-shot stance) and `finish` (held end position immediately after a swing).
  */
 export type ShaftPhase =
+  | 'idle'
   | 'address'
   | 'backswing'
   | 'top'
@@ -27,6 +32,7 @@ export type ShaftPhase =
 
 /** Swing order. Every per-phase table in this folder is keyed and reported in it. */
 export const SHAFT_PHASES: ShaftPhase[] = [
+  'idle',
   'address',
   'backswing',
   'top',

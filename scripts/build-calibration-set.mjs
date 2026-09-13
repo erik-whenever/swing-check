@@ -77,7 +77,7 @@ export const PHASE_QUOTAS = {
  * with unused swings first — a shortfall lands on a light phase, where it costs least.
  * Fixed, because the order is part of what makes the draw reproducible.
  */
-export const PHASE_ORDER = ['downswing', 'impact', 'top', 'backswing', 'through', 'address', 'finish'];
+export const PHASE_ORDER = ['downswing', 'impact', 'top', 'backswing', 'through', 'address', 'finish', 'idle'];
 
 /** Where a phase's shortfall is made up from (the spec names downswing explicitly). */
 const FILL_PHASE = 'downswing';

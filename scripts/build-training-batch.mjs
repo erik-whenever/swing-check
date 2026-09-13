@@ -85,7 +85,8 @@ export const TRAINING_SEED = 0x7ba7c0de;
  * so it is not being re-drawn over this; the training batch follows the spec.
  */
 export const PHASE_TARGET_WEIGHTS = {
-  address: 0.08,
+  idle: 0.02,
+  address: 0.06,
   backswing: 0.14,
   top: 0.1,
   downswing: 0.34,
@@ -424,15 +425,24 @@ export function summaryMarkdown(result, context) {
  * The brief said: find out what works, and if nothing does, say so plainly instead of
  * shipping something that doesn't. Something does work — with two constraints that are
  * easy to trip over, so they are written down here rather than discovered in CVAT.
+ *
+ * DISABLED: prefill-phase.xml is NOT written by this script until phase derivation
+ * improves. `prefillPhaseXml` stays here so the capability can be re-enabled when
+ * the derivation error rate drops below a useful threshold. See docs/oppna-fragor.md F5.
  */
 function prefillNotes() {
   return [
-    '## Förifylld `phase` i CVAT',
+    '## Förifylld `phase` i CVAT — AVSTÄNGD',
     '',
-    'Specen säger att `phase` inte annoteras för hand utan fylls från manifestet vid',
-    'tasksskapande (annotation-spec.md → *`phase` annoteras inte för hand*). Det går, och',
-    'det här är formatet CVAT faktiskt tar emot — verifierat mot CVAT:s egen dokumentation,',
-    'inte gissat:',
+    '> ⚠️ **Förifyllning är tillfälligt inaktiverad.** Fashärledningen ur envelope hade',
+    '> ~50 % felfrekvens mot manuell bedömning på batch-01 — fler rättningar än noll',
+    '> förifyllningar. `prefill-phase.xml` skrivs INTE av det här skriptet tills vidare.',
+    '> Annotatören sätter `phase` för hand som vilket annat attribut som helst. Se',
+    '> docs/oppna-fragor.md → F5 och `scripts/reconcile-phase.mjs` för batch-01.',
+    '',
+    'Förmågan att generera filen finns kvar i `prefillPhaseXml()` och kan aktiveras igen',
+    'när fashärledningen är bättre. Det verifierade formatet är dokumenterat nedan för',
+    'referens.',
     '',
     '| Fil | Vad den är |',
     '|---|---|',
@@ -478,8 +488,8 @@ function prefillNotes() {
     '|---|---|',
     '| `batch.zip` | `frames/<id>.jpg` + `manifest.json` (samma per-frame-format som exporterna, plus `trainingBatch: true`). |',
     '| `ids.txt` | Ett id per rad. **Skicka in den som `--exclude` till nästa batch** — eller lita på att den hittas automatiskt, se nedan. |',
-    '| `prefill-phase.xml` | Förifylld `phase`, se ovan. |',
     '| `labels-frame-meta.json` | Etikettschema för taggen. |',
+    '| `prefill-phase.xml` | **Skrivs ej** — förifyllning inaktiverad, se *Förifylld `phase` i CVAT* ovan. |',
     '| `summary.md` | Den här filen. |',
     '',
     'Nästa batch hittar `ids.txt` **automatiskt**: skriptet läser varje',
@@ -621,10 +631,14 @@ function main(argv) {
     ...result.frames.map((f) => ({ path: `frames/${f.id}.jpg`, data: jpegs.get(f.id) })),
   ]);
 
+  // prefill-phase.xml DISABLED — phase derivation error rate ~50 % on batch-01.
+  // Re-enable by un-commenting the line below when derivation improves. See F5 in
+  // docs/oppna-fragor.md and scripts/reconcile-phase.mjs for the batch-01 analysis.
+  // writeGuarded(path.join(opts.outDir, 'prefill-phase.xml'), prefillPhaseXml(result.frames)),
+
   const written = [
     writeGuarded(path.join(opts.outDir, 'batch.zip'), zipBytes),
     writeGuarded(path.join(opts.outDir, 'ids.txt'), result.frames.map((f) => f.id).join('\n') + '\n'),
-    writeGuarded(path.join(opts.outDir, 'prefill-phase.xml'), prefillPhaseXml(result.frames)),
     writeGuarded(path.join(opts.outDir, 'labels-frame-meta.json'), frameMetaLabelsJson()),
     writeGuarded(
       path.join(opts.outDir, 'summary.md'),
