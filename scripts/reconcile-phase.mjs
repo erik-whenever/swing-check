@@ -111,6 +111,26 @@ export function readDerivedPhases(batchFile) {
   return phaseByFrame;
 }
 
+/**
+ * Read full manifest frame records from a batch ZIP.
+ *
+ * Returns a Map<frameId, manifestFrame> so callers can access any per-frame field
+ * (e.g. `hasConfidentImpact`) beyond what `readDerivedPhases` exposes.
+ *
+ * @param {string} batchFile path to batch.zip
+ * @returns {Map<string, object>}
+ */
+export function readManifestFrames(batchFile) {
+  const zip = openZip(batchFile);
+  const raw = readEntry(zip, MANIFEST_ENTRY);
+  const manifest = JSON.parse(raw.toString('utf8'));
+  const frameMap = new Map();
+  for (const frame of manifest.frames ?? []) {
+    if (frame.id) frameMap.set(frame.id, frame);
+  }
+  return frameMap;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Reconciliation — pure, testable
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,17 +175,50 @@ export function reconcile(annotated, derived) {
 // Reporting
 // ─────────────────────────────────────────────────────────────────────────────
 
-function printCrosstable(crosstable) {
-  // Collect phases that actually appear; keep PHASES order, unknown phases at end
-  const phaseOrder = (phases) =>
-    [...phases].sort((a, b) => {
-      const ia = PHASES.indexOf(a);
-      const ib = PHASES.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b);
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
+/**
+ * Build a crosstable from a subset of reconciled frames.
+ *
+ * @param {Record<string, {derived: string|null, annotated: string, changed: boolean}>} frames
+ * @param {Iterable<string>} ids subset of frame ids to include
+ * @returns {{ crosstable: Record<string, Record<string, number>>, changed: number, total: number }}
+ */
+export function buildCrosstable(frames, ids) {
+  const crosstable = {};
+  let changed = 0;
+  let total = 0;
+  for (const id of ids) {
+    const f = frames[id];
+    if (!f) continue;
+    total++;
+    if (f.changed) changed++;
+    const dKey = f.derived ?? '(missing)';
+    if (!crosstable[dKey]) crosstable[dKey] = {};
+    crosstable[dKey][f.annotated] = (crosstable[dKey][f.annotated] ?? 0) + 1;
+  }
+  return { crosstable, changed, total };
+}
+
+// Consistent phase sort: PHASES order first, then lexicographic for unknowns.
+function phaseOrder(phases) {
+  return [...phases].sort((a, b) => {
+    const ia = PHASES.indexOf(a);
+    const ib = PHASES.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
+function printCrosstable(label, crosstable, changed, total) {
+  const pct = total > 0 ? ((changed / total) * 100).toFixed(1) : '0.0';
+  console.log(`\n${label}`);
+  console.log(`Felfrekvens: ${changed} av ${total} (${pct} %)`);
+
+  if (total === 0) {
+    console.log('(inga frames i denna grupp)');
+    return;
+  }
 
   const derivedPhases = phaseOrder(Object.keys(crosstable));
   const annotatedPhases = phaseOrder([...new Set(Object.values(crosstable).flatMap(Object.keys))]);
@@ -175,7 +228,6 @@ function printCrosstable(crosstable) {
   const lpad = (s) => String(s).padStart(C);
 
   const header = pad('härlett\\ann') + annotatedPhases.map(lpad).join('') + lpad('Σ');
-  console.log('\nKorstabell: härlett → annoterat\n');
   console.log(header);
   console.log('─'.repeat(header.length));
 
@@ -245,20 +297,37 @@ function main(argv) {
 
   const annotated = readAnnotatedPhases(opts.exportFile);
   const derived = readDerivedPhases(opts.batchFile);
+  const manifestFrames = readManifestFrames(opts.batchFile);
 
   console.log(`\nAnnoterade frames ur export: ${annotated.size}`);
   console.log(`Frames i batchmanifest:       ${derived.size}`);
 
   const result = reconcile(annotated, derived);
 
-  const pct = (n) => (result.total > 0 ? ((n / result.total) * 100).toFixed(1) : '0.0') + ' %';
+  const pct = (n, tot) => (tot > 0 ? ((n / tot) * 100).toFixed(1) : '0.0') + ' %';
   console.log(`\nMatchade frames: ${result.total}`);
-  console.log(`Ändrade:         ${result.changed} av ${result.total} (${pct(result.changed)})`);
+  console.log(`Ändrade:         ${result.changed} av ${result.total} (${pct(result.changed, result.total)})`);
   if (result.onlyInBatch.length > 0) {
     console.log(`Ej annoterade:   ${result.onlyInBatch.length} frames finns i batch men saknar annotering`);
   }
 
-  printCrosstable(result.crosstable);
+  // Split reconciled frame ids by hasConfidentImpact from the manifest.
+  const withImpact = [];
+  const noImpact = [];
+  for (const id of Object.keys(result.frames)) {
+    const mf = manifestFrames.get(id);
+    if (mf?.hasConfidentImpact) withImpact.push(id);
+    else noImpact.push(id);
+  }
+
+  // Three crosstables: totalt, hasConfidentImpact=true, hasConfidentImpact=false.
+  const total = buildCrosstable(result.frames, Object.keys(result.frames));
+  const withImpactCt = buildCrosstable(result.frames, withImpact);
+  const noImpactCt = buildCrosstable(result.frames, noImpact);
+
+  printCrosstable('Korstabell: härlett → annoterat (totalt)', total.crosstable, total.changed, total.total);
+  printCrosstable('Korstabell: hasConfidentImpact = true', withImpactCt.crosstable, withImpactCt.changed, withImpactCt.total);
+  printCrosstable('Korstabell: hasConfidentImpact = false', noImpactCt.crosstable, noImpactCt.changed, noImpactCt.total);
 
   if (opts.dryRun) {
     console.log('\n--dry-run: inget skrivet.');
