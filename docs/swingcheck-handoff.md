@@ -3,7 +3,22 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-13.
 >
-> **Senast (2026-09-13, stream-shaft):** S-8 skärpta annoteringsregler — enbart dokumentation i
+> **Senast (2026-09-13, stream-shaft):** S-9 första träningsbatchen —
+> `scripts/build-training-batch.mjs` drar 150 frames ur `data/shaft/exports/` med evalsetet
+> exkluderat → `data/shaft/training/batch-01/` (`batch.zip`, `ids.txt`, `prefill-phase.xml`,
+> `labels-frame-meta.json`, `summary.md`). **`reserved-ids.txt` saknas ⇒ exit 1**, avsiktligt hårt.
+> Nästa batch plockar automatiskt upp varje `data/shaft/training/*/ids.txt`. Draget är
+> `selectCalibrationSet` återanvänd, men med specens målvikter som kvoter och egen seed
+> (`0x7ba7c0de`) — delad seed hade dragit batchen mot evalsetets närmaste grannar. **CVAT-
+> förifyllningen av `phase` funkar:** *CVAT for images 1.1* med `<tag label="frame_meta">` per bild,
+> plus `--labels`-schemat, i ett `cvat-cli task create`. Två fallgropar står i specen — schemat kan
+> inte importeras (attribut måste finnas i förväg, annars tas taggarna tyst inte emot) och
+> `image/@name` måste matcha bildnamnet i tasken. Verifierat: 150 frames / 150 svingar, alla
+> faskvoter exakt, 75/75 web/own, tomt snitt mot `reserved-ids.txt`, omkörning bit-identisk.
+> **Bifynd [F4](oppna-fragor.md):** kalibreringssetets `PHASE_QUOTAS` matchar inte specens
+> målvikter — loggat, inte rättat (setet är redan annoterat evalset).
+>
+> **Tidigare samma dag (stream-shaft):** S-8 skärpta annoteringsregler — enbart dokumentation i
 > [shaft/annotation-spec.md](shaft/annotation-spec.md), ingen kod. **`phase` annoteras inte längre
 > för hand** (fylls från `manifest.json` vid tasksskapande — 58 % enighet var mätningens lägsta
 > siffra och uppgiften är omöjlig på en stillbild). **`blur`** har fått en tillämpbar regel:

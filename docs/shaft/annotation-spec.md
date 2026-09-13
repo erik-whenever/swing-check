@@ -567,3 +567,99 @@ nya beroenden till projektet — ZIP-läsningen är återanvänd från
 `scripts/build-calibration-set.mjs`. Beräkningsfunktionerna är rena och enhetstestade i
 `scripts/measure-calibration.test.mjs` (avstånd, percentiler mot numpys `linear`,
 vinkelskillnad över ±180-sömmen, samt jämförelselogiken på syntetiska exporter).
+
+---
+
+## Träningsbatchar: dra, exkludera, förifyll
+
+Kalibreringssetet är evalset och tränas aldrig på. Allt annat i poolen är
+annoteringsbart, och `scripts/build-training-batch.mjs` skär ut det i batchar.
+
+```powershell
+# Default: 150 frames → data/shaft/training/batch-01/
+node scripts/build-training-batch.mjs
+node scripts/build-training-batch.mjs --n 200 --out data/shaft/training/batch-02
+node scripts/build-training-batch.mjs --dry-run    # pool + drag, skriver inget
+```
+
+### Exkludering är hela poängen
+
+Skriptet läser **`data/shaft/calibration/reserved-ids.txt` och avbryter om den saknas.**
+Det är avsiktligt hårt: en saknad lista ser ut precis som "inget att exkludera", och det
+felet upptäcks först månader senare när evalsiffrorna är omotiverat bra. Ett reserverat id
+i träningsdata gör varje evaltal till ett memoreringstal.
+
+Utöver den läses **varje `data/shaft/training/*/ids.txt`** utom den katalog som just skrivs,
+så en frame aldrig annoteras två gånger. Vilka filer som lästes står i batchens `summary.md`
+under *Exkludering* — kontrollera den tabellen, den är hela skyddet. `--exclude <fil>` lägger
+till fler listor, `--no-auto-exclude` stänger av den automatiska upptäckten.
+
+Rapporteras en exkluderad id som **saknad i poolen** betyder det att exporten den kom ur
+inte ligger i `data/shaft/exports/` — draget är fortfarande säkert, men poolen är inte den
+pool kalibreringssetet drogs ur.
+
+### Samma drag, egen seed
+
+Urvalet är `selectCalibrationSet` från `build-calibration-set.mjs`, återanvänd rakt av —
+samma spridning över svingar (max 1 per sving, taket höjs ett steg i taget), samma
+web/own-balans, samma utfyllnad från `downswing` när en fas tar slut. Bara två saker
+skiljer:
+
+- **Faskvoterna** kommer från specens målvikter ovan, upplösta till hela frames med största
+  resten (jämför [F4 i öppna frågor](../oppna-fragor.md) — kalibreringssetets kvoter gör
+  det *inte*). För `--n 150`: downswing 51, impact 27, backswing 21, top 15, through 15,
+  address 12, finish 9.
+- **Seeden** är `TRAINING_SEED`, skild från kalibreringens `SELECTION_SEED`. Delad seed
+  hade korrelerat de två blandningarna, så träningsbatchen hade dragits mot just de frames
+  som nätt och jämnt missade kalibreringsurvalet — träningsdata av evalsetets närmaste
+  grannar.
+
+### Utdata (`data/shaft/training/<batch>/`)
+
+| Fil | Innehåll |
+|---|---|
+| `batch.zip` | `frames/<id>.jpg` + `manifest.json`, samma per-frame-format som exporterna plus `trainingBatch`. Manifestet bär `phase` per frame. |
+| `ids.txt` | Ett id per rad. Läses automatiskt som exkludering av nästa batch. |
+| `prefill-phase.xml` | Förifylld `phase` för CVAT — se nedan. |
+| `labels-frame-meta.json` | Etikettschemat taggen kräver. |
+| `summary.md` | Exkludering, fas- och källfördelning, exporter, varningar. |
+
+### Förifylld `phase` i CVAT
+
+Specen säger att `phase` fylls från manifestet vid tasksskapande. Det går. Formatet nedan
+är verifierat mot CVAT:s dokumentation, inte antaget:
+
+```bash
+cvat-cli task create "shaft batch-01" \
+  --labels labels-frame-meta.json \
+  --annotation_path prefill-phase.xml \
+  --annotation_format "CVAT 1.1" \
+  local frames/
+```
+
+`prefill-phase.xml` är **CVAT for images 1.1**: ett `<image>` per frame med en
+`<tag label="frame_meta">` som bär `<attribute name="phase">`. `<tag>` är CVAT:s
+dokumenterade per-frame-annotering.
+
+**Två fallgropar, båda verifierade i CVAT:s dokumentation:**
+
+1. **Etikettschemat kan inte importeras.** *"Only label names can be imported this way,
+   colors, attributes, and skeleton labels must be defined manually."* Attributet `phase`
+   måste alltså finnas på tasken innan XML:en laddas upp — via `--labels` ovan eller för
+   hand i etikettkonstruktorn. Utan `frame_meta`-etiketten tas taggarna tyst inte emot.
+2. **`image/@name` måste matcha bildens namn i tasken.** Namnen i XML:en bär prefixet
+   `frames/`, vilket matchar `batch.zip` (CVAT behåller relativa sökvägar ur ett uppladdat
+   arkiv). Skapas tasken från en katalog med lösa JPEG:ar heter bilderna bara `<id>.jpg` —
+   ta bort prefixet först.
+
+**`phase` läggs som tag, inte som attribut på `shaft`-skelettet.** Ett attribut på skelettet
+går bara att förifylla genom att skicka med ett skelettobjekt per frame, alltså förplacerade
+punkter — precis den styrning annoteringen ska vara fri från. Följden är att `phase` i
+exporten hamnar som en tagg-annotering och inte i `annotations[].attributes` där
+`view`/`blur`/`no_shaft` sitter. `scripts/measure-calibration.mjs` läser `phase` därifrån och
+får tomma fashinkar mot en batch med det här schemat; manifestet bär fasen oavsett och är
+den auktoritativa källan.
+
+Skriptet skriver **aldrig utanför `data/shaft/`** och lägger inga nya beroenden till
+projektet. Exkludering, faskvoter och determinism är enhetstestade i
+`scripts/build-training-batch.test.mjs`.

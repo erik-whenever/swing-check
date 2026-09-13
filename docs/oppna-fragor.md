@@ -37,3 +37,23 @@ Supabase-rader har `user_id = null`. Hur (och om) inloggning ska införas är ob
 ### F3 — Vad ska ersätta boilerplate-README:t?
 **Status:** ÖPPEN
 README är fortfarande Vite-mallen. Förslag: kort projektbeskrivning som pekar till KONTEXT.md.
+
+### F4 — Kalibreringssetets faskvoter matchar inte specens målvikter
+**Status:** ÖPPEN · **Upptäckt:** 2026-09-13 (under S-9)
+`PHASE_QUOTAS` i `scripts/build-calibration-set.mjs` är downswing 40 / impact 15 / top 12 /
+backswing 12 / through 9 / address 7 / finish 5. Specens målvikter (och
+`PHASE_TARGET_WEIGHTS` i `src/lib/dataset/phaseQuota.ts`) ger för 100 frames i stället
+downswing 34 / impact 18 / top 10 / backswing 14 / through 10 / address 8 / finish 6.
+Kommentaren i kalibreringsskriptet påstår att kvoterna *är* målvikterna upplösta till hela
+frames, vilket de alltså inte är.
+
+**Konsekvens:** kalibreringssetet är övervikat mot `downswing` (+6) och `impact` (−3),
+`backswing` (−2) och `top` (+2) mot specen. Setet är redan draget och annoterat och är
+permanent evalset — det ska **inte** dras om, så avvikelsen är nu en egenskap hos evalsetet
+som får dokumenteras snarare än rättas. `scripts/build-training-batch.mjs` följer specens
+målvikter.
+
+**Att besluta:** (a) rätta kommentaren i kalibreringsskriptet så den beskriver vad kvoterna
+faktiskt är, och (b) avgöra om evalsetets fasfördelning ska stå kvar som den är — vilket
+betyder att eval-siffror per fas inte är direkt jämförbara med träningsfördelningen — eller
+om den skevheten ska vägas bort när eval rapporteras.

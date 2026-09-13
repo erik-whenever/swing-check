@@ -1445,6 +1445,62 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > saknade kalibreringsframesen in i tasken. Ingen omannotering av kalibreringssetet är planerad —
 > det är evalset, och siffrorna ovan är dess mätvärde.
 
+### [x] S-9 — Första träningsbatchen ur poolen
+
+> **Klart (2026-09-13).** `scripts/build-training-batch.mjs` drar en träningsbatch ur samma
+> exporter som kalibreringssetet, med evalsetet exkluderat. `--n` (default 150), `--out` (default
+> `data/shaft/training/batch-01`), `--exports`, `--exclude`, `--no-auto-exclude`, `--dry-run`.
+> Inga nya beroenden; samma skrivguard mot `data/shaft/`.
+>
+> **Exkluderingen är hela poängen och är hård.** `reserved-ids.txt` läses **först**, före allt
+> dyrt och långt före någon skrivning, och en saknad fil **avbryter med exit 1** och ett meddelande
+> som förklarar konsekvensen — en saknad lista ser annars ut precis som "inget att exkludera", och
+> det felet upptäcks först när evalsiffrorna är omotiverat bra. Utöver den läses **varje
+> `data/shaft/training/*/ids.txt`** utom den katalog som skrivs, så samma frame aldrig annoteras
+> två gånger. Exkluderade ids som *inte* finns i poolen rapporteras separat — det betyder att en
+> export saknas i `exports/` och att poolen inte är den kalibreringssetet drogs ur.
+>
+> **Draget är återanvänt, inte kopierat:** `selectCalibrationSet` från
+> `build-calibration-set.mjs` tar redan `size`/`quotas`/`seed`/`maxPerSwing`, så spridningen över
+> svingar, web/own-balansen och utfyllnaden från `downswing` är samma testade kod. Två skillnader:
+> **faskvoterna** kommer från specens målvikter upplösta med största resten (för 150: downswing 51,
+> impact 27, backswing 21, top 15, through 15, address 12, finish 9) och **seeden** är
+> `TRAINING_SEED = 0x7ba7c0de`, skild från kalibreringens — delad seed hade korrelerat
+> blandningarna och dragit batchen mot de frames som nätt och jämnt missade evalurvalet.
+>
+> **CVAT-förifyllningen undersöktes i stället för att antas, och den funkar.** `prefill-phase.xml`
+> är *CVAT for images 1.1* med en `<tag label="frame_meta">` per `<image>` som bär
+> `<attribute name="phase">`; `labels-frame-meta.json` är etikettschemat i den form
+> `cvat-cli --labels` tar. Ett kommando: `cvat-cli task create … --labels … --annotation_path …
+> --annotation_format "CVAT 1.1" local frames/`. **Två verifierade fallgropar** står i både
+> `summary.md` och specen: (1) schemat kan *inte* importeras — CVAT:s dokumentation är explicit om
+> att bara etikettnamn kan skapas ur en import, attribut måste finnas i förväg, annars tas taggarna
+> tyst inte emot; (2) `image/@name` måste matcha bildens namn i tasken (`frames/`-prefix matchar
+> `batch.zip`; en katalog med lösa JPEG:ar ger bara `<id>.jpg`). **Designval:** `phase` läggs som
+> *tag*, inte som attribut på `shaft`-skelettet, eftersom ett skelettattribut bara kan förifyllas
+> genom att skicka med förplacerade punkter. Följden — `phase` hamnar utanför
+> `annotations[].attributes` i exporten och `measure-calibration.mjs` får tomma fashinkar mot en
+> sådan batch — är noterad i specen; manifestet bär fasen och är auktoritativt.
+>
+> **Utdata i `data/shaft/training/batch-01/`:** `batch.zip` (150 JPEG + `manifest.json` med `phase`
+> per frame), `ids.txt`, `prefill-phase.xml`, `labels-frame-meta.json`, `summary.md`.
+>
+> **Verifierat på riktiga data:** pool 1435 → 1335 efter exkludering av 100 reserverade (0 saknade),
+> drog 150 frames över **150 svingar** (max 1/sving), alla sju faskvoter exakt, 75/75 web/own.
+> `ids.txt` × `reserved-ids.txt` = **tomt snitt**. ZIP:en har 151 poster och dess `manifest.json`-ids
+> är identiska med JPEG-posterna; XML:en är well-formed (150 `<image>`, 150 taggar) och dess
+> `phase` matchar manifestet för **alla 150**. Omkörning gav **bit-identisk `ids.txt`**. En
+> `--dry-run` mot `batch-02` plockade automatiskt upp `batch-01/ids.txt` (250 exkluderade).
+> Borttagen `reserved-ids.txt` ger **exit 1** och inget skrivet (filen återställd).
+> `npx vitest run` **343/343**, 32 nya i `scripts/build-training-batch.test.mjs`: exkludering från
+> flera håll (inklusive när hela `downswing` är reserverad och när poolen tar slut — då dras en
+> *kort* batch i stället för att gröpa ur evalsetet), determinism mot omkastad läsordning och mot
+> exkluderingsmängdens iterationsordning, att seeden gör skillnad och skiljer sig från
+> kalibreringens, kvoter som summerar till `n` för n = 1…400, samt XML- och JSON-utdatan.
+>
+> **Bifynd:** kalibreringssetets `PHASE_QUOTAS` matchar inte specens målvikter — loggat som
+> **[F4](oppna-fragor.md)**, inte tyst rättat: setet är redan annoterat och är evalset.
+
 ---
 
 ## Avklarat
