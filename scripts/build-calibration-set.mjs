@@ -52,13 +52,15 @@ export const SELECTION_SEED = 0x5caff01d;
 export const CALIBRATION_SIZE = 100;
 
 /**
- * PER-PHASE COUNTS, weighted towards downswing.
+ * PER-PHASE COUNTS, weighted towards downswing — for the calibration set only.
  *
- * These are `PHASE_TARGET_WEIGHTS` (src/lib/dataset/phaseQuota.ts) resolved to whole
- * frames for a set of 100 — same reasoning: downswing and impact are where the shaft
- * is a motion streak whose midpoint has to be judged, so that is where agreement
- * between two annotators is actually worth measuring. Address and finish are nearly
- * free to annotate and get the smallest shares.
+ * These are NOT `PHASE_TARGET_WEIGHTS` (src/lib/dataset/phaseQuota.ts); they are a
+ * separate distribution chosen for the calibration set. The training set is drawn from
+ * spec-compliant quotas instead. This set's heavier downswing weight (40 % vs. 34 % in
+ * the spec) is intentional: downswing is the hardest phase to detect and bears the model's
+ * value. A harder eval set makes the metric conservative—the right direction. See
+ * docs/oppna-fragor.md, B4, for the rationale and why the difference is preserved.
+ * The calibration set is drawn once, annotated, and then frozen as the permanent eval set.
  */
 export const PHASE_QUOTAS = {
   downswing: 40,

@@ -38,22 +38,21 @@ Supabase-rader har `user_id = null`. Hur (och om) inloggning ska införas är ob
 **Status:** ÖPPEN
 README är fortfarande Vite-mallen. Förslag: kort projektbeskrivning som pekar till KONTEXT.md.
 
-### F4 — Kalibreringssetets faskvoter matchar inte specens målvikter
-**Status:** ÖPPEN · **Upptäckt:** 2026-09-13 (under S-9)
+### B4 — Kalibreringssetets övervikt mot downswing är avsiktlig, behålls
+**Datum:** 2026-09-13 · **Status:** BESLUT
+
 `PHASE_QUOTAS` i `scripts/build-calibration-set.mjs` är downswing 40 / impact 15 / top 12 /
-backswing 12 / through 9 / address 7 / finish 5. Specens målvikter (och
-`PHASE_TARGET_WEIGHTS` i `src/lib/dataset/phaseQuota.ts`) ger för 100 frames i stället
+backswing 12 / through 9 / address 7 / finish 5. Specens målvikter
+(`PHASE_TARGET_WEIGHTS` i `src/lib/dataset/phaseQuota.ts`) är för 100 frames i stället
 downswing 34 / impact 18 / top 10 / backswing 14 / through 10 / address 8 / finish 6.
-Kommentaren i kalibreringsskriptet påstår att kvoterna *är* målvikterna upplösta till hela
-frames, vilket de alltså inte är.
 
-**Konsekvens:** kalibreringssetet är övervikat mot `downswing` (+6) och `impact` (−3),
-`backswing` (−2) och `top` (+2) mot specen. Setet är redan draget och annoterat och är
-permanent evalset — det ska **inte** dras om, så avvikelsen är nu en egenskap hos evalsetet
-som får dokumenteras snarare än rättas. `scripts/build-training-batch.mjs` följer specens
-målvikter.
+**Skillnaden är avsiktlig, inte en bugg:** kalibreringssetet är övervikat mot `downswing` (+6 procentenheter)
+och `impact` (−3), medan `backswing` och `top` är underrepresenterade. Setet är redan draget, annoterat och
+är permanent evalset — det dras aldrig om. Övervikten behålls och rättas inte av följande skäl:
 
-**Att besluta:** (a) rätta kommentaren i kalibreringsskriptet så den beskriver vad kvoterna
-faktiskt är, och (b) avgöra om evalsetets fasfördelning ska stå kvar som den är — vilket
-betyder att eval-siffror per fas inte är direkt jämförbara med träningsfördelningen — eller
-om den skevheten ska vägas bort när eval rapporteras.
+- Downswing är den fas som bär **modellens värde** — det är där skaftdetektorn måste fungera.
+- Downswing är **svårast att detektera** (rörelsestreak, midpunkt att bedöma).
+- Ett evalset som är hårdare än träningsfördelningen gör metriken **konservativ**, vilket är rätt riktning.
+
+**Påverkan:** eval-siffror per fas är inte direkt jämförbara med träningsfördelningen. Det är avsett
+och dokumenterat som en egenskap hos evalsetet, inte en förbisedd skillnad.

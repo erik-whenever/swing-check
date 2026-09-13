@@ -153,10 +153,12 @@ minsta andelarna.
 | `through` | 10 % |
 | `finish` | 6 % |
 
-Detta är kalibreringssetets *"viktade mot downswing"* uttryckt i siffror. Tabellen är
-den auktoritativa källan; `PHASE_TARGET_WEIGHTS` i
+Tabellen är den auktoritativa källan för träningsdata; `PHASE_TARGET_WEIGHTS` i
 [`src/lib/dataset/phaseQuota.ts`](../../src/lib/dataset/phaseQuota.ts) speglar den och
 ska hållas i synk för hand.
+
+**Notering: kalibreringssetets fördelning skiljer sig från detta.** Se
+*[Kalibreringsset](#kalibreringsset)* nedan.
 
 ## Kalibreringsset
 100 frames (viktade mot downswing) annoteras **oberoende av båda annotatörerna** före
@@ -165,6 +167,11 @@ gå att utvärdera, se *[Kalibreringsutfall 2026-09](#kalibreringsutfall-2026-09
 permanent evalset och **tränas aldrig på**. Setet dras med
 `scripts/build-calibration-set.mjs` — se *[Kalibreringssetet: dra, reservera,
 respektera](#kalibreringssetet-dra-reservera-respektera)* längst ned.
+
+**Fasfördelningen för kalibreringssetets** (downswing 40 %, impact 15 %, top 12 %, backswing 12 %,
+through 9 %, address 7 %, finish 5 %) **skiljer sig avsiktligt från träningsfördelningen** (34 % / 18 % / 10 % / 14 % / 10 % / 8 % / 6 %).
+Övervikten mot downswing är konservativ — en hårdare eval-set gör metriken mer konservativ, vilket är rätt
+riktning. Se docs/oppna-fragor.md, B4.
 
 ## Kalibreringsutfall 2026-09
 
@@ -442,11 +449,15 @@ inte garanterat identiska eftersom selektionen kan ha ändrats mellan körningar
 frame i evalsetet vars pixlar inte matchar metadatan är precis det reservationslistan
 finns för att förhindra. Ta bort den äldre exporten och kör om.
 
-**Fasfördelning** (summerar till 100, samma viktning mot downswing som tabellen ovan):
+**Fasfördelning för kalibreringssetets** (summerar till 100, inte samma som specens målvikter — se *Fasfördelning — målvikter* ovan):
 
 | `downswing` | `impact` | `top` | `backswing` | `through` | `address` | `finish` |
 |---:|---:|---:|---:|---:|---:|---:|
 | 40 | 15 | 12 | 12 | 9 | 7 | 5 |
+
+Denna övervikning mot downswing är avsiktlig: kalibreringssetets uppdrag är att vara ett hårdare,
+konservativt evalset där downswing — svingens svåraste fas — dominerar. Träningsdata dras i stället
+från specens målvikter (34 %, 18 %, 10 % osv.).
 
 Räcker inte en fas till fylls bristen från `downswing`. Räcker inte `downswing` heller
 tas resten från övriga faser — det loggas som en **varning i `summary.md`** och betyder
