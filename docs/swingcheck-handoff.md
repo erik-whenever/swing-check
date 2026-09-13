@@ -3,7 +3,20 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-13.
 >
-> **Senast (2026-09-13, stream-shaft):** S-7 samstämmighetsmätning —
+> **Senast (2026-09-13, stream-shaft):** S-8 skärpta annoteringsregler — enbart dokumentation i
+> [shaft/annotation-spec.md](shaft/annotation-spec.md), ingen kod. **`phase` annoteras inte längre
+> för hand** (fylls från `manifest.json` vid tasksskapande — 58 % enighet var mätningens lägsta
+> siffra och uppgiften är omöjlig på en stillbild). **`blur`** har fått en tillämpbar regel:
+> gränsen går vid **en linje eller flera**, inte vid hur ful bilden är. **`occluded` vs `visible`**
+> skärpt med nyckelmeningen *occluded handlar om punkten, inte om bilden* (synligt skaft + skymd
+> greppände = `visible` hosel + `occluded` butt); punkt utanför bildkanten är `outside`.
+> **Hoseln** är där skaftets linje slutar vara rak, inte mitt i huvudets suddfläck. Nytt avsnitt
+> om att **gå till klippet** (`data/shaft/clips/` vid `tSec`, stega bildruta för bildruta) som
+> normal arbetsgång vid tvetydiga frames, plus **"Kalibreringsutfall 2026-09"** med siffrorna bakom
+> besluten. **Återstår i S-8:** manuell granskning av rapportens avsnitt 5 + 7, beslut om
+> skaftbreddsmålet, och de 3 kalibreringsframes som aldrig kom in i CVAT-tasken.
+>
+> **Tidigare samma dag (stream-shaft):** S-7 samstämmighetsmätning —
 > `scripts/measure-calibration.mjs` jämför de två CVAT-exporterna (`erik.zip`, `lisa.zip`) och
 > skriver `data/shaft/calibration/agreement.md`. **Utfallet: punktplaceringen håller, etiketterna
 > gör det inte.** Butt median 2,5 px (0,17 % av bildhöjden), hosel 1,9 px (0,13 %), vinkelmedian

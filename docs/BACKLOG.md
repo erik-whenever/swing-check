@@ -1401,6 +1401,50 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > [shaft/annotation-spec.md](shaft/annotation-spec.md) innan produktionsannoteringen startar, och
 > granska avsnitt 5 + 7 för hand (`096-a36a587d_s00_f01` är värst: 47 % skillnad i skaftlängd).
 
+### [~] S-8 — Skärp annoteringsreglerna efter kalibreringen
+
+> **Specen klar (2026-09-13), manuell granskning återstår.** Enbart dokumentation —
+> [shaft/annotation-spec.md](shaft/annotation-spec.md), ingen kod rörd.
+>
+> - **`phase` annoteras inte längre för hand.** Fylls från `manifest.json` när tasken skapas;
+>   annotatören ska varken sätta eller ändra den. 58 % enighet var mätningens lägsta siffra, och
+>   det är en omöjlig uppgift på en stillbild — extraktorn har envelopen och tidsstämpeln.
+>   Attributtabellen har en **"Sätts av"-kolumn**, och det befintliga stycket om att fasen är
+>   *ungefärlig* utan verifierad impact är hopkopplat med den nya regeln i stället för att som
+>   förut sluta med "annotatören rättar i CVAT".
+> - **`blur` är nu en tillämpbar regel:** `none` = skarpa kanter, en enda skaftlinje; `mild` =
+>   mjuk kant men fortfarande **en** linje; `severe` = streak eller flera överlappande skaftbilder,
+>   ingen enskild linje att peka på. Uttalat att gränsen går vid **antalet linjer, inte vid hur
+>   ful bilden är** — brus, kompression och dålig belysning är egenskaper hos bilden, inte hos
+>   skaftet. Zoomregeln gäller nu även *när man klassificerar*, inte bara när svaret blev `severe`.
+> - **`occluded` vs `visible` skärpt:** `visible` = du ser punkten; `occluded` = du ser den inte
+>   men kan sluta dig till läget ur skaftets riktning → placera den; `outside` = varken eller →
+>   placera inte. Nyckelmening: **`occluded` handlar om punkten, inte om bilden** — synligt skaft
+>   med skymd greppände ger `visible` hosel + `occluded` butt. Tillagt: punkt utanför bildkanten
+>   är `outside`.
+> - **Hoseln** definieras nu som *där skaftets linje slutar vara rak* — inte mitt i huvudets
+>   suddfläck, inte vid en ferrule högre upp. Skälet står i texten: det är riktningen som mäts,
+>   och riktningen definieras av den raka delen.
+> - **Nytt avsnitt "Tvetydiga frames — gå till källan"** som **normal arbetsgång**: slå upp
+>   frame-id:t i `manifest.json`, öppna klippet i `data/shaft/clips/` (`clipName`), spola till
+>   `tSec` och stega bildruta för bildruta. Rörelsen före/efter gör ändarna entydiga. Är framen
+>   ändå otydbar är `outside`/`no_shaft` rätt svar — en medvetet satt `outside` är data, en
+>   gissning är brus.
+> - **Nytt avsnitt "Kalibreringsutfall 2026-09"** med siffrorna bakom besluten: vinkelmedian
+>   **0,3°** (p90 1,3°, max 2,3°, n=81), butt 0,17 %H / 2,5 px, hosel 0,13 %H / 1,9 px, samt vilka
+>   attribut som föll under 80 % (`phase` 58 %, `blur` 78 %; `view` 95 % lämnas orört). Noterar
+>   också att `severe blur` stack ut som förutsagt men att **`downswing` inte gjorde det** — en
+>   icke-observation, eftersom hinken bara rymde 6 frames just för att fasetiketten var omtvistad.
+>   Frågan får ställas om när `phase` kommer från manifestet.
+> - Noterat i specen att **målvärdet < 0,5 skaftbredd inte gick att utvärdera** (2-punktsschemat
+>   bär ingen bredd) och att 3 av de 100 reserverade ids:en aldrig kom in i CVAT-tasken.
+>
+> **Återstår:** (a) den manuella granskningen av rapportens avsnitt 5 och 7 — 15 frames plus
+> skaftlängdslistan, värst `096-a36a587d_s00_f01` med 47 % längdskillnad; (b) beslut om målvärdet
+> ska formuleras om i bildhöjd eller om en skaftbredd ska mätas för hand på ett urval; (c) de 3
+> saknade kalibreringsframesen in i tasken. Ingen omannotering av kalibreringssetet är planerad —
+> det är evalset, och siffrorna ovan är dess mätvärde.
+
 ---
 
 ## Avklarat

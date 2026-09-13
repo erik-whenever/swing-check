@@ -12,16 +12,43 @@ ingen realtidskrav, bara på de redan uttagna analys-framesen.
 `shaft` — skeleton med **exakt 2 punkter**, fast ordning:
 
 1. **butt** — greppets ände (klubbans övre ändpunkt, **INTE** händerna)
-2. **hosel** — där skaftet går in i klubbhuvudet
+2. **hosel** — skaftets nedre ändpunkt, **där skaftets linje slutar vara rak** och huvudet
+   tar vid
+
+**Hoseln definieras av var den raka delen tar slut.** Följ skaftet nedåt och sätt punkten
+där linjen upphör att vara rak. Alltså:
+
+- **inte** mitt i huvudets suddfläck — huvudet är en klump, inte en ändpunkt,
+- **inte** vid en ferrule, dekal eller annan markering högre upp på skaftet, hur tydlig den
+  än är.
+
+**Varför:** det är skaftets *riktning* som mäts, och riktningen definieras av den raka
+delen. En punkt som ligger inne i huvudet eller uppe vid en ferrule vrider den linjen.
 
 **Varför hosel, inte klubbhuvudets centrum:** hoseln är skaftets ändpunkt och flyttar sig inte
 när bladet roterar. Klubbhuvudets centrum gör det (bladrotation genom impact) och skulle göra
 punkten instabil som skaftreferens.
 
 ## Punktflaggor (CVAT)
-- **normal** — synlig och exakt placerad.
-- **occluded** — skymd men positionen går att sluta sig till → placera ändå på gissad position.
-- **outside** — går ej att avgöra → placera inte.
+
+*Skärpta 2026-09 efter kalibreringen — se [Kalibreringsutfall 2026-09](#kalibreringsutfall-2026-09).
+Flaggan skilde i ~12 % av framesen per punkt, och nästan hela det felet låg mellan
+`occluded` och `visible`.*
+
+- **visible** (`normal` i CVAT) — du kan **se punkten själv** i bilden.
+- **occluded** — du kan **inte** se punkten, men du kan se skaftets riktning och sluta dig
+  till var punkten sitter. **Placera den** på det slutna läget.
+- **outside** — du kan **varken** se punkten eller sluta dig till dess läge. **Placera den
+  inte.**
+
+**Nyckelmening: `occluded` handlar om punkten, inte om bilden.** Att bilden är rörig, mörk
+eller suddig i stort avgör ingenting — frågan är bara om just den punkten syns. Ett tydligt
+synligt skaft vars greppände försvinner bakom axeln ger alltså **`visible` hosel +
+`occluded` butt**, inte `occluded` på båda.
+
+**En punkt utanför bildkanten är `outside`.** Kan skaftet följas ut ur bild men ändpunkten
+ligger utanför ramen, är den inte placerbar — flagga `outside` och gå vidare. Sträck inte
+punkten till kanten.
 
 Frames med en saknad punkt (`outside`) behålls i datasetet — masked keypoint i träning, inte
 en anledning att kasta framen.
@@ -30,16 +57,83 @@ en anledning att kasta framen.
 Skaftet är ett streak över exponeringen vid snabb rörelse (framför allt downswing/impact).
 Markera **alltid streakets mittpunkt, aldrig en kant**. Gäller båda punkterna.
 
-## Frame-attribut
-| Attribut | Värden |
+### `blur` — mät, gissa inte
+
+*Skärpt 2026-09 efter kalibreringen — se [Kalibreringsutfall 2026-09](#kalibreringsutfall-2026-09).
+Den gamla skalan var ord utan test och gav 78 % enighet.*
+
+Klassificera på **skaftet**, inte på bilden som helhet:
+
+| Värde | Regel |
 |---|---|
-| `view` | `dtl` \| `face_on` \| `other` |
-| `blur` | `none` \| `mild` \| `severe` |
-| `phase` | `address` \| `backswing` \| `top` \| `downswing` \| `impact` \| `through` \| `finish` |
-| `no_shaft` | bool — `true` = noll punkter placerade, behålls som negativt exempel |
+| `none` | Skaftets kanter är skarpa. Du kan peka på **en enda skaftlinje**. |
+| `mild` | Skaftet är mjukt i kanten men fortfarande **en linje**. |
+| `severe` | Skaftet är ett streak eller flera överlappande skaftbilder — du kan **inte** peka på en enda linje. |
+
+**Gränsen går vid "en linje eller flera", inte vid hur ful bilden är.** En grynig,
+mörk, lågupplöst eller hårt komprimerad bild där skaftet ändå är en enda mjuk linje är
+`mild`, inte `severe`. En i övrigt knivskarp bild där skaftet gått till dubbelexponering är
+`severe`, inte `mild`. Kompressionsartefakter, brus och dålig belysning är egenskaper hos
+bilden; `blur` beskriver bara vad som hänt med skaftet under exponeringen.
+
+Skiljelinjen `none`/`mild` är kantskärpa på en linje som fortfarande är en; skiljelinjen
+`mild`/`severe` är **antalet linjer**. Är du osäker på om det är en eller flera — zooma
+(se *Zoomregel*) och räkna. Kan du fortfarande inte avgöra, är det `severe`: tvekan om
+antalet linjer betyder i praktiken att det inte finns en entydig linje att peka på.
+
+## Tvetydiga frames — gå till källan
+
+När det inte går att avgöra vilken ände som är vilken — greppände eller huvud, klubba eller
+arm, ett skaft eller två i samma streak — är **normal arbetsgång att gå till klippet**, inte
+att gissa på stillbilden och gå vidare:
+
+1. Slå upp frame-id:t i `manifest.json` (ligger i den exporterade ZIP:en).
+2. Öppna klippet den kom ur i `data/shaft/clips/` — `clipName` i manifestet säger vilket.
+3. Spola till `tSec` och **stega bildruta för bildruta** över den framen.
+
+Rörelsen före och efter gör nästan alltid ändarna entydiga: greppänden rör sig långsammare
+än huvudet, och riktningen är kontinuerlig mellan bildrutor även när en enskild bildruta är
+ett streak. Det tar en halv minut och är billigare än en felvänd etikett i evalsetet.
+
+Är framen fortfarande otydbar efter det — då är det just det svaret som ska in: `outside`
+på den punkt som inte går att sluta sig till, eller `no_shaft` om ingen punkt går att sätta.
+En medvetet satt `outside` är data; en gissning är brus.
+
+## Frame-attribut
+| Attribut | Sätts av | Värden |
+|---|---|---|
+| `view` | annotatören | `dtl` \| `face_on` \| `other` |
+| `blur` | annotatören | `none` \| `mild` \| `severe` — se *[`blur` — mät, gissa inte](#blur--mät-gissa-inte)* |
+| `phase` | **extraktorn** | `address` \| `backswing` \| `top` \| `downswing` \| `impact` \| `through` \| `finish` |
+| `no_shaft` | annotatören | bool — `true` = noll punkter placerade, behålls som negativt exempel |
+
+### `phase` annoteras inte för hand
+
+**Fasen härleds av extraktorn ur svingens envelope och står i `manifest.json`.** Den fylls i
+från manifestet **när tasken skapas** och annotatören ska **varken sätta eller ändra den** —
+hoppa förbi fältet i CVAT.
+
+Skälet är mätt: i kalibreringen satte de två annotatörerna samma fas på bara **56 av 97**
+frames (58 %), vilket är den lägsta siffran i hela mätningen. Det är inte slarv utan en
+omöjlig uppgift — var `top` slutar och `downswing` börjar går inte att se på en stillbild,
+medan extraktorn har hela envelopen och en tidsstämpel. Handpåläggning bytte alltså ut ett
+konsekvent maskinellt värde mot två oense mänskliga.
+
+**Värdet är ungefärligt, och det är avsiktligt.** `phase` är ett *viktnings*attribut — det
+styr hur frames fördelas i draget (se *Fasfördelning — målvikter*) och hur utfall
+grupperas — det **tränas aldrig mot**. För svingar utan verifierad impact
+(`hasConfidentImpact: false`) finns ingen top/impact att ankra på, selektionen faller till
+uniform baslinje (ADR-002) och fasgränserna blir en generisk svingform; se
+*[Fasfördelning över körningen](#fasfördelning-över-körningen)*. En ungefärlig fas som är
+ungefärlig på **samma sätt** för alla frames är precis vad ett viktningsattribut behöver.
 
 ## Zoomregel
-`blur=severe` annoteras på **minst 200 % zoom**.
+`blur=severe` annoteras på **minst 200 % zoom** — streakets mittpunkt går inte att sätta i
+100 %.
+
+Zooma också **när du klassificerar**: frågan *en linje eller flera?* (se *[`blur` — mät,
+gissa inte](#blur--mät-gissa-inte)*) avgörs inte i 100 % zoom. Zoomen är alltså ett verktyg
+för att ställa diagnosen, och ett krav när diagnosen blev `severe`.
 
 ## Fasfördelning — målvikter
 Datasetets frames viktas mot **downswing**, inte jämnt över tiden. Skälet är var
@@ -66,10 +160,66 @@ ska hållas i synk för hand.
 
 ## Kalibreringsset
 100 frames (viktade mot downswing) annoteras **oberoende av båda annotatörerna** före
-produktionsannotering. Målvärde: **medianavvikelse < 0,5 skaftbredd**. Setet blir därefter
+produktionsannotering. Målvärde: **medianavvikelse < 0,5 skaftbredd** — som visade sig inte
+gå att utvärdera, se *[Kalibreringsutfall 2026-09](#kalibreringsutfall-2026-09)*. Setet blir därefter
 permanent evalset och **tränas aldrig på**. Setet dras med
 `scripts/build-calibration-set.mjs` — se *[Kalibreringssetet: dra, reservera,
 respektera](#kalibreringssetet-dra-reservera-respektera)* längst ned.
+
+## Kalibreringsutfall 2026-09
+
+Mätt 2026-09-13 med `scripts/measure-calibration.mjs` (se *[Mäta
+samstämmigheten](#mäta-samstämmigheten)*) på erik vs lisa, **97 av 100** frames annoterade
+av båda — de tre återstående reserverade ids:en kom aldrig in i CVAT-tasken och är alltså
+ännu inte mätta. Full rapport: `data/shaft/calibration/agreement.md` (gitignorad — persondata).
+Det här avsnittet finns för att reglerna ovan ska gå att förstå bakåt: de skärptes av de
+här siffrorna.
+
+**Placeringen höll. Etiketterna gjorde det inte.**
+
+| Mått | Median | p90 | Max | n |
+|---|---:|---:|---:|---:|
+| **Vinkel** (skaftets riktning, butt→hosel) | **0,3°** | 1,3° | 2,3° | 81 |
+| `butt`, andel av bildhöjden | 0,17 % | 1,01 % | 2,79 % | 94 |
+| `hosel`, andel av bildhöjden | 0,13 % | 0,33 % | 4,26 % | 83 |
+| `butt`, px | 2,5 | 12,8 | 37,4 | 94 |
+| `hosel`, px | 1,9 | 4,7 | 26,1 | 83 |
+
+Vinkeln är huvudsiffran: reglerna mäter skaftvinklar, så ett fel *längs* skaftet kostar
+ingenting medan samma fel *tvärs* skaftet kostar en regel. **0,3° i median** betyder att
+själva handlaget — var man klickar när man väl vet vad man letar efter — inte är problemet.
+
+**Attribut under 80 % enighet:**
+
+| Attribut | Samma värde | Åtgärd |
+|---|---:|---|
+| `phase` | **56/97 (58 %)** | Annoteras inte längre för hand — fylls från manifestet. |
+| `blur` | **76/97 (78 %)** | Ny regel: *en linje eller flera*, inte hur ful bilden är. |
+| `view` | 92/97 (95 %) | Oförändrad — höll måttet. |
+
+**Synlighetsflaggan** skilde i ~12 % per punkt (`butt` 85/97, `hosel` 84/97), och nästan
+hela felet låg mellan `occluded` och `visible`: 10 av 12 oeniga `butt`-frames och 8 av 13
+`hosel`-frames. Felet är dessutom **enkelriktat**: erik satte `occluded` på butt i 51 frames
+mot lisas 43, och 8 av de 12 oenigheterna är erik `occluded` / lisa `visible`. Den rimliga
+tolkningen — inte mätt, men den som passar mönstret — är att den ena läste `occluded` som
+*"bilden är svår"* och den andra som *"punkten syns inte"*. Därav nyckelmeningen i
+*Punktflaggor*.
+
+**Vad som gick att förutsäga och inte.** `severe blur` stack ut precis som specen antog
+(`butt`-median 0,56 % mot 0,14 % för `none`; vinkel 1,1° mot 0,2°) — svåra frames *är*
+svårare, och zoomregeln är befogad. **`downswing` stack inte ut** — men den hinken innehöll
+bara 6 frames, just för att fasetiketten var så omtvistad att de flesta downswing-frames
+föll ur jämförelsen. Det är en icke-observation, inte ett friskintyg; frågan får ställas om
+när `phase` kommer från manifestet och hinkarna blir hela.
+
+**Målvärdet gick inte att utvärdera.** Specen sätter *medianavvikelse < 0,5 skaftbredd*, men
+2-punktsschemat bär ingen bredd, så det finns inget att dividera med. Rapporten redovisar px
+och andel av bildhöjden i stället. Antingen behöver målet formuleras om i de enheterna, eller
+så måste en skaftbredd mätas för hand på ett urval frames innan tröskeln kan användas.
+
+**Kvar att granska för hand:** rapportens avsnitt 5 (skaftlängd) och 7 (de 15 största
+avvikelserna). Värst är `096-a36a587d_s00_f01` — 47 % skillnad i skaftlängd mellan
+annotatörerna på samma bild, vilket betyder att någon satt en ändpunkt på fel sak.
 
 ## Persondata
 Datasetet innehåller identifierbara personer och **publiceras aldrig**. Bilder och exporter
@@ -200,9 +350,13 @@ klipp med snarlika namn annars kan sluga till samma sträng och tyst skriva öve
 frames i arkivet.
 
 `phase` härleds ur svingens envelope och är **ungefärlig** — den är ett viktningsattribut,
-inget som tränas mot. Utan verifierad impact (då selektionen ändå faller till uniform
-baslinje, ADR-002) finns ingen top/impact att ankra på och fasgränserna blir en generisk
-svingform. Annotatören ser framen och rättar i CVAT.
+inget som tränas mot. Utan verifierad impact (`hasConfidentImpact: false`, då selektionen
+ändå faller till uniform baslinje, ADR-002) finns ingen top/impact att ankra på och
+fasgränserna blir en generisk svingform.
+
+**Manifestets `phase` är det värde som gäller.** Det fylls i i CVAT när tasken skapas och
+rättas **inte** för hand — se *[`phase` annoteras inte för hand](#phase-annoteras-inte-för-hand)*
+för varför handpåläggning gjorde attributet sämre, inte bättre.
 
 ### Acceptansgrind
 
@@ -390,12 +544,19 @@ avsnitt 3–5 är diagnostik för avsnitt 6. Vinkelskillnaden viks **inte** vid 
 samma bild är inte oense om några pixlar — någon har satt en ändpunkt på fel sak
 (händerna i stället för greppets ände, klubbhuvudets centrum i stället för hoseln).
 
-**Attributen är också annoterade.** `phase`, `view` och `blur` sätts av annotatörerna, så
-de är en egen källa till oenighet. Bara frames där **båda** satt samma värde hamnar i en
-hink i avsnitt 4 — annars skulle samma frame ligga i två rader och varje hink bli en
-blandning. Oenigheterna listas separat, och ett attribut under 80 % enighet får en varning:
-hinkarna under det blir tunna, och slutsatsen är då att *attributet* behöver en skarpare
-definition, inte att placeringen i en viss fas är bra eller dålig.
+**Attributen kan också vara annoterade.** `view` och `blur` sätts av annotatörerna, så de är
+en egen källa till oenighet. Bara frames där **båda** satt samma värde hamnar i en hink i
+avsnitt 4 — annars skulle samma frame ligga i två rader och varje hink bli en blandning.
+Oenigheterna listas separat, och ett attribut under 80 % enighet får en varning: hinkarna
+under det blir tunna, och slutsatsen är då att *attributet* behöver en skarpare definition,
+inte att placeringen i en viss hink är bra eller dålig.
+
+`phase` jämförs på samma sätt, men **fylls sedan 2026-09 från manifestet** och ska därför
+vara identisk i båda exporterna (se *[`phase` annoteras inte för
+hand](#phase-annoteras-inte-för-hand)*). Kontrollen står kvar just därför: dyker en
+`phase`-oenighet upp i en framtida mätning är det inte annotatörerna som är oense, det är
+ett tecken på att tasken skapades utan manifestvärdet eller att fältet gjordes redigerbart
+av misstag.
 
 **Skaftbreddsmålet går inte att utvärdera här.** Specen sätter medianavvikelse < 0,5
 skaftbredd, men 2-punktsschemat bär ingen bredd. Rapporten redovisar px och andel av
