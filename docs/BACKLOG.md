@@ -1350,6 +1350,57 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > [shaft/annotation-spec.md](shaft/annotation-spec.md) (*Kalibreringssetet: dra, reservera,
 > respektera*).
 
+### [x] S-7 — Mät samstämmigheten mellan annotatörerna
+
+> **Klart (2026-09-13).** `scripts/measure-calibration.mjs` jämför de två oberoende
+> CVAT-exporterna av kalibreringssetet (COCO Keypoints 1.0, utan bilder) och skriver
+> `data/shaft/calibration/agreement.md`. Sökvägarna är CLI-argument (`--a`/`--b`/`--out`) med
+> `erik.zip`/`lisa.zip`/`agreement.md` som default; `--dry-run` skriver bara terminalsammanfattningen.
+> Inga nya beroenden — ZIP-läsningen är `openZip`/`readEntry` från `build-calibration-set.mjs`,
+> återanvänd i stället för omskriven. Samma skrivguard: aldrig utanför `data/shaft/`.
+>
+> **Rapportens sju avsnitt:** täckning (bild- och punktnivå), flaggsamstämmighet med 3×3-korstabell
+> outside/occluded/visible per punkt, avstånd (median/p90/max i px **och** normaliserat mot
+> bildhöjden — setet blandar 720×818 och 1080×1920, så px ensamt är inte jämförbart), samma
+> statistik uppdelad per `phase`/`view`/`blur`, skaftlängd som rimlighetskontroll med de 10 värsta,
+> vinkelavvikelse (`atan2` butt→hosel, minsta vinkelavstånd i [0°,180°] — **inte** vikt vid 90°, så
+> ombytta ändpunkter syns som ~180° i stället för att försvinna som 0°) totalt och per fas, samt en
+> topplista på 15 frames för manuell granskning.
+>
+> **Synlighetsmappningen verifieras, antas inte.** `outside`→v=0 / `occluded`→v=1 är ett antagande
+> om CVAT:s exportör som varje siffra vilar på, så `verifyVisibility` kontrollerar värdemängden
+> {0,1,2}, att `num_keypoints` är lika med antalet v>0 (COCO:s egen definition, alltså ett oberoende
+> vittne om vilka flaggor exportören räknar som placerade) och att v=1 alls förekommer — en export
+> utan v=1 gör mappningen *obekräftad*, inte bekräftad. Rapporten leder med verdiktet i avsnitt 0.
+> **Fynd:** mappningen stämmer, men v=0-punkter bär ändå kvar koordinater (CVAT behåller senaste
+> dragna läget), så det är flaggan och aldrig koordinaten som avgör om en punkt jämförs.
+>
+> **Utfall på de riktiga exporterna:** 97 frames av 100 annoterade av båda (3 saknas i CVAT-tasken).
+> Butt median 2,5 px / 0,17 %H, p90 12,8 px; hosel 1,9 px / 0,13 %H, p90 4,7 px. Vinkel: median
+> **0,3°**, p90 1,3°, max 2,3° över 81 frames. Placeringen håller alltså. **Etiketterna gör det
+> inte:** `phase` samma värde i 56/97, `blur` i 76/97, `view` i 92/97, och synlighetsflaggan skiljer
+> i ~12 % per punkt (dominerande felet är `occluded` vs `visible`). `severe blur` sticker ut som
+> specen förutsade (butt-median 0,56 % mot 0,14 % för `none`, vinkel 1,1° mot 0,2°); **`downswing`
+> gör det inte** — men hinken är 6 frames stor just för att fasetiketten är omtvistad, så det är en
+> icke-observation, inte ett friskintyg. Rapporten flaggar själv varje attribut under 80 % enighet
+> med att hinkarna ska läsas som indikationer.
+>
+> **Specens målvärde (medianavvikelse < 0,5 skaftbredd) går inte att utvärdera** — 2-punktsschemat
+> bär ingen bredd, så rapporten redovisar px och bildhöjd och säger uttryckligen att kopplingen till
+> skaftbredder saknas.
+>
+> **Verifierat:** `npx vitest run` **311/311** (37 nya i `scripts/measure-calibration.test.mjs`, allt
+> på syntetisk data eftersom de riktiga exporterna är gitignorad persondata) — percentil mot numpys
+> `linear`/R type 7 inklusive icke-mutation och numerisk sortering, vinkelskillnad över ±180-sömmen
+> och att ombytta ändpunkter ger 180°, att v≥1 och inte koordinaten avgör vilka punkter som jämförs,
+> korstabellen, skaftlängdsrankningen, att topplistan rankas normaliserat (px-rankning skulle kasta
+> om två frames med olika bildhöjd) och att en frame som är topp-15 på vinkel utan att vara det på
+> punktavvikelse ändå namnges.
+>
+> **Nästa (S-8):** skärp `phase`- och `blur`-definitionerna och regeln för `occluded` vs `visible` i
+> [shaft/annotation-spec.md](shaft/annotation-spec.md) innan produktionsannoteringen startar, och
+> granska avsnitt 5 + 7 för hand (`096-a36a587d_s00_f01` är värst: 47 % skillnad i skaftlängd).
+
 ---
 
 ## Avklarat

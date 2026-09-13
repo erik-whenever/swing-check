@@ -326,3 +326,83 @@ lägger inga nya beroenden till projektet: ZIP läses med `node:zlib` och skrivs
 store-metod-skrivare som [`src/lib/dataset/zip.ts`](../../src/lib/dataset/zip.ts).
 Urvalsfunktionen är ren och enhetstestad i `scripts/build-calibration-set.test.mjs`
 (determinism, fasfördelning, max 1 per sving).
+
+---
+
+## Mäta samstämmigheten
+
+`scripts/measure-calibration.mjs` jämför de två oberoende annoteringarna av
+kalibreringssetet och skriver rapporten som avgör om produktionsannoteringen får börja.
+
+```powershell
+# Default: data/shaft/calibration/{erik,lisa}.zip → .../agreement.md
+node scripts/measure-calibration.mjs
+node scripts/measure-calibration.mjs --a data/shaft/calibration/erik.zip --b data/shaft/calibration/lisa.zip
+node scripts/measure-calibration.mjs --dry-run    # bara terminalsammanfattningen
+```
+
+Indata är CVAT:s **COCO Keypoints 1.0**-export *utan bilder* (en
+`annotations/person_keypoints_default.json` i varje ZIP). Frames matchas på **frame-id**,
+aldrig på COCO:s `image_id` — det senare är en räknare per task och två oberoende tasks
+har ingen anledning att numrera likadant.
+
+### Synlighetsflaggan avgör, aldrig koordinaten
+
+COCO kodar `v=0` (ej annoterad), `v=1` (annoterad men ej synlig) och `v=2` (synlig). CVAT
+skriver `outside`→0 och `occluded`→1, vilket motsvarar specens tre punktflaggor ovan.
+**CVAT behåller koordinaterna för en `outside`-punkt** (senaste dragna läget ligger kvar i
+exporten), så ett skript som avgör "är punkten satt?" på koordinaten i stället för flaggan
+räknar in spökpunkter. Skriptet jämför en punkt endast när **båda** annotatörerna har
+`v≥1`.
+
+Mappningen är ett antagande om någon annans exportör, så den **verifieras mot filens
+innehåll** i stället för att tas för given: värdemängden {0,1,2}, att `num_keypoints` är
+lika med antalet punkter med `v>0` (COCO:s egen definition, alltså ett oberoende vittne om
+vilka flaggor exportören anser vara placerade) och att `v=1` alls förekommer — en export
+helt utan `v=1` gör `occluded`→1 **obekräftad**, inte bekräftad. Verdiktet står först i
+rapporten, inte i en fotnot.
+
+### Vad rapporten innehåller (`data/shaft/calibration/agreement.md`)
+
+| Avsnitt | Innehåll |
+|---|---|
+| 0 | Verifiering av synlighetskodningen — ✅/⚠️/❌ per kontroll. |
+| 1 | Täckning: frames båda annoterat, ensidiga, samt per punkt var bara en satt position. |
+| 2 | Flaggsamstämmighet per punkt, 3×3-korstabell outside/occluded/visible. |
+| 3 | Avstånd där båda placerat: median, p90, max — **px och normaliserat mot bildhöjden**. |
+| 4 | Samma statistik uppdelad per `phase`, `view` och `blur`. |
+| 5 | Skaftlängd butt–hosel per annotatör; de 10 största skillnaderna. |
+| 6 | Vinkelavvikelse, totalt och per fas. |
+| 7 | De 15 frames med störst avvikelse, med frame-id, för manuell granskning. |
+
+**Varför två enheter.** Setet blandar 720×818 och 1080×1920, så samma pixelavvikelse är
+olika stora fel i olika frames och en median i px vore ett medelvärde över ojämförbara
+saker. Läs den normaliserade siffran; px står kvar för att det är vad man ser när man
+öppnar framen igen.
+
+**Varför vinkeln är huvudsiffran.** Reglerna mäter skaftvinklar. En punkt som ligger fel
+*längs* skaftet kostar ingenting; samma fel *tvärs* skaftet kostar en regel. Avstånden i
+avsnitt 3–5 är diagnostik för avsnitt 6. Vinkelskillnaden viks **inte** vid 90°: butt→hosel
+är en riktad vektor eftersom punkterna är ordnade, så ombytta ändpunkter ska synas som
+~180° i stället för att tyst absorberas som 0°.
+
+**Varför skaftlängd är med.** Två annotatörer vars butt–hosel-*avstånd* skiljer kraftigt på
+samma bild är inte oense om några pixlar — någon har satt en ändpunkt på fel sak
+(händerna i stället för greppets ände, klubbhuvudets centrum i stället för hoseln).
+
+**Attributen är också annoterade.** `phase`, `view` och `blur` sätts av annotatörerna, så
+de är en egen källa till oenighet. Bara frames där **båda** satt samma värde hamnar i en
+hink i avsnitt 4 — annars skulle samma frame ligga i två rader och varje hink bli en
+blandning. Oenigheterna listas separat, och ett attribut under 80 % enighet får en varning:
+hinkarna under det blir tunna, och slutsatsen är då att *attributet* behöver en skarpare
+definition, inte att placeringen i en viss fas är bra eller dålig.
+
+**Skaftbreddsmålet går inte att utvärdera här.** Specen sätter medianavvikelse < 0,5
+skaftbredd, men 2-punktsschemat bär ingen bredd. Rapporten redovisar px och andel av
+bildhöjden och säger det uttryckligen i stället för att räkna om med en gissad bredd.
+
+Skriptet skriver **aldrig utanför `data/shaft/`** (samma guard som draget) och lägger inga
+nya beroenden till projektet — ZIP-läsningen är återanvänd från
+`scripts/build-calibration-set.mjs`. Beräkningsfunktionerna är rena och enhetstestade i
+`scripts/measure-calibration.test.mjs` (avstånd, percentiler mot numpys `linear`,
+vinkelskillnad över ±180-sömmen, samt jämförelselogiken på syntetiska exporter).

@@ -1,9 +1,24 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-03.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-13.
 >
-> **Senast (2026-09-03, stream-shaft):** S-6 kalibreringsset —
+> **Senast (2026-09-13, stream-shaft):** S-7 samstämmighetsmätning —
+> `scripts/measure-calibration.mjs` jämför de två CVAT-exporterna (`erik.zip`, `lisa.zip`) och
+> skriver `data/shaft/calibration/agreement.md`. **Utfallet: punktplaceringen håller, etiketterna
+> gör det inte.** Butt median 2,5 px (0,17 % av bildhöjden), hosel 1,9 px (0,13 %), vinkelmedian
+> **0,3°** / p90 1,3° / max 2,3° över 81 frames — vinkeln är det som betyder något eftersom
+> reglerna mäter vinklar. Men: `phase` samma värde i bara **56/97** frames och `blur` i 76/97,
+> och synlighetsflaggan skiljer i ~12 % per punkt (mest `occluded` vs `visible`). `severe blur`
+> sticker ut som väntat (butt-median 0,56 % mot 0,14 % för `none`, vinkel 1,1° mot 0,2°);
+> **`downswing` gör det inte**, men den hinken är bara 6 frames just för att fasetiketten är så
+> omtvistad. **Nästa steg innan produktionsannotering:** skärp `phase`- och `blur`-definitionerna
+> och regeln för `occluded` vs `visible` i [shaft/annotation-spec.md](shaft/annotation-spec.md) —
+> det är etikettdefinitionerna som är flaskhalsen, inte annotatörernas handlag. Topplistan i
+> rapportens avsnitt 7 (15 frames) och skaftlängdslistan (avsnitt 5) är det underlag som ska
+> granskas för hand; `096-a36a587d_s00_f01` är värst (47 % skillnad i skaftlängd).
+>
+> **Tidigare (2026-09-03, stream-shaft):** S-6 kalibreringsset —
 > `scripts/build-calibration-set.mjs` drar 100 frames ur ZIP:arna i `data/shaft/exports/`
 > (deterministiskt: id-sorterad pool + seedad PRNG, konstanten `SELECTION_SEED`; fasfördelning
 > downswing 40/impact 15/top 12/backswing 12/through 9/address 7/finish 5; max 1 frame per sving;
