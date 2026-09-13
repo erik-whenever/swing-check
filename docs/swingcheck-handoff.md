@@ -3,7 +3,31 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-13.
 >
-> **Senast (2026-09-13, stream-shaft):** S-9 första träningsbatchen —
+> **Senast (2026-09-13, stream-shaft):** S-10 träningsmiljö för skaftdetektorn — nytt, fristående
+> spår i `training/` (Python 3.11 + CUDA, YOLOv8n-pose). **Ingen webbappskod rörd.** Ingen träning
+> körd. Uppsättningen står i [../training/README.md](../training/README.md);
+> `training/runs|datasets|.venv` och `__pycache__/` är gitignorade.
+> **PyTorch installeras separat och FÖRE `requirements.txt`** — annars drar `ultralytics` in
+> CPU-hjulet från PyPI och GPU:n används aldrig: `--index-url
+> https://download.pytorch.org/whl/cu132` (CUDA 13.2, torch 2.14:s förval). **Python 3.11 är inte
+> valfritt:** `onnxruntime` 1.30 kräver ≥ 3.11, `numpy` 2.5 kräver ≥ 3.12.
+> `prepare_dataset.py` läser `reserved-ids.txt` och **avbryter om den saknas** (samma hårda regel som
+> S-9), och kontrollerar efteråt att inget reserverat id nådde datasetet. Fasen kommer ur
+> `phase-corrected.json` → annotering → manifest och hamnar i `frame-meta.json`, **aldrig i
+> etiketterna**. **Boxvalet:** punkternas omslutande rektangel + marginal, med golv för det lodräta
+> skaftets nollbredd; frames med bara en punkt **behålls** med kvadratisk ersättningsbox (median
+> skaftlängd / √2, så boxytan — som pose-förlusten normaliserar mot — hamnar i rätt fördelning),
+> eftersom bortfallet inte är slumpmässigt: en punkt är `outside` just när den är svår.
+> **Spegling av i två lager** (`flip_idx: [0,1]` + `fliplr=0.0`, och `train.py` avbryter om det
+> ändras) — `butt`/`hosel` är en riktad vektor, inget spegelpar. `evaluate.py` jämför mot
+> **människornas samstämmighet** ur S-7 (vinkel 0,3°, butt 0,17 %H, hosel 0,13 %H) och skriver
+> differensen, grupperat per `phase`/`view`/`blur` → `training/eval-report.md`.
+> **Verifierat mot riktiga data:** 146 frames → 143 skrivna (3 `no_shaft`), 123 två-punkts + 20
+> en-punkts, split 122/21 per sving, alla 143 etikettfiler validerade, en rad räknad för hand mot
+> COCO-källan. **Ej verifierat:** ingen NVIDIA-GPU på den här maskinen och `torch`/`ultralytics` är
+> inte installerade, så GPU-steget, `model.train()` och ONNX-exporten är oprövade.
+>
+> **Tidigare samma dag (stream-shaft):** S-9 första träningsbatchen —
 > `scripts/build-training-batch.mjs` drar 150 frames ur `data/shaft/exports/` med evalsetet
 > exkluderat → `data/shaft/training/batch-01/` (`batch.zip`, `ids.txt`, `prefill-phase.xml`,
 > `labels-frame-meta.json`, `summary.md`). **`reserved-ids.txt` saknas ⇒ exit 1**, avsiktligt hårt.

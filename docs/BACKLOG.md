@@ -1501,6 +1501,86 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > **Bifynd:** kalibreringssetets `PHASE_QUOTAS` matchar inte specens målvikter — loggat som
 > **[F4](oppna-fragor.md)**, inte tyst rättat: setet är redan annoterat och är evalset.
 
+### [x] S-10 — Träningsmiljö för skaftdetektorn
+
+> **Klart (2026-09-13).** Nytt, fristående spår i `training/`: Python 3.11 + CUDA, YOLOv8n-pose.
+> **Ingen webbappskod rörd** — Python-koden läser `data/shaft/` och skriver bara i `training/`.
+> Ingen träning körd; bara uppsättningen. Dokumentation: [../training/README.md](../training/README.md).
+>
+> **Filer:** `README.md` (uppsättning steg för steg), `requirements.txt`, `prepare_dataset.py`
+> (CVAT COCO Keypoints → YOLO-pose), `train.py`, `evaluate.py`, `shaft_coco.py` (delade läsare).
+> `training/runs/`, `training/datasets/`, `training/.venv/` och `__pycache__/` gitignorade.
+>
+> **PyTorch installeras separat och före `requirements.txt`** — annars drar `ultralytics` in
+> CPU-hjulet från PyPI och GPU:n används aldrig. Kommandot i README är hämtat från pytorch.org och
+> kontrollerat mot indexet: `--index-url https://download.pytorch.org/whl/cu132` (CUDA 13.2,
+> torch 2.14:s förval; `cu130`/`cu126` finns som alternativ). Hjulet
+> `torch-2.14.0+cu132-cp311-cp311-win_amd64.whl` är verifierat att existera. Pinnarna
+> (`ultralytics==8.4.150`, `numpy==2.4.2`, `onnx==1.22.0`, `onnxslim==0.1.96`,
+> `onnxruntime==1.30.0`) är var och en kontrollerade att ha cp311/win_amd64-hjul. **3.11 är rätt
+> version**: `onnxruntime` 1.30 kräver ≥ 3.11 och `numpy` 2.5 kräver ≥ 3.12, så 3.11 är den lägsta
+> versionen kedjan går ihop på och den högsta där allt har färdiga hjul.
+>
+> **`prepare_dataset.py` läser `reserved-ids.txt` och avbryter om den saknas** — samma hårda regel
+> som `build-training-batch.mjs`, av samma skäl (en saknad lista ser ut precis som "inget att
+> exkludera"). Dessutom en slutkontroll att inget reserverat id nådde datasetet. Fasen läses ur
+> `phase-corrected.json` (letas upp automatiskt intill batch-ZIP:en), annars annotatörens värde i
+> exporten, annars manifestets härledda — och hamnar i `frame-meta.json`, **aldrig i etiketterna**.
+>
+> **Bounding box — valet är dokumenterat i README.** Skaftet har ingen naturlig box, så den är
+> punkternas omslutande rektangel + marginal (0,06 × längsta sidan, golv 0,01 × bildens kortaste
+> sida, klippt mot kanten). Golvet finns för att ett lodrätt skaft ger bredd noll. **Frames med bara
+> en punkt placerad behålls** (20 av 143 i batch-01) med en kvadratisk ersättningsbox vars sida är
+> datasetets mediana skaftlängd / √2 — alltså samma ytfördelning som de riktiga boxarna, vilket
+> spelar roll eftersom pose-förlusten normaliserar keypoint-felet mot boxytan. Skälet att behålla
+> dem: bortfallet är inte slumpmässigt — en punkt är `outside` just när den är svår, så att kasta dem
+> vore att kasta 14 % av datan och systematiskt de svåraste framesen. `--single-point drop` finns
+> för att mäta vad valet kostar.
+>
+> **Spegling är av i två lager:** `flip_idx: [0, 1]` (identiteten) i `data.yaml` och `fliplr=0.0` i
+> `train.py`, som **avbryter** om värdet inte är 0. `butt`/`hosel` är de två ändarna av en *riktad*
+> vektor, inte ett spegelsymmetriskt par — ingen indexpermutation gör en speglad bild korrekt
+> etiketterad. Även `flipud`, `mixup`, `copy_paste`, `erasing` och `mosaic` är explicit 0 snarare än
+> lämnade till Ultralytics' defaults, så en uppströms defaultändring inte tyst slår på spegling.
+> Rotation 8°, skala 0,40, translation 0,10, shear 2°, HSV 0,015/0,5/0,4. Defaults för 146 bilder på
+> 12 GB: `--epochs 300 --batch 16 --imgsz 960 --patience 60 --cache ram`.
+>
+> **`evaluate.py` mäter mot människornas samstämmighet, inte mot ett påhittat mål:** vinkel median
+> 0,3°, `butt` 0,17 %H, `hosel` 0,13 %H ur `agreement.md` (S-7) skrivs ut vid sidan av modellens
+> siffror med differensen. Per punkt median i **både px och % av bildhöjden** (setet blandar 720×818
+> och 1080×1920), vinkelavvikelse median + p90, allt grupperat per `phase`, `view` och `blur`. Plus
+> andelen frames där modellen predicerar en punkt annotatören flaggade `outside` och omvänt — med
+> noteringen att det förstnämnda inte automatiskt är fel, eftersom `outside` betyder att
+> *annotatören* inte kunde sluta sig till läget. Vinkelskillnaden viks inte vid 90°: ombytta
+> ändpunkter ska synas som ~180°. Rapport → `training/eval-report.md`.
+>
+> **`shaft_coco.py` finns för att synlighetsregeln bara får tolkas på ett sätt.** CVAT lämnar kvar
+> koordinaten för en `outside`-punkt, så en läsare som avgör "är punkten satt?" på koordinaten
+> räknar spökpunkter. Två kopior av regeln i `prepare_dataset.py` och `evaluate.py` hade glidit
+> isär, och glidningen syns inte som ett fel utan som en evalsiffra som är tyst felaktig. Samma
+> modul verifierar dessutom kodningen mot filen ({0,1,2}, `num_keypoints` = antalet `v>0`, och att
+> `v=1` alls förekommer) i stället för att ta den för given.
+>
+> **Verifierat (ingen träning körd).** Python 3.11.9 installerad (`winget`, `py -3.11` svarar); alla
+> fyra moduler kompilerar och importerar rent; `--help` på alla tre skript exit 0; `--dry-run` på
+> alla tre. **Mot riktiga data** (`batch-01/annotated-v2.zip` + `batch.zip`): 146 frames in → **143
+> skrivna**, 3 bortfall (`no_shaft=true`), 123 med båda punkterna + 20 med en, split 122/21 grupperad
+> per sving, fas från `phase-corrected.json` för alla 143. **Alla 143 etikettfiler validerade**: 11
+> tokens, klass 0, allt i [0,1], ingen degenererad box, varje satt punkt inne i sin box, och
+> ospecificerade punkter skrivna som `0 0 0` — aldrig CVAT:s spökkoordinat. En etikettrad räknad för
+> hand mot COCO-källan stämmer på sjätte decimalen. Borttagen `reserved-ids.txt` ⇒ **exit 1**; en
+> fejkad lista med 2 batch-ids ⇒ 141 skrivna. `--single-point drop` ⇒ 123. `evaluate.py --dry-run`
+> mot kalibreringssetet: 97 annoteringar, 100 bilder, 97 i snitt, synlighetskodningen **verifierad**.
+> `render_report` och statistik-/geometrihjälparna körda mot syntetiska data (percentiler mot numpys
+> `linear`, vinkelskillnad över ±180-sömmen, lodrätt skaft, kantklippning, tomma hinkar utan
+> division med noll).
+>
+> **Ej verifierat här, och varför:** den här maskinen har ingen NVIDIA-GPU (Intel Arc) och
+> `ultralytics`/`torch` är inte installerade, så GPU-steget i README, den faktiska
+> `model.train()`-körningen och ONNX-exporten är oprövade. `prepare_dataset.py` är därmed
+> genomkörd på riktiga data medan `train.py`/`evaluate.py` är verifierade till kanten av
+> Ultralytics-anropet.
+
 ---
 
 ## Avklarat

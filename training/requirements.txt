@@ -1,0 +1,22 @@
+# Shaft detector training environment. Python 3.11, Windows, CUDA GPU.
+#
+# PyTorch IS NOT LISTED HERE ON PURPOSE. The CUDA build comes from PyTorch's own
+# wheel index, not PyPI, and must be installed BEFORE this file -- see
+# training/README.md -> "2. Installera PyTorch med CUDA". Installing this file first
+# pulls the CPU-only torch off PyPI as an ultralytics dependency, and then nothing
+# trains on the GPU.
+#
+# Every pin below is verified to have a cp311 / win_amd64 (or pure-python) wheel.
+
+# Training + export driver. Pulls opencv-python, pillow, pyyaml, matplotlib, pandas,
+# scipy, tqdm and psutil itself.
+ultralytics==8.4.150
+
+# Newest numpy that still supports Python 3.11 (2.5.x requires >=3.12).
+numpy==2.4.2
+
+# ONNX export path: ultralytics writes the graph with onnx, shrinks it with onnxslim,
+# and verifies the exported file loads by running it through onnxruntime.
+onnx==1.22.0
+onnxslim==0.1.96
+onnxruntime==1.30.0

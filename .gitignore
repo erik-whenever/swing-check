@@ -48,3 +48,9 @@ data/shaft/*
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Skaftdetektor-träning — dataset och körningar (stora, regenererbara)
+training/runs/
+training/datasets/
+training/.venv/
+__pycache__/
