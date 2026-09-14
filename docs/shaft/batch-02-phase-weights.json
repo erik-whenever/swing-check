@@ -1,0 +1,14 @@
+{
+  "batch": "batch-02",
+  "note": "Batchspecifik övervikt mot `downswing` och `top`. Specens målvikter (annotation-spec.md → *Fasfördelning — målvikter*) är oförändrade — de beskriver det färdiga datasetet, och den här batchen är en riktad rättning av var detektorn faktiskt fallerar.\n\n**Varför downswing 34 % → 44 %.** S-11 mätte skaftdetektorn över ett helt klipp (`002.mp4`, 29 frames): address och tidig backswing träffas säkert (conf 0,87–0,90), nedsvinget nästan inte alls (conf 0,00 på de flesta framesen, 10 av 29 detektioner totalt). Samma utfall i Python på samma frames, så det är modellen och inte webbkedjan. Batch-01 gav 51 downswing-frames; en marginell annoterad frame är värd mest där modellen inte hittar klubban alls.\n\n**Varför top 10 % → 16 %.** Två skäl. Dels är `top` den tunnaste svingkritiska fasen i batch-01 (15 frames), dels är det den fas där skaftet är som mest förkortat — och förkortning är precis det tillstånd där modellen kastar om butt och hosel (se `training/prelabel_batch.py`-huvudet och annotation-spec.md → *Förhandsmärkning med modellen*). Båda kalibreringsframesen där modellen vänder skaftet ~180° ligger i `top`/`backswing`.\n\n**Vad övervikten betalas med.** `through`, `backswing`, `address` och `finish` — de skarpa, långsamma eller stillastående framesen, som annoteras snabbast och som modellen redan klarar. `impact` sänks bara 18 % → 16 %: impact delar rörelseoskärperegim med downswing, och att skära där hade tagit bort just de närliggande svåra framesen.\n\n**Varför idle 2 % → 0 %.** Poolen innehåller **noll** `idle`-frames efter exkludering av kalibreringssetet och batch-01. Att låta kvoten stå kvar på 2 % hade inte gett några idle-frames ändå — den hade tyst runnit över i `downswing` via utfyllnadsregeln. En explicit nolla är det ärliga sättet att säga samma sak.",
+  "weights": {
+    "idle": 0.0,
+    "address": 0.04,
+    "backswing": 0.1,
+    "top": 0.16,
+    "downswing": 0.44,
+    "impact": 0.16,
+    "through": 0.06,
+    "finish": 0.04
+  }
+}

@@ -99,6 +99,66 @@ export const PHASE_TARGET_WEIGHTS = {
 const SOURCES = ['web', 'own'];
 
 /**
+ * A BATCH-SPECIFIC phase weighting, read from a committed JSON file.
+ *
+ * `PHASE_TARGET_WEIGHTS` above is the spec's standing dataset target and is never
+ * edited to skew one batch — the spec table is what the *dataset* should look like
+ * when it is finished, not what every slice of it must look like. A single batch may
+ * still deliberately lean somewhere else (the detector is weakest in one phase, so
+ * the marginal annotated frame is worth most there), and that is a decision with a
+ * reason, not a flag someone types at a prompt.
+ *
+ * Hence a file rather than a `--weights downswing=0.44,…` string: the deviation and
+ * the argument for it end up in version control next to each other, the summary can
+ * quote the argument back, and re-running the draw a year later picks up the same
+ * weights without anyone remembering the command line. `data/shaft/` is gitignored
+ * personal data, so the file lives in `docs/shaft/`.
+ *
+ * Shape (fractions, not percentages — they must sum to 1):
+ *
+ * ```json
+ * { "note": "why this batch leans where it does", "weights": { "downswing": 0.44, … } }
+ * ```
+ *
+ * @param {string} file
+ * @returns {{weights: Record<string, number>, note: string, file: string}}
+ */
+export function readPhaseWeights(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (err) {
+    throw new Error(`could not read phase weights from ${file}: ${err.message}`);
+  }
+  const { weights, note } = parsed ?? {};
+  if (!weights || typeof weights !== 'object') {
+    throw new Error(`${file}: expected a top-level "weights" object`);
+  }
+  if (typeof note !== 'string' || note.trim().length === 0) {
+    throw new Error(
+      `${file}: expected a non-empty "note" explaining why this batch deviates from the\n` +
+        'spec weights. A deviation without a stated reason is indistinguishable from a typo.',
+    );
+  }
+  const unknown = Object.keys(weights).filter((p) => !PHASE_ORDER.includes(p));
+  if (unknown.length > 0) {
+    throw new Error(`${file}: unknown phase(s): ${unknown.join(', ')}`);
+  }
+  for (const [phase, value] of Object.entries(weights)) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw new Error(`${file}: weight for "${phase}" must be a non-negative number, got ${value}`);
+    }
+  }
+  // Sum exactly, not "close enough": a table that sums to 0.98 draws a batch two per
+  // cent short of every quota and nothing says so. The tolerance is float slack only.
+  const sum = Object.values(weights).reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - 1) > 1e-9) {
+    throw new Error(`${file}: weights must sum to 1, they sum to ${sum}`);
+  }
+  return { weights, note: note.trim(), file };
+}
+
+/**
  * The CVAT tag label that carries the pre-filled `phase`.
  *
  * A TAG, not an attribute on the `shaft` skeleton. Pre-filling an attribute that lives
@@ -350,7 +410,8 @@ const tally = (items, key) => {
 };
 
 export function summaryMarkdown(result, context) {
-  const { size, outName, exports, poolSize, excludeSources, seed } = context;
+  const { size, outName, exports, poolSize, excludeSources, seed, phaseWeights = null } = context;
+  const weights = phaseWeights?.weights ?? PHASE_TARGET_WEIGHTS;
   const pct = (n) => `${((n / Math.max(1, result.frames.length)) * 100).toFixed(0)} %`;
   const L = [];
 
@@ -388,13 +449,32 @@ export function summaryMarkdown(result, context) {
   }
 
   L.push('## Fasfördelning', '');
-  L.push('| Fas | Målvikt | Kvot | Faktiskt | Andel |', '|---|---:|---:|---:|---:|');
-  for (const p of PHASE_ORDER) {
-    const weight = PHASE_TARGET_WEIGHTS[p] ?? 0;
-    const got = result.byPhase[p] ?? 0;
-    L.push(`| \`${p}\` | ${(weight * 100).toFixed(0)} % | ${result.quotas[p] ?? 0} | ${got} | ${pct(got)} |`);
+  if (phaseWeights) {
+    L.push(
+      `Den här batchen drogs på en **batchspecifik** viktning ur \`${rel(phaseWeights.file)}\`,`,
+      'inte på specens målvikter. Specens tabell (*Fasfördelning — målvikter*) är **oförändrad** —',
+      'den beskriver hur det färdiga datasetet ska se ut, inte hur varje enskild batch måste se ut.',
+      '',
+      '**Motivering:**',
+      '',
+      ...phaseWeights.note.split('\n').map((line) => `> ${line}`),
+      '',
+    );
   }
-  L.push(`| **Totalt** | **100 %** | **${size}** | **${result.frames.length}** | |`, '');
+  L.push(
+    `| Fas | Specvikt | ${phaseWeights ? 'Batchvikt | ' : ''}Kvot | Faktiskt | Andel |`,
+    `|---|---:|---:|---:|---:|${phaseWeights ? '---:|' : ''}`,
+  );
+  for (const p of PHASE_ORDER) {
+    const spec = ((PHASE_TARGET_WEIGHTS[p] ?? 0) * 100).toFixed(0);
+    const batch = phaseWeights ? `${((weights[p] ?? 0) * 100).toFixed(0)} % | ` : '';
+    const got = result.byPhase[p] ?? 0;
+    L.push(`| \`${p}\` | ${spec} % | ${batch}${result.quotas[p] ?? 0} | ${got} | ${pct(got)} |`);
+  }
+  L.push(
+    `| **Totalt** | **100 %** | ${phaseWeights ? '**100 %** | ' : ''}**${size}** | **${result.frames.length}** | |`,
+    '',
+  );
   const short = PHASE_ORDER.filter((p) => (result.shortfallByPhase[p] ?? 0) > 0);
   if (short.length > 0) {
     L.push(
@@ -504,7 +584,7 @@ function prefillNotes() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const opts = { exportsDir: DEFAULT_EXPORTS_DIR, outDir: DEFAULT_OUT_DIR, size: DEFAULT_BATCH_SIZE, dryRun: false, extraExcludes: [], autoExclude: true };
+  const opts = { exportsDir: DEFAULT_EXPORTS_DIR, outDir: DEFAULT_OUT_DIR, size: DEFAULT_BATCH_SIZE, dryRun: false, extraExcludes: [], autoExclude: true, phaseWeightsFile: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--dry-run') opts.dryRun = true;
@@ -515,6 +595,7 @@ function parseArgs(argv) {
     } else if (arg === '--out') opts.outDir = path.resolve(ROOT, argv[++i] ?? '');
     else if (arg === '--exports') opts.exportsDir = path.resolve(ROOT, argv[++i] ?? '');
     else if (arg === '--exclude') opts.extraExcludes.push(path.resolve(ROOT, argv[++i] ?? ''));
+    else if (arg === '--phase-weights') opts.phaseWeightsFile = path.resolve(ROOT, argv[++i] ?? '');
     else throw new Error(`unknown argument: ${arg}`);
   }
   return opts;
@@ -579,7 +660,15 @@ function main(argv) {
     return;
   }
 
-  const result = selectTrainingBatch(pool, excluded, { size: opts.size });
+  const phaseWeights = opts.phaseWeightsFile ? readPhaseWeights(opts.phaseWeightsFile) : null;
+  if (phaseWeights) {
+    console.log(`Phase weights: ${rel(phaseWeights.file)} (batch-specific, spec table unchanged)`);
+  }
+
+  const result = selectTrainingBatch(pool, excluded, {
+    size: opts.size,
+    ...(phaseWeights ? { weights: phaseWeights.weights } : {}),
+  });
   console.log(`Pool: ${pool.length} frames → ${result.poolAfterExclusion} after excluding ${result.excludedFromPool}.`);
   if (result.excludedNotInPool.length > 0) {
     console.warn(`  WARN: ${result.excludedNotInPool.length} excluded id(s) are not in the pool — an export is missing from exports/.`);
@@ -614,6 +703,11 @@ function main(argv) {
     generatedAt: new Date().toISOString(),
     selectionSeed: `0x${TRAINING_SEED.toString(16)}`,
     phaseTargetWeights: PHASE_TARGET_WEIGHTS,
+    // What the draw actually used. Equal to the spec weights unless `--phase-weights`
+    // pointed at a batch-specific table; `phaseWeightsSource` says which.
+    phaseWeightsUsed: phaseWeights?.weights ?? PHASE_TARGET_WEIGHTS,
+    phaseWeightsSource: phaseWeights ? rel(phaseWeights.file) : 'spec (PHASE_TARGET_WEIGHTS)',
+    ...(phaseWeights ? { phaseWeightsNote: phaseWeights.note } : {}),
     phaseQuotas: result.quotas,
     excludedIdSources: excludeSources.map((s) => ({ file: s.rel, count: s.count })),
     excludedFromPool: result.excludedFromPool,
@@ -642,7 +736,7 @@ function main(argv) {
     writeGuarded(path.join(opts.outDir, 'labels-frame-meta.json'), frameMetaLabelsJson()),
     writeGuarded(
       path.join(opts.outDir, 'summary.md'),
-      summaryMarkdown(result, { size: opts.size, outName, exports, poolSize: pool.length, excludeSources, seed: TRAINING_SEED }),
+      summaryMarkdown(result, { size: opts.size, outName, exports, poolSize: pool.length, excludeSources, seed: TRAINING_SEED, phaseWeights }),
     ),
   ];
   console.log('\nWrote:');

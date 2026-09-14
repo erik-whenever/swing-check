@@ -1679,6 +1679,97 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > `globalIgnores`. Båda är gitignorerade genererade träd som eslint annars vandrade — vilket gjorde
 > att "är lint ren?" berodde på vad som råkade ligga kvar på disken.
 
+### [x] S-12 — Batch-02 + förhandsmärkning med modellen
+
+> **Klart (2026-09-14).** 250 frames dragna som `batch-02`, och `training/prelabel_batch.py`
+> som kör `shaft-v1.onnx` över dem och skriver en CVAT-importerbar `prelabel.xml`.
+> **118 av 250 frames (47 %) förhandsmärkta.** Dokumentation:
+> [../docs/shaft/annotation-spec.md](shaft/annotation-spec.md) → *Förhandsmärkning med modellen*.
+>
+> **Batchspecifik faskvot, specens tabell orörd.** Ny flagga `--phase-weights <fil>` på
+> `build-training-batch.mjs`: en **committad JSON-fil** med `weights` + en obligatorisk `note`,
+> inte en kommandoradssträng, så avvikelsen och argumentet för den hamnar i historiken bredvid
+> varandra och `summary.md` kan citera tillbaka motiveringen. Vikterna måste summera **exakt**
+> till 1 — en tabell som summerar till 0,98 drar annars varje kvot två procent kort utan att
+> säga det. Batch-02 ([`batch-02-phase-weights.json`](shaft/batch-02-phase-weights.json)):
+> `downswing` 34 → **44 %**, `top` 10 → **16 %**, betalt ur `through`/`backswing`/`address`/
+> `finish`; `impact` bara 18 → 16 % (delar oskärperegim med downswing); `idle` 2 → 0 %
+> (poolen innehåller noll idle-frames efter exkludering, så kvoten hade runnit över i
+> downswing i tysthet ändå). Varje kvot träffades exakt: 110/40/40/25/15/10/10, 205 svingar,
+> 125 web / 125 own. Exkludering: 100 reserverade + batch-01:s 150, alla 250 fanns i poolen.
+>
+> **Vygrinden är hela poängen, och den bygger på en mätning — inte på en gissning.** Modellen
+> kastar om `butt`/`hosel` vid förkortning. Mätt på kalibreringssetet (97 frames) med samma
+> kedja som appen: `dtl` **50 förhandsmärkta, medianfel 2,6°, noll ombytningar**; `face_on`
+> (per erik) 4 förhandsmärkta, **medianfel 158,6°**, 2 ombytningar. Alltså förhandsmärks en
+> frame **bara när varje redan annoterad frame ur samma sving säger `dtl`**. Kameran flyttar
+> sig inte under en sving — men **den flyttar sig mellan svingar i samma klipp**, vilket
+> `072.mp4` (s00 dtl, s02 face_on), `IMG_5426.MP4` och `IMG_5428.MP4` är annoterade bevis för,
+> så uppslagningen är per **sving** och aldrig per klipp (clip-nivå hade täckt 4 % mer och
+> förhandsmärkt just de klippens face-on-svingar). Enighet krävs: de fyra frames där erik och
+> lisa var oense om `view` var **4 av 4** erik `face_on` / lisa `dtl` — enkelriktat, samma
+> mönster som `occluded`/`visible`. Täckningen räckte: 156 av batchens svingar är enhälligt
+> `dtl` (187 frames), 18 har någon `face_on` (21 frames), 31 har ingen annoterad frame alls
+> (42 frames).
+>
+> **Två heuristiker prövades mot data och förkastades** — skrivna i skriptets huvud och i
+> specen så de inte prövas igen. (1) *Skaftlängd i förhållande till personen*: går inte.
+> Facitlängden som andel av bildhöjden är 0,032–0,313 för `dtl` och 0,116–0,239 för `face_on`
+> — face-on ligger **helt inuti** dtl-intervallet. De två ombytta framesen hade dessutom
+> predicerad längd 0,168 H och 0,261 H medan setets två *kortaste* prediktioner (0,054 H,
+> 0,084 H) låg rätt på 13,7° och 2,5°; grinden hade kastat bra märkningar och behållit båda de
+> dåliga. Konfidens räddar inte heller — båda ombytningarna hade box-konf ~0,73 och
+> keypoint-score ~1,00. (2) *Vinkelkontinuitet mot svingens övriga frames*: går inte, skaftet
+> sveper genom nästan ett helt varv under svingen. Mätt över 55 frames: **0 fångade, 2
+> missade, 24 falsklarm.**
+>
+> **Importformatet är verifierat, inte antaget.** CVAT for images 1.1, mot `docs.cvat.ai` →
+> *Dataset management → Formats → CVAT for image* och samma sidas källa i `cvat-ai/cvat@develop`
+> (självhostad, senaste): `<skeleton label="shaft" source="…" z_order="…">` med nästlade
+> `<points label="butt|hosel" occluded="…" source="…" outside="…" points="x,y">`, där
+> `points/@label` är **sub-etiketten**. Samma fallgrop som för `prefill-phase.xml` gäller —
+> *"Only label names can be imported this way, colors, attributes, and skeleton labels must be
+> defined manually"* — så `shaft`-skelettet måste redan finnas på tasken från
+> `docs/shaft/cvat-labels.json`. COCO Keypoints 1.0 importerar också skeletons och hade
+> fungerat; CVAT-for-images valdes för att det är CVAT:s förlustfria eget format, bär
+> per-punkts-`outside` som specens tre synlighetslägen bygger på, och redan har en verifierad
+> rundtur i repot. `<meta>`-blocket byggs ur `cvat-labels.json` så sub-etikettnamnen inte kan
+> glida från tasken.
+>
+> **Python, inte Node — och skälet är att det går att köra.** `onnxruntime`, `cv2`, `numpy`
+> och `pillow` är redan pinnade i `training/requirements.txt` och installerade;
+> `onnxruntime-web` behöver WASM och en canvas, och JPEG-avkodning i Node hade krävt ett nytt
+> beroende. Priset är att letterbox + postprocessing nu finns i **två** språk, så
+> `test_prelabel_batch.py` pinnar Python-sidan mot de tre frames S-11 verifierade i båda
+> miljöerna — `002-2415a710_s00_f02` conf 0,769 butt (249, 434) hosel (181, 375),
+> `006-48f0d1f4_s00_f03` ingen detektion, `008-b8e78a8a_s00_f05` conf 0,260 butt (704, 565)
+> hosel (602, 547) — och reproducerar dem **på pixeln**.
+>
+> **Vad som inte sätts.** `view`, `blur`, `phase` och `no_shaft` lämnas osatta: skelettet
+> skrivs utan ett enda `<attribute>`, så CVAT lägger på etikettens defaultvärden.
+> Punktflaggorna lämnas som `visible` — modellens keypoint-score är inte specens
+> synlighetsbedömning och får inte kläs ut till en. `source="manual"` och inte `"auto"`: båda
+> är dokumenterade värden, men `auto` är det repot aldrig kört en rundtur på, och att i
+> efterhand se vilka punkter som kom från modellen beror inte på flaggan — `prelabel.xml`
+> ligger kvar bredvid batchen, så en diff mot den returnerade exporten säger exakt vilka
+> punkter annotatören flyttade.
+>
+> **Utfall.** 118 förhandsmärkta; 132 överhoppade fördelat på 62 utan detektion, 42 ur svingar
+> utan känd vy, 21 ur svingar som inte är enhälligt `dtl`, 7 med en punkt under
+> keypoint-tröskeln, 0 degenererade. Per fas: `impact` 60 %, `downswing` 50 %, `backswing`
+> 48 %, `through` 47 %, `top` 42 %, `address` 20 %, `finish` 10 % — att `finish` och `address`
+> ligger lågt är samma sak som S-11 såg: de framesen är lätta för människan och modellen ser
+> dem sällan i poolen. Detektionsgraden inom de 187 vy-godkända framesen är 63 %, vilket
+> stämmer med kalibreringssetets 57 %.
+>
+> **Verifierat.** `npm run build` rent · `npx vitest run` **375/375** (13 nya i
+> `build-training-batch.test.mjs`: vikttabellens validering, båda summarykolumnerna, att en
+> nollviktad fas inte kan få utfyllnad) · `py -3.11 -m unittest discover -s training -t training`
+> **34/34**, inklusive de två pinnade end-to-end-testerna mot den riktiga modellen.
+> `npm run lint` har **2 kvarstående fel, båda sedan tidigare och i orörda filer**
+> (`FrameLightbox.tsx:27`, `useHistory.ts:93` — `react-hooks/set-state-in-effect`); de hör inte
+> till den här strömmen och är inte rättade här.
+
 ---
 
 ## Avklarat

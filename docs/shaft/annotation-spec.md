@@ -637,6 +637,26 @@ skiljer:
   som nätt och jämnt missade kalibreringsurvalet — träningsdata av evalsetets närmaste
   grannar.
 
+### Batchspecifika faskvoter
+
+`--phase-weights <fil>` drar batchen på en annan viktning än specens. Tabellen ovan
+**ändras inte** av det — den beskriver hur det *färdiga* datasetet ska se ut, medan en
+enskild batch kan vara en riktad rättning av var detektorn faktiskt fallerar.
+
+Vikterna ligger i en **committad JSON-fil** (`docs/shaft/batch-NN-phase-weights.json`),
+inte på kommandoraden, så avvikelsen och argumentet för den hamnar i versionshistoriken
+bredvid varandra; `summary.md` citerar tillbaka motiveringen. Filen måste bära en
+icke-tom `note` och vikter som summerar **exakt** till 1 — en tabell som summerar till
+0,98 drar annars varje kvot två procent kort utan att säga det.
+
+```json
+{ "note": "varför den här batchen lutar åt ett annat håll", "weights": { "downswing": 0.44, "…": 0.0 } }
+```
+
+Batch-02 drogs så: `downswing` 34 % → **44 %**, `top` 10 % → **16 %**, betalt ur
+`through`/`backswing`/`address`/`finish`, `idle` 2 % → 0 % (poolen innehåller noll
+idle-frames efter exkludering). Se [`batch-02-phase-weights.json`](batch-02-phase-weights.json).
+
 ### Utdata (`data/shaft/training/<batch>/`)
 
 | Fil | Innehåll |
@@ -646,6 +666,7 @@ skiljer:
 | `labels-frame-meta.json` | Etikettschemat taggen kräver. |
 | `prefill-phase.xml` | **Skrivs ej** — förifyllning inaktiverad, se nedan. |
 | `summary.md` | Exkludering, fas- och källfördelning, exporter, varningar. |
+| `prelabel.xml`, `prelabel-report.md` | Skrivs av `training/prelabel_batch.py`, se *[Förhandsmärkning med modellen](#förhandsmärkning-med-modellen)*. |
 
 ### Förifylld `phase` i CVAT — AVSTÄNGD
 
@@ -690,3 +711,108 @@ får tomma fashinkar mot en batch med det här schemat; manifestet bär fasen oa
 Skriptet skriver **aldrig utanför `data/shaft/`** och lägger inga nya beroenden till
 projektet. Exkludering, faskvoter och determinism är enhetstestade i
 `scripts/build-training-batch.test.mjs`.
+
+---
+
+## Förhandsmärkning med modellen
+
+`training/prelabel_batch.py` kör `shaft-v1.onnx` över en batch och skriver en
+CVAT-importerbar fil där modellen redan placerat `butt` och `hosel`. Frames utan
+förhandsmärkning får **inget objekt** — annotatören ritar från noll där.
+
+```powershell
+py -3.11 training\prelabel_batch.py --batch data\shaft\training\batch-02\batch.zip
+py -3.11 training\prelabel_batch.py --batch … --dry-run        # rapporterar, skriver inget
+py -3.11 training\prelabel_batch.py --batch … --view-gate off  # mäter vad grinden kostar
+```
+
+Trösklar: box-konfidens **0,25**, keypoint **0,5** — samma värden som `src/lib/shaft/`
+använder i appen, så en frame som förhandsmärks här är en frame appen också hade
+rapporterat. Båda punkterna måste klara keypoint-tröskeln; en ensam punkt förhandsmärks
+inte.
+
+### Vygrinden — och varför den ser ut som den gör
+
+Modellen **kastar om ändarna vid förkortning**. På kalibreringssetet hände det två
+gånger, båda på frames minst en annotatör kallade `face_on`:
+
+| Vy (erik) | Förhandsmärkta | Medianfel, vinkel | Ombytta ändar (>90°) |
+|---|---:|---:|---:|
+| `dtl` | 50 | **2,6°** | **0** |
+| `face_on` | 4 | **158,6°** | 2 |
+
+Därför förhandsmärks en frame **bara när varje redan annoterad frame ur samma sving
+säger `dtl`**. Kameran flyttar sig inte under en sving, så en annoterad frame etiketterar
+hela svingen — men den flyttar sig **mellan** svingar i samma klipp (`072.mp4`,
+`IMG_5426.MP4`, `IMG_5428.MP4` är annoterade bevis), så uppslagningen är per sving och
+aldrig per klipp. En sving utan någon annoterad frame förhandsmärks inte: ingen vyevidens
+är inte evidens för `dtl`.
+
+Enighet krävs. Där erik och lisa var oense om `view` på samma frame var det 4 gånger av 4
+erik `face_on` / lisa `dtl` — enkelriktat, samma mönster som `occluded`/`visible`. En
+omtvistad sving räknas som icke-`dtl`.
+
+### Två heuristiker som prövades och inte fungerade
+
+Skrivet här för att nästa person kommer att pröva dem igen.
+
+1. **"Hoppa över frames där skaftet är för kort i förhållande till personen."** Går inte.
+   Skaftlängden som andel av bildhöjden är 0,032–0,313 för `dtl` och 0,116–0,239 för
+   `face_on` — face-on-intervallet ligger *helt inuti* dtl-intervallet, så ingen tröskel
+   skiljer dem. Värre: de två ombytta framesen hade predicerad längd 0,168 H och 0,261 H
+   (lång respektive normal), medan setets två *kortaste* prediktioner (0,054 H, 0,084 H)
+   låg rätt på 13,7° och 2,5°. En längdgrind hade kastat bra förhandsmärkningar och
+   behållit båda de dåliga. Konfidensen räddar inte heller: båda ombytningarna hade
+   box-konfidens ~0,73 och keypoint-score ~1,00.
+2. **"Flagga en frame vars vinkel avviker från svingens övriga frames."** Går inte, av ett
+   skäl som är uppenbart i efterhand: skaftet sveper genom nästan ett helt varv under
+   svingen, så syskonframes från andra faser har ingen gemensam riktning att vara avvikare
+   mot. Mätt över de 55 kalibreringsframesen med facit: **0 ombytningar fångade, 2
+   missade, 24 falsklarm.**
+
+### Importformatet
+
+**CVAT for images 1.1**, verifierat mot CVAT:s egen dokumentation för den självhostade
+utgåvan (`docs.cvat.ai` → *Dataset management → Formats → CVAT for image*, och samma sidas
+källa i `cvat-ai/cvat@develop`) — inte antaget:
+
+- `<skeleton label="shaft" source="…" z_order="…">` med nästlade
+  `<points label="butt|hosel" occluded="0|1" source="…" outside="0|1" points="x,y">` är den
+  dokumenterade representationen. Både schemablocket och det genomgångna exemplet på sidan
+  bär den.
+- `<points label="…">` namnger **sub-etiketten**, alltså `butt` / `hosel`.
+- **Etikettschemat kan inte importeras** — samma fallgrop som för `prefill-phase.xml`:
+  *"Only label names can be imported this way, colors, attributes, and skeleton labels must
+  be defined manually."* `shaft`-skelettet med sina två sub-etiketter måste alltså redan
+  finnas på tasken, från [`cvat-labels.json`](cvat-labels.json).
+- **COCO Keypoints 1.0** importerar också skeletons och hade fungerat. CVAT-for-images
+  valdes för att det är CVAT:s egna förlustfria format, bär per-punkts-flaggan `outside`
+  som specens tre synlighetslägen bygger på, och för att repot redan har en verifierad
+  rundtur genom det.
+- `image/@name` måste matcha bildens namn i tasken. Namnen bär prefixet `frames/` vilket
+  matchar `batch.zip`; skapas tasken från en katalog med lösa JPEG:ar, kör med
+  `--name-prefix ""`.
+
+### Vad förhandsmärkningen inte sätter
+
+`view`, `blur`, `phase` och `no_shaft` lämnas **osatta** — skelettet skrivs utan ett enda
+`<attribute>`, så CVAT lägger på etikettens defaultvärden och varje attribut är fortfarande
+en obesvarad fråga när annotatören öppnar framen. Att en frame är förhandsmärkt säger
+ingenting om vilken vy den har, bara att svingen den kom ur redan är annoterad som `dtl`
+någon annanstans.
+
+Punktflaggorna är också osatta (båda punkterna ligger som `visible`). Modellens
+keypoint-score är **inte** specens synlighetsbedömning och får inte kläs ut till en.
+
+Punkterna skrivs som `source="manual"`, inte `"auto"`. Båda är dokumenterade värden, men
+`auto` är det repot aldrig kört en rundtur på, och en förhandsmärkning som CVAT tar emot
+men arkiverar annorlunda är precis den tysta smällen `prefill-phase` blev ihågkommen för.
+Att i efterhand se vilka punkter som kom från modellen beror inte på flaggan: `prelabel.xml`
+ligger kvar bredvid batchen, så en diff mot den returnerade exporten säger exakt vilka
+punkter annotatören flyttade och hur långt.
+
+### Utfall batch-02
+
+118 av 250 frames (47 %) förhandsmärkta. Överhoppade: 62 utan detektion, 42 ur svingar
+utan känd vy, 21 ur svingar som inte är enhälligt `dtl`, 7 med en punkt under
+keypoint-tröskeln, 0 degenererade. Full redovisning i batchens `prelabel-report.md`.

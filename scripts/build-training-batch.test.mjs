@@ -13,23 +13,29 @@
 //
 // Synthetic pools throughout: the real exports are gitignored personal data.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   phaseQuotas,
   readIdList,
+  readPhaseWeights,
   excludeIds,
   selectTrainingBatch,
   prefillPhaseXml,
   frameMetaLabelsJson,
+  summaryMarkdown,
   PHASE_TARGET_WEIGHTS,
   TRAINING_SEED,
   DEFAULT_BATCH_SIZE,
 } from './build-training-batch.mjs';
 import { PHASE_ORDER, SELECTION_SEED } from './build-calibration-set.mjs';
+
+/** Repo root, so the committed weights file can be read as the real draw reads it. */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
  * A pool shaped like the real one: `swings` swings, one frame per phase in each,
@@ -153,6 +159,108 @@ describe('readIdList', () => {
       writeFileSync(file, 'a_s00_f00\r\nb_s00_f01\r\n');
       expect([...readIdList(file)].sort()).toEqual(['a_s00_f00', 'b_s00_f01']);
     });
+  });
+});
+
+describe('readPhaseWeights', () => {
+  let dir;
+  const write = (obj) => {
+    dir ??= mkdtempSync(path.join(tmpdir(), 'weights-'));
+    const file = path.join(dir, `${Math.random().toString(36).slice(2)}.json`);
+    writeFileSync(file, typeof obj === 'string' ? obj : JSON.stringify(obj));
+    return file;
+  };
+  const valid = { note: 'because downswing is where it fails', weights: { downswing: 0.6, top: 0.4 } };
+
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  it('reads a weights table and the note that justifies it', () => {
+    const got = readPhaseWeights(write(valid));
+    expect(got.weights).toEqual({ downswing: 0.6, top: 0.4 });
+    expect(got.note).toBe('because downswing is where it fails');
+  });
+
+  it('REFUSES a table that does not sum to 1 — a 0.98 table draws every quota short in silence', () => {
+    expect(() => readPhaseWeights(write({ ...valid, weights: { downswing: 0.6, top: 0.38 } }))).toThrow(
+      /sum to 1/,
+    );
+  });
+
+  it('refuses a deviation with no stated reason — that is indistinguishable from a typo', () => {
+    expect(() => readPhaseWeights(write({ weights: { downswing: 1 } }))).toThrow(/note/);
+    expect(() => readPhaseWeights(write({ note: '   ', weights: { downswing: 1 } }))).toThrow(/note/);
+  });
+
+  it('refuses a phase that is not a phase — a typo would otherwise weigh nothing at all', () => {
+    expect(() => readPhaseWeights(write({ ...valid, weights: { downswing: 0.6, dowswing: 0.4 } }))).toThrow(
+      /unknown phase/,
+    );
+  });
+
+  it('refuses negative and non-numeric weights', () => {
+    expect(() => readPhaseWeights(write({ ...valid, weights: { downswing: 1.4, top: -0.4 } }))).toThrow(
+      /non-negative/,
+    );
+    expect(() => readPhaseWeights(write({ ...valid, weights: { downswing: '1' } }))).toThrow(/number/);
+  });
+
+  it('reports the file in the error when it is missing or not JSON', () => {
+    expect(() => readPhaseWeights(path.join(tmpdir(), 'nope-does-not-exist.json'))).toThrow(
+      /could not read phase weights/,
+    );
+    expect(() => readPhaseWeights(write('{not json'))).toThrow(/could not read phase weights/);
+  });
+
+  it('accepts the committed batch-02 table — the one the real draw used', () => {
+    const got = readPhaseWeights(path.join(REPO_ROOT, 'docs/shaft/batch-02-phase-weights.json'));
+    expect(got.weights.downswing).toBeGreaterThan(PHASE_TARGET_WEIGHTS.downswing);
+    expect(got.weights.top).toBeGreaterThan(PHASE_TARGET_WEIGHTS.top);
+    expect(Object.values(got.weights).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 12);
+  });
+});
+
+describe('batch-specific weights reach the draw and the summary', () => {
+  const weights = { idle: 0, address: 0, backswing: 0, top: 0.5, downswing: 0.5, impact: 0, through: 0, finish: 0 };
+
+  it('draws to the batch weights, not the spec weights', () => {
+    const result = selectTrainingBatch(makePool(), new Set(), { size: 100, weights });
+    expect(result.quotas).toEqual({ top: 50, downswing: 50 });
+    // A phase weighted to zero gets no quota at all, so it cannot receive fill-up either.
+    expect(result.byPhase.impact ?? 0).toBe(0);
+  });
+
+  it('prints both the spec weight and the batch weight, and quotes the justification', () => {
+    const result = selectTrainingBatch(makePool(), new Set(), { size: 100, weights });
+    const md = summaryMarkdown(result, {
+      size: 100,
+      outName: 'batch-99',
+      exports: [],
+      poolSize: 1,
+      excludeSources: [],
+      seed: TRAINING_SEED,
+      phaseWeights: { weights, note: 'the detector is blind in downswing', file: 'docs/shaft/x.json' },
+    });
+    expect(md).toContain('| Fas | Specvikt | Batchvikt | Kvot | Faktiskt | Andel |');
+    expect(md).toContain('> the detector is blind in downswing');
+    // The spec column still shows the spec, so a reader can see the size of the deviation.
+    expect(md).toMatch(/\| `downswing` \| 34 % \| 50 % \|/);
+  });
+
+  it('keeps the single-weight table when no override is given', () => {
+    const result = selectTrainingBatch(makePool(), new Set(), { size: 100 });
+    const md = summaryMarkdown(result, {
+      size: 100,
+      outName: 'batch-99',
+      exports: [],
+      poolSize: 1,
+      excludeSources: [],
+      seed: TRAINING_SEED,
+    });
+    expect(md).toContain('| Fas | Specvikt | Kvot | Faktiskt | Andel |');
+    expect(md).not.toContain('Batchvikt');
   });
 });
 

@@ -3,7 +3,26 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-14.
 >
-> **Senast (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
+> **Senast (2026-09-14, stream-shaft):** S-12 batch-02 + förhandsmärkning. 250 frames dragna på en
+> **batchspecifik** faskvot (`--phase-weights docs/shaft/batch-02-phase-weights.json`: downswing
+> 34 → 44 %, top 10 → 16 %, idle → 0 %); **specens målvikter är orörda** — filen bär en obligatorisk
+> `note` som `summary.md` citerar, och vikterna måste summera exakt till 1. `training/prelabel_batch.py`
+> körde `shaft-v1.onnx` över batchen och skrev `prelabel.xml` (**CVAT for images 1.1**,
+> `<skeleton label="shaft">` + `<points label="butt|hosel">`, format verifierat mot CVAT:s docs för
+> den självhostade utgåvan) — **118 av 250 frames (47 %) förhandsmärkta**.
+> **Vygrinden är det som gör det försvarbart:** modellen kastar om ändarna vid förkortning
+> (kalibreringssetet: `dtl` 50 frames medianfel **2,6°** och **noll** ombytningar, `face_on` 4 frames
+> medianfel **158,6°** och 2 ombytningar), så en frame förhandsmärks bara när **varje redan annoterad
+> frame ur samma sving** säger `dtl` — per sving, aldrig per klipp, eftersom klipp byter kameravinkel
+> mellan svingar (`072.mp4`, `IMG_5426.MP4`, `IMG_5428.MP4`). Täckning: 187 frames ur enhälligt
+> dtl-svingar, 21 ur face-on-berörda, 42 ur svingar utan annoterad vy.
+> **Två heuristiker prövades mot data och förkastades** (skaftlängd — face-on-intervallet ligger helt
+> inuti dtl:s; vinkelkontinuitet över svingen — 0 fångade, 24 falsklarm); skälen står i skriptets huvud
+> så de inte prövas igen. `view`/`blur`/`phase`/`no_shaft` och punktflaggorna lämnas **osatta**.
+> Python och inte Node för att `onnxruntime`+`cv2` redan är pinnade; priset är en andra kopia av
+> letterbox/postprocessing, pinnad mot S-11:s tre dubbelverifierade frames i `test_prelabel_batch.py`.
+>
+> **Dessförinnan (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
 > ny fristående modul `src/lib/shaft/` (`shaftDetector` · `letterbox` · `shaftPostprocess` ·
 > `shaftPreview`) och en dev-vy `ShaftPreviewView` bakom `VITE_DEV_PREVIEW` (launcher "⌁ Shaft").
 > **Pose-kedjan är byte-för-byte orörd** — `git diff main` är tom för `frameExtractor.ts`,
@@ -349,8 +368,14 @@ S-5 (2026-09-03): faskvoten balanseras över hela exporten via `PhaseQuotaState`
 in och ut ur `cullToPhaseTargets`; per sving går det inte, `finish` (6 % av 7) avrundas då
 alltid till noll. Mätt över 10 svingar: max 0,9 pe från målen.
 
-**Ej körd på riktiga klipp än.** Spec + körinstruktion:
-[shaft/annotation-spec.md](shaft/annotation-spec.md); status: [BACKLOG.md](BACKLOG.md) Ström S.
+S-12 (2026-09-14): `batch-02` (250 frames) dragen med `--phase-weights` — en **committad** JSON-fil
+med vikter + obligatorisk motivering, så en batchspecifik avvikelse hamnar i historiken i stället för
+i ett kommandoradsminne; specens målvikttabell ändras aldrig för en enskild batch.
+`training/prelabel_batch.py` förhandsmärkte 118 av dem. **Vygrinden (enhälligt `dtl` per sving) är
+inte en försiktighetsåtgärd utan en mätning:** `face_on` ger 158,6° medianfel mot `dtl`:s 2,6°.
+
+Spec + körinstruktion: [shaft/annotation-spec.md](shaft/annotation-spec.md) (→ *Förhandsmärkning med
+modellen*); status: [BACKLOG.md](BACKLOG.md) Ström S.
 
 ## Öppna trådar
 

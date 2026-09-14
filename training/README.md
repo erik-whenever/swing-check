@@ -182,6 +182,30 @@ flaggor:
 COCO-förtränad basmodell som saknar `train_args`) avbryts körningen med ett tydligt fel och
 man måste skicka flaggan för hand.
 
+### Förhandsmärk nästa batch
+
+```powershell
+py -3.11 training\prelabel_batch.py --batch data\shaft\training\batch-02\batch.zip
+py -3.11 training\prelabel_batch.py --batch … --dry-run        # rapporterar, skriver inget
+py -3.11 training\prelabel_batch.py --batch … --view-gate off  # mäter vad vygrinden kostar
+```
+
+Kör `shaft-v1.onnx` över batchens frames och skriver `prelabel.xml` (CVAT for images 1.1,
+ett `<skeleton label="shaft">` med `butt` och `hosel` per förhandsmärkt frame) plus
+`prelabel-report.md` bredvid batch-ZIP:en. Frames utan förhandsmärkning får inget objekt.
+
+**Läs [`docs/shaft/annotation-spec.md` → *Förhandsmärkning med modellen*](../docs/shaft/annotation-spec.md#förhandsmärkning-med-modellen)
+innan du ändrar något här.** Kortversionen: modellen kastar om ändarna vid förkortning
+(158,6° medianfel på kalibreringssetets `face_on`-frames mot 2,6° på `dtl`), så en frame
+förhandsmärks bara när varje redan annoterad frame ur **samma sving** säger `dtl`. Två
+uppenbara alternativa heuristiker — skaftlängd och vinkelkontinuitet över svingen — är
+prövade mot data och fungerar inte; skälen står i skriptets huvud så de inte prövas igen.
+
+Skriptet kör ONNX direkt (`onnxruntime` + `cv2`, båda redan pinnade) och speglar
+`src/lib/shaft/letterbox.ts` och `shaftPostprocess.ts`. Det är två implementationer av
+samma geometri, så `test_prelabel_batch.py` pinnar den mot de tre frames S-11 verifierade i
+**båda** miljöerna — driver någon av dem isär faller ett test i stället för en batch.
+
 #### Vad verifieringen kontrollerar
 
 Direkt efter exporten kör skriptet en bild ur `data/shaft/calibration/calibration.zip` genom
@@ -281,7 +305,9 @@ Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
 | `train.py` | Tränar YOLOv8n-pose från COCO-förtränade vikter. |
 | `evaluate.py` | Mäter mot kalibreringssetet, skriver `eval-report.md`. |
 | `export_onnx.py` | Exporterar `best.pt` → ONNX och verifierar numeriskt. |
+| `prelabel_batch.py` | Förhandsmärker en batch med ONNX-modellen → CVAT-importerbar XML. |
 | `shaft_coco.py` | Delade läsare för COCO-exporterna. |
+| `test_prelabel_batch.py` | Enhetstester (`py -3.11 -m unittest discover -s training -t training`). |
 | `requirements.txt` | Pinnade beroenden (utom PyTorch, se ovan). |
 
 `shaft_coco.py` finns för att `prepare_dataset.py` och `evaluate.py` **måste** tolka
