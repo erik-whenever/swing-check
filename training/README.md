@@ -430,6 +430,37 @@ flaggade `outside` och hur ofta den saknar en punkt annotatören satte. Det för
 är inte automatiskt fel — `outside` betyder att *annotatören* inte kunde sluta sig till
 läget — så talet finns för att göra avvikelsen synlig, inte för att straffa den.
 
+### Levererande modell: `shaft-v2.onnx`
+
+Vad appen faktiskt kör i dag (`src/lib/shaft/shaftDetector.ts` → `MODEL_FILE`), mätt mot
+kalibreringssetet. Människokolumnen är golvet från *Kalibreringsutfall 2026-09* ovan — den
+står här för att en modellsiffra utan sitt golv inte går att bedöma.
+
+| Mått | `shaft-v2` | Människor | Kvot |
+|---|---:|---:|---:|
+| **Vinkel, median** | **1,06°** | 0,30° | 3,5× |
+| Vinkel, p90 | 6,72° | — | — |
+| `butt`, median (% av bildhöjd) | 0,54 % | 0,17 % | 3,2× |
+| `hosel`, median (% av bildhöjd) | 0,47 % | 0,13 % | 3,6× |
+
+**Täckning:** 17 av 96 frames (18 %) utan detektion — modellen returnerar ingen punkt alls
+där. De frames:en ingår inte i medianerna ovan, så läs de två talen ihop: en median dragen
+ur de 82 % lättaste frames:en är inte samma sak som en median över setet.
+
+**Per skärningsgrupp:**
+
+| Grupp | Vinkelmedian |
+|---|---:|
+| `face_on` | 4,32° |
+| `severe blur` | 3,46° |
+
+`face_on` är den siffra som flyttat sig mest. `shaft-v1` låg på **158,6°** där — inte ett
+placeringsfel utan omkastade ändar: vid förkortning gissade den fel på vilken ände som var
+`butt`. 4,32° betyder att omkastningen i allt väsentligt är borta, inte att den är bevisat
+omöjlig. Kvar att göra av det: **vygrinden i `prelabel_batch.py` är fortfarande v1:s**
+(förhandsmärker bara frames vars sving är helt `dtl`). Den är medvetet orörd här — att
+lossa på den är ett eget mätbart beslut, inte en följd av ett modellbyte.
+
 ### Vad som exkluderas ur träningen
 
 | Orsak | Batch-01 |

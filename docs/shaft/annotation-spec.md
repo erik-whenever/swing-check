@@ -235,6 +235,10 @@ när `phase` kommer från manifestet och hinkarna blir hela.
 och andel av bildhöjden i stället. Antingen behöver målet formuleras om i de enheterna, eller
 så måste en skaftbredd mätas för hand på ett urval frames innan tröskeln kan användas.
 
+**Vad den levererande modellen presterar mot samma set** står i
+[`training/README.md` → *Levererande modell*](../../training/README.md#levererande-modell-shaft-v2onnx) —
+siffrorna här är golvet den mäts mot, inte ett resultat i sig.
+
 **Kvar att granska för hand:** rapportens avsnitt 5 (skaftlängd) och 7 (de 15 största
 avvikelserna). Värst är `096-a36a587d_s00_f01` — 47 % skillnad i skaftlängd mellan
 annotatörerna på samma bild, vilket betyder att någon satt en ändpunkt på fel sak.

@@ -69,7 +69,15 @@ const log = createLogger('ShaftDetector');
 
 /** Square input side the checkpoint was exported at (training/README.md). */
 export const MODEL_INPUT_SIZE = 960;
-const MODEL_URL = '/models/shaft-v1.onnx';
+/**
+ * The shipped checkpoint's filename. THIS IS THE ONLY PLACE THE MODEL IS NAMED —
+ * swapping models is this one line. `MODEL_URL` feeds both `preflightAssets()`
+ * (via ORT_ARTIFACTS) and every `InferenceSession.create()` below, and the dev
+ * preview imports `MODEL_FILE` rather than repeating the literal. The service
+ * worker's runtime rule matches any `.onnx` path, so it needs no change.
+ */
+export const MODEL_FILE = 'shaft-v2.onnx';
+const MODEL_URL = `/models/${MODEL_FILE}`;
 /**
  * String path prefix for all ORT WASM binaries. Served from our own origin.
  *
@@ -305,7 +313,7 @@ async function preflightAssets(): Promise<void> {
       throw new Error(
         `Shaft asset "${url}" returned HTTP ${res.status}. ` +
           'Run "npm run shaft:wasm" to copy all ORT runtime files, and ' +
-          'export the model to public/models/shaft-v1.onnx (training/export_onnx.py).',
+          `export the model to public/models/${MODEL_FILE} (training/export_onnx.py).`,
       );
     }
     const ct = res.headers.get('content-type') ?? '';

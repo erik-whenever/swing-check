@@ -15,7 +15,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Button } from '../ui';
 import { ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
-import { MODEL_INPUT_SIZE, type ShaftDetection } from '../../lib/shaft/shaftDetector';
+import { MODEL_FILE, MODEL_INPUT_SIZE, type ShaftDetection } from '../../lib/shaft/shaftDetector';
 import {
   CONF_THRESHOLD,
   KEYPOINT_THRESHOLD,
@@ -76,7 +76,7 @@ export function ShaftPreviewView() {
       <header className="space-y-1">
         <h1 className="text-base font-semibold text-fg">Shaft detector</h1>
         <p className="text-xs text-muted">
-          Production frame chain → shaft-v1.onnx ({MODEL_INPUT_SIZE}²), up to{' '}
+          Production frame chain → {MODEL_FILE} ({MODEL_INPUT_SIZE}²), up to{' '}
           {ANALYSIS_FRAME_COUNT} frames per swing. conf ≥ {CONF_THRESHOLD}, keypoint ≥{' '}
           {KEYPOINT_THRESHOLD}.
         </p>

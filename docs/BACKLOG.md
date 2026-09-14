@@ -1772,6 +1772,60 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 
 ---
 
+### [~] S-13 — Byt till `shaft-v2.onnx`
+
+> **Delvis klart (2026-09-14).** Modellbytet är gjort och verifierat i webbläsaren på
+> **desktop**; `[~]` för att **iPhone-verifieringen återstår** och `shaft-v1.onnx` därför
+> ligger kvar på disk tills den är gjord.
+>
+> **Ett ställe namnger modellen.** `MODEL_FILE` i `src/lib/shaft/shaftDetector.ts` är nu
+> enda förekomsten; `MODEL_URL` härleds ur den och matar både `preflightAssets()` (via
+> `ORT_ARTIFACTS`) och varje `InferenceSession.create()`. Preflightens felmeddelande och
+> dev-vyns rubrik konsumerar samma konstant i stället för att upprepa strängen. **SW-regeln
+> i `vite.config.ts` behövde ingen ändring** — den matchar `.endsWith(".onnx")`, och
+> eftersom URL:en byter namn åldras en kvarliggande v1-post ut ur `shaft-runtime` under
+> `maxEntries: 4` i stället för att serveras. Nästa byte är alltså en rad.
+>
+> **`training/prelabel_batch.py` kör medvetet kvar på v1.** Dess vygrind finns för att v1
+> kastade om ändarna på `face_on` (158,6° median). v2:s 4,32° gör grinden sannolikt långt
+> för sträng — men att lossa den är ett eget mätbart beslut, inte en följd av ett modellbyte.
+>
+> **Mätvärden mot kalibreringssetet** står i
+> [`training/README.md` → *Levererande modell*](../training/README.md#levererande-modell-shaft-v2onnx),
+> med människornas golv bredvid: vinkelmedian **1,06°** mot 0,30°, p90 6,72°, `butt`
+> **0,54 %H** mot 0,17, `hosel` **0,47 %H** mot 0,13, `face_on` 4,32°, `severe blur` 3,46°,
+> och **17 av 96 frames utan detektion** — medianerna är dragna ur de 82 % lättaste framesen.
+>
+> **Dev-vyn på `data/shaft/clips/002.mp4`** (headless Chrome, **WebGPU**, `WebGPU ↔ WASM
+> equivalence OK`, inferensmedian 368 ms). En sving, 2,20–5,20 s, impact 4,00 s, 29 frames:
+> **17 av 29 med detektion** (15 med båda ändarna → en vinkel, 2 med bara `butt`), 12 utan.
+>
+> **Den ombytta 179°-hoppningen mellan 3,83 och 3,93 s är borta.** 3,83 och 3,87 ger båda
+> −110,8° (Δ 0,0°), och 3,90/3,93 returnerar bara `butt` — inget omkastat par produceras.
+> **Men vinkelserien är inte kontinuerlig**, av andra skäl:
+>
+> | Intervall | Vad som händer |
+> |---|---|
+> | 2,53–3,03 s | 4 frames utan detektion (backswing) |
+> | **3,90–4,20 s** | **10 frames utan användbar vinkel — täcker hela impact** |
+> | 3,37–3,70 s | `hosel`-x vandrar 185→266→192→161 px medan `butt` rör sig < 32 px: ±28/−33° vinkelskakning som ser ut som detektorbrus, inte rörelse |
+>
+> **Impacthålet är fyndet som betyder något.** Reglerna mäter skaftet just där, och v2
+> lämnar ingenting mellan 3,90 och 4,20 s. Det är samma frames v1 svarade fel på — felet har
+> bytt form från *omkastade ändar* till *ingen detektion*, vilket är det säkrare av de två
+> men inte en lösning.
+>
+> **Det stora steget 4,37→4,53 s (144,8°) är äkta rörelse, inte en ombytning.** `butt`-banan
+> är sammanhängande och tät genom hela follow-through (41/59/25/9/4/3 px mellan frames), så
+> greppänden är rätt identifierad; det är klubbhuvudet som sveper 308 px. En ren
+> ändombytning hade flyttat `butt` ur handbanan, vilket den inte gör.
+>
+> **Verifierat:** `npm run build` rent · `npm test` **375/375** · `npm run lint` 2 kvarstående
+> fel, båda sedan tidigare och i orörda filer (`FrameLightbox.tsx`, `useHistory.ts`).
+> **Ej sedd på en iPhone** — det är vad som återstår, och villkoret för att ta bort v1.
+
+---
+
 ## Avklarat
 
 _(CC flyttar avbockade uppgifter hit med datum och en mening om vad som gjordes, så listan ovan hålls fokuserad på återstående arbete.)_

@@ -3,7 +3,30 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-14.
 >
-> **Senast (2026-09-14, stream-shaft):** S-12 batch-02 + förhandsmärkning. 250 frames dragna på en
+> **Senast (2026-09-14, stream-shaft):** S-13 — skaftmodellen bytt till **`shaft-v2.onnx`**.
+> **Ett ställe namnger modellen:** `MODEL_FILE` i `src/lib/shaft/shaftDetector.ts`; `MODEL_URL`
+> härleds ur den och matar både `preflightAssets()` (via `ORT_ARTIFACTS`) och varje
+> `InferenceSession.create()`. Preflightens felmeddelande och dev-vyns rubrik konsumerar samma
+> konstant. **SW-regeln i `vite.config.ts` rördes inte** — den matchar `.endsWith(".onnx")`, och
+> eftersom URL:en byter namn åldras en kvarliggande v1-post ut ur `shaft-runtime` i stället för att
+> serveras. `training/prelabel_batch.py` kör **medvetet kvar på v1**: dess vygrind är kalibrerad mot
+> v1:s ombytningsfel, och att lossa den är ett eget mätbart beslut.
+> **Mätvärden mot kalibreringssetet** i [`../training/README.md` → *Levererande modell*](../training/README.md#levererande-modell-shaft-v2onnx):
+> vinkelmedian **1,06°** mot människornas 0,30°, p90 6,72°, `butt` 0,54 %H, `hosel` 0,47 %H,
+> `face_on` **4,32°** (v1: 158,6°), `severe blur` 3,46°, **17 av 96 frames utan detektion**.
+> **Dev-vyn på `002.mp4`** (headless Chrome, WebGPU, equivalence-checken mot WASM OK): en sving,
+> 29 frames, **17 med detektion** (15 med båda ändarna, 2 med bara `butt`).
+> **Den ombytta 179°-hoppningen 3,83→3,93 s är borta** — 3,83/3,87 ger båda −110,8°, och 3,90/3,93
+> returnerar bara `butt`. **Men serien är inte kontinuerlig:** 10 frames mellan **3,90 och 4,20 s
+> saknar användbar vinkel och täcker hela impact** — felet har bytt form från *omkastade ändar* till
+> *ingen detektion*, vilket är säkrare men inte löst. Dessutom en vinkelskakning ±30° kring toppen
+> (3,37–3,70 s) där `hosel`-x vandrar 80 px medan `butt` står still. Det stora steget 4,37→4,53 s
+> (144,8°) är däremot **äkta rörelse** — `butt`-banan är tät (41/59/25/9/4/3 px), så greppänden är
+> rätt identifierad.
+> **`shaft-v1.onnx` ligger kvar på disk** (båda är gitignorade) tills v2 är sedd på en **iPhone** —
+> det är den enda återstående punkten i S-13.
+>
+> **Dessförinnan (2026-09-14, stream-shaft):** S-12 batch-02 + förhandsmärkning. 250 frames dragna på en
 > **batchspecifik** faskvot (`--phase-weights docs/shaft/batch-02-phase-weights.json`: downswing
 > 34 → 44 %, top 10 → 16 %, idle → 0 %); **specens målvikter är orörda** — filen bär en obligatorisk
 > `note` som `summary.md` citerar, och vikterna måste summera exakt till 1. `training/prelabel_batch.py`
@@ -22,7 +45,7 @@
 > Python och inte Node för att `onnxruntime`+`cv2` redan är pinnade; priset är en andra kopia av
 > letterbox/postprocessing, pinnad mot S-11:s tre dubbelverifierade frames i `test_prelabel_batch.py`.
 >
-> **Dessförinnan (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
+> **Innan dess (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
 > ny fristående modul `src/lib/shaft/` (`shaftDetector` · `letterbox` · `shaftPostprocess` ·
 > `shaftPreview`) och en dev-vy `ShaftPreviewView` bakom `VITE_DEV_PREVIEW` (launcher "⌁ Shaft").
 > **Pose-kedjan är byte-för-byte orörd** — `git diff main` är tom för `frameExtractor.ts`,
