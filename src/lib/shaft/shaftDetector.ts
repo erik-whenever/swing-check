@@ -31,12 +31,21 @@
 // explicitly on every session startup. On the first real frame after choosing WebGPU
 // we also verify numerical equivalence against a WASM reference run.
 //
-// PATH PREFIX (ORT_PATH_PREFIX, string form): ORT 1.29 resolves ALL runtime
-// artefacts — both .wasm binaries and .mjs ES-module loaders — through the string
-// wasmPaths prefix, so `/ort/` routes every filename the runtime can ever request
-// to our origin. `npm run shaft:wasm` copies all eight files (four backends × two
-// extensions) from node_modules to public/ort/. The object form `{ wasm: URL }`
-// only covers a single binary path and cannot route the loader files.
+// WASM PATHS (object form): maps the three .wasm binary filenames ORT can
+// request to their self-hosted URLs. With the object form ORT uses its own
+// bundled JS loader (already present in the onnxruntime-web/webgpu bundle)
+// instead of fetching a .mjs loader file from our origin.
+//
+// The string form (`'/ort/'`) was tried first — it routes both .wasm and .mjs
+// files through the same prefix — but causes Vite's dev-server to reject the
+// dynamic import() ORT issues for the .mjs loader: "This file is in /public
+// and will be copied as-is during build without going through the plugin
+// transforms, and therefore should not be imported from source code."
+// The object form avoids that import entirely.
+//
+// Three binaries are mapped because ORT may choose any of them depending on
+// browser capability: jsep.wasm for WebGPU, asyncify.wasm when JSPI is absent
+// (wasm provider without native async), and plain .wasm as final fallback.
 
 // `onnxruntime-web/webgpu` imports the JSEP backend, which handles both
 // WebGPU (GPU dispatch) and wasm (CPU dispatch) within a single binary.
@@ -75,20 +84,20 @@ const MODEL_URL = '/models/shaft-v1.onnx';
  * that), so there is no risk of Vite refusing to serve a public/ file as a module.
  * See the block comment at the top of this file for the full reasoning.
  */
-const ORT_PATH_PREFIX = '/ort/';
+/** Maps each .wasm binary filename ORT may request to its self-hosted URL. */
+const ORT_WASM_PATHS: Record<string, string> = {
+  'ort-wasm-simd-threaded.wasm': '/ort/ort-wasm-simd-threaded.wasm',
+  'ort-wasm-simd-threaded.asyncify.wasm': '/ort/ort-wasm-simd-threaded.asyncify.wasm',
+  'ort-wasm-simd-threaded.jsep.wasm': '/ort/ort-wasm-simd-threaded.jsep.wasm',
+};
 
 /**
- * Every artefact ORT 1.29 may request for the webgpu → wasm provider chain.
- * Preflighted before session creation so a missing file is named in the error
- * rather than surfacing as an opaque WASM abort or an HTML-parse failure.
+ * Every binary ORT 1.29 may fetch for the webgpu → wasm provider chain, plus
+ * the model. Preflighted before session creation so a missing file is named in
+ * the error rather than surfacing as an opaque abort or an HTML-parse failure.
  */
 const ORT_ARTIFACTS = [
-  '/ort/ort-wasm-simd-threaded.asyncify.mjs',
-  '/ort/ort-wasm-simd-threaded.asyncify.wasm',
-  '/ort/ort-wasm-simd-threaded.jsep.mjs',
-  '/ort/ort-wasm-simd-threaded.jsep.wasm',
-  '/ort/ort-wasm-simd-threaded.mjs',
-  '/ort/ort-wasm-simd-threaded.wasm',
+  ...Object.values(ORT_WASM_PATHS),
   MODEL_URL,
 ];
 
@@ -158,7 +167,7 @@ export function shaftSessionProvider(): 'webgpu' | 'wasm' {
 async function create(): Promise<ort.InferenceSession> {
   // String prefix: locateFile(filename) → '/ort/' + filename.
   // Resolves both ort-wasm-simd-threaded.wasm and ort-wasm-simd-threaded.jsep.wasm.
-  ort.env.wasm.wasmPaths = ORT_PATH_PREFIX;
+  ort.env.wasm.wasmPaths = ORT_WASM_PATHS;
   // ONE thread, deliberately. COOP/COEP isolation is not set, so multi-thread WASM
   // is unavailable anyway. Pinning keeps all devices on the same code path.
   ort.env.wasm.numThreads = 1;

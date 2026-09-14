@@ -9,18 +9,19 @@
 // Runtime fails as an opaque abort inside the WASM module, so pinning the source
 // of truth to node_modules is not a nicety.
 //
-// EIGHT files: four backend variants, each with a .mjs ES-module loader and a
-// .wasm binary. ORT 1.29 resolves BOTH loaders and binaries through the string
-// wasmPaths prefix, so all eight must live at the same origin path.
+// THREE .wasm binaries — one per backend variant ORT may select at runtime:
 //
-//   asyncify  — primary async backend (no JSPI needed, widest browser support)
-//   jsep      — WebGPU/JSEP backend (GPU dispatch, falls back to CPU)
-//   jspi      — JSPI-based async backend (Chrome 128+ opt-in)
-//   (plain)   — synchronous WASM fallback
+//   plain         — synchronous WASM fallback
+//   asyncify      — primary async backend (no JSPI needed, widest support)
+//   jsep          — WebGPU/JSEP backend (GPU dispatch, CPU fallback)
 //
-// The string form of wasmPaths (`/ort/`) routes every filename the runtime
-// ever requests — including .mjs loaders — to our origin. See the full
-// reasoning in shaftDetector.ts (ORT_PATH_PREFIX).
+// The .mjs ES-module loaders that ship alongside these in dist/ are NOT copied
+// because ORT uses its own bundled loader code (already included in the
+// onnxruntime-web/webgpu import) rather than fetching external .mjs files.
+// Using the object form of wasmPaths (instead of a string prefix) is what
+// enables this — see shaftDetector.ts (ORT_WASM_PATHS) for the reasoning.
+// Trying to serve the .mjs files from public/ort/ and using the string prefix
+// causes Vite's dev-server to reject the dynamic import() ORT issues for them.
 
 import { mkdir, copyFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -31,14 +32,9 @@ const SRC_DIR = join(__dirname, '..', 'node_modules', 'onnxruntime-web', 'dist')
 const OUT_DIR = join(__dirname, '..', 'public', 'ort');
 
 const FILES = [
-  'ort-wasm-simd-threaded.asyncify.mjs',   // asyncify loader (ES module, ~24 kB)
-  'ort-wasm-simd-threaded.asyncify.wasm',  // asyncify binary
-  'ort-wasm-simd-threaded.jsep.mjs',       // JSEP/WebGPU loader
-  'ort-wasm-simd-threaded.jsep.wasm',      // JSEP binary (~27 MB)
-  'ort-wasm-simd-threaded.jspi.mjs',       // JSPI loader
-  'ort-wasm-simd-threaded.jspi.wasm',      // JSPI binary
-  'ort-wasm-simd-threaded.mjs',            // plain WASM loader
   'ort-wasm-simd-threaded.wasm',           // plain WASM binary (~13 MB)
+  'ort-wasm-simd-threaded.asyncify.wasm',  // asyncify binary (~25 MB)
+  'ort-wasm-simd-threaded.jsep.wasm',      // JSEP/WebGPU binary (~27 MB)
 ];
 
 async function main() {
@@ -58,7 +54,7 @@ async function main() {
         : `${Math.round(size / 1024)} kB`;
     console.log(`✓ ${name} (${human})`);
   }
-  console.log(`\n✓ Copied ${FILES.length} ORT files to ${OUT_DIR} (${(total / 1024 / 1024).toFixed(1)} MB total)`);
+  console.log(`\n✓ Copied ${FILES.length} ORT .wasm binaries to ${OUT_DIR} (${(total / 1024 / 1024).toFixed(1)} MB total)`);
 }
 
 main().catch((err) => {
