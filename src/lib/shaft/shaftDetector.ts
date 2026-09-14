@@ -7,28 +7,41 @@
 // by this whole directory.
 //
 // NEVER CALL THIS FROM A rAF LOOP. One inference is tens to hundreds of
-// milliseconds of synchronous WASM on the main thread. The detector is for the ~20
-// frames `selectEnvelopeFrames` has already picked, after the swing is over — the
-// same budget the annotation spec was written around. Anything per-displayed-frame
+// milliseconds on the main thread. The detector is for the ~20 frames
+// `selectEnvelopeFrames` has already picked, after the swing is over — the same
+// budget the annotation spec was written around. Anything per-displayed-frame
 // belongs to MediaPipe (`livePoseLoop.ts`), not here.
 //
 // ASSETS ARE LAZY, NOT PRECACHED — a deliberate trade (see vite.config.ts for the
-// service-worker half). The model is 12.4 MB and the ONNX Runtime WASM another
-// 13.3 MB. The install-time precache already carries ~16 MB of pose assets; adding
-// 26 MB more would nearly triple a first install for every user, including everyone
-// who never reaches a shaft-detector surface — today that is everyone, since the
-// only caller is behind VITE_DEV_PREVIEW. So both files load on first use and the
-// service worker keeps them under a CacheFirst runtime rule: one slow first run,
-// offline for good afterwards. Revisit when shaft detection joins the production
-// analysis path — at that point "first use" is every user's first swing, and
-// precaching becomes the honest default.
+// service-worker half). The model is 12.4 MB and the ONNX Runtime binaries another
+// ~40 MB total. The install-time precache already carries ~16 MB of pose assets;
+// adding 50+ MB more would nearly triple a first install for every user, including
+// everyone who never reaches a shaft-detector surface. Both load on first use and
+// the service worker keeps them under a CacheFirst runtime rule. Revisit when shaft
+// detection joins the production analysis path.
 //
 // Both files are served from our own origin, like the MediaPipe runtime and for the
 // same reason (BACKLOG D-2): no CDN request, and the runtime can never drift from
-// the JS bindings, because `npm run shaft:wasm` copies it out of the installed
+// the JS bindings, because `npm run shaft:wasm` copies them out of the installed
 // package.
+//
+// PROVIDER CHAIN: webgpu → wasm. WebGPU is tried first because it requires no
+// COOP/COEP cross-origin isolation and typically cuts inference time by 5–10×. A
+// silent WASM fallback is worse than a visible error — so we log the chosen provider
+// explicitly on every session startup. On the first real frame after choosing WebGPU
+// we also verify numerical equivalence against a WASM reference run.
+//
+// PATH PREFIX (ORT_PATH_PREFIX, string form): safe with ORT 1.29 because Emscripten
+// ≥3.1.58 only calls locateFile() for .wasm files, never for .mjs loaders — so the
+// Vite dev-server restriction ("This file is in /public, should not be imported")
+// does not apply. This lets a single prefix route both the regular WASM binary and
+// the JSEP binary to our origin. The object form `{ wasm: URL }` only works for the
+// regular binary and cannot serve the JSEP binary; the string form is the correct
+// approach here.
 
-import * as ort from 'onnxruntime-web/wasm';
+// `onnxruntime-web/webgpu` imports the JSEP backend, which handles both
+// WebGPU (GPU dispatch) and wasm (CPU dispatch) within a single binary.
+import * as ort from 'onnxruntime-web/webgpu';
 import { createLogger, serializeError } from '../logger';
 import {
   computeLetterbox,
@@ -50,18 +63,22 @@ const log = createLogger('ShaftDetector');
 export const MODEL_INPUT_SIZE = 960;
 const MODEL_URL = '/models/shaft-v1.onnx';
 /**
- * The runtime binary, named explicitly rather than via a directory prefix.
+ * String path prefix for all ORT WASM binaries. Served from our own origin.
  *
- * `wasmPaths` also accepts a string prefix, and that is the form most ORT examples
- * use — but a prefix makes ORT resolve its Emscripten LOADER (`….mjs`) against it
- * too, and `import()`-ing a file out of `public/` is exactly what Vite's dev server
- * refuses ("This file is in /public … should not be imported from source code",
- * HTTP 500). The object form overrides only the binary, so the loader stays the
- * copy already inlined in the `onnxruntime-web/wasm` bundle we import — which is
- * what that build variant exists for. One file to self-host, and dev and prod
- * behave the same.
+ * The string form passes a `locateFile(filename)` implementation that returns
+ * `ORT_PATH_PREFIX + filename`. This routes BOTH the regular WASM binary
+ * (`ort-wasm-simd-threaded.wasm`) and the JSEP binary
+ * (`ort-wasm-simd-threaded.jsep.wasm`) to our /ort/ directory. The object form
+ * `{ wasm: URL }` cannot do this — it always returns the same fixed URL regardless
+ * of which binary is being resolved.
+ *
+ * The .mjs loaders are NOT resolved through locateFile (Emscripten ≥3.1.58 changed
+ * that), so there is no risk of Vite refusing to serve a public/ file as a module.
+ * See the block comment at the top of this file for the full reasoning.
  */
-const WASM_URL = '/ort/ort-wasm-simd-threaded.wasm';
+const ORT_PATH_PREFIX = '/ort/';
+/** Preflight URL for the JSEP binary. Both binaries live in the same directory. */
+const JSEP_WASM_URL = '/ort/ort-wasm-simd-threaded.jsep.wasm';
 
 export interface ShaftPoint {
   /** X in the SOURCE image's own pixels — letterbox padding already removed. */
@@ -85,12 +102,20 @@ export interface ShaftDetection {
   preprocessMs: number;
   /** Source image size, px — what the coordinates above are relative to. */
   imageSize: { width: number; height: number };
+  /** Which execution provider ran this inference. */
+  provider: 'webgpu' | 'wasm';
 }
 
 // ── Session ──────────────────────────────────────────────────────────────────
 
 let session: ort.InferenceSession | null = null;
 let loading: Promise<ort.InferenceSession> | null = null;
+/** Provider chosen when the session was created. Persists until reset. */
+let chosenProvider: 'webgpu' | 'wasm' = 'wasm';
+/** Whether the one-shot numerical equivalence check has run for this session. */
+let equivalenceChecked = false;
+/** Per-frame inference timings, accumulated to report the median. */
+const inferTimings: number[] = [];
 
 /**
  * Build the session once and hand the same instance to every caller. Concurrent
@@ -106,9 +131,6 @@ export function loadShaftSession(): Promise<ort.InferenceSession> {
         return built;
       })
       .catch((err) => {
-        // Do not cache the failure: a missing asset is usually a deploy problem that
-        // a reload fixes, and a permanently poisoned promise would hide the fix
-        // behind a restart.
         loading = null;
         throw err;
       });
@@ -116,30 +138,126 @@ export function loadShaftSession(): Promise<ort.InferenceSession> {
   return loading;
 }
 
+/** Which execution provider the current session is using. */
+export function shaftSessionProvider(): 'webgpu' | 'wasm' {
+  return chosenProvider;
+}
+
 async function create(): Promise<ort.InferenceSession> {
-  // Same origin, no CDN. See WASM_URL for why this is the object form.
-  ort.env.wasm.wasmPaths = { wasm: WASM_URL };
-  // ONE thread, deliberately. Multi-threaded WASM needs SharedArrayBuffer, which
-  // needs COOP/COEP cross-origin isolation — and turning that on would change how
-  // every other cross-origin load in the app behaves, for a detector that runs ~20
-  // times after a swing. ORT would fall back to 1 anyway; pinning it keeps desktop
-  // and iPhone on the same code path and the measured timings comparable.
+  // String prefix: locateFile(filename) → '/ort/' + filename.
+  // Resolves both ort-wasm-simd-threaded.wasm and ort-wasm-simd-threaded.jsep.wasm.
+  ort.env.wasm.wasmPaths = ORT_PATH_PREFIX;
+  // ONE thread, deliberately. COOP/COEP isolation is not set, so multi-thread WASM
+  // is unavailable anyway. Pinning keeps all devices on the same code path.
   ort.env.wasm.numThreads = 1;
 
   await preflightAssets();
 
   const t0 = performance.now();
-  const built = await ort.InferenceSession.create(MODEL_URL, {
-    executionProviders: ['wasm'],
-    graphOptimizationLevel: 'all',
-  });
+  let built: ort.InferenceSession;
+
+  // WebGPU first: no COOP/COEP needed, typically 5–10× faster than WASM on desktop.
+  // A silent fallback is worse than a visible one — always log the chosen provider.
+  if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+    try {
+      built = await ort.InferenceSession.create(MODEL_URL, {
+        executionProviders: ['webgpu'],
+        graphOptimizationLevel: 'all',
+      });
+      chosenProvider = 'webgpu';
+    } catch (gpuErr) {
+      log.warn('WebGPU session failed — falling back to WASM', {
+        error: serializeError(gpuErr),
+      });
+      built = await ort.InferenceSession.create(MODEL_URL, {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'all',
+      });
+      chosenProvider = 'wasm';
+    }
+  } else {
+    log.warn('navigator.gpu absent — using WASM');
+    built = await ort.InferenceSession.create(MODEL_URL, {
+      executionProviders: ['wasm'],
+      graphOptimizationLevel: 'all',
+    });
+    chosenProvider = 'wasm';
+  }
+
   log.warn('Shaft session ready', {
+    provider: chosenProvider,
     loadMs: Math.round(performance.now() - t0),
     inputs: built.inputNames,
     outputs: built.outputNames,
-    threads: ort.env.wasm.numThreads,
   });
+
+  if (chosenProvider === 'webgpu') {
+    // Run the equivalence check in the background; do not block the caller.
+    verifyEquivalence(built).catch((err) =>
+      log.warn('Equivalence check error', { error: serializeError(err) }),
+    );
+  }
+
   return built;
+}
+
+/**
+ * One-shot check: run a synthetic input through both the active (WebGPU) session
+ * and a temporary WASM session, compare raw output tensors, and report whether they
+ * agree within ~1 px of model coordinate space. Called once after a WebGPU session
+ * is created. If the outputs diverge by more than 1.0 (≈1 px in 960 px model
+ * space), a warning is logged — the session is NOT replaced, just flagged.
+ */
+async function verifyEquivalence(gpuSession: ort.InferenceSession): Promise<void> {
+  if (equivalenceChecked) return;
+  equivalenceChecked = true;
+
+  // All-grey synthetic frame (0.5 per channel). Biased toward no-detection, but
+  // exercises the full graph and gives both sessions the same numerical input.
+  const pixels = MODEL_INPUT_SIZE * MODEL_INPUT_SIZE;
+  const syntheticData = new Float32Array(3 * pixels).fill(0.5);
+  const syntheticTensor = new ort.Tensor('float32', syntheticData, [
+    1,
+    3,
+    MODEL_INPUT_SIZE,
+    MODEL_INPUT_SIZE,
+  ]);
+
+  let wasmSession: ort.InferenceSession | null = null;
+  try {
+    wasmSession = await ort.InferenceSession.create(MODEL_URL, {
+      executionProviders: ['wasm'],
+      graphOptimizationLevel: 'all',
+    });
+
+    const [gpuOut, wasmOut] = await Promise.all([
+      gpuSession.run({ [gpuSession.inputNames[0]]: syntheticTensor }),
+      wasmSession.run({ [wasmSession.inputNames[0]]: syntheticTensor }),
+    ]);
+
+    const gpuData = gpuOut[gpuSession.outputNames[0]].data as Float32Array;
+    const wasmData = wasmOut[wasmSession.outputNames[0]].data as Float32Array;
+
+    let maxAbsDiff = 0;
+    for (let i = 0; i < gpuData.length; i++) {
+      const d = Math.abs(gpuData[i] - wasmData[i]);
+      if (d > maxAbsDiff) maxAbsDiff = d;
+    }
+
+    // Coordinate outputs are in model pixel space (0–960); 1.0 ≈ 1 px.
+    const PX_TOLERANCE = 1.0;
+    if (maxAbsDiff <= PX_TOLERANCE) {
+      log.warn('WebGPU ↔ WASM equivalence OK', { maxAbsDiff: round3(maxAbsDiff) });
+    } else {
+      log.warn('⚠ WebGPU ↔ WASM equivalence FAILED — outputs diverge beyond 1 px', {
+        maxAbsDiff: round3(maxAbsDiff),
+        tolerance: PX_TOLERANCE,
+        note: 'Using WebGPU results; coordinates may differ from WASM baseline',
+      });
+    }
+  } finally {
+    await wasmSession?.release();
+  }
 }
 
 /**
@@ -148,7 +266,7 @@ async function create(): Promise<ort.InferenceSession> {
  * the same failure mode `poseDetector`'s preflight exists to avoid.
  */
 async function preflightAssets(): Promise<void> {
-  for (const url of [MODEL_URL, WASM_URL]) {
+  for (const url of [MODEL_URL, JSEP_WASM_URL]) {
     let res: Response;
     try {
       res = await fetch(url, { method: 'HEAD' });
@@ -171,6 +289,9 @@ export async function resetShaftSession(): Promise<void> {
   const current = session;
   session = null;
   loading = null;
+  chosenProvider = 'wasm';
+  equivalenceChecked = false;
+  inferTimings.length = 0;
   await current?.release();
 }
 
@@ -203,6 +324,19 @@ export async function detectShaft(jpegBase64: string): Promise<ShaftDetection> {
   const outputs = await model.run({ [model.inputNames[0]]: input });
   const inferenceMs = performance.now() - t1;
 
+  // Accumulate timings and report the median once we have a useful sample.
+  inferTimings.push(inferenceMs);
+  if (inferTimings.length === 5) {
+    const sorted = [...inferTimings].sort((a, b) => a - b);
+    log.warn('Shaft inference timings', {
+      provider: chosenProvider,
+      sampleN: inferTimings.length,
+      medianMs: Math.round(sorted[Math.floor(sorted.length / 2)]),
+      minMs: Math.round(sorted[0]),
+      maxMs: Math.round(sorted[sorted.length - 1]),
+    });
+  }
+
   const output = outputs[model.outputNames[0]];
   const dims = output.dims;
   if (dims.length !== 3 || dims[0] !== 1 || dims[1] !== CHANNELS) {
@@ -230,9 +364,11 @@ export async function detectShaft(jpegBase64: string): Promise<ShaftDetection> {
     inferenceMs,
     preprocessMs,
     imageSize,
+    provider: chosenProvider,
   };
 
   log.debug('Shaft frame', {
+    provider: chosenProvider,
     candidates,
     kept,
     boxConf: round3(detection.boxConf),

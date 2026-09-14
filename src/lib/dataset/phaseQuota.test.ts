@@ -69,7 +69,10 @@ describe('PHASE_TARGET_WEIGHTS', () => {
 
 describe('targetCounts', () => {
   it('distributes the budget with the downswing heaviest', () => {
+    // `idle` lands on 0 — 2 % of a 7-frame budget is 0.14, which rounds to zero.
+    // That is expected; the deficit mechanism carries the owed share across swings.
     expect(targetCounts(MAX_FRAMES_PER_SWING)).toEqual({
+      idle: 0,
       address: 1,
       backswing: 1,
       top: 1,
@@ -174,9 +177,15 @@ describe('cullToPhaseTargets — deficit carried across swings', () => {
     }
   });
 
-  it('reaches every phase in the spec, none left empty', () => {
+  it('reaches every phase that appears in the selection, none left empty', () => {
+    // The rule: phases present in the input eventually get frames; phases absent from the
+    // input stay at zero, no matter the weight. `idle` has 2 % weight but selection()
+    // produces no idle frames, so zero is the correct outcome — not a deficit bug.
     const tally = tallyPhases(runOf(Array.from({ length: 10 }, selection)).kept);
-    for (const phase of SHAFT_PHASES) expect(tally[phase]).toBeGreaterThan(0);
+    const inSelection = new Set(selection().map((p) => p.phase));
+    for (const phase of SHAFT_PHASES) {
+      if (inSelection.has(phase)) expect(tally[phase]).toBeGreaterThan(0);
+    }
   });
 
   it('threads a state that accounts for exactly the frames kept', () => {

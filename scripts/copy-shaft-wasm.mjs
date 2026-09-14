@@ -9,17 +9,13 @@
 // Runtime fails as an opaque abort inside the WASM module, so pinning the source
 // of truth to node_modules is not a nicety.
 //
-// ONE file, unlike the MediaPipe pair. `shaftDetector.ts` imports
-// `onnxruntime-web/wasm`, whose bundle already carries the Emscripten loader
-// inlined, so only the runtime binary has to be hosted — and it names that binary
-// explicitly (`wasmPaths: { wasm }`) rather than pointing ORT at this directory,
-// because a directory prefix makes ORT `import()` the loader from here too and
-// Vite's dev server refuses to serve a `public/` file to an import. The reasoning
-// lives next to `WASM_URL` in shaftDetector.ts.
-//
-// ONE variant, not four, for the same reason: the jsep (WebGPU), jspi and asyncify
-// builds are 16–28 MB each and unreachable from that entry point — copying them
-// would add ~70 MB to the deploy for code that never asks for them.
+// TWO files: the regular WASM binary (WASM EP fallback) and the JSEP binary (WebGPU).
+// `shaftDetector.ts` imports `onnxruntime-web/webgpu` (the JSEP backend), which
+// includes both the Emscripten loader inlined AND the ability to run on GPU or CPU.
+// Both binaries are served from /ort/ with a string path prefix — safe since ORT 1.29
+// uses Emscripten ≥3.1.58 where locateFile() is only called for .wasm files (not
+// .mjs loaders), so the Vite dev-server restriction on importing files from public/
+// does not apply. The reasoning lives next to ORT_PATH_PREFIX in shaftDetector.ts.
 
 import { mkdir, copyFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -29,7 +25,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = join(__dirname, '..', 'node_modules', 'onnxruntime-web', 'dist');
 const OUT_DIR = join(__dirname, '..', 'public', 'ort');
 
-const FILES = ['ort-wasm-simd-threaded.wasm'];
+const FILES = [
+  'ort-wasm-simd-threaded.wasm',       // WASM EP fallback (~13 MB)
+  'ort-wasm-simd-threaded.jsep.wasm',  // JSEP backend for WebGPU (~27 MB)
+];
 
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
