@@ -1177,8 +1177,9 @@ analys-frames `selectEnvelopeFrames` redan väljer. Spec: [shaft/annotation-spec
 Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`,
 `poseEnvelopeSelection.ts` och Vision-anropet är låsta för det här spåret.
 
-**Konfliktzon:** `src/lib/dataset/*` (ny), `src/components/Dev/*` (ny). Enda rörda delade filer:
-`src/App.tsx` (dev-route), `src/store/session.ts` (`View`-union), `vite.config.ts` (`VITE_APP_VERSION`).
+**Konfliktzon:** `src/lib/dataset/*` (ny), `src/lib/shaft/*` (ny), `src/components/Dev/*` (ny).
+Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`View`-union),
+`vite.config.ts` (`VITE_APP_VERSION`, SW-regeln för skaftassets, `ortSelfHostedWasm`-pluginen).
 
 ### [x] S-1 — Dev-verktyg för datasetextraktion
 
@@ -1580,6 +1581,103 @@ Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.
 > `model.train()`-körningen och ONNX-exporten är oprövade. `prepare_dataset.py` är därmed
 > genomkörd på riktiga data medan `train.py`/`evaluate.py` är verifierade till kanten av
 > Ultralytics-anropet.
+
+### [x] S-11 — Skaftdetektorn i webbappen
+
+> **Klart (2026-09-14).** `onnxruntime-web` 1.29 + ny fristående modul `src/lib/shaft/` + dev-vy
+> bakom `VITE_DEV_PREVIEW`. **Pose-kedjan är byte-för-byte orörd** — `git diff main` är tom för
+> `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`, `poseEnvelopeSelection.ts` och
+> `api.ts` (Vision-anropet). Rörda delade filer är de tre strömmen redan äger: `App.tsx`
+> (dev-route), `store/session.ts` (`View`-union), `vite.config.ts` (SW-regel + en plugin).
+>
+> **Runtime — självhostad som MediaPipe-WASM.** `scripts/copy-shaft-wasm.mjs` kopierar
+> `ort-wasm-simd-threaded.wasm` (13,3 MB) ur node_modules till `public/ort/`, exakt samma mönster
+> som `copy-pose-wasm.mjs`; `npm run shaft:wasm`, och `prebuild` kör nu `npm run assets`
+> (pose + shaft). `public/ort/` och `public/models/*.onnx` gitignorade. Ingen CDN-förfrågan.
+>
+> **Lazy, inte precachad — och det är valet.** 12,4 MB modell + 13,3 MB runtime skulle nära
+> tredubbla en förstainstallation (precachen är ~16 MB idag) för en detektor som ingen
+> produktionsanvändare kan nå, eftersom enda anroparen ligger bakom `VITE_DEV_PREVIEW`. Båda
+> filerna laddas därför vid första användning och hålls av en `CacheFirst`-runtimeregel
+> (`shaft-runtime`) — ett långsamt första varv, offline för gott efteråt. Motiveringen står i
+> koden (`shaftDetector.ts`-huvudet + regeln i `vite.config.ts`) med villkoret för att ompröva:
+> den dagen detektorn går in i analyskedjan är "första användning" varje användares första sving.
+> **Verifierat i den byggda appen:** precachen har 27 poster och varken `.onnx` eller `/ort/`;
+> efter första hämtningen ligger båda i `shaft-runtime`.
+>
+> **`wasmPaths` är objektformen, inte katalogprefixet.** Ett prefix får ORT att `import()`:a sin
+> Emscripten-laddare ur `public/` också, och det vägrar Vites devserver (HTTP 500, *"This file is
+> in /public … should not be imported from source code"*). `{ wasm: '/ort/…wasm' }` överskrider
+> bara binären, så laddaren blir den som redan ligger inbakad i `onnxruntime-web/wasm`-bundeln —
+> en fil att hosta, och dev och prod beter sig lika. **Hittat genom att köra, inte genom att läsa.**
+>
+> **En Vite-plugin (`ortSelfHostedWasm`) tar bort en dubblett på 13,3 MB.** ORT-bundeln bär en
+> `new URL("ort-wasm-simd-threaded.wasm", import.meta.url)`-fallback som Vite läser som en
+> asset-referens och emitterar hashad i `dist/assets/` — dit ingen någonsin hämtar, eftersom
+> `wasmPaths` vinner. Pluginen skriver om fallbacken till `/ort/…`, vilket både tar bort
+> asset-referensen och gör fallbacken *korrekt* i stället för bara oanvänd.
+>
+> **Detektormodulen.** `shaftDetector.ts` (session + preprocessing), `letterbox.ts` (geometrin),
+> `shaftPostprocess.ts` (avkodning + NMS), `shaftPreview.ts` (dev-kedjan). Sessionen byggs en gång
+> och delas; samtidiga första anrop delar ett `loading`-löfte. API: bas64-JPEG in — exakt vad
+> `grabFramesAtTimes` ger — och `{ butt, hosel }` ut **i bildens egna pixlar**, plus `boxConf`,
+> `inferenceMs`, `preprocessMs` och `imageSize`. Trösklar: conf 0,25, keypoint 0,5, NMS-IoU 0,45;
+> NMS körs trots att svaret ändå är högsta konfidens, så en andra spelare i bild syns som två
+> detektioner i stället för att gömmas bakom ett tal. En punkt under keypoint-tröskeln returneras
+> som `null` — specens `outside` — inte som en gissad koordinat. `numThreads = 1`: flertrådad WASM
+> kräver SharedArrayBuffer och därmed COOP/COEP, och appen sätter inga sådana headers (kontrollerat
+> i `wrangler.jsonc`), så ORT hade fallit tillbaka ändå.
+>
+> **Letterbox, inte utsträckning — och README:n är inte fel, den beskriver något annat.**
+> `export_onnx.py`s `cv2.resize(img, (imgsz, imgsz))` finns bara för att mata *samma* array till
+> PyTorch och ONNX i den numeriska jämförelsen. Noggrannhetsvägen är `evaluate.py`, som går via
+> `model.predict()` → Ultralytics `LetterBox` (bevarad proportion, centrerad, grå 114) — och det är
+> också vad träningen gör. En utsträckning hade kört en 1080×1920-telefonfilm genom en 1,78×
+> horisontell klämning modellen aldrig sett, och skaftets **vinkel** är precis vad en icke-uniform
+> skalning förstör. `computeLetterbox` speglar Ultralytics ned till dess `round(pad − 0.1)`.
+>
+> **Transformen är enhetstestad fram och tillbaka** (`letterbox.test.ts`, 9 test): rundresa för
+> porträtt/landskap/kvadrat/uppskalning, att hörnen landar på den ritade rektangeln, att vinkeln
+> överlever transformen, och ett test som specifikt fångar *bara-skala-glömde-paddningen* (~210 px
+> fel på en porträttframe). `shaftPostprocess.test.ts` (13 test) pinnar kanalordningen mot
+> handbyggda tensorer, trösklarnas gränsvärden och IoU/NMS.
+>
+> **Dev-vyn.** Ny route `shaft` + launcher "⌁ Shaft" bredvid "⚗︎ Dataset". Kedjan är produktionens,
+> **inte** datasetets: `detectSessionSwings` (produktionens gate, inte den uppmjukade), ingen
+> fascull, full upplösning utan crop och kvalitet 0,92 — samma pixlar modellen tränades på.
+> Butt (grön) och hosel (magenta) ritas som punkter med en linje emellan i en SVG vars `viewBox`
+> är **källbildens** storlek, så det som syns är den koordinat detektorn gav. Per frame visas
+> box-konfidens, punktkonfidenser, vinkel och inferenstid; överst medianen för hela körningen.
+>
+> **Mätt inferenstid, desktop** (Windows 11, headless Chrome 149, ORT-WASM 1 tråd, 960²):
+> **median 630 ms/frame**, mean 646, min 604, max 795 (29 frames ur `002.mp4`, produktionsbygget;
+> devservern gav 654 ms median). Preprocessing (JPEG-avkodning + letterbox + tensor) 16 ms median.
+> Sessionsbygget 0,5–1,2 s när filerna är cachade. **En sving ≈ 29 frames ≈ 19 s.** Samma modell i
+> Python på samma maskin (`onnxruntime` CPU, flertrådad) tar 65 ms — skillnaden är trådarna plus
+> WASM-overhead, och den är värd att veta om innan detektorn får en produktionsyta.
+>
+> **Verifierat mot Python på samma frames** (tre kalibreringsframes genom
+> `public/models/shaft-v1.onnx` i båda miljöerna, samma letterbox och postprocessing):
+>
+> | Frame | Python | Webbläsare |
+> |---|---|---|
+> | `002-2415a710_s00_f02` 720×818 | conf 0,769 butt (249, 434) hosel (181, 375) | conf 0,773 butt (249, 434) hosel (181, 374) |
+> | `006-48f0d1f4_s00_f03` 1080×1440 | ingen detektion | ingen detektion |
+> | `008-b8e78a8a_s00_f05` 1080×1920 | conf 0,260 butt (704, 565) hosel (602, 547) | conf 0,278 butt (704, 565) hosel (602, 548) |
+>
+> Högst **1 px** skillnad på varje satt punkt; konfidensavvikelsen (~0,02) är canvas' bilinjära
+> nedskalning mot cv2:s `INTER_LINEAR`. Det är det starka beskedet att letterboxen och
+> kanalordningen stämmer.
+>
+> **Fynd värt att triagera, inte ett integrationsfel:** på `002.mp4` hittar modellen klubban i
+> **10 av 29** frames — address och tidig backswing säkert (conf 0,87–0,90), nedsvinget nästan inte
+> alls (conf 0,00). Python säger samma sak på de svåra framesen, så det är modellen, inte kedjan.
+> Nästa steg för det hör hemma i en egen uppgift (mer träningsdata på `downswing`, eller `blur`-
+> viktning), inte här.
+>
+> **`npm run lint` städad två snäpp:** `dev-dist/` och `training/.venv/` ligger nu i
+> `globalIgnores`. Båda är gitignorerade genererade träd som eslint annars vandrade — vilket gjorde
+> att "är lint ren?" berodde på vad som råkade ligga kvar på disken.
 
 ---
 

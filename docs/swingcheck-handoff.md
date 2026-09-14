@@ -1,9 +1,43 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-13.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-14.
 >
-> **Senast (2026-09-13, stream-shaft):** S-10 träningsmiljö för skaftdetektorn — nytt, fristående
+> **Senast (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
+> ny fristående modul `src/lib/shaft/` (`shaftDetector` · `letterbox` · `shaftPostprocess` ·
+> `shaftPreview`) och en dev-vy `ShaftPreviewView` bakom `VITE_DEV_PREVIEW` (launcher "⌁ Shaft").
+> **Pose-kedjan är byte-för-byte orörd** — `git diff main` är tom för `frameExtractor.ts`,
+> `poseEnvelope.ts`, `poseSegments.ts`, `poseEnvelopeSelection.ts` och `api.ts`.
+> **Runtimen är självhostad precis som MediaPipe-WASM:** `scripts/copy-shaft-wasm.mjs` →
+> `public/ort/`, `npm run shaft:wasm`, och `prebuild` kör nu `npm run assets` (pose + shaft).
+> **Modellen och runtimen precachas INTE** — 12,4 + 13,3 MB hade nära tredubblat en
+> förstainstallation för en detektor bara dev-flaggan når. De laddas lazy vid första användning och
+> hålls av `CacheFirst`-regeln `shaft-runtime`; motiveringen och villkoret för att ompröva står i
+> `shaftDetector.ts`-huvudet och i `vite.config.ts`. Verifierat i det byggda bygget: precachen har
+> 27 poster, ingen `.onnx`, inget `/ort/`; efter första hämtningen ligger båda i `shaft-runtime`.
+> **Två fallgropar som bara hittades genom att köra:** (1) `wasmPaths` som *katalogprefix* får ORT
+> att `import()`:a sin laddare ur `public/`, vilket Vites devserver svarar 500 på — objektformen
+> `{ wasm: '/ort/…wasm' }` använder den inbakade laddaren i stället; (2) ORT-bundelns
+> `new URL(…, import.meta.url)`-fallback fick Vite att emittera en **andra** kopia av 13,3 MB-
+> binären i `dist/assets/`, som pluginen `ortSelfHostedWasm` nu skriver om bort.
+> **Letterbox, inte utsträckning.** `export_onnx.py`s `cv2.resize` till 960² är bara den numeriska
+> PyTorch↔ONNX-jämförelsen; noggrannhetsvägen (`evaluate.py` → `model.predict`) och träningen går
+> båda via Ultralytics `LetterBox` (bevarad proportion, grå 114). `computeLetterbox` speglar den ned
+> till `round(pad − 0.1)`, och invers­transformen är enhetstestad fram och tillbaka — inklusive ett
+> test som fångar just *glömde-paddningen* (~210 px fel på en porträttframe).
+> **Mätt på desktop:** median **630 ms/frame** (min 604, max 795) med 1 tråd ORT-WASM på 960²;
+> preprocessing 16 ms; en sving ≈ 29 frames ≈ **19 s**. Samma modell i Python på samma maskin tar
+> 65 ms — trådar plus WASM-overhead. Flertrådning kräver COOP/COEP, som appen inte sätter.
+> **Verifierat mot Python:** tre kalibreringsframes genom samma `.onnx` i båda miljöerna ger
+> samma detektioner inom **1 px** per punkt (konfidens skiljer ~0,02, canvas bilinjärt mot cv2
+> `INTER_LINEAR`). **Öppet fynd, modellen och inte kedjan:** på `002.mp4` hittas klubban i 10 av 29
+> frames — address/tidig backswing conf 0,87–0,90, nedsvinget 0,00; Python säger samma sak. Mer
+> träningsdata på `downswing` hör hemma i en egen uppgift.
+> **Kvar orört, medvetet:** två gamla lintfel (`FrameLightbox.tsx:27`, `useHistory.ts:93`,
+> `react-hooks/set-state-in-effect`) och två fallerande test i `src/lib/dataset/phaseQuota.test.ts`
+> — alla fyra finns på `main` före den här grenen och tillhör andra strömmar.
+>
+> **Tidigare (2026-09-13, stream-shaft):** S-10 träningsmiljö för skaftdetektorn — nytt, fristående
 > spår i `training/` (Python 3.11 + CUDA, YOLOv8n-pose). **Ingen webbappskod rörd.** Ingen träning
 > körd. Uppsättningen står i [../training/README.md](../training/README.md);
 > `training/runs|datasets|.venv` och `__pycache__/` är gitignorade.

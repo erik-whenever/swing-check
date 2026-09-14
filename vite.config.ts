@@ -33,6 +33,38 @@ function buildVersion(): string {
   }
 }
 
+/**
+ * Stop Vite from emitting a SECOND copy of ONNX Runtime's WASM binary.
+ *
+ * `onnxruntime-web`'s bundled build carries a fallback
+ * `new URL("ort-wasm-simd-threaded.wasm", import.meta.url)` for the case where no
+ * `env.wasm.wasmPaths` is set. Vite reads that as an asset reference and emits the
+ * 13.3 MB binary into `dist/assets/` under a content hash — where nothing ever
+ * fetches it, because `shaftDetector.ts` sets `wasmPaths` to `/ort/` and ORT's
+ * `locateFile` override wins. The result is 13.3 MB of dead weight in every deploy.
+ *
+ * Rewriting the fallback to the self-hosted path removes the asset reference AND
+ * makes the fallback correct rather than merely unused: if `wasmPaths` were ever
+ * dropped, ORT would still land on our own origin instead of a hashed build
+ * artefact. Build only — the dev server serves the dep straight from node_modules
+ * and never emits the copy.
+ */
+function ortSelfHostedWasm() {
+  const FALLBACK = /new URL\((["'])(ort-wasm-simd-threaded[\w.]*\.wasm)\1\s*,\s*import\.meta\.url\)/g;
+  return {
+    name: "ort-self-hosted-wasm",
+    apply: "build" as const,
+    transform(code: string, id: string) {
+      if (!id.includes("onnxruntime-web") || !FALLBACK.test(code)) return null;
+      FALLBACK.lastIndex = 0;
+      return {
+        code: code.replace(FALLBACK, 'new URL("/ort/$2", self.location.origin)'),
+        map: null,
+      };
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(buildVersion()),
@@ -41,7 +73,7 @@ export default defineConfig({
     host: true,
     allowedHosts: ["obliged-shimmer-untreated.ngrok-free.dev"],
   },
-  plugins: [react(), tailwindcss(), VitePWA({
+  plugins: [react(), tailwindcss(), ortSelfHostedWasm(), VitePWA({
     // 'prompt' (not 'autoUpdate') so the app can surface an explicit "new version" banner
     // and let the user choose when to reload, via the UpdateBanner component.
     registerType: "prompt",
@@ -89,6 +121,27 @@ export default defineConfig({
           options: {
             cacheName: "pose-wasm",
             expiration: { maxEntries: 6 },
+          },
+        },
+        {
+          // Shaft detector (Ström S): the ONNX model (~12.4 MB) and ONNX Runtime's
+          // WASM (~13.3 MB), both served same-origin like the pose assets above.
+          //
+          // RUNTIME-CACHED, NOT PRECACHED — the one place this pattern deliberately
+          // differs from pose. Precaching would add ~26 MB to every install, more
+          // than doubling it, for a detector whose only caller today sits behind
+          // VITE_DEV_PREVIEW: every production user would pay the download and no
+          // production user would run it. CacheFirst gives the same end state where
+          // it matters — one slow first run, fully offline afterwards — and moves
+          // the cost to whoever actually opens the view. Move these into
+          // `globPatterns` the day shaft detection joins the analysis path, because
+          // then "first use" is every user's first swing.
+          urlPattern: ({ url, sameOrigin }) =>
+            sameOrigin && (url.pathname.startsWith("/ort/") || url.pathname.endsWith(".onnx")),
+          handler: "CacheFirst",
+          options: {
+            cacheName: "shaft-runtime",
+            expiration: { maxEntries: 4 },
           },
         },
       ],

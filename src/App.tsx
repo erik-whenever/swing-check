@@ -30,6 +30,17 @@ const DatasetExtractorView = lazy(() =>
   })),
 );
 
+/**
+ * Dev-only shaft-detector preview. LAZY for the same reason as the extractor above,
+ * doubled: it pulls in both the MediaPipe vision runtime and ONNX Runtime's web
+ * bindings, neither of which belongs in the main bundle.
+ */
+const ShaftPreviewView = lazy(() =>
+  import('./components/Dev/ShaftPreviewView').then((m) => ({
+    default: m.ShaftPreviewView,
+  })),
+);
+
 /** Minimal 24×24 stroke icons (inherit currentColor) so each tab reads at a glance. */
 const icons = {
   home: 'M3 11.5 12 4l9 7.5M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9',
@@ -95,6 +106,13 @@ function App() {
             <DatasetExtractorView />
           </Suspense>
         )}
+        {DEV_PREVIEW && view === 'shaft' && (
+          <Suspense
+            fallback={<p className="p-4 text-xs text-muted">Loading shaft detector…</p>}
+          >
+            <ShaftPreviewView />
+          </Suspense>
+        )}
       </div>
 
       {/* Bottom nav. The active tab is marked by a tinted capsule behind the icon
@@ -143,17 +161,25 @@ function App() {
 
       {!onboarded && <OnboardingWizard />}
 
-      {/* Dev-only launcher for the dataset extractor. Bottom-RIGHT so it never
-          overlaps the log panel's launcher, which sits bottom-left at the same height. */}
-      {DEV_PREVIEW && view !== 'dataset' && (
-        <button
-          onClick={() => setView('dataset')}
-          className="fixed bottom-20 right-3 z-50 px-3 py-2 rounded-full bg-slate-800/90 border
-                     border-slate-600 text-xs font-mono font-semibold text-slate-200 shadow-lg
-                     backdrop-blur"
-        >
-          ⚗︎ Dataset
-        </button>
+      {/* Dev-only launchers. Bottom-RIGHT so they never overlap the log panel's
+          launcher, which sits bottom-left; stacked so both stay reachable one-handed. */}
+      {DEV_PREVIEW && view !== 'dataset' && view !== 'shaft' && (
+        <div className="fixed bottom-20 right-3 z-50 flex flex-col items-end gap-2">
+          <button
+            onClick={() => setView('shaft')}
+            className="px-3 py-2 rounded-full bg-slate-800/90 border border-slate-600 text-xs
+                       font-mono font-semibold text-slate-200 shadow-lg backdrop-blur"
+          >
+            ⌁ Shaft
+          </button>
+          <button
+            onClick={() => setView('dataset')}
+            className="px-3 py-2 rounded-full bg-slate-800/90 border border-slate-600 text-xs
+                       font-mono font-semibold text-slate-200 shadow-lg backdrop-blur"
+          >
+            ⚗︎ Dataset
+          </button>
+        </div>
       )}
 
       {DEV_PREVIEW && <DevLogPanel />}

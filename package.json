@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "npm run pose:assets",
+    "prebuild": "npm run assets",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
@@ -13,6 +13,8 @@
     "pose:model": "node scripts/download-pose-model.mjs",
     "pose:wasm": "node scripts/copy-pose-wasm.mjs",
     "pose:assets": "npm run pose:model && npm run pose:wasm",
+    "shaft:wasm": "node scripts/copy-shaft-wasm.mjs",
+    "assets": "npm run pose:assets && npm run shaft:wasm",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy"
   },
@@ -23,6 +25,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "canvas": "^3.2.3",
     "idb-keyval": "^6.2.4",
+    "onnxruntime-web": "^1.29.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwindcss": "^4.3.0",
