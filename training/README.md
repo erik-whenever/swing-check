@@ -162,6 +162,115 @@ py -3.11 training\evaluate.py --weights training\runs\shaft-v1\weights\best.pt
 Mäter mot kalibreringssetet och skriver `training/eval-report.md`. `--dry-run`
 kontrollerar indata och synlighetskodningen utan att ladda modellen.
 
+### Exportera till ONNX
+
+```powershell
+py -3.11 training\export_onnx.py --weights training\runs\shaft-v1\weights\best.pt
+```
+
+Exporterar checkpointen till en `.onnx`-fil och verifierar exporten omedelbart. Ytterligare
+flaggor:
+
+| Flagga | Förval | Förklaring |
+|---|---|---|
+| `--weights` | — | Obligatorisk. Sökväg till `best.pt`. |
+| `--imgsz` | Läses ur checkpointen | Inferensupplösning. Checkpointen bär det värde träningen använde — gissa det inte. |
+| `--opset` | 17 | ONNX opset-version. |
+| `--out` | `<weights_dir>/<stem>.onnx` | Utdatasökväg för `.onnx`-filen. |
+
+`--imgsz` läses automatiskt ur `train_args` i checkpointen. Om det misslyckas (t.ex. en
+COCO-förtränad basmodell som saknar `train_args`) avbryts körningen med ett tydligt fel och
+man måste skicka flaggan för hand.
+
+#### Vad verifieringen kontrollerar
+
+Direkt efter exporten kör skriptet en bild ur `data/shaft/calibration/calibration.zip` genom
+**båda** modellerna — PyTorch (CPU) och ONNX via `onnxruntime` — och jämför utdata
+element-vis. Avvikelse (max-absolutvärde) över 0,01 ger exit 1 med ett tydligt felmeddelande.
+Det normala värdet är i storleksordningen 1 × 10⁻³, vilket är float32-brus från onnxslims
+grafförenkling; ett verkligt trasigt export (fel operatormappning, saknade noder) ger
+avvikelser i storleksordningen 0,1 eller mer.
+
+#### In- och utdataformat
+
+Webbintegrationen behöver dessa former — rör ingenting förrän du läst det här avsnittet.
+
+**Indata**
+
+```
+[1, 3, imgsz, imgsz]  float32
+```
+
+| Dimension | Storlek | Innebörd |
+|---|---|---|
+| 0 | 1 | Batch (fast, `dynamic=False`) |
+| 1 | 3 | Kanaler i **RGB**-ordning (inte BGR) |
+| 2 | imgsz | Höjd i pixlar (960 vid standard, 1280 om tränat med `--imgsz 1280`) |
+| 3 | imgsz | Bredd i pixlar |
+
+Pixelvärdena är normaliserade till **[0, 1]** (dividerat med 255). Bilden måste skalas till
+`imgsz × imgsz` med linjär interpolation (bilinear) — samma som skriptet gör med OpenCV.
+
+**Utdata**
+
+```
+[1, 11, N]  float32
+```
+
+| Dimension | Storlek | Innebörd |
+|---|---|---|
+| 0 | 1 | Batch |
+| 1 | 11 | Se kanaltabell nedan |
+| 2 | N | Antal anchors från tre detektionshuvuden (se *Anchor-räkning*) |
+
+Kanal-layout (index 0–10):
+
+| Index | Namn | Enhet / skala |
+|---|---|---|
+| 0 | cx | Boxens mittpunkt x, **pixlar** (0 .. imgsz) |
+| 1 | cy | Boxens mittpunkt y, **pixlar** (0 .. imgsz) |
+| 2 | w | Boxens bredd, **pixlar** |
+| 3 | h | Boxens höjd, **pixlar** |
+| 4 | conf | Konfidenspoäng, sigmoid-aktiverad **[0, 1]** |
+| 5 | butt\_x | `butt`-punktens x, **pixlar** |
+| 6 | butt\_y | `butt`-punktens y, **pixlar** |
+| 7 | butt\_v | `butt`-synlighetsscore, sigmoid-aktiverad **[0, 1]** |
+| 8 | hosel\_x | `hosel`-punktens x, **pixlar** |
+| 9 | hosel\_y | `hosel`-punktens y, **pixlar** |
+| 10 | hosel\_v | `hosel`-synlighetsscore, sigmoid-aktiverad **[0, 1]** |
+
+Punkterna är i `butt → hosel`-ordning, fast och oföränderlig (se
+[annotation-spec](../docs/shaft/annotation-spec.md)). Den riktade vektorn
+`butt → hosel` definierar skaftets riktning.
+
+**Anchor-räkning (N)**
+
+YOLOv8n-pose har tre huvuden med strides 8, 16 och 32:
+
+```
+N = (imgsz / 8)² + (imgsz / 16)² + (imgsz / 32)²
+```
+
+| `imgsz` | N |
+|---|---|
+| 960 | 14 400 + 3 600 + 900 = **18 900** |
+| 1280 | 25 600 + 6 400 + 1 600 = **33 600** |
+
+Skriptet skriver ut faktisk input- och outputform när det körs — läs den utskriften om du
+är osäker på vilket imgsz checkpointen använder.
+
+**Vad webbintegrationen ska göra**
+
+1. Skala bilden till `imgsz × imgsz`, normalisera till [0, 1], lägg till batch-dimensionen.
+2. Kör ONNX-sessionen.
+3. Filtrera outputs på `conf > tröskelvärde` (prova 0,25 som startpunkt).
+4. Kör NMS (Non-Maximum Suppression) på de kvarvarande.
+5. Plocka ut `butt_x/y` och `hosel_x/y` ur det vinnande boxens kanaler.
+6. Skala tillbaka koordinaterna till originalbildens pixelutrymme.
+
+Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
+`dynamic=False`). Det är webbintegrationens ansvar.
+
 ---
 
 ## Filer
@@ -171,6 +280,7 @@ kontrollerar indata och synlighetskodningen utan att ladda modellen.
 | `prepare_dataset.py` | CVAT COCO Keypoints → YOLO-pose. |
 | `train.py` | Tränar YOLOv8n-pose från COCO-förtränade vikter. |
 | `evaluate.py` | Mäter mot kalibreringssetet, skriver `eval-report.md`. |
+| `export_onnx.py` | Exporterar `best.pt` → ONNX och verifierar numeriskt. |
 | `shaft_coco.py` | Delade läsare för COCO-exporterna. |
 | `requirements.txt` | Pinnade beroenden (utom PyTorch, se ovan). |
 
