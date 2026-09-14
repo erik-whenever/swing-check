@@ -91,10 +91,28 @@ export async function grabFramesAtTimes(
       video.onloadedmetadata = () => resolve();
       video.onerror = () => reject(new Error('Failed to load video'));
     });
+    // Wait until the browser has at least current-frame data (readyState ≥ 2)
+    // so that seeks are reliably decoded. canplaythrough (readyState = 4) would
+    // be stricter than necessary and has no timeout — it hangs indefinitely on
+    // some browsers when video.load() is called after loadedmetadata resets the
+    // element. canplay (readyState ≥ 3) fires sooner and covers all cases we
+    // need. A 5 s timeout guards against canplay never firing; readyState ≥ 2
+    // (HAVE_CURRENT_DATA) is checked first because a local File is typically
+    // already past that by the time we reach here.
     await new Promise<void>((resolve) => {
-      if (video.readyState >= 3) return resolve();
-      video.oncanplaythrough = () => resolve();
-      video.load();
+      if (video.readyState >= 2) { resolve(); return; }
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        video.removeEventListener('canplay', finish);
+        video.removeEventListener('canplaythrough', finish);
+        clearTimeout(tid);
+        resolve();
+      };
+      const tid = setTimeout(finish, 5000);
+      video.addEventListener('canplay', finish);
+      video.addEventListener('canplaythrough', finish);
     });
 
     // `offset` is subtracted from every requested time; `mediaEnd` is where the
