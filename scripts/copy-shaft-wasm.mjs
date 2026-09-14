@@ -9,13 +9,18 @@
 // Runtime fails as an opaque abort inside the WASM module, so pinning the source
 // of truth to node_modules is not a nicety.
 //
-// TWO files: the regular WASM binary (WASM EP fallback) and the JSEP binary (WebGPU).
-// `shaftDetector.ts` imports `onnxruntime-web/webgpu` (the JSEP backend), which
-// includes both the Emscripten loader inlined AND the ability to run on GPU or CPU.
-// Both binaries are served from /ort/ with a string path prefix — safe since ORT 1.29
-// uses Emscripten ≥3.1.58 where locateFile() is only called for .wasm files (not
-// .mjs loaders), so the Vite dev-server restriction on importing files from public/
-// does not apply. The reasoning lives next to ORT_PATH_PREFIX in shaftDetector.ts.
+// EIGHT files: four backend variants, each with a .mjs ES-module loader and a
+// .wasm binary. ORT 1.29 resolves BOTH loaders and binaries through the string
+// wasmPaths prefix, so all eight must live at the same origin path.
+//
+//   asyncify  — primary async backend (no JSPI needed, widest browser support)
+//   jsep      — WebGPU/JSEP backend (GPU dispatch, falls back to CPU)
+//   jspi      — JSPI-based async backend (Chrome 128+ opt-in)
+//   (plain)   — synchronous WASM fallback
+//
+// The string form of wasmPaths (`/ort/`) routes every filename the runtime
+// ever requests — including .mjs loaders — to our origin. See the full
+// reasoning in shaftDetector.ts (ORT_PATH_PREFIX).
 
 import { mkdir, copyFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -26,8 +31,14 @@ const SRC_DIR = join(__dirname, '..', 'node_modules', 'onnxruntime-web', 'dist')
 const OUT_DIR = join(__dirname, '..', 'public', 'ort');
 
 const FILES = [
-  'ort-wasm-simd-threaded.wasm',       // WASM EP fallback (~13 MB)
-  'ort-wasm-simd-threaded.jsep.wasm',  // JSEP backend for WebGPU (~27 MB)
+  'ort-wasm-simd-threaded.asyncify.mjs',   // asyncify loader (ES module, ~24 kB)
+  'ort-wasm-simd-threaded.asyncify.wasm',  // asyncify binary
+  'ort-wasm-simd-threaded.jsep.mjs',       // JSEP/WebGPU loader
+  'ort-wasm-simd-threaded.jsep.wasm',      // JSEP binary (~27 MB)
+  'ort-wasm-simd-threaded.jspi.mjs',       // JSPI loader
+  'ort-wasm-simd-threaded.jspi.wasm',      // JSPI binary
+  'ort-wasm-simd-threaded.mjs',            // plain WASM loader
+  'ort-wasm-simd-threaded.wasm',           // plain WASM binary (~13 MB)
 ];
 
 async function main() {
@@ -39,7 +50,7 @@ async function main() {
     await copyFile(src, dst);
     const { size } = await stat(dst);
     total += size;
-    // kB below a megabyte: the 24 kB loader printed as "0.0 MB" reads like a
+    // kB below a megabyte: the ~24 kB loader printed as "0.0 MB" reads like a
     // failed copy, and that file is exactly the one whose absence is hard to debug.
     const human =
       size >= 1024 * 1024
@@ -47,7 +58,7 @@ async function main() {
         : `${Math.round(size / 1024)} kB`;
     console.log(`✓ ${name} (${human})`);
   }
-  console.log(`✓ Copied ONNX Runtime WASM to ${OUT_DIR} (${(total / 1024 / 1024).toFixed(1)} MB total)`);
+  console.log(`\n✓ Copied ${FILES.length} ORT files to ${OUT_DIR} (${(total / 1024 / 1024).toFixed(1)} MB total)`);
 }
 
 main().catch((err) => {

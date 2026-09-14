@@ -31,13 +31,12 @@
 // explicitly on every session startup. On the first real frame after choosing WebGPU
 // we also verify numerical equivalence against a WASM reference run.
 //
-// PATH PREFIX (ORT_PATH_PREFIX, string form): safe with ORT 1.29 because Emscripten
-// ≥3.1.58 only calls locateFile() for .wasm files, never for .mjs loaders — so the
-// Vite dev-server restriction ("This file is in /public, should not be imported")
-// does not apply. This lets a single prefix route both the regular WASM binary and
-// the JSEP binary to our origin. The object form `{ wasm: URL }` only works for the
-// regular binary and cannot serve the JSEP binary; the string form is the correct
-// approach here.
+// PATH PREFIX (ORT_PATH_PREFIX, string form): ORT 1.29 resolves ALL runtime
+// artefacts — both .wasm binaries and .mjs ES-module loaders — through the string
+// wasmPaths prefix, so `/ort/` routes every filename the runtime can ever request
+// to our origin. `npm run shaft:wasm` copies all eight files (four backends × two
+// extensions) from node_modules to public/ort/. The object form `{ wasm: URL }`
+// only covers a single binary path and cannot route the loader files.
 
 // `onnxruntime-web/webgpu` imports the JSEP backend, which handles both
 // WebGPU (GPU dispatch) and wasm (CPU dispatch) within a single binary.
@@ -77,8 +76,21 @@ const MODEL_URL = '/models/shaft-v1.onnx';
  * See the block comment at the top of this file for the full reasoning.
  */
 const ORT_PATH_PREFIX = '/ort/';
-/** Preflight URL for the JSEP binary. Both binaries live in the same directory. */
-const JSEP_WASM_URL = '/ort/ort-wasm-simd-threaded.jsep.wasm';
+
+/**
+ * Every artefact ORT 1.29 may request for the webgpu → wasm provider chain.
+ * Preflighted before session creation so a missing file is named in the error
+ * rather than surfacing as an opaque WASM abort or an HTML-parse failure.
+ */
+const ORT_ARTIFACTS = [
+  '/ort/ort-wasm-simd-threaded.asyncify.mjs',
+  '/ort/ort-wasm-simd-threaded.asyncify.wasm',
+  '/ort/ort-wasm-simd-threaded.jsep.mjs',
+  '/ort/ort-wasm-simd-threaded.jsep.wasm',
+  '/ort/ort-wasm-simd-threaded.mjs',
+  '/ort/ort-wasm-simd-threaded.wasm',
+  MODEL_URL,
+];
 
 export interface ShaftPoint {
   /** X in the SOURCE image's own pixels — letterbox padding already removed. */
@@ -261,24 +273,42 @@ async function verifyEquivalence(gpuSession: ort.InferenceSession): Promise<void
 }
 
 /**
- * HEAD both assets before handing them to ONNX Runtime. A missing model or WASM
- * otherwise surfaces as an abort from inside the WASM module with no URL in it —
- * the same failure mode `poseDetector`'s preflight exists to avoid.
+ * HEAD every ORT artefact before handing control to the runtime. A missing file
+ * otherwise surfaces as either an opaque WASM abort (no URL) or — when the SPA
+ * catch-all serves index.html in its place — a parse failure as ORT tries to
+ * execute HTML as JavaScript. Both modes are silent about which file is missing.
+ *
+ * Two failure modes are detected explicitly:
+ *   - non-2xx status  → file is absent on the server
+ *   - text/html body  → SPA fallback masquerading as a binary/JS file
  */
 async function preflightAssets(): Promise<void> {
-  for (const url of [MODEL_URL, JSEP_WASM_URL]) {
+  for (const url of ORT_ARTIFACTS) {
     let res: Response;
     try {
       res = await fetch(url, { method: 'HEAD' });
     } catch (err) {
       log.error('Shaft asset unreachable', { url, error: serializeError(err) });
-      throw new Error(`Shaft asset fetch failed for ${url}: ${String(err)}`, { cause: err });
+      throw new Error(`Shaft asset fetch failed for "${url}": ${String(err)}`, { cause: err });
     }
     if (!res.ok) {
       log.error('Shaft asset missing', { url, status: res.status });
       throw new Error(
-        `Shaft asset ${url} returned HTTP ${res.status}. Run "npm run shaft:wasm" and ` +
+        `Shaft asset "${url}" returned HTTP ${res.status}. ` +
+          'Run "npm run shaft:wasm" to copy all ORT runtime files, and ' +
           'export the model to public/models/shaft-v1.onnx (training/export_onnx.py).',
+      );
+    }
+    const ct = res.headers.get('content-type') ?? '';
+    if (ct.includes('text/html')) {
+      log.error('Shaft asset returned HTML — SPA catch-all served index.html for missing file', {
+        url,
+        contentType: ct,
+      });
+      throw new Error(
+        `Shaft asset "${url}" returned HTML (content-type: ${ct}). ` +
+          'The file is missing from public/ort/ and the SPA catch-all is serving index.html in its place. ' +
+          'Run "npm run shaft:wasm" to copy all ORT runtime files.',
       );
     }
   }
