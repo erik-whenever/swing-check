@@ -1791,6 +1791,9 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > kastade om ändarna på `face_on` (158,6° median). v2:s 4,32° gör grinden sannolikt långt
 > för sträng — men att lossa den är ett eget mätbart beslut, inte en följd av ett modellbyte.
 >
+> > **Åtgärdat i S-15 (2026-09-14):** beslutet är taget och mätt. `DEFAULT_MODEL` är `shaft-v2.onnx`
+> > och grinden släpper in `face_on`. Se S-15.
+>
 > **Mätvärden mot kalibreringssetet** står i
 > [`training/README.md` → *Levererande modell*](../training/README.md#levererande-modell-shaft-v2onnx),
 > med människornas golv bredvid: vinkelmedian **1,06°** mot 0,30°, p90 6,72°, `butt`
@@ -1911,6 +1914,73 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > **Verifierat:** `training/test_shaft_schema.py` 32/32 · en port av CVAT:s egen
 > `validateParsedLabel` körd mot filen, plus kontroll att kant-id:n och nodordningen matchar
 > sub-etiketterna.
+
+### [x] S-15 — Batch-03: 250 frames, bladvinkelurval, lossad vygrind
+
+> **Klart (2026-09-14).** Tredje träningsbatchen dragen, förhandsmärkt med `shaft-v2` och
+> vygrinden lossad. **Ingen träning körd** — batchen är annoteringsunderlag.
+>
+> **Draget:** 250 frames, seed `0x7ba7c0de`, pool 1435 → 935 efter exkludering av
+> `reserved-ids.txt` (100) + batch-01 (150) + batch-02 (250). **Noll överlapp** mot alla tre,
+> verifierat separat utöver skriptets egen assertion. 204 svingar, max 2 frames/sving,
+> `web`/`own` 125/125, varje faskvot fylld utan shortfall.
+>
+> **Viktningen är batchspecifik** (`docs/shaft/batch-03-phase-weights.json`, som batch-02);
+> **specens målvikter är orörda**. `address` 4→10 %, `backswing` 10→20 %, `finish` 4→8 %,
+> `impact` 16→22 %, betalt av `downswing` 44→18 % och `top` 16→12 %.
+>
+> **Invändningen är viktigare än viktningen, och den står i summary.md.** v2:s verkliga
+> svaghet är inte en fas — den är `view` och `blur`: `face_on` **6/10 utan detektion (60 %)**,
+> `severe blur` **5/12 (42 %)**, mot `dtl`+skarp 6/75 (8 %). **Manifestet bär varken `view`
+> eller `blur`**, så faskvoten kan inte nå någondera. Mätt på 488 annoterade frames
+> (batch-01 + batch-02 + kalibrering, joinade mot sina manifest) ger specvikterna 10,8 %
+> `severe blur`, batch-02 10,6 % och batch-03 10,9 % — **faskvoten köper ingen oskärpa alls**,
+> och `face_on` är ännu plattare (8,6–13,8 % oavsett fas). Att maxa den ger 12,6 %, alltså
+> fyra extra frames av 250, betalda med precis de skarpa framesen bladvinkeln behöver.
+> Batchen adresserar därför severe blur **inte** via urvalet, och det står rakt ut.
+>
+> **Vad faskvoten däremot köper är annotatörsfasen.** Manifestfasen är 49 % rätt (191/391),
+> men felet är strukturerat: manifest-`downswing` är 39 % egentlig `top`, manifest-`through`
+> 54 % egentlig `finish`, manifest-`impact` bara 22 % egentlig `impact`. Projicerat genom den
+> förväxlingsmatrisen flyttar batch-03 `address` 7,7→13,9 %, `backswing` 11,7→16,7 %,
+> `finish` 11,2→13,9 % och sänker `top` 33,6→21,4 %.
+>
+> **Klubbhuvudets synlighet — undersökt och valt bort som urvalskriterium.** Manifestet bär
+> ingen utseendesignal (`slowmo` pekar åt fel håll: 22,4 % `severe` mot 9,3 %). `shaft-v2` är
+> tvåpunkts och kan inte svara; den närliggande härledningen — förkortning ur skaftlängd — är
+> **redan mätt och underkänd** i `prelabel_batch.py`-huvudet (face_on-intervallet ligger helt
+> inuti dtl-intervallet). Och framför allt: **noll `toe`/`heel` är annoterade någonstans i
+> repot** (alla fem exporter deklarerar `keypoints: ["butt","hosel"]`), så heuristiken hade
+> varit oförfalsifierbar. Kostnaden för att låta bli är noll — ett oannoterbart huvud blir
+> `outside`, inte en bortkastad frame. När batch-03 är annoterad finns facit och frågan blir
+> mätbar; nästa steg som faktiskt når `face_on`/`severe blur` är ett urval som kör v2 över
+> **poolen** och väljer det den missar — det behöver inget facit och byggs inte här.
+>
+> **Vygrinden lossad, mätt — inte antagen.** Omkörning av `evaluate.py` på `shaft-v2.onnx`:
+> `face_on` har **noll** omkastningar >90° och dess **värsta** avvikelse (4,08°) är mindre än
+> de **fyra värsta** `dtl`-avvikelserna (14,33°, 13,02°, 11,93°, 11,46°). Enda >90°-framen i
+> setet är `view: other`. Grinden släpper därför in `face_on` och blockerar fortfarande
+> `other`; enighetskravet gäller nu *inom* den tillåtna mängden, så en `dtl`/`face_on`-tvist
+> släpps in. `--view-gate {swing, swing+face_on, off}`, standard `swing+face_on`.
+>
+> **Förhandsmärkning:** **181 av 250 (72 %)** med `shaft-v2`. Överhoppade 69: `no-detection`
+> 53, `keypoint-below-threshold` 12, `view-unknown` 3, `view-blocked` 1 (`other`),
+> `degenerate-shaft` 0. `toe`/`heel` skrivna som `outside="1"` på alla 181 skeletons.
+> **Lossningen gav +13** (168 → 181): 29 frames till innanför grinden, varav 13 märktes och 16
+> föll på `no-detection` — precis vad `face_on`:s 60 % täckningslucka förutsäger. Modellen
+> avstår i stället för att gissa fel.
+>
+> **`DEFAULT_MODEL` är `shaft-v2.onnx`** (var v1 — den levererande modellen ska vara den
+> förhandsmärkningen använder). Parittestet mot webbappen pekar nu på en egen konstant,
+> `GEOMETRY_REFERENCE_MODEL = shaft-v1.onnx`: de pinnade koordinaterna är S-11:s
+> webbläsarverifierade v1-utdata, och att låta dem följa med modellbytet hade varit att
+> radera testet.
+>
+> **Verifierat:** `py -3.11 -m unittest discover -s training -t training` **81/81**, varav 12
+> nya som pinnar vyhinkarna och grindlägena (`view_bucket`, `GATE_BUCKETS`) — logiken bodde
+> tidigare inline i `main()` och var otestad. XML:en kontrollerad: 250 `<image>`, 181
+> `<skeleton>`, 724 `<points>` = 4×181, `toe`/`heel` alla `outside="1"`.
+
 
 ---
 

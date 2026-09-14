@@ -3,7 +3,38 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-14.
 >
-> **Senast (2026-09-14, stream-shaft):** S-14 — **skaftschemat vidgat från två punkter till
+> **Senast (2026-09-14, stream-shaft):** S-15 — **batch-03 dragen** (250 frames, seed `0x7ba7c0de`,
+> pool 1435 → 935 efter exkludering; noll överlapp mot `reserved-ids.txt`, batch-01 och batch-02),
+> **förhandsmärkt med `shaft-v2`** och **vygrinden lossad till `dtl` + `face_on`**. Ingen träning körd.
+> **Fyndet som styr allt annat:** v2:s svaghet är inte en *fas*, den är `view` och `blur` —
+> `face_on` **6/10 utan detektion (60 %)**, `severe blur` **5/12 (42 %)**, mot `dtl`+skarp 6/75 (8 %).
+> **Manifestet bär varken `view` eller `blur`**, så batchdraget kan inte styra på någondera: mätt på
+> 488 annoterade frames ger specvikterna 10,8 % `severe blur`, batch-02 10,6 % och batch-03 10,9 %.
+> **Faskvoten köper alltså ingen oskärpa alls** — det står rakt ut i `summary.md` i stället för att
+> gömmas i en vikttabell som ser riktad ut. Vad den *köper* är annotatörsfasen (manifestfasen är 49 %
+> rätt men strukturerat fel): `address` 7,7→13,9 %, `backswing` 11,7→16,7 %, `finish` 11,2→13,9 %,
+> `top` 33,6→21,4 %. Viktningen är batchspecifik i `docs/shaft/batch-03-phase-weights.json`;
+> **specens målvikter är orörda**.
+> **Klubbhuvudets synlighet undersöktes och valdes bort** som urvalskriterium: manifestet bär ingen
+> utseendesignal, `shaft-v2` är tvåpunkts, skaftlängd som förkortningsmått är redan mätt och
+> underkänt — och framför allt finns **noll `toe`/`heel` annoterade någonstans i repot**, så
+> heuristiken hade varit oförfalsifierbar. Kostnaden för att låta bli är noll: ett oannoterbart
+> huvud blir `outside`, inte en bortkastad frame. **När batch-03 är annoterad finns facit** och
+> frågan blir mätbar; det som faktiskt når `face_on`/`severe blur` är ett urval som kör v2 över
+> *poolen* och väljer det den missar — behöver inget facit, byggs inte här.
+> **Vygrinden lossades på en mätning, inte på modellbytet:** v2 har noll omkastningar >90° på
+> `face_on`, och dess värsta avvikelse (4,08°) är **mindre** än de fyra värsta `dtl`-avvikelserna
+> (14,33°, 13,02°, 11,93°, 11,46°). Enda >90°-framen i setet är `view: other`, som fortfarande
+> blockeras. `--view-gate {swing, swing+face_on, off}`, standard `swing+face_on`.
+> **Utfall:** **181 av 250 (72 %)** förhandsmärkta — lossningen gav **+13** (168 → 181); av de 29
+> nyinsläppta föll 16 på `no-detection`, vilket `face_on`:s 60 % täckningslucka förutsäger.
+> `toe`/`heel` skrivna `outside="1"` på alla 181. `DEFAULT_MODEL` är nu `shaft-v2.onnx`;
+> parittestet pekar på egen konstant `GEOMETRY_REFERENCE_MODEL = shaft-v1.onnx` (de pinnade
+> koordinaterna är S-11:s webbläsarverifierade v1-utdata).
+> Verifierat: `py -3.11 -m unittest discover -s training -t training` **81/81** (12 nya för vyhinkar
+> och grindlägen).
+>
+> **Dessförinnan (2026-09-14, stream-shaft):** S-14 — **skaftschemat vidgat från två punkter till
 > fyra**: `butt → hosel → toe → heel`. Ordningen är fast och gäller överallt — CVAT:s
 > sub-etiketter, COCO-exportens keypoint-lista, kolumnerna i YOLO-etiketten, kanalerna i
 > ONNX-utdatan. **Ingen träning körd, `shaft-v2.onnx` orörd**; den fortsätter köra tvåpunkts
@@ -54,7 +85,8 @@
 > konstant. **SW-regeln i `vite.config.ts` rördes inte** — den matchar `.endsWith(".onnx")`, och
 > eftersom URL:en byter namn åldras en kvarliggande v1-post ut ur `shaft-runtime` i stället för att
 > serveras. `training/prelabel_batch.py` kör **medvetet kvar på v1**: dess vygrind är kalibrerad mot
-> v1:s ombytningsfel, och att lossa den är ett eget mätbart beslut.
+> v1:s ombytningsfel, och att lossa den är ett eget mätbart beslut. *(Överspelat av S-15 samma dag —
+> beslutet är taget och mätt: `DEFAULT_MODEL` är v2 och grinden släpper in `face_on`.)*
 > **Mätvärden mot kalibreringssetet** i [`../training/README.md` → *Levererande modell*](../training/README.md#levererande-modell-shaft-v2onnx):
 > vinkelmedian **1,06°** mot människornas 0,30°, p90 6,72°, `butt` 0,54 %H, `hosel` 0,47 %H,
 > `face_on` **4,32°** (v1: 158,6°), `severe blur` 3,46°, **17 av 96 frames utan detektion**.

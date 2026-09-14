@@ -915,6 +915,34 @@ Enighet krävs. Där erik och lisa var oense om `view` på samma frame var det 4
 erik `face_on` / lisa `dtl` — enkelriktat, samma mönster som `occluded`/`visible`. En
 omtvistad sving räknas som icke-`dtl`.
 
+#### Grinden lossades för `shaft-v2` (2026-09-14)
+
+Tabellen ovan är **v1:s**. Samma mätning på `shaft-v2` över samma 97 frames:
+
+| Vy | Frames | Medianfel, vinkel | Största avvikelse | Ombytta ändar (>90°) |
+|---|---:|---:|---:|---:|
+| `dtl` | 85 | 1,03° | 14,33° | 0 |
+| `face_on` | 10 | 3,78° | **4,08°** | **0** |
+| `other` | 1 | 178,61° | 178,61° | 1 |
+
+Omkastningen är borta från `face_on`, och formen på det som är kvar är värd att läsa två
+gånger: **den värsta `face_on`-avvikelsen (4,08°) är mindre än de fyra värsta
+`dtl`-avvikelserna** (14,33°, 13,02°, 11,93°, 11,46°). Den enda katastrofframen i setet är
+`other`.
+
+Grinden släpper därför in `face_on` och **fortsätter blockera `other`** — `--view-gate
+swing+face_on` är standard, `swing` är kvar som v1:s strikta läge. Enighetskravet står
+oförändrat, men gäller nu *inom* den tillåtna mängden: en sving vars annotatörer är oense
+mellan `dtl` och `face_on` släpps in, eftersom båda svaren numera är tillåtna. Ett enda
+`other` någonstans i svingen blockerar den fortfarande, och en sving utan annoterad frame
+alls likaså.
+
+**Vad lossningen gav på batch-03:** 29 frames till innanför grinden, varav **13** faktiskt
+blev förhandsmärkta — 168 → **181** av 250. De 16 som ändå föll bort är väntade: `face_on`
+har **60 % frames utan detektion** i kalibreringssetet mot 13 % för `dtl`, så de landar på
+`no-detection`. Modellen avstår i stället för att gissa fel, vilket är rätt håll att
+misslyckas på.
+
 ### Två heuristiker som prövades och inte fungerade
 
 Skrivet här för att nästa person kommer att pröva dem igen.

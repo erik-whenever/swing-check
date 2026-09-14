@@ -128,6 +128,67 @@ class ViewGate(unittest.TestCase):
         self.assertEqual(set(self.views_for(z)), {'x_s00'})
 
 
+class ViewBucket(unittest.TestCase):
+    """Which bucket a swing's views land in — the half of the gate that decides.
+
+    Separate from `ViewGate` above, which only checks that views are COLLECTED per swing.
+    This is the decision itself, and it changed when the gate was loosened for shaft-v2,
+    so it gets the same treatment the collection does.
+    """
+
+    def test_unanimous_dtl_is_dtl(self):
+        self.assertEqual(P.view_bucket({'dtl'}), 'dtl')
+
+    def test_unanimous_face_on_is_face_on(self):
+        self.assertEqual(P.view_bucket({'face_on'}), 'face_on')
+
+    def test_a_dtl_face_on_dispute_is_face_on_not_other(self):
+        """4 of 4 real disputes were erik face_on / lisa dtl. Both answers are admissible
+        under the v2 gate, so the dispute is not a reason to skip."""
+        self.assertEqual(P.view_bucket({'dtl', 'face_on'}), 'face_on')
+
+    def test_any_other_anywhere_wins(self):
+        for views in ({'other'}, {'dtl', 'other'}, {'dtl', 'face_on', 'other'}):
+            with self.subTest(views=views):
+                self.assertEqual(P.view_bucket(views), 'other')
+
+    def test_no_annotation_is_unknown_never_dtl(self):
+        self.assertEqual(P.view_bucket(None), 'unknown')
+
+    def test_every_bucket_is_declared(self):
+        for views in ({'dtl'}, {'face_on'}, {'other'}, None):
+            self.assertIn(P.view_bucket(views), P.VIEW_BUCKETS)
+
+
+class GateBuckets(unittest.TestCase):
+    """What each --view-gate mode admits. The tightening direction is the safe one, so
+    the assertions that matter are the ones about what each gate REFUSES."""
+
+    def test_the_strict_gate_is_v1s_measured_safe_population(self):
+        self.assertEqual(set(P.GATE_BUCKETS['swing']), {'dtl'})
+
+    def test_the_default_gate_admits_face_on_and_still_refuses_other(self):
+        admits = P.GATE_BUCKETS[P.DEFAULT_VIEW_GATE]
+        self.assertIn('face_on', admits)
+        self.assertNotIn('other', admits)
+
+    def test_no_gate_but_off_admits_a_swing_with_no_view_evidence(self):
+        for gate, admits in P.GATE_BUCKETS.items():
+            with self.subTest(gate=gate):
+                self.assertEqual('unknown' in admits, gate == 'off')
+
+    def test_off_admits_everything(self):
+        self.assertEqual(set(P.GATE_BUCKETS['off']), set(P.VIEW_BUCKETS))
+
+    def test_the_default_is_a_real_gate(self):
+        self.assertIn(P.DEFAULT_VIEW_GATE, P.GATE_BUCKETS)
+
+    def test_every_skip_reason_the_gate_can_produce_has_report_text(self):
+        for reason in ('view-blocked', 'view-unknown'):
+            self.assertIn(reason, P.SKIP_REASONS)
+            self.assertIn(reason, P.REASON_TEXT)
+
+
 class Letterbox(unittest.TestCase):
     """Mirrors src/lib/shaft/letterbox.test.ts — same cases, same expectations."""
 
@@ -324,6 +385,13 @@ class PinnedAgainstTheWebApp(unittest.TestCase):
     Skipped when the model or the calibration set is absent — both are gitignored
     personal data and neither is present on a fresh clone. When they ARE present this is
     the test that catches a drift between this script and src/lib/shaft/.
+
+    Runs against `GEOMETRY_REFERENCE_MODEL` (`shaft-v1.onnx`), NOT `DEFAULT_MODEL`. The
+    coordinates below are what S-11 verified in the browser, and they are v1's outputs.
+    What is being pinned is the geometry — `preprocess` + `model_to_image` — not the
+    detector, so the reference must stay on the model the numbers were taken from;
+    following the shipped model here would re-pin the test against numbers nobody
+    checked in a browser, which is the same as deleting it.
     """
 
     CASES = {
@@ -336,10 +404,11 @@ class PinnedAgainstTheWebApp(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.calibration = ROOT / 'data' / 'shaft' / 'calibration' / 'calibration.zip'
-        if not P.DEFAULT_MODEL.exists() or not cls.calibration.exists():
+        cls.model = P.GEOMETRY_REFERENCE_MODEL
+        if not cls.model.exists() or not cls.calibration.exists():
             raise unittest.SkipTest('model or calibration set not present (gitignored)')
         import onnxruntime as ort
-        cls.session = ort.InferenceSession(str(P.DEFAULT_MODEL), providers=['CPUExecutionProvider'])
+        cls.session = ort.InferenceSession(str(cls.model), providers=['CPUExecutionProvider'])
         cls.imgsz = cls.session.get_inputs()[0].shape[2]
 
     def run_frame(self, frame_id):

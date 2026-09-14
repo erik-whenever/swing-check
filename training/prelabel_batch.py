@@ -23,6 +23,25 @@ eval set) that happened twice, and both times on a frame at least one annotator 
 face-on the shaft frequently points towards or away from the camera, the two ends are
 a few pixels apart in projection, and nothing in the image says which end is the grip.
 
+THAT WAS v1. shaft-v2 IS MEASURED DIFFERENTLY, SO THE GATE MOVED. Re-running
+`evaluate.py` on `shaft-v2.onnx` over the same 97 frames (CPU/ONNX, 2026-09-14):
+
+    view      frames   median angle error   worst deviation   swaps >90°
+    dtl           85          1.03°             14.33°            0
+    face_on       10          3.78°              4.08°            0
+    other          1        178.61°            178.61°            1
+
+The swap is gone from `face_on` — and note the shape of what is left: the worst
+`face_on` deviation (4.08°) is SMALLER than the four worst `dtl` deviations (14.33°,
+13.02°, 11.93°, 11.46°). The single catastrophic frame in the set is `other`, not
+`face_on`. So the gate now admits `face_on` and still refuses `other`, which is the
+population where the one remaining swap actually lives.
+
+What did NOT improve is coverage: `face_on` is 6/10 frames with no detection at all
+(60 %, against 13 % for `dtl`). Loosening the gate therefore buys fewer pre-labels than
+the frame count suggests — most of the newly admitted frames fall out at `no-detection`,
+which is the safe failure. The report prints both numbers.
+
 TWO HEURISTICS WERE TRIED AND BOTH FAILED. They are recorded here because the obvious
 next person will try them again:
 
@@ -46,19 +65,23 @@ WHAT DOES WORK: DERIVE THE VIEW PER SWING, FROM ANNOTATIONS THAT ALREADY EXIST.
 `view` is a property of the camera, and the camera does not move during a swing. Every
 frame already annotated (batch-01 + both calibration passes) carries an annotator's
 `view`, and a frame id encodes its swing (`<slug>-<hash>_sNN_fNN`), so an annotated
-frame labels its whole swing. A frame is pre-labelled only when every annotated frame
-of its swing says `dtl`. That is the population where the measured swap count is zero.
+frame labels its whole swing. A frame is pre-labelled only when every annotated view of
+its swing is one the gate allows. That is the population where the measured swap count
+is zero — `{dtl}` for v1, `{dtl, face_on}` for v2 (see the table above).
 
   NOT per CLIP. Clips do change angle between swings — `072.mp4` (s00 dtl, s02
   face_on), `IMG_5426.MP4` (s00 dtl, s01 face_on) and `IMG_5428.MP4` are annotated
   proof of it. A clip-level lookup would cover ~4 % more of batch-02 and would quietly
   pre-label the face-on swings of exactly those clips.
 
-  UNANIMITY, not majority. Where erik and lisa disagreed about `view` on the same
-  frame, it was 4 times out of 4 erik `face_on` / lisa `dtl` — one-directional, the
-  same shape as the `occluded`/`visible` disagreement in the spec. Treating a disputed
-  swing as not-dtl costs a handful of pre-labels and removes the frame that produced
-  the 160.6° swap.
+  UNANIMITY, not majority — but unanimity *within the allowed set*. Where erik and lisa
+  disagreed about `view` on the same frame, it was 4 times out of 4 erik `face_on` /
+  lisa `dtl` — one-directional, the same shape as the `occluded`/`visible` disagreement
+  in the spec. Under v1's `{dtl}` gate a disputed swing was blocked, which cost a
+  handful of pre-labels and removed the frame that produced the 160.6° swap. Under
+  `{dtl, face_on}` such a swing passes, because both of the views in dispute are now
+  admissible and the dispute is no longer a question the gate needs answered. An
+  `other` anywhere in the swing still blocks it.
 
 A swing with no annotated frame at all is NOT pre-labelled. That is the conservative
 direction on purpose: no view evidence is not evidence of dtl.
@@ -78,9 +101,10 @@ schema declares — an unplaceable point is `outside`, which is exactly what the
 four-point checkpoint exists, `SOLE_POINTS` here is where it plugs in.
 
 Usage:
-  py -3.11 training/prelabel_batch.py --batch data/shaft/training/batch-02/batch.zip
+  py -3.11 training/prelabel_batch.py --batch data/shaft/training/batch-03/batch.zip
   py -3.11 training/prelabel_batch.py --batch … --dry-run        # reports, writes nothing
-  py -3.11 training/prelabel_batch.py --batch … --view-gate off  # measures what the gate costs
+  py -3.11 training/prelabel_batch.py --batch … --view-gate swing  # v1's strict dtl-only gate
+  py -3.11 training/prelabel_batch.py --batch … --view-gate off    # measures what the gate costs
 """
 from __future__ import annotations
 
@@ -106,7 +130,17 @@ ROOT = Path(__file__).resolve().parent.parent
 # scripts/build-training-batch.mjs.
 WRITE_ROOT = ROOT / 'data' / 'shaft'
 
-DEFAULT_MODEL = ROOT / 'public' / 'models' / 'shaft-v1.onnx'
+# The SHIPPED model — same file `src/lib/shaft/shaftDetector.ts` → `MODEL_FILE` names, so
+# a pre-label is the same guess the app would make. Pointing this at anything else means
+# the annotator corrects a model nobody runs.
+DEFAULT_MODEL = ROOT / 'public' / 'models' / 'shaft-v2.onnx'
+
+# NOT the default, and not used by this script: the model the S-11 web/Python geometry
+# numbers were recorded against. `test_prelabel_batch.py` pins `preprocess` +
+# `model_to_image` to the pixel against it, and those coordinates are v1's. The constant
+# lives here so the test names a model rather than re-deriving a path, and so that
+# swapping the shipped model never silently re-pins the parity test.
+GEOMETRY_REFERENCE_MODEL = ROOT / 'public' / 'models' / 'shaft-v1.onnx'
 LABELS_FILE = ROOT / 'docs' / 'shaft' / 'cvat-labels.json'
 
 # Thresholds. The same values src/lib/shaft/shaftPostprocess.ts uses in the web app, so
@@ -132,12 +166,30 @@ SHAFT_POINTS = ('butt', 'hosel')
 SOLE_POINTS = ('toe', 'heel')
 
 SKIP_REASONS = [
-    'view-not-dtl',
+    'view-blocked',
     'view-unknown',
     'no-detection',
     'keypoint-below-threshold',
     'degenerate-shaft',
 ]
+
+# A swing's view bucket, derived from every annotated view any annotator gave any of its
+# frames. `dtl` and `face_on` are the unanimous-within-the-set cases; a swing carrying
+# `other` anywhere lands in `other`, and one with no annotated frame at all in `unknown`.
+VIEW_BUCKETS = ('dtl', 'face_on', 'other', 'unknown')
+
+#: Which buckets each `--view-gate` mode pre-labels. The mode names are the gate, not a
+#: description of it: `swing` is v1's measured-safe population (`{dtl}`), `swing+face_on`
+#: is v2's (see the table in the module docstring), `off` gates on nothing.
+#:
+#: `unknown` is admitted only by `off`, and deliberately: no view evidence is not
+#: evidence of an allowed view, in either gate.
+GATE_BUCKETS = {
+    'swing': frozenset({'dtl'}),
+    'swing+face_on': frozenset({'dtl', 'face_on'}),
+    'off': frozenset(VIEW_BUCKETS),
+}
+DEFAULT_VIEW_GATE = 'swing+face_on'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # View derivation
@@ -217,6 +269,28 @@ def find_annotation_exports(explicit: list[Path]) -> list[Path]:
                 continue  # images + manifest, no annotations
             found.append(path)
     return found
+
+
+def view_bucket(views: set[str] | None) -> str:
+    """Which `VIEW_BUCKETS` bucket a swing falls in, given every view annotators gave it.
+
+    `None` (no annotated frame at all) is `unknown`, not `dtl`: absence of view evidence
+    is not evidence of a view, and the gate must never read it as one.
+
+    The two admissible buckets are defined by SUBSET, not equality — `{dtl}` and
+    `{dtl, face_on}` both land in a bucket the `swing+face_on` gate admits, so a swing
+    two annotators disagreed about (always erik `face_on` / lisa `dtl`, 4 of 4) is no
+    longer blocked by a dispute whose both answers are now allowed. Anything containing
+    `other` is `other`, whatever else it contains: `other` is the one view where v2's
+    remaining >90° swap actually lives.
+    """
+    if views is None:
+        return 'unknown'
+    if views <= {'dtl'}:
+        return 'dtl'
+    if views <= {'dtl', 'face_on'}:
+        return 'face_on'
+    return 'other'
 
 
 def build_swing_views(exports: list[Path]) -> tuple[dict[str, set[str]], dict[str, int]]:
@@ -444,10 +518,11 @@ def prelabel_xml(frames: list[dict], name_prefix: str = 'frames/') -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 REASON_TEXT = {
-    'view-not-dtl': 'Svingen har en annoterad `view` som inte är enhälligt `dtl` — förkortning '
-                    'är där modellen kastar om ändarna (158,6° medianfel i evalrapporten).',
+    'view-blocked': 'Svingen bär en annoterad `view` som grinden inte släpper in. Med '
+                    '`swing+face_on` betyder det att någon annotatör sagt `other`; med `swing` '
+                    'räcker ett enda `face_on`.',
     'view-unknown': 'Ingen annoterad frame ur den svingen finns ännu, så vyn går inte att '
-                    'belägga. Ingen vyevidens är inte evidens för `dtl`.',
+                    'belägga. Ingen vyevidens är inte evidens för en tillåten vy.',
     'no-detection': 'Ingen box över konfidenströskeln — modellen hittar ingen klubba.',
     'keypoint-below-threshold': 'Box funnen men minst en punkt under keypoint-tröskeln. '
                                 'En ensam punkt går varken att längdkontrollera eller rikta.',
@@ -485,26 +560,56 @@ def report_markdown(frames, ctx) -> str:
         L.append(f'| `{phase}` | {n} | {got} | {got / max(1, n) * 100:.0f} % |')
     L.append('')
 
+    gate = ctx['view_gate']
+    allowed = GATE_BUCKETS[gate]
     L += ['## Vygrinden', '',
-          'Frames förhandsmärks bara när **varje redan annoterad frame ur samma sving** säger',
-          '`dtl`. Kameran flyttar sig inte under en sving, så en annoterad frame etiketterar hela',
+          f'Grind: **`{gate}`** — en frame förhandsmärks bara när **varje redan annoterad vy ur',
+          f'samma sving** ligger i {{{", ".join("`" + b + "`" for b in sorted(allowed))}}}.',
+          'Kameran flyttar sig inte under en sving, så en annoterad frame etiketterar hela',
           'svingen; men den flyttar sig **mellan** svingar i samma klipp (`072.mp4`, `IMG_5426.MP4`,',
           '`IMG_5428.MP4` är annoterade bevis), så uppslagningen görs per sving och aldrig per klipp.',
-          '', '| Vyunderlag | Svingar | Frames i batchen |', '|---|---:|---:|']
-    for label, key in [('enhälligt `dtl`', 'dtl'), ('någon `face_on`/`other`', 'not-dtl'),
-                       ('ingen annoterad frame', 'unknown')]:
-        L.append(f'| {label} | {ctx["swings_by_view"].get(key, 0)} | {ctx["frames_by_view"].get(key, 0)} |')
-    L += ['', 'Vykällor som lästes:', '']
+          '', '| Vyunderlag | Svingar | Frames i batchen | Släpps in | Förhandsmärkta |',
+          '|---|---:|---:|:--:|---:|']
+    pre_by_bucket = Counter(f.get('view_bucket') for f in pre)
+    for label, key in [('enhälligt `dtl`', 'dtl'), ('enhälligt sidled, någon `face_on`', 'face_on'),
+                       ('någon `other`', 'other'), ('ingen annoterad frame', 'unknown')]:
+        L.append(f'| {label} | {ctx["swings_by_view"].get(key, 0)} | '
+                 f'{ctx["frames_by_view"].get(key, 0)} | {"ja" if key in allowed else "nej"} | '
+                 f'{pre_by_bucket.get(key, 0)} |')
+
+    # What the loosening actually bought. `face_on` is the bucket v1's gate refused and
+    # v2's admits, so its two numbers ARE the delta -- no second pass needed.
+    face_frames = ctx['frames_by_view'].get('face_on', 0)
+    face_pre = pre_by_bucket.get('face_on', 0)
+    L += ['']
+    if gate == 'swing+face_on':
+        strict_pre = len(pre) - face_pre
+        gain = f'{face_pre / max(1, strict_pre) * 100:.0f} %'
+        L += [f'**Vad lossningen gav.** `face_on`-hinken är precis den v1:s grind (`swing`) vägrade',
+              f'och v2:s (`swing+face_on`) släpper in, så dess rader är skillnaden: **{face_frames} frames**',
+              f'till i grinden, varav **{face_pre}** faktiskt blev förhandsmärkta. Mot `swing`-grindens',
+              f'{strict_pre} är det **+{face_pre} ({gain})**.', '',
+              f'Att {face_frames - face_pre} av de {face_frames} nya framesen ändå föll bort är väntat och',
+              'ofarligt: `face_on` har 60 % frames utan detektion i kalibreringssetet (mot 13 % för',
+              '`dtl`), så de flesta landar på `no-detection` — modellen avstår i stället för att gissa',
+              'fel. Skälet att grinden kunde lossas är ett annat tal: v2:s värsta `face_on`-avvikelse',
+              'är 4,08°, mindre än de fyra värsta `dtl`-avvikelserna (14,33°, 13,02°, 11,93°, 11,46°),',
+              'och noll omkastningar >90°. v1 låg på 158,6° median där.', '']
+    else:
+        L += [f'> Grinden står på `{gate}`. `swing+face_on` är den mätta standarden för `shaft-v2`;',
+              f'> `face_on`-hinken ({face_frames} frames här) är skillnaden mellan dem.', '']
+    L += ['Vykällor som lästes:', '']
     for path, n in ctx['view_sources'].items():
         L.append(f'- `{path}` — {n} annoterade frames')
     L.append('')
 
     L += ['## Vad annotatören ska veta', '',
           '- De förhandsmärkta punkterna är **modellens gissning**, inte en facit. Flytta dem fritt;',
-          '  medianfelet på kalibreringssetets `dtl`-frames var 2,6° men svansen går till ~11°.',
+          '  `shaft-v2`:s medianfel på kalibreringssetet är 1,03° på `dtl` och 3,78° på `face_on`,',
+          '  men svansen går till ~14°.',
           '- **`view`, `blur`, `phase` och `no_shaft` är osatta** och ska sättas som vanligt. Att en',
           '  frame är förhandsmärkt säger ingenting om vilken vy den har — bara att svingen den kom',
-          '  ur redan är annoterad som `dtl` någon annanstans.',
+          '  ur redan är annoterad som en vy grinden släpper in, någon annanstans.',
           '- **`toe` och `heel` är inte förhandsmärkta.** Modellen är tvåpunkts och har ingen',
           '  åsikt om solan; de ligger som `outside` i skelettet och ska placeras från noll.',
           '- **Punktflaggorna är osatta** (skaftpunkterna ligger som `visible`). Modellens',
@@ -535,7 +640,7 @@ def main(argv=None) -> int:
     ap.add_argument('--keypoint', type=float, default=DEFAULT_KEYPOINT)
     ap.add_argument('--annotated', type=Path, action='append', default=[],
                     help='CVAT COCO export to read views from (repeatable; default: auto-discover)')
-    ap.add_argument('--view-gate', choices=['swing', 'off'], default='swing',
+    ap.add_argument('--view-gate', choices=list(GATE_BUCKETS), default=DEFAULT_VIEW_GATE,
                     help='"off" pre-labels every detection — for measuring what the gate costs, '
                          'never for a batch that is going to be annotated')
     ap.add_argument('--name-prefix', default='frames/',
@@ -559,7 +664,7 @@ def main(argv=None) -> int:
 
         exports = find_annotation_exports([p if p.is_absolute() else ROOT / p for p in args.annotated])
         swing_views, view_sources = build_swing_views(exports)
-        if args.view_gate == 'swing' and not swing_views:
+        if args.view_gate != 'off' and not swing_views:
             print('No annotated exports found — the view gate has nothing to stand on and every\n'
                   'frame would be skipped. Point --annotated at a CVAT COCO export, or run with\n'
                   '--view-gate off if you have decided to pre-label blind.', file=sys.stderr)
@@ -575,20 +680,15 @@ def main(argv=None) -> int:
 
         for n, frame in enumerate(frames, 1):
             swing = swing_of(frame['id'])
-            views = swing_views.get(swing)
-            if views is None:
-                bucket = 'unknown'
-            elif views == {'dtl'}:
-                bucket = 'dtl'
-            else:
-                bucket = 'not-dtl'
+            bucket = view_bucket(swing_views.get(swing))
+            frame['view_bucket'] = bucket
             frames_by_view[bucket] += 1
             if swing not in seen_swings:
                 seen_swings[swing] = bucket
                 swings_by_view[bucket] += 1
 
-            if args.view_gate == 'swing' and bucket != 'dtl':
-                frame['reason'] = 'view-not-dtl' if bucket == 'not-dtl' else 'view-unknown'
+            if bucket not in GATE_BUCKETS[args.view_gate]:
+                frame['reason'] = 'view-unknown' if bucket == 'unknown' else 'view-blocked'
                 continue
 
             image = cv2.imdecode(

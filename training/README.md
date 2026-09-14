@@ -533,9 +533,22 @@ ur de 82 % lättaste frames:en är inte samma sak som en median över setet.
 `face_on` är den siffra som flyttat sig mest. `shaft-v1` låg på **158,6°** där — inte ett
 placeringsfel utan omkastade ändar: vid förkortning gissade den fel på vilken ände som var
 `butt`. 4,32° betyder att omkastningen i allt väsentligt är borta, inte att den är bevisat
-omöjlig. Kvar att göra av det: **vygrinden i `prelabel_batch.py` är fortfarande v1:s**
-(förhandsmärker bara frames vars sving är helt `dtl`). Den är medvetet orörd här — att
-lossa på den är ett eget mätbart beslut, inte en följd av ett modellbyte.
+omöjlig.
+
+**Vygrinden är lossad efter det (2026-09-14, batch-03).** `prelabel_batch.py` förhandsmärker
+numera `dtl` **och** `face_on` (`--view-gate swing+face_on`, standard); `other` blockeras
+fortfarande, och `swing` finns kvar som v1:s strikta läge. Beslutet vilar på en omkörning av
+`evaluate.py` mot `shaft-v2.onnx`, inte på modellbytet i sig: noll omkastningar >90° på
+`face_on`, och dess värsta avvikelse (4,08°) är **mindre** än de fyra värsta `dtl`-avvikelserna
+(14,33°, 13,02°, 11,93°, 11,46°). Den enda >90°-framen i setet är `view: other`. Utfallet på
+batch-03: 168 → **181** förhandsmärkta av 250 (+13 av 29 nyinsläppta; resten föll på
+`no-detection`, som `face_on`:s 60 % täckningslucka förutsäger). Se annotation-spec.md →
+*Vygrinden*.
+
+**Täckningen är det som inte flyttat sig.** `face_on` har 6/10 frames utan detektion (60 %)
+mot `dtl` 11/86 (13 %), och `severe blur` 5/12 (42 %). De två grupperna är v2:s verkliga
+svaghet — inte någon enskild fas — och ingen av dem går att styra på i batchdraget, eftersom
+manifestet varken bär `view` eller `blur`. Se `docs/shaft/batch-03-phase-weights.json`.
 
 ### Vad som exkluderas ur träningen
 
