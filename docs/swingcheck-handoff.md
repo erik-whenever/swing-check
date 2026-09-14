@@ -33,6 +33,16 @@
 > i CVAT:s databas och läses aldrig ur repot, så `toe` och `heel` måste läggas in i
 > etikettkonstruktorn, i rätt ordning, innan en task kan annoteras med fyra punkter. **Det är den
 > enda åtgärd som återstår innan nästa batch kan annoteras.**
+>
+> **Uppdatering samma dag:** `cvat-labels.json` är nu komplett (`shaft` **plus** `frame_meta`) och
+> avsedd att klistras in i CVAT:s **Raw**-flik. Tre saker, lästa ur `cvat-ai/cvat@develop` och
+> beskrivna i [specen](shaft/annotation-spec.md#raw-fliken-ersätter-hela-etikettdefinitionen):
+> Raw **ersätter hela** definitionen och strippar dessutom `id`-fälten ur det man klistrar in, så
+> en inklistring i ett projekt som redan har `shaft` raderar etiketten *och dess annoteringar*.
+> Skelettets SVG skrivs **bara vid skapandet** — ett tvåpunkts-`shaft` går alltså inte att
+> uppgradera på plats; **nytt projekt eller ny task är enda vägen**. Mallen saknade `data-node-id`
+> på cirklarna (kanterna hade inte följt punkterna vid ritning) — fixat. **Gå igenom checklistan i
+> specen innan du klistrar in.**
 > Verifierat: `npm run build` rent · `npm test` 381/381 · `npm run lint` 2 kvarstående fel i
 > orörda filer · `py -3.11 -m unittest discover -s training -t training` 69/69 (ny modul
 > `training/test_shaft_schema.py`).

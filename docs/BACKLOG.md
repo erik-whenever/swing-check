@@ -1884,6 +1884,33 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > fel, båda sedan tidigare och i orörda filer (`FrameLightbox.tsx`, `useHistory.ts`) ·
 > `py -3.11 -m unittest discover -s training -t training` **69/69**, varav en ny modul
 > `training/test_shaft_schema.py` som pinnar ordningen, bakåtkompatibiliteten och boxregeln.
+>
+> **Tillägg (2026-09-14) — `cvat-labels.json` komplett och verifierad mot CVAT:s källa.**
+> Filen bär nu **hela** schemat, för Raw-fliken tar inget mindre: `shaft` (skeleton, fyra
+> sub-etiketter, fyra attribut) **plus `frame_meta`** (tag med `phase`), som tidigare bara
+> fanns beskriven i förifyllningsavsnittet och aldrig i filen. Tre fynd, alla lästa ur
+> `cvat-ai/cvat@develop`, inte antagna:
+>
+> - **Raw ersätter allt.** `raw-viewer.tsx` diffar textrutan mot databasen och raderar varje
+>   etikett/attribut vars `id` saknas i det inklistrade — *"All related annotations will be
+>   destroyed"*. Värre: `onPaste` **strippar alla `"id"`-fält** ur det man klistrar in, så en
+>   markera-allt-och-klistra-in gör att befintliga etiketter inte matchas alls.
+> - **Skelettets SVG är skrivskyddad efter skapandet.** `LabelSerializer.update_label` skriver
+>   `Skeleton(svg=…)` **bara** i skapa-grenen. Ett tvåpunkts-`shaft` går alltså inte att
+>   uppgradera på plats: sub-etiketterna skapas men får inga noder i mallen. Nytt projekt/ny
+>   task är enda vägen som inte offrar annoteringarna.
+> - **Mallen saknade `data-node-id` på cirklarna.** `drawHandler.ts` slår upp kantändar med
+>   `querySelector('[data-node-id="…"]')`, så utan dem följer kanterna inte punkterna när man
+>   ritar. Tillagt, tillsammans med CVAT:s egen kanoniska cirkelform (`r="0.75"`, utan
+>   `fill`/`stroke` — konstruktorn strippar dem ändå) och klubblika koordinater: butt överst,
+>   hosel nedanför, `heel→toe` som en kort sula ut från hoseln.
+>
+> `phase` står i svingordning med `idle` sist (värdemängden oförändrad; allt matchas på
+> sträng). **Specen** fick tre nya avsnitt: vad Raw gör, att punktordningen är låst så fort
+> annotering påbörjats, och en sjustegs checklista före inklistring.
+> **Verifierat:** `training/test_shaft_schema.py` 32/32 · en port av CVAT:s egen
+> `validateParsedLabel` körd mot filen, plus kontroll att kant-id:n och nodordningen matchar
+> sub-etiketterna.
 
 ---
 

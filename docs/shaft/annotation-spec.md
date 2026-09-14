@@ -64,6 +64,94 @@ läggas till för hand i CVAT:s etikettkonstruktor — i rätt ordning — innan
 annoteras med fyra punkter. Samma begränsning gäller import: *"Only label names can be
 imported this way, colors, attributes, and skeleton labels must be defined manually."*
 
+**"För hand" räcker dock inte på en `shaft` som redan finns** — skelettmallen är skrivskyddad
+efter skapandet. Läs nästa avsnitt innan du rör en CVAT-instans som redan har annoterad data.
+
+### Raw-fliken ersätter **hela** etikettdefinitionen
+
+[`cvat-labels.json`](cvat-labels.json) är skriven för att klistras in i **Raw**-fliken i
+CVAT:s etikettkonstruktor. Den bär hela schemat: `shaft` (skeleton, fyra sub-etiketter) och
+`frame_meta` (tag). Innan du klistrar in, förstå vad Raw gör — verifierat i CVAT:s källa,
+inte antaget.
+
+**Textrutan är hela etikettlistan, inte ett tillägg.** Vid *Save* diffar CVAT det du skrivit
+mot det som ligger i databasen: varje etikett och varje attribut som har ett `id` i
+databasen men saknas i din JSON **tas bort**, med varningen *"All related annotations will be
+destroyed"* (`cvat-ui/src/components/labels-editor/raw-viewer.tsx` → `handleSubmit`).
+
+**Inklistring tar bort `id`-fälten.** `onPaste` i samma fil kör
+`data.replace(/[\s]*"id":[\s]?[-{0-9}]+[,]?/g, '')` på det inklistrade. En markera-allt-och-
+klistra-in av den här filen gör alltså att **varje** etikett ser ny ut — den befintliga
+`shaft` matchas inte mot sitt `id`, utan raderas, och batch-01, batch-02 och båda
+kalibreringstaskerna förlorar sina annoteringar med den. Filen är därför id-lös med flit:
+den är definitionen för ett **nytt** projekt eller en ny task, inte en patch på ett
+befintligt.
+
+**Skelettets SVG går inte att ändra i efterhand.** Servern skriver `Skeleton(svg=…)` bara i
+skapa-grenen av `cvat/apps/engine/serializers.py` → `LabelSerializer.update_label`; för en
+etikett som redan har ett `id` ignoreras `svg`-fältet tyst. Följden: `toe` och `heel` går
+**inte** att lägga till en redan skapad `shaft`-skeleton på ett fungerande sätt — sub-
+etiketterna skapas, men mallen får inga noder för dem och punkterna blir inte ritbara.
+Ett tvåpunkts-`shaft` kan alltså inte uppgraderas på plats. Antingen **nytt projekt/ny task**
+med den här filen, eller: exportera allt som finns först och låt CVAT radera och återskapa
+etiketten.
+
+**`data-label-name` är rätt form i en färsk inklistring.** Servern byter
+`data-label-name="butt"` mot `data-label-id="<id>"` när etiketten skapas, och UI:t byter
+tillbaka id→namn när man klistrar in JSON som kopierats ur CVAT. Kopierar du **ut** raw-JSON
+ur ett levande projekt får du id:n med på köpet — det är den kopian man redigerar om man
+måste behålla etiketterna.
+
+**Vad Raw-validatorn kräver** (`labels-editor/common.ts` → `validateParsedLabel`), utöver
+giltig JSON-array:
+
+- `type` ur CVAT:s uppräkning — här `skeleton`, `tag` och `points` (sub-etiketterna).
+- `attributes` måste vara en array på **varje** etikett och sub-etikett, även tom.
+- `values` måste vara en **icke-tom** array av strängar — också för `checkbox`. Därför står
+  `no_shaft` med `"values": ["false"]` och inte `[]`.
+- `default_value` måste finnas i `values` (för `checkbox`: `"true"`/`"false"`).
+- `color` måste matcha `#rrggbb`.
+- En skeleton kräver icke-tom `sublabels` och en `svg`-sträng.
+
+### Punktordningen är låst så fort annotering påbörjats
+
+Ordningen i `sublabels` bestämmer i vilken ordning CVAT skapar sub-etiketterna, alltså deras
+`id`:n, alltså **kolumnordningen i exporten**. Allt som läser exporten läser positionellt
+(`training/shaft_coco.py` → `KEYPOINT_NAMES`, `scripts/measure-calibration.mjs`), så en
+omkastad ordning byter tyst plats på punkterna i redan annoterad data.
+
+**`butt → hosel → toe → heel` får aldrig ändras.** batch-01, batch-02 och båda
+kalibreringstaskerna är annoterade mot `butt, hosel` som plats 1 och 2; de två måste ligga
+först och i den ordningen för att de exporterna ska fortsätta läsas rätt. Att lägga till
+punkter **sist** är det enda bakåtkompatibla tillägget — och även det bara i en ny task, av
+skälet ovan.
+
+Detsamma gäller `values`-listan på ett `select`-attribut: CVAT tillåter bara att värden
+*läggs till*, aldrig tas bort (`_validate_attribute_update` i `serializers.py`).
+
+`phase` listas i `cvat-labels.json` i svingordning med `idle` sist, medan `PHASES` i
+`scripts/reconcile-phase.mjs` och `training/shaft_coco.py` listar `idle` först. Det är
+avsiktligt och ofarligt: värdemängden är identisk och allt matchas på sträng, aldrig på
+index. Ordningen i JSON:en styr bara hur alternativen står i CVAT:s rullgardin.
+
+### Checklista före inklistring
+
+1. **Är det ett nytt projekt eller en ny task?** Om `shaft` redan finns där du klistrar in —
+   stopp. Läs *Raw-fliken ersätter hela etikettdefinitionen* ovan igen.
+2. **Exportera allt som redan är annoterat** i projektet (COCO Keypoints 1.0) och lägg
+   exporten under `data/shaft/`. Gör det även om du tror att inget finns.
+3. **Kopiera ut den nuvarande raw-JSON:en** ur textrutan till en fil innan du rör den. Det är
+   den enda kopian som bär `id`:n.
+4. **Markera allt i textrutan och klistra in filen** — inte klistra in *bredvid* det som står
+   där.
+5. **Läs varningsrutan.** Dyker *"You are going to remove existing labels/attributes"* upp med
+   `shaft` i listan, avbryt: du är i steg 1 utan att veta om det.
+6. **Efter Save:** öppna `shaft` i Constructor-fliken och kontrollera att skelettet visar
+   **fyra** noder i ordningen `butt, hosel, toe, heel`, och att `frame_meta` finns med
+   attributet `phase`.
+7. **Rita en testskeleton** i en frame och verifiera att kanterna följer punkterna när de
+   dras. Gör de inte det saknar mallen `data-node-id` på cirklarna.
+
 ### Bakåtkompatibilitet: batch-01 och batch-02 är tvåpunktsannoterade
 
 De två första batcharna, och båda kalibreringspassen, annoterades innan `toe`/`heel` fanns.
