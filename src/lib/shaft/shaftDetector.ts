@@ -1,4 +1,13 @@
-// Singleton ONNX Runtime session for the 2-point shaft detector (butt + hosel).
+// Singleton ONNX Runtime session for the shaft detector.
+//
+// THE SCHEMA IS FOUR POINTS — butt, hosel, toe, heel (docs/shaft/annotation-spec.md).
+// THE SHIPPED MODEL IS TWO. `shaft-v2.onnx` was trained before toe and heel existed and
+// emits an 11-channel graph, so `toe` and `heel` come back null from every real call
+// today. That is not a placeholder: null is what this detector already returns for a
+// point the model did not locate, and "the model cannot produce it" and "the model did
+// not find it" are the same fact from the caller's side. The decoder reads the channel
+// count off the tensor (`shaftPostprocess.ts`), so a four-point checkpoint starts
+// filling these in on the day it is dropped into `MODEL_FILE`, with no change here.
 //
 // STANDS ALONE. Nothing here imports from the pose chain and nothing in the pose
 // chain imports from here: this is a second, independent detector that happens to
@@ -62,7 +71,10 @@ import {
   CONF_THRESHOLD,
   IOU_THRESHOLD,
   KEYPOINT_THRESHOLD,
+  LEGACY_CHANNELS,
+  keypointCountForChannels,
   selectBest,
+  type RawKeypoint,
 } from './shaftPostprocess';
 
 const log = createLogger('ShaftDetector');
@@ -123,6 +135,13 @@ export interface ShaftDetection {
   butt: ShaftPoint | null;
   /** Where the straight part of the shaft ends, or null. */
   hosel: ShaftPoint | null;
+  /**
+   * Outer end of the sole, or null. ALWAYS null under a 2-point model — see the file
+   * header. `heel → toe` is the blade direction; `butt → hosel` is the shaft's.
+   */
+  toe: ShaftPoint | null;
+  /** Inner end of the sole (the hosel side), or null. Same caveat as `toe`. */
+  heel: ShaftPoint | null;
   /** Confidence of the winning box; 0 when no box cleared CONF_THRESHOLD. */
   boxConf: number;
   /** `session.run()` wall time, ms. Decode and letterboxing are not counted. */
@@ -133,6 +152,13 @@ export interface ShaftDetection {
   imageSize: { width: number; height: number };
   /** Which execution provider ran this inference. */
   provider: 'webgpu' | 'wasm';
+  /**
+   * How many keypoints the loaded graph carries: 4 for the schema, 2 for a legacy
+   * checkpoint. Reported rather than inferred from which fields are null, because
+   * "this model has no toe" and "this frame has no visible toe" are different facts
+   * and a caller that conflates them will draw the wrong conclusion from a null.
+   */
+  modelKeypoints: number;
 }
 
 // ── Session ──────────────────────────────────────────────────────────────────
@@ -350,11 +376,12 @@ export async function resetShaftSession(): Promise<void> {
  * `jpegBase64` is exactly what `grabFramesAtTimes` returns: a bare base64 JPEG
  * payload with no data-URL prefix.
  *
- * Returned coordinates are in the source image's own pixel space. Either point is
- * null when the model located the club but not that end of it — the annotation
- * spec's `outside` case, which is common enough (the grip behind a shoulder, the
- * head out of frame) that collapsing it to a guessed coordinate would be worse than
- * reporting the gap.
+ * Returned coordinates are in the source image's own pixel space. Any of the four
+ * points is null when the model located the club but not that part of it — the
+ * annotation spec's `outside` case, which is common enough (the grip behind a
+ * shoulder, the head out of frame, the sole seen end-on) that collapsing it to a
+ * guessed coordinate would be worse than reporting the gap. Under the shipped 2-point
+ * model `toe` and `heel` are null on every frame; `modelKeypoints` says so.
  */
 export async function detectShaft(jpegBase64: string): Promise<ShaftDetection> {
   const model = await loadShaftSession();
@@ -386,9 +413,12 @@ export async function detectShaft(jpegBase64: string): Promise<ShaftDetection> {
 
   const output = outputs[model.outputNames[0]];
   const dims = output.dims;
-  if (dims.length !== 3 || dims[0] !== 1 || dims[1] !== CHANNELS) {
+  const modelKeypoints =
+    dims.length === 3 && dims[0] === 1 ? keypointCountForChannels(dims[1]) : null;
+  if (modelKeypoints === null) {
     throw new Error(
-      `Unexpected shaft output shape [${dims.join(', ')}] — expected [1, ${CHANNELS}, N]`,
+      `Unexpected shaft output shape [${dims.join(', ')}] — expected ` +
+        `[1, ${CHANNELS}, N] (4-point) or [1, ${LEGACY_CHANNELS}, N] (legacy 2-point)`,
     );
   }
   const { best, kept, candidates } = selectBest(output.data as Float32Array, dims[2], {
@@ -398,8 +428,8 @@ export async function detectShaft(jpegBase64: string): Promise<ShaftDetection> {
 
   // The ONE place model pixels become image pixels. Everything downstream — the dev
   // overlay, any future rule — reads the image-space numbers and never sees 960².
-  const toPoint = (kp: { x: number; y: number; score: number }): ShaftPoint | null => {
-    if (kp.score < KEYPOINT_THRESHOLD) return null;
+  const toPoint = (kp: RawKeypoint | null | undefined): ShaftPoint | null => {
+    if (!kp || kp.score < KEYPOINT_THRESHOLD) return null;
     const p = modelToImage(transform, kp);
     return { x: p.x, y: p.y, conf: kp.score };
   };
@@ -407,22 +437,27 @@ export async function detectShaft(jpegBase64: string): Promise<ShaftDetection> {
   const detection: ShaftDetection = {
     butt: best ? toPoint(best.butt) : null,
     hosel: best ? toPoint(best.hosel) : null,
+    toe: best ? toPoint(best.toe) : null,
+    heel: best ? toPoint(best.heel) : null,
     boxConf: best?.conf ?? 0,
     inferenceMs,
     preprocessMs,
     imageSize,
     provider: chosenProvider,
+    modelKeypoints,
   };
 
+  const logPoint = (p: ShaftPoint | null) => (p ? [Math.round(p.x), Math.round(p.y)] : null);
   log.debug('Shaft frame', {
     provider: chosenProvider,
+    modelKeypoints,
     candidates,
     kept,
     boxConf: round3(detection.boxConf),
-    butt: detection.butt ? [Math.round(detection.butt.x), Math.round(detection.butt.y)] : null,
-    hosel: detection.hosel
-      ? [Math.round(detection.hosel.x), Math.round(detection.hosel.y)]
-      : null,
+    butt: logPoint(detection.butt),
+    hosel: logPoint(detection.hosel),
+    toe: logPoint(detection.toe),
+    heel: logPoint(detection.heel),
     inferenceMs: Math.round(inferenceMs),
     preprocessMs: Math.round(preprocessMs),
   });

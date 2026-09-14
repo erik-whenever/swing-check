@@ -7,6 +7,13 @@ point in the export, so a reader that tests the coordinate counts ghost points
 (docs/shaft/annotation-spec.md -> *Synlighetsflaggan avgor, aldrig koordinaten*).
 Two copies of that rule would eventually drift, and the drift would surface as an
 eval number that is quietly wrong rather than as an error. So it lives here once.
+
+THE SECOND THING THEY MUST AGREE ON is how many keypoints there are. The schema is four
+(butt, hosel, toe, heel) but batch-01, batch-02 and both calibration passes were
+annotated with two, and those exports are still read. `_points_of` therefore pads a short
+keypoint list with v=0 -- an absent toe/heel is `outside`, which is exactly what the spec
+says an unplaceable point is, not a parse error. `export_keypoint_names` reports what a
+given export actually carried so a run can say so out loud instead of guessing.
 """
 
 from __future__ import annotations
@@ -25,8 +32,21 @@ COCO_ENTRY_CANDIDATES = (
 
 MANIFEST_ENTRY = "manifest.json"
 
-#: Keypoint order is fixed by the annotation spec: butt first, hosel second.
-KEYPOINT_NAMES = ("butt", "hosel")
+#: Keypoint order is fixed by the annotation spec, and fixed everywhere: CVAT sublabels,
+#: COCO keypoint list, YOLO label columns, ONNX channels.
+KEYPOINT_NAMES = ("butt", "hosel", "toe", "heel")
+
+#: The two shaft points. `butt` -> `hosel` is the directed vector the shaft angle is read
+#: off, and it is the pair the 2-point era measured -- so it is named rather than assumed
+#: to be "the first two".
+SHAFT_POINTS = ("butt", "hosel")
+
+#: The two sole points. `heel` -> `toe` is the directed vector the BLADE angle is read
+#: off. Absent from every export written before 2026-09.
+SOLE_POINTS = ("toe", "heel")
+
+#: What a pre-4-point export carries. Not a supported schema to write, only one to read.
+LEGACY_KEYPOINT_NAMES = ("butt", "hosel")
 
 #: Visibility flags as CVAT writes them: outside -> 0, occluded -> 1, visible -> 2.
 V_OUTSIDE, V_OCCLUDED, V_VISIBLE = 0, 1, 2
@@ -138,7 +158,18 @@ class FrameAnnotation:
 
     @property
     def n_placed(self) -> int:
+        """0..4. Not a boolean any more: the schema has four points and a frame may carry
+        any number of them (grip behind a shoulder, head out of frame, sole seen end-on)."""
         return len(self.placed_points)
+
+    def point(self, name: str):
+        """The named keypoint. Use this, not `points[0]`."""
+        return point_by_name(self.points, name)
+
+    def placed_all(self, *names: str) -> bool:
+        """True when every named point is placed. `placed_all(*SHAFT_POINTS)` is the
+        precondition for a shaft angle; `placed_all(*SOLE_POINTS)` for a blade angle."""
+        return all(self.point(name).placed for name in names)
 
 
 @dataclass
@@ -149,6 +180,15 @@ class ParsedExport:
 
 
 def _points_of(ann: dict) -> list:
+    """Always `len(KEYPOINT_NAMES)` points, in spec order.
+
+    A short list is PADDED WITH v=0, never rejected: a two-point export from batch-01 or
+    a calibration pass is a valid four-point annotation whose toe and heel nobody placed,
+    and `v=0` is precisely how the spec records a point that could not be placed
+    (docs/shaft/annotation-spec.md -> *Bakatkompatibilitet*). A longer list is truncated
+    for the same reason in reverse -- reading the first four keeps the fixed order
+    meaningful if a future schema appends points.
+    """
     flat = list(ann.get("keypoints") or [])
     n = len(KEYPOINT_NAMES)
     if len(flat) < 3 * n:
@@ -158,6 +198,15 @@ def _points_of(ann: dict) -> list:
         x, y, v = flat[3 * i], flat[3 * i + 1], flat[3 * i + 2]
         points.append(Point(float(x), float(y), int(v)))
     return points
+
+
+def point_by_name(points: list, name: str):
+    """One point out of a spec-ordered list, addressed by name rather than by index.
+
+    Index arithmetic on a list whose length just changed is the mistake this exists to
+    make impossible.
+    """
+    return points[KEYPOINT_NAMES.index(name)]
 
 
 def _enclosing_area(points: list) -> float:
@@ -229,6 +278,57 @@ def parse_export(coco: dict, category: str = "shaft") -> ParsedExport:
             extra_annotations=len(anns) - 1,
         )
     return out
+
+
+def export_keypoint_names(coco: dict, category: str = "shaft") -> tuple:
+    """The keypoint names the export itself declares, in its own order.
+
+    COCO carries the schema on the category, so an export says for itself whether it is a
+    four-point or a legacy two-point file. Read it rather than inferring from the length
+    of the first `keypoints` list -- a frame with nothing placed is still full-length.
+    Returns `()` when the category declares none (some CVAT versions omit the field).
+    """
+    for cat in coco.get("categories", []):
+        if cat.get("name") == category:
+            return tuple(str(k) for k in (cat.get("keypoints") or []))
+    return ()
+
+
+def keypoint_schema_note(names) -> str:
+    """One line describing how an export's keypoint schema lines up with the spec's.
+
+    The point is that a legacy export is READ, not rejected, and that the run says so
+    rather than quietly producing a dataset with two dead columns nobody ordered.
+    """
+    names = tuple(names)
+    if not names:
+        return (
+            "export declares no keypoint names; assuming spec order {}".format(
+                "/".join(KEYPOINT_NAMES)
+            )
+        )
+    if names == KEYPOINT_NAMES:
+        return "4-point schema ({})".format("/".join(names))
+    if names == LEGACY_KEYPOINT_NAMES:
+        return (
+            "legacy 2-point schema ({}); {} read as outside".format(
+                "/".join(names), "/".join(SOLE_POINTS)
+            )
+        )
+    if names == KEYPOINT_NAMES[: len(names)]:
+        return (
+            "{}-point export ({}); the missing {} read as outside".format(
+                len(names),
+                "/".join(names),
+                "/".join(KEYPOINT_NAMES[len(names):]),
+            )
+        )
+    return (
+        "UNEXPECTED keypoint order {} -- the spec's order is {}; points are read "
+        "POSITIONALLY, so this export is mislabelled unless the order is fixed".format(
+            "/".join(names), "/".join(KEYPOINT_NAMES)
+        )
+    )
 
 
 def verify_visibility_coding(coco: dict, category: str = "shaft") -> list:

@@ -199,10 +199,27 @@ export async function runShaftPreview(
 
 /** Shaft direction in degrees, `butt → hosel`, or null when an end is missing. */
 export function shaftAngleDeg(detection: ShaftDetection | null): number | null {
-  if (!detection?.butt || !detection.hosel) return null;
-  const dx = detection.hosel.x - detection.butt.x;
-  const dy = detection.hosel.y - detection.butt.y;
-  return (Math.atan2(dy, dx) * 180) / Math.PI;
+  return directionDeg(detection?.butt ?? null, detection?.hosel ?? null);
+}
+
+/**
+ * Blade direction in degrees, `heel → toe`, or null when an end is missing.
+ *
+ * A separate number from `shaftAngleDeg`, never averaged with it: the shaft can be in
+ * the right plane with the blade wide open, and that is precisely the error the sole
+ * points were added to make visible. Null on every frame under a 2-point model —
+ * `detection.modelKeypoints` says which of the two cases a null is.
+ */
+export function bladeAngleDeg(detection: ShaftDetection | null): number | null {
+  return directionDeg(detection?.heel ?? null, detection?.toe ?? null);
+}
+
+function directionDeg(
+  from: { x: number; y: number } | null,
+  to: { x: number; y: number } | null,
+): number | null {
+  if (!from || !to) return null;
+  return (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
 }
 
 function summarise(inference: number[], preprocess: number[]): TimingSummary | null {

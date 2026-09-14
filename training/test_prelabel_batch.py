@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for training/prelabel_batch.py.
 
-    py -3.11 -m unittest discover -s training -t .
+    py -3.11 -m unittest discover -s training -t training
 
 `unittest` rather than pytest: training/requirements.txt exists to pin a training
 toolchain, and adding a test framework to it would mean everyone who wants to train has
@@ -40,11 +40,13 @@ ROOT = Path(__file__).resolve().parent.parent
 def coco_zip(path: Path, frames: dict[str, str]) -> Path:
     """A minimal CVAT COCO Keypoints export: `{frame id: view}`."""
     doc = {
-        'categories': [{'id': 1, 'name': 'shaft', 'keypoints': ['butt', 'hosel']}],
+        'categories': [{'id': 1, 'name': 'shaft',
+                        'keypoints': ['butt', 'hosel', 'toe', 'heel']}],
         'images': [{'id': i, 'file_name': f'frames/{fid}.jpg', 'width': 720, 'height': 1280}
                    for i, fid in enumerate(frames, 1)],
-        'annotations': [{'id': i, 'image_id': i, 'category_id': 1, 'keypoints': [1, 1, 2, 2, 2, 2],
-                         'num_keypoints': 2, 'attributes': {'view': view}}
+        'annotations': [{'id': i, 'image_id': i, 'category_id': 1,
+                         'keypoints': [1, 1, 2, 2, 2, 2, 3, 3, 2, 4, 4, 2],
+                         'num_keypoints': 4, 'attributes': {'view': view}}
                         for i, view in enumerate(frames.values(), 1)],
     }
     with zipfile.ZipFile(path, 'w') as z:
@@ -54,7 +56,11 @@ def coco_zip(path: Path, frames: dict[str, str]) -> Path:
 
 def raw_output(entries, num_anchors=8):
     """An (11, N) model output built by hand, so the channel layout is asserted and not
-    inherited. `entries` is `{anchor: (conf, box, butt, butt_v, hosel, hosel_v)}`."""
+    inherited. `entries` is `{anchor: (conf, box, butt, butt_v, hosel, hosel_v)}`.
+
+    Eleven channels, not seventeen: `select_best` decodes what the SHIPPED checkpoint
+    emits, and that is still the 2-point graph. When a four-point model lands, this
+    helper and the channel indices in `select_best` move together."""
     raw = np.zeros((11, num_anchors), np.float32)
     for i, (conf, box, butt, butt_v, hosel, hosel_v) in entries.items():
         raw[0:4, i] = box
@@ -216,7 +222,7 @@ class SelectBest(unittest.TestCase):
 class PrelabelXml(unittest.TestCase):
     PRE = {'butt': (10.5, 20.25), 'hosel': (30.0, 40.0), 'conf': 0.9}
 
-    def test_emits_a_skeleton_with_both_sublabels_in_butt_hosel_order(self):
+    def test_emits_all_four_sublabels_in_spec_order(self):
         xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top', 'width': 720, 'height': 1280,
                                'prelabel': self.PRE}])
         self.assertIn('<skeleton label="shaft" source="manual" z_order="0">', xml)
@@ -224,7 +230,23 @@ class PrelabelXml(unittest.TestCase):
                       'points="10.50,20.25">', xml)
         self.assertIn('<points label="hosel" occluded="0" source="manual" outside="0" '
                       'points="30.00,40.00">', xml)
-        self.assertLess(xml.index('label="butt"'), xml.index('label="hosel"'))
+        order = [xml.index(f'label="{name}"') for name in ('butt', 'hosel', 'toe', 'heel')]
+        self.assertEqual(order, sorted(order))
+
+    def test_writes_the_sole_points_as_outside_rather_than_omitting_them(self):
+        """The shipped model is 2-point. The skeleton still has to carry all four
+        sublabels the task declares, and a point nobody could place is `outside` -- the
+        spec's own word for it -- not a missing element."""
+        xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top', 'prelabel': self.PRE}])
+        for name in P.SOLE_POINTS:
+            self.assertIn(f'<points label="{name}" occluded="0" source="manual" '
+                          f'outside="1" points="0.00,0.00">', xml)
+
+    def test_never_marks_a_pre_labelled_shaft_point_outside(self):
+        xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top', 'prelabel': self.PRE}])
+        for name in P.SHAFT_POINTS:
+            index = xml.index(f'label="{name}"')
+            self.assertIn('outside="0"', xml[index:index + 120])
 
     def test_sets_no_attributes_at_all_on_the_skeleton(self):
         """view, blur, phase and no_shaft are the annotator's — CVAT applies the defaults."""
@@ -259,12 +281,23 @@ class PrelabelXml(unittest.TestCase):
         root = ElementTree.fromstring(P.prelabel_xml([{'id': name, 'phase': 'top'}]))
         self.assertEqual(root.find('image').get('name'), f'frames/{name}.jpg')
 
-    def test_declares_the_shaft_skeleton_and_its_two_sublabels_in_meta(self):
+    def test_declares_the_shaft_skeleton_and_all_four_sublabels_in_meta(self):
         xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top'}])
         self.assertIn('<type>skeleton</type>', xml)
         self.assertIn('<parent>shaft</parent>', xml)
-        for sublabel in ('butt', 'hosel'):
+        for sublabel in P.SHAFT_POINTS + P.SOLE_POINTS:
             self.assertIn(f'<name>{sublabel}</name>', xml)
+
+    def test_meta_sublabels_come_from_the_committed_schema_in_its_order(self):
+        """The XML's sublabel names and their order must be the task's, and the task is
+        built from cvat-labels.json by hand -- so the file is the only source here."""
+        schema = json.loads(P.LABELS_FILE.read_text(encoding='utf-8'))
+        shaft = next(l for l in schema if l['name'] == 'shaft')
+        names = [sub['name'] for sub in shaft['sublabels']]
+        self.assertEqual(names, ['butt', 'hosel', 'toe', 'heel'])
+        xml = P.prelabel_xml([])
+        positions = [xml.index(f'<name>{name}</name>') for name in names]
+        self.assertEqual(positions, sorted(positions))
 
     def test_meta_matches_the_committed_label_schema(self):
         """The sublabel names in the XML must be the ones the annotator's task has."""
@@ -282,7 +315,7 @@ class PrelabelXml(unittest.TestCase):
         ])
         root = ElementTree.fromstring(xml)
         self.assertEqual(len(root.findall('image')), 2)
-        self.assertEqual(len(root.findall('image/skeleton/points')), 2)
+        self.assertEqual(len(root.findall('image/skeleton/points')), 4)
 
 
 class PinnedAgainstTheWebApp(unittest.TestCase):

@@ -1172,8 +1172,9 @@ notera i `docs/reviews/ARCHITECTURE_REVIEW_2026-07.md` att R2 är åtgärdad med
 
 ## Ström S — Skaftdetektering (dataset + annotering)
 
-Nytt spår, **parallellt med pose**. Mål: 2-punkts skaftdetektering (butt + hosel) på de
-analys-frames `selectEnvelopeFrames` redan väljer. Spec: [shaft/annotation-spec.md](shaft/annotation-spec.md).
+Nytt spår, **parallellt med pose**. Mål: **4-punkts** skaftdetektering
+(`butt → hosel → toe → heel`) på de analys-frames `selectEnvelopeFrames` redan väljer.
+Schemat vidgades i S-14; den levererande modellen är fortfarande tvåpunkts. Spec: [shaft/annotation-spec.md](shaft/annotation-spec.md).
 Rör **inte** pose-koden: `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`,
 `poseEnvelopeSelection.ts` och Vision-anropet är låsta för det här spåret.
 
@@ -1823,6 +1824,66 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > **Verifierat:** `npm run build` rent · `npm test` **375/375** · `npm run lint` 2 kvarstående
 > fel, båda sedan tidigare och i orörda filer (`FrameLightbox.tsx`, `useHistory.ts`).
 > **Ej sedd på en iPhone** — det är vad som återstår, och villkoret för att ta bort v1.
+
+### [x] S-14 — Fyra keypoints: `butt → hosel → toe → heel`
+
+> **Klart (2026-09-14).** Schemaändring, inte en modelländring: **ingen träning har körts
+> och `shaft-v2.onnx` är orörd.** Den fortsätter köra tvåpunkts tills en fyrapunktsmodell
+> finns — schemat och koden ligger före modellen med flit, så att annoteringen kan börja.
+>
+> **De nya punkterna definieras av solan**, klubbhuvudets nedre kant: `toe` är dess yttre
+> ändpunkt, `heel` dess inre. Skälet står i specen och är detsamma som gjorde att hoseln
+> valdes framför huvudets centrum — solan syns på både driver och järn och slutar tydligt i
+> båda ändar, medan "huvudets yttersta spets" ligger olika på olika klubbtyper och inte går
+> att träffa likadant två gånger. **Häl–tå-linjen bär bladets rotation**, och det är hela
+> skälet att punkterna finns: `butt→hosel` ger skaftets riktning, `heel→toe` ger bladets, och
+> skaftvinkeln ensam säger ingenting om huruvida bladet är öppet eller stängt.
+>
+> **Bakåtkompatibilitet är hela risken i den här ändringen**, och den är löst på ett ställe:
+> `_points_of` i `training/shaft_coco.py` **paddar en kort keypoint-lista med `v=0`**. En
+> tvåpunktsexport (batch-01, batch-02, båda kalibreringspassen) läses därmed som en giltig
+> fyrapunktsannotering vars `toe`/`heel` är `outside` — inte som ett fel, och framför allt
+> inte som punkter i origo, vilket hade tränat modellen mot (0, 0). `export_keypoint_names`
+> läser COCO-kategorins egen keypoint-lista, så varje körning **skriver ut vilket schema
+> exporten bar** i stället för att gissa; en export med punkterna i fel ordning får en
+> `UNEXPECTED`-varning, eftersom läsningen är positionell.
+>
+> **Ändrat, per fil:**
+>
+> - **Specen** — nya punkter, soldefinitionen och motiveringen, samma occluded/outside-regel
+>   (den handlar om punkten, inte om bilden), streakets mittpunkt för alla fyra, och regeln
+>   att **`toe` och `heel` båda blir `outside` när huvudet pekar rakt mot eller från kameran**
+>   — solan är då en punkt i projektion, och två punkter ovanpå varandra är en bladvinkel som
+>   inte finns. Plus en notering om att CVAT:s etikettdefinition ligger i **databasen** och
+>   aldrig läses ur repot: `cvat-labels.json` är en kopia, sub-etiketterna måste läggas in för
+>   hand i etikettkonstruktorn.
+> - **`cvat-labels.json`** — fyra sub-etiketter i rätt ordning, skelett-SVG med noderna och
+>   kedjan `butt → hosel → heel → toe`.
+> - **`prepare_dataset.py`** — `kpt_shape: [4, 3]`, `flip_idx: [0, 1, 2, 3]` (fortfarande
+>   identitet: att spegla bilden gör inte en tå till en häl, den vänder klubban). Boxregeln
+>   följer nu **de punkter som faktiskt är satta**: ≥2 ger omslutande rektangel, exakt 1 ger
+>   kvadratisk ersättningsbox, 0 skrivs inte. Kvadratens sida mäts fortfarande på
+>   `butt`–`hosel` — en skala ur `toe`/`heel` hade varit odefinierad mot batch-01. Rapporten
+>   visar **spektrumet 1–4 satta punkter** och täckning per punkt i stället för "båda eller en".
+> - **`evaluate.py`** — mätvärden per punkt för alla fyra, och **bladvinkeln som eget mätvärde
+>   vid sidan av skaftvinkeln**, aldrig hopslagen: ett skaft kan ligga i rätt plan med bladet
+>   vidöppet. Varje vinkel mäts bara där dess **egna** två punkter finns på båda sidor, så en
+>   tvåpunktsexport rapporterar ingen bladvinkel i stället för en felaktig. Ingen
+>   människokolumn för bladvinkeln — kalibreringssetet annoterades i tvåpunktsschemat och bär
+>   inget golv. Ovikningen vid 90° gäller `heel→toe` av samma skäl som `butt→hosel`.
+> - **`export_onnx.py` + README** — utdataformen är `[1, 17, N]`, kanaltabellen går till index
+>   16. **Kanalantalet är kontraktet** (utdatan avkodas positionellt), så exporten läser det ur
+>   grafen och säger vilket schema den implementerar; 11 och 17 tas emot, allt annat ger exit 1.
+> - **`shaftDetector.ts`** — `ShaftDetection` bär `toe`/`heel` (`ShaftPoint | null`) plus
+>   `modelKeypoints`, som skiljer *"modellen har ingen tå"* från *"framen har ingen synlig tå"*.
+>   `shaftPostprocess.ts` läser kanalantalet ur tensorn och avkodar både 11 och 17.
+> - **`prelabel_batch.py`** — skriver `toe`/`heel` som `outside="1"` så att skelettet bär alla
+>   fyra sub-etiketter tasken deklarerar. Modellen förhandsmärker fortfarande bara skaftet.
+>
+> **Verifierat:** `npm run build` rent · `npm test` **381/381** · `npm run lint` 2 kvarstående
+> fel, båda sedan tidigare och i orörda filer (`FrameLightbox.tsx`, `useHistory.ts`) ·
+> `py -3.11 -m unittest discover -s training -t training` **69/69**, varav en ny modul
+> `training/test_shaft_schema.py` som pinnar ordningen, bakåtkompatibiliteten och boxregeln.
 
 ---
 

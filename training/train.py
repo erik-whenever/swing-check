@@ -5,8 +5,9 @@
     py -3.11 training/train.py --epochs 400 --batch 8 --imgsz 1280
     py -3.11 training/train.py --dry-run          # resolve and print args, train nothing
 
-Runs land in training/runs/<name>/. Horizontal flip is hard-off: butt and hosel are the
-two ends of a directed vector, not a mirror-symmetric pair, so a mirrored frame has no
+Runs land in training/runs/<name>/. Horizontal flip is hard-off: none of the four
+keypoints is another one's mirror image -- butt/hosel are the two ends of a directed
+vector, toe/heel the outer and inner end of the sole -- so a mirrored frame has no
 correct label under any index permutation.
 """
 
@@ -30,7 +31,7 @@ DEFAULT_PATIENCE = 60
 #: augmentation switched off explicitly rather than left to the Ultralytics default,
 #: so a default change upstream cannot silently turn mirroring back on.
 AUGMENTATION = {
-    "fliplr": 0.0,       # MUST stay 0 -- butt/hosel are not mirror-symmetric
+    "fliplr": 0.0,       # MUST stay 0 -- no keypoint is another one's mirror
     "flipud": 0.0,       # a golf swing is never upside down; pure label noise
     "degrees": 8.0,      # handheld camera roll
     "translate": 0.10,
@@ -86,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.0,
         help="mosaic probability. Off by default: mosaic tiles four frames into one, "
-        "quartering apparent shaft length, and for a thin 2-keypoint object a "
+        "quartering apparent shaft length, and for a thin line object a "
         "faithful scale distribution is worth more than the extra variety "
         "(default: %(default)s)",
     )
@@ -135,8 +136,9 @@ def resolve_config(args) -> dict:
     config["mosaic"] = args.mosaic
     if config["fliplr"] != 0.0:
         raise SystemExit(
-            "fliplr must stay 0.0: butt and hosel are the two ends of a directed "
-            "vector, so a mirrored frame has no correct label"
+            "fliplr must stay 0.0: butt/hosel are the two ends of a directed vector "
+            "and toe/heel the outer and inner end of the sole, so a mirrored frame has "
+            "no correct label"
         )
     return config
 

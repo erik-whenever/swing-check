@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Pre-label a training batch with shaft-v1 and write a CVAT-importable XML.
+"""Pre-label a training batch with the shipped detector and write a CVAT-importable XML.
 
-WHAT THIS IS FOR. The annotator places two points per frame. Where the detector is
-already right to within a couple of degrees, adopting its guess is cheaper than
-drawing from scratch — and where it is WRONG IN A PARTICULAR WAY, adopting it is more
+WHAT THIS IS FOR. The annotator places four points per frame (butt, hosel, toe, heel).
+The shipped detector is a TWO-point model, so it can only offer the first two -- see
+"WHAT THIS SCRIPT DOES NOT SET" below. Where the detector is already right to within a
+couple of degrees, adopting its guess is cheaper than drawing from scratch — and where it is WRONG IN A PARTICULAR WAY, adopting it is more
 expensive than drawing from scratch, because a plausible-looking shaft that points the
 wrong way is a correction you have to notice before you can make it.
 
@@ -68,6 +69,14 @@ prefill is disabled project-wide because the derivation was ~50 % wrong (F5). Th
 skeleton is emitted with no attributes at all, so CVAT applies the label defaults and
 every attribute is still an unanswered question when the annotator opens the frame.
 
+TOE AND HEEL ARE NOT PRE-LABELLED. The shipped model predates the four-point schema and
+emits two keypoints; there is nothing to pre-label them with, and inventing a sole from a
+shaft direction would be a guess wearing a measurement's clothes. They are written into
+every skeleton as `outside="1"` so the object carries all four sublabels the task's label
+schema declares — an unplaceable point is `outside`, which is exactly what the spec says
+(annotation-spec.md → *Punktflaggor*). The annotator places them from nothing. When a
+four-point checkpoint exists, `SOLE_POINTS` here is where it plugs in.
+
 Usage:
   py -3.11 training/prelabel_batch.py --batch data/shaft/training/batch-02/batch.zip
   py -3.11 training/prelabel_batch.py --batch … --dry-run        # reports, writes nothing
@@ -115,6 +124,12 @@ PAD_VALUE = 114
 # collapsed object, set an order of magnitude below the shortest correct prediction
 # observed (0.054 H). It is expected to fire on nothing; the report says whether it did.
 MIN_SHAFT_FRACTION = 0.01
+
+# Keypoint schema, mirrored from training/shaft_coco.py rather than retyped -- this
+# script writes the sublabel names CVAT will match against, and a typo here is a skeleton
+# CVAT silently refuses.
+SHAFT_POINTS = ('butt', 'hosel')
+SOLE_POINTS = ('toe', 'heel')
 
 SKIP_REASONS = [
     'view-not-dtl',
@@ -272,7 +287,8 @@ def select_best(raw: np.ndarray, conf_threshold: float, iou_threshold: float = 0
     """Highest-confidence detection after NMS, in model pixels, or None.
 
     Channel layout (training/README.md → *Utdataformat*): 0..3 box cx/cy/w/h, 4 conf,
-    5..7 butt x/y/v, 8..10 hosel x/y/v.
+    5..7 butt x/y/v, 8..10 hosel x/y/v. That is the LEGACY 2-point layout, which is what
+    the shipped checkpoint emits; a four-point model would carry 11..16 as toe and heel.
     """
     conf = raw[4]
     idx = np.nonzero(conf >= conf_threshold)[0]
@@ -310,11 +326,15 @@ def select_best(raw: np.ndarray, conf_threshold: float, iou_threshold: float = 0
 #     `<points label="…" occluded="0|1" source="…" outside="0|1" points="x,y">` is the
 #     documented representation. Both the schema block and the worked example on that
 #     page carry it.
-#   - `<points label="…">` names the SUBLABEL — `butt` / `hosel` here.
+#   - `<points label="…">` names the SUBLABEL — `butt`, `hosel`, `toe`, `heel`, written
+#     in that order. The sole points carry `outside="1"`: the model has no opinion about
+#     them, and CVAT's own representation of "point not placed" is the flag, not omission.
 #   - The label schema cannot be created by importing the file: "Only label names can be
 #     imported this way, colors, attributes, and skeleton labels must be defined
-#     manually." So the `shaft` skeleton label must already exist on the task, with its
-#     two sublabels, from docs/shaft/cvat-labels.json.
+#     manually." So the `shaft` skeleton label must already exist on the task, with all
+#     FOUR sublabels, entered by hand in CVAT's label constructor after
+#     docs/shaft/cvat-labels.json. That file is the repo's copy; CVAT keeps the real one
+#     in its database and never reads ours.
 #   - COCO Keypoints 1.0 also imports skeletons and would have worked. CVAT-for-images
 #     1.1 is chosen because it is CVAT's own lossless format, it carries the per-point
 #     `outside` flag the spec's three-state visibility rule is built on, and the repo
@@ -328,7 +348,7 @@ def select_best(raw: np.ndarray, conf_threshold: float, iou_threshold: float = 0
 # so diffing it against the returned export says precisely which points the annotator
 # moved, and by how much.
 #
-# `occluded="0"` on both points, always. CVAT's `occluded` is one of the spec's three
+# `occluded="0"` on every point, always. CVAT's `occluded` is one of the spec's three
 # visibility states, and those are the annotator's judgement about what is visible in
 # the image (annotation-spec.md → *Punktflaggor*). A keypoint score is not that
 # judgement and must not be dressed up as one.
@@ -397,11 +417,19 @@ def prelabel_xml(frames: list[dict], name_prefix: str = 'frames/') -> str:
             continue
         lines.append(f'  <image {attrs}>')
         lines.append('    <skeleton label="shaft" source="manual" z_order="0">')
-        for point_label in ('butt', 'hosel'):
+        for point_label in SHAFT_POINTS:
             x, y = pre[point_label]
             lines.append(
                 f'      <points label="{point_label}" occluded="0" source="manual" '
                 f'outside="0" points="{x:.2f},{y:.2f}">'
+            )
+            lines.append('      </points>')
+        # The sole points: present so the skeleton carries every sublabel the task
+        # declares, `outside` because the model has nothing to say about them.
+        for point_label in SOLE_POINTS:
+            lines.append(
+                f'      <points label="{point_label}" occluded="0" source="manual" '
+                f'outside="1" points="0.00,0.00">'
             )
             lines.append('      </points>')
         lines.append('    </skeleton>')
@@ -423,7 +451,7 @@ REASON_TEXT = {
     'no-detection': 'Ingen box över konfidenströskeln — modellen hittar ingen klubba.',
     'keypoint-below-threshold': 'Box funnen men minst en punkt under keypoint-tröskeln. '
                                 'En ensam punkt går varken att längdkontrollera eller rikta.',
-    'degenerate-shaft': 'De två punkterna ligger så nära varandra att objektet ritas som en prick.',
+    'degenerate-shaft': 'Skaftpunkterna ligger så nära varandra att objektet ritas som en prick.',
 }
 
 
@@ -477,7 +505,9 @@ def report_markdown(frames, ctx) -> str:
           '- **`view`, `blur`, `phase` och `no_shaft` är osatta** och ska sättas som vanligt. Att en',
           '  frame är förhandsmärkt säger ingenting om vilken vy den har — bara att svingen den kom',
           '  ur redan är annoterad som `dtl` någon annanstans.',
-          '- **Punktflaggorna är osatta** (båda punkterna ligger som `visible`). Modellens',
+          '- **`toe` och `heel` är inte förhandsmärkta.** Modellen är tvåpunkts och har ingen',
+          '  åsikt om solan; de ligger som `outside` i skelettet och ska placeras från noll.',
+          '- **Punktflaggorna är osatta** (skaftpunkterna ligger som `visible`). Modellens',
           '  keypoint-score är inte specens synlighetsbedömning; sätt `occluded`/`outside` själv',
           '  enligt *Punktflaggor* i specen.',
           '- En frame **utan** objekt är inte ett påstående om att där inte finns någon klubba — se',

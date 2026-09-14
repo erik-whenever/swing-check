@@ -21,6 +21,7 @@ import {
   KEYPOINT_THRESHOLD,
 } from '../../lib/shaft/shaftPostprocess';
 import {
+  bladeAngleDeg,
   runShaftPreview,
   shaftAngleDeg,
   type PreviewFrame,
@@ -184,6 +185,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function FrameCard({ frame }: { frame: PreviewFrame }) {
   const d = frame.detection;
   const angle = shaftAngleDeg(d);
+  const blade = bladeAngleDeg(d);
   return (
     <figure className="space-y-1">
       <div className="relative rounded-card overflow-hidden bg-black">
@@ -210,6 +212,16 @@ function FrameCard({ frame }: { frame: PreviewFrame }) {
               {d.hosel ? d.hosel.conf.toFixed(2) : '—'}
               {angle === null ? '' : ` · ${angle.toFixed(1)}°`}
             </div>
+            {/* Only rendered for a 4-point model. Under a 2-point one the row would be
+                two em-dashes on every single frame, which reads as a detection failure
+                rather than as a model that has no sole points to fail at. */}
+            {d.modelKeypoints >= 4 && (
+              <div>
+                toe {d.toe ? d.toe.conf.toFixed(2) : '—'} · heel{' '}
+                {d.heel ? d.heel.conf.toFixed(2) : '—'}
+                {blade === null ? '' : ` · ${blade.toFixed(1)}°`}
+              </div>
+            )}
           </>
         ) : null}
       </figcaption>
@@ -218,17 +230,21 @@ function FrameCard({ frame }: { frame: PreviewFrame }) {
 }
 
 /**
- * Butt and hosel as dots with the shaft line between them, drawn in the SOURCE
- * image's coordinate space via the viewBox — see the file header for why that is
- * the whole point rather than a convenience.
+ * The four points as dots, with the shaft line (butt → hosel) and the sole line
+ * (heel → toe) drawn between them, in the SOURCE image's coordinate space via the
+ * viewBox — see the file header for why that is the whole point rather than a
+ * convenience.
  *
  * Stroke widths are given as a fraction of the image height so the overlay reads the
  * same on a 720×818 web clip and a 1080×1920 phone clip.
+ *
+ * Every element is conditional on its own points, so under the shipped 2-point model
+ * the sole simply does not draw and nothing here needs to know which model is loaded.
  */
 function ShaftOverlay({ detection }: { detection: ShaftDetection }) {
   const { width, height } = detection.imageSize;
   const unit = height / 200;
-  const { butt, hosel } = detection;
+  const { butt, hosel, toe, heel } = detection;
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -246,10 +262,23 @@ function ShaftOverlay({ detection }: { detection: ShaftDetection }) {
           strokeLinecap="round"
         />
       )}
-      {/* Butt green, hosel magenta — two hues, not two sizes, so the DIRECTION of the
-          butt → hosel vector is readable at thumbnail size. */}
+      {heel && toe && (
+        <line
+          x1={heel.x}
+          y1={heel.y}
+          x2={toe.x}
+          y2={toe.y}
+          stroke="#38bdf8"
+          strokeWidth={unit}
+          strokeLinecap="round"
+        />
+      )}
+      {/* A hue per point, never a size — the DIRECTION of both vectors has to be
+          readable at thumbnail size, and a radius difference is not. */}
       {butt && <circle cx={butt.x} cy={butt.y} r={unit * 2} fill="#22c55e" />}
       {hosel && <circle cx={hosel.x} cy={hosel.y} r={unit * 2} fill="#e879f9" />}
+      {toe && <circle cx={toe.x} cy={toe.y} r={unit * 2} fill="#38bdf8" />}
+      {heel && <circle cx={heel.x} cy={heel.y} r={unit * 2} fill="#fb923c" />}
     </svg>
   );
 }

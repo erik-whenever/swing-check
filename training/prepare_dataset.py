@@ -14,9 +14,13 @@ OUTPUT is a YOLO dataset directory:
 
 One label line per image:
 
-    0 xc yc w h  bx by bv  hx hy hv        (all normalised to [0,1])
+    0 xc yc w h  bx by bv  hx hy hv  tx ty tv  ex ey ev    (all normalised to [0,1])
 
-Keypoint order is butt then hosel, fixed by docs/shaft/annotation-spec.md.
+Keypoint order is butt, hosel, toe, heel -- fixed by docs/shaft/annotation-spec.md.
+
+Two-point exports (batch-01, batch-02, both calibration passes) are read as valid input:
+their toe and heel come back as `outside` and are written as `0 0 0`, the same way any
+unplaced point is. The run reports which schema each export carried.
 
     py -3.11 training/prepare_dataset.py \
         --pair data/shaft/training/batch-01/annotated-v2.zip \
@@ -39,8 +43,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from shaft_coco import (  # noqa: E402
     KEYPOINT_NAMES,
+    SHAFT_POINTS,
     ShaftDataError,
+    export_keypoint_names,
     frame_id_from_file_name,
+    keypoint_schema_note,
     parse_export,
     read_coco,
     read_manifest,
@@ -73,13 +80,18 @@ DEFAULT_SEED = 20260913
 
 
 def enclosing_box(points, margin: float, min_pad: float, width: int, height: int):
-    """Enclosing rectangle of the placed points, padded, clipped to the image.
+    """Enclosing rectangle of the PLACED points, padded, clipped to the image.
 
-    The shaft has no natural bounding box -- it is a line segment between two
-    annotated endpoints. We take the rectangle the two points span and grow it, which
-    keeps the box's area tied to the shaft's actual extent (the pose loss normalises
-    keypoint error by box area, so a box that does not track the object's scale
-    reweights the very quantity we care about).
+    The club has no natural bounding box -- it is up to four annotated points, a shaft
+    segment plus a sole segment. We take the rectangle they span and grow it, which keeps
+    the box's area tied to the object's actual extent (the pose loss normalises keypoint
+    error by box area, so a box that does not track the object's scale reweights the very
+    quantity we care about).
+
+    Two or more placed points is the precondition, not "both": the schema has four and a
+    frame may carry any two of them. Which two changes the box -- toe+heel alone spans the
+    sole and nothing else -- and that is correct, because the box must describe what is
+    actually annotated in this frame, not what the club looks like in general.
     """
     xs = [p.x for p in points]
     ys = [p.y for p in points]
@@ -92,12 +104,18 @@ def enclosing_box(points, margin: float, min_pad: float, width: int, height: int
 
 
 def square_box(point, side: float, margin: float, min_pad: float, width: int, height: int):
-    """Stand-in box for a frame where only one endpoint is placed.
+    """Stand-in box for a frame where exactly ONE point is placed.
 
-    See README -> *Bounding box*. `side` is the dataset-median shaft length divided by
-    sqrt(2), i.e. the enclosing-rectangle side a shaft of median length spans at 45
+    See README -> *Bounding box*. `side` is the dataset-median BUTT-HOSEL length divided
+    by sqrt(2), i.e. the enclosing-rectangle side a shaft of median length spans at 45
     degrees -- so these boxes land in the same area distribution as the real ones and
     do not distort the keypoint loss's area normalisation.
+
+    Deliberately still measured on butt-hosel and not on all four points: the shaft is
+    what dominates the club's extent, the sole adds a few percent, and the median is
+    taken over frames where both shaft points are placed -- a population that exists in
+    every export, legacy ones included. A scale derived from toe/heel would be undefined
+    against batch-01.
     """
     half = side / 2.0
     x0, y0 = point.x - half, point.y - half
@@ -113,12 +131,14 @@ def _clamp01(value: float) -> float:
 
 
 def label_line(box, points, width: int, height: int) -> str:
-    """Format one YOLO-pose label line, normalised.
+    """Format one YOLO-pose label line, normalised. One `x y v` triplet per keypoint,
+    in `KEYPOINT_NAMES` order, however many of them are placed.
 
     An unplaced point is written as `0 0 0`, never as its coordinate: CVAT leaves the
     last dragged position of an `outside` point in the export, and writing that ghost
     would train the model toward a position the annotator explicitly refused to set.
-    Ultralytics masks keypoints with v=0 out of the loss.
+    Ultralytics masks keypoints with v=0 out of the loss -- which is also what makes a
+    two-point export trainable under the four-point schema at no cost.
     """
     x0, y0, x1, y1 = box
     xc = _clamp01(((x0 + x1) / 2.0) / width)
@@ -162,6 +182,9 @@ def collect_records(args, reserved: set, dropped: Dropped, notes: list):
         coco = read_coco(coco_zip)
         for warning in verify_visibility_coding(coco):
             notes.append("{}: visibility check -- {}".format(coco_zip.name, warning))
+        notes.append(
+            "{}: {}".format(coco_zip.name, keypoint_schema_note(export_keypoint_names(coco)))
+        )
 
         export = parse_export(coco)
         manifest = read_manifest(batch_zip)
@@ -244,14 +267,20 @@ def collect_records(args, reserved: set, dropped: Dropped, notes: list):
 
 
 def median_shaft_side(records) -> float:
-    """Median shaft length as a fraction of image height, over two-point frames."""
+    """Median butt-hosel length as a fraction of image height.
+
+    Measured only on frames where BOTH shaft points are placed, and only on those two
+    points -- see `square_box` for why it is not all four. Frames whose toe/heel are also
+    placed contribute the same number they always did, so adding the sole points does not
+    move this scale and does not change the boxes of already-built datasets.
+    """
     lengths = []
     for rec in records:
-        points = rec["ann"].placed_points
-        if len(points) == 2:
-            lengths.append(
-                hypot(points[0].x - points[1].x, points[0].y - points[1].y) / rec["ann"].height
-            )
+        ann = rec["ann"]
+        if not ann.placed_all(*SHAFT_POINTS):
+            continue
+        butt, hosel = (ann.point(name) for name in SHAFT_POINTS)
+        lengths.append(hypot(butt.x - hosel.x, butt.y - hosel.y) / ann.height)
     if not lengths:
         return 0.0
     return statistics.median(lengths)
@@ -306,7 +335,7 @@ def write_dataset(records, out_dir: Path, args, single_point_side: float):
             (out_dir / "images" / split / (rec["frame_id"] + ".jpg")).write_bytes(image_bytes)
 
             placed = ann.placed_points
-            if len(placed) == 2:
+            if len(placed) >= 2:
                 box = enclosing_box(placed, args.margin, args.min_pad, ann.width, ann.height)
             else:
                 box = square_box(
@@ -366,29 +395,41 @@ def write_dataset(records, out_dir: Path, args, single_point_side: float):
 def write_data_yaml(out_dir: Path, args) -> None:
     """Write data.yaml.
 
-    `flip_idx` is the identity mapping [0, 1] and horizontal flipping is switched OFF
-    in train.py (`fliplr=0.0`). butt and hosel are not mirror-symmetric: they are the
-    two ends of a directed vector, so there is no index permutation that makes a
-    mirrored frame correctly labelled. The identity mapping exists only to satisfy
-    Ultralytics' schema check; it is never exercised, because the augmentation that
-    would use it is off.
+    `kpt_shape` is [len(KEYPOINT_NAMES), 3] -- four points of x, y, v.
+
+    `flip_idx` is the identity mapping and horizontal flipping is switched OFF in
+    train.py (`fliplr=0.0`). None of the four points is the mirror image of another:
+    butt/hosel are the two ends of a directed vector, and toe/heel are the outer and
+    inner end of the sole -- mirroring the image does not turn a toe into a heel, it
+    turns the club around. So there is no index permutation that makes a mirrored frame
+    correctly labelled. The identity mapping exists only to satisfy Ultralytics' schema
+    check; it is never exercised, because the augmentation that would use it is off.
     """
+    n = len(KEYPOINT_NAMES)
     text = """# Generated by training/prepare_dataset.py -- do not edit by hand.
 #
+# Keypoint order: {order}  (docs/shaft/annotation-spec.md)
+#
 # flip_idx is identity and horizontal flip is DISABLED in train.py (fliplr=0.0).
-# butt/hosel are the two ends of a directed vector, not a mirror-symmetric pair, so
-# no permutation makes a mirrored frame correctly labelled. Keep fliplr at 0.
+# No point here is another point's mirror image -- butt/hosel are the two ends of a
+# directed vector, toe/heel the outer and inner end of the sole -- so no permutation
+# makes a mirrored frame correctly labelled. Keep fliplr at 0.
 
 path: {path}
 train: images/train
 val: images/val
 
-kpt_shape: [2, 3]
-flip_idx: [0, 1]
+kpt_shape: [{n}, 3]
+flip_idx: {flip}
 
 names:
   0: shaft
-""".format(path=out_dir.resolve().as_posix())
+""".format(
+        path=out_dir.resolve().as_posix(),
+        order=", ".join(KEYPOINT_NAMES),
+        n=n,
+        flip=list(range(n)),
+    )
     (out_dir / "data.yaml").write_text(text, encoding="utf-8")
 
 
@@ -414,16 +455,28 @@ def report(records, dropped: Dropped, notes: list, meta: dict, single_point_side
             print("  {:<6} {:>4} images".format(split, by_split.get(split, 0)))
         print("  swings {:>4}".format(len({rec["swing"] for rec in records})))
 
-        one_point = [rec for rec in records if rec["ann"].n_placed == 1]
         print()
-        coverage = "Keypoint coverage: {} frames with both points, {} with one".format(
-            len(records) - len(one_point), len(one_point)
-        )
-        if one_point:
-            coverage += " (square stand-in box, side = {:.3f} x image height)".format(
-                single_point_side
-            )
-        print(coverage)
+        print("Keypoint coverage (frames by number of points placed, of {}):".format(
+            len(KEYPOINT_NAMES)
+        ))
+        placed_counts = Counter(rec["ann"].n_placed for rec in records)
+        for k in range(1, len(KEYPOINT_NAMES) + 1):
+            count = placed_counts.get(k, 0)
+            note = ""
+            if k == 1 and count:
+                note = "  <- square stand-in box, side = {:.3f} x image height".format(
+                    single_point_side
+                )
+            print("  {} point(s) {:>4}  ({:.1f} %){}".format(
+                k, count, 100.0 * count / len(records), note
+            ))
+
+        print("Per point:")
+        for index, name in enumerate(KEYPOINT_NAMES):
+            placed = sum(1 for rec in records if rec["ann"].points[index].placed)
+            print("  {:<6} {:>4} placed  ({:.1f} %)".format(
+                name, placed, 100.0 * placed / len(records)
+            ))
 
         print()
         print("Phase (sidecar only, never trained against):")
@@ -511,8 +564,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--single-point",
         choices=("square", "drop"),
         default="square",
-        help="what to do with frames where only one endpoint is placed "
-        "(default: %(default)s; see README -> Bounding box)",
+        help="what to do with frames where exactly ONE of the four points is placed -- "
+        "the only case with no rectangle to enclose (default: %(default)s; see "
+        "README -> Bounding box)",
     )
     parser.add_argument(
         "--dry-run",
@@ -552,12 +606,13 @@ def main(argv=None) -> int:
     single_point_side = median_shaft_side(records) / sqrt(2)
     if args.single_point == "drop":
         before = len(records)
-        records = [rec for rec in records if rec["ann"].n_placed == 2]
+        records = [rec for rec in records if rec["ann"].n_placed >= 2]
         dropped["only one point placed (--single-point drop)"] += before - len(records)
     elif single_point_side <= 0.0 and any(rec["ann"].n_placed == 1 for rec in records):
         raise SystemExit(
-            "no two-point frame to take a median shaft length from, so single-point "
-            "frames have no box scale; rerun with --single-point drop"
+            "no frame with both butt and hosel placed, so there is no median shaft "
+            "length to scale the single-point stand-in boxes by; rerun with "
+            "--single-point drop"
         )
 
     records = split_records(records, args.val_frac, args.seed)

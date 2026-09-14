@@ -10,6 +10,9 @@ After export, the script:
   3. Runs it through BOTH the PyTorch model (on CPU) and the ONNX session.
   4. Compares outputs element-wise; exits 1 if max absolute difference exceeds
      MAX_ABS_DIFF.  A silent broken export is the worst outcome here.
+  5. Reads the channel count off the exported graph and says WHICH keypoint schema it
+     implements, so a two-point checkpoint cannot be shipped as a four-point model
+     without anyone noticing.  See `describe_channels`.
 """
 
 from __future__ import annotations
@@ -19,8 +22,22 @@ import sys
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from shaft_coco import KEYPOINT_NAMES, LEGACY_KEYPOINT_NAMES  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CALIBRATION_ZIP = REPO_ROOT / "data" / "shaft" / "calibration" / "calibration.zip"
+
+#: Box (cx, cy, w, h) plus objectness.  Everything after this is keypoints.
+BOX_CHANNELS = 5
+#: Per keypoint: x, y, visibility.
+CHANNELS_PER_KEYPOINT = 3
+#: What a four-point export must emit: 5 + 4 x 3.
+EXPECTED_CHANNELS = BOX_CHANNELS + CHANNELS_PER_KEYPOINT * len(KEYPOINT_NAMES)
+#: What every checkpoint trained before the schema change emits: 5 + 2 x 3.  Still a
+#: valid thing to export -- shaft-v2 is one -- so it is named, not treated as corruption.
+LEGACY_CHANNELS = BOX_CHANNELS + CHANNELS_PER_KEYPOINT * len(LEGACY_KEYPOINT_NAMES)
 
 # Threshold for float32 round-trip through ONNX simplification.
 # onnxslim introduces single-element noise in the 1e-3 range; real export corruption
@@ -118,6 +135,34 @@ def _run_onnx(onnx_path: Path, img_np) -> "np.ndarray":
 # ---------------------------------------------------------------------------
 # Shape pretty-printer
 # ---------------------------------------------------------------------------
+
+def describe_channels(channels: int) -> str:
+    """What keypoint schema an output of `channels` channels implements.
+
+    The web integration decodes this tensor positionally (src/lib/shaft/
+    shaftPostprocess.ts), so the channel count IS the contract.  Both counts below are
+    legitimate today: the four-point schema is what the annotation spec describes, and
+    the two-point one is what every checkpoint trained before it emits.  Anything else
+    is a different model than this repo knows how to read.
+    """
+    if channels == EXPECTED_CHANNELS:
+        return "{} channels = 4-point schema ({})".format(
+            channels, ", ".join(KEYPOINT_NAMES)
+        )
+    if channels == LEGACY_CHANNELS:
+        return (
+            "{} channels = legacy 2-point schema ({}). Valid, but it is NOT the "
+            "annotation schema: toe/heel are absent and the web integration reports "
+            "them as null.".format(channels, ", ".join(LEGACY_KEYPOINT_NAMES))
+        )
+    keypoints = (channels - BOX_CHANNELS) / CHANNELS_PER_KEYPOINT
+    return (
+        "{} channels = UNRECOGNISED ({:.2f} keypoints after the {} box channels). "
+        "The decoder expects {} (4-point) or {} (legacy 2-point).".format(
+            channels, keypoints, BOX_CHANNELS, EXPECTED_CHANNELS, LEGACY_CHANNELS
+        )
+    )
+
 
 def _print_onnx_shapes(onnx_path: Path) -> None:
     import onnx
@@ -217,6 +262,22 @@ def main(argv=None) -> int:
 
     print("PyTorch output shape: {}".format(pt_out.shape))
     print("ONNX    output shape: {}".format(onnx_out.shape))
+
+    # [1, C, N] -- C is the contract with src/lib/shaft/shaftPostprocess.ts.
+    if len(onnx_out.shape) == 3:
+        channels = int(onnx_out.shape[1])
+        print("Keypoint schema: {}".format(describe_channels(channels)))
+        if channels not in (EXPECTED_CHANNELS, LEGACY_CHANNELS):
+            print(
+                "\nERROR: the exported graph emits a channel count this repo cannot "
+                "decode.",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        print(
+            "NOTE: output is not [1, C, N]; keypoint schema not checked."
+        )
 
     if pt_out.shape != onnx_out.shape:
         print(

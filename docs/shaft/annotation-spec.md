@@ -4,16 +4,24 @@
 > pose-koden eller `frameExtractor.ts` för detta arbete.
 
 ## Syfte
-2-punkts skaftdetektering på de ~20 frames/sving som `selectEnvelopeFrames` redan väljer
+4-punkts skaftdetektering på de ~20 frames/sving som `selectEnvelopeFrames` redan väljer
 (se [pose-detection.md](../pose-detection.md) → *Arkitektur (pass 3)*). **Ej i rAF-loopen** —
 ingen realtidskrav, bara på de redan uttagna analys-framesen.
 
 ## Klass
-`shaft` — skeleton med **exakt 2 punkter**, fast ordning:
+`shaft` — skeleton med **exakt 4 punkter**, fast ordning:
 
 1. **butt** — greppets ände (klubbans övre ändpunkt, **INTE** händerna)
 2. **hosel** — skaftets nedre ändpunkt, **där skaftets linje slutar vara rak** och huvudet
    tar vid
+3. **toe** — solans yttre ändpunkt
+4. **heel** — solans inre ändpunkt
+
+Ordningen `butt → hosel → toe → heel` är fast och oföränderlig. Den gäller överallt:
+sub-etiketterna i CVAT, keypoint-listan i COCO-exporten, kolumnerna i YOLO-etiketten och
+kanalordningen i ONNX-utdatan.
+
+### Skaftet: butt och hosel
 
 **Hoseln definieras av var den raka delen tar slut.** Följ skaftet nedåt och sätt punkten
 där linjen upphör att vara rak. Alltså:
@@ -28,6 +36,40 @@ delen. En punkt som ligger inne i huvudet eller uppe vid en ferrule vrider den l
 **Varför hosel, inte klubbhuvudets centrum:** hoseln är skaftets ändpunkt och flyttar sig inte
 när bladet roterar. Klubbhuvudets centrum gör det (bladrotation genom impact) och skulle göra
 punkten instabil som skaftreferens.
+
+### Huvudet: toe och heel
+
+**Solan** är klubbhuvudets **nedre kant — den yta som möter marken**. `toe` och `heel` är
+den linjens två ändpunkter: `toe` den yttre (längst från spelaren), `heel` den inre
+(närmast skaftet och hoseln).
+
+**Varför solan, inte huvudets yttersta spets:** solan syns på **både driver och järn** och
+**slutar tydligt i båda ändar**. "Huvudets yttersta spets" ligger däremot olika på olika
+klubbtyper — en drivers krona buktar ut där ett järns blad är platt — och går därför inte
+att träffa likadant två gånger. Det är samma skäl som gjorde att hoseln valdes framför
+klubbhuvudets centrum: punkten ska definieras av en **kant som finns i bilden**, inte av en
+form man uppskattar.
+
+**Häl–tå-linjen bär bladets rotation.** Det är den som gör **bladvinkeln mätbar**, och det
+är hela skälet att punkterna finns. `butt→hosel` ger skaftets riktning, `heel→toe` ger
+bladets. Skaftvinkeln ensam säger ingenting om huruvida bladet är öppet eller stängt genom
+impact — det gör häl–tå-linjen.
+
+### Etikettdefinitionen i CVAT ligger i databasen, inte i repot
+
+[`cvat-labels.json`](cvat-labels.json) är repots kopia av etikettschemat, men **CVAT läser
+den aldrig**. Etiketterna bor i CVAT:s egen databas, per projekt och task. En ändring av
+filen träder alltså **inte** i kraft av sig själv: sub-etiketterna `toe` och `heel` måste
+läggas till för hand i CVAT:s etikettkonstruktor — i rätt ordning — innan en task kan
+annoteras med fyra punkter. Samma begränsning gäller import: *"Only label names can be
+imported this way, colors, attributes, and skeleton labels must be defined manually."*
+
+### Bakåtkompatibilitet: batch-01 och batch-02 är tvåpunktsannoterade
+
+De två första batcharna, och båda kalibreringspassen, annoterades innan `toe`/`heel` fanns.
+Deras exporter bär två keypoints per objekt. **Skripten läser både gamla och nya exporter**
+och behandlar en saknad `toe`/`heel` som `outside` (`v=0`) — inte som ett fel. En
+tvåpunktsexport är alltså ett giltigt fyrapunktsdataset där varje huvudpunkt är osatt.
 
 ## Punktflaggor (CVAT)
 
@@ -50,12 +92,24 @@ synligt skaft vars greppände försvinner bakom axeln ger alltså **`visible` ho
 ligger utanför ramen, är den inte placerbar — flagga `outside` och gå vidare. Sträck inte
 punkten till kanten.
 
+**Reglerna ovan gäller alla fyra punkterna, `toe` och `heel` inräknade** — och de handlar om
+**punkten, inte om bilden**. Ett skarpt huvud sett rakt bakifrån kan mycket väl ge
+`visible` butt, `visible` hosel och `outside` på båda solpunkterna; att bilden är skarp
+säger ingenting om huruvida solans ändar går att peka ut.
+
+**Pekar huvudet rakt mot eller rakt från kameran så att `toe` inte går att skilja från
+`heel` — blir båda `outside`.** Solan är då en punkt i projektion, inte en linje, och två
+punkter satta ovanpå varandra är en bladvinkel som inte finns. Sätt dem inte "ungefär åt
+var sitt håll": en påhittad häl–tå-linje är värre än ingen, eftersom den ser mätbar ut.
+
 Frames med en saknad punkt (`outside`) behålls i datasetet — masked keypoint i träning, inte
-en anledning att kasta framen.
+en anledning att kasta framen. Det gäller hela spektrumet: en frame kan bära allt från en
+satt punkt till fyra.
 
 ## Rörelseoskärpa
 Skaftet är ett streak över exponeringen vid snabb rörelse (framför allt downswing/impact).
-Markera **alltid streakets mittpunkt, aldrig en kant**. Gäller båda punkterna.
+Markera **alltid streakets mittpunkt, aldrig en kant**. Gäller **alla fyra punkterna** —
+också `toe` och `heel`, som rör sig fortast av alla och därför streakar mest.
 
 ### `blur` — mät, gissa inte
 
@@ -193,6 +247,10 @@ av båda — de tre återstående reserverade ids:en kom aldrig in i CVAT-tasken
 Det här avsnittet finns för att reglerna ovan ska gå att förstå bakåt: de skärptes av de
 här siffrorna.
 
+**Mätt i tvåpunktsschemat.** Kalibreringssetet annoterades före `toe`/`heel`, så
+siffrorna nedan gäller `butt` och `hosel`. Det finns ännu inget motsvarande golv för
+bladvinkeln — det kräver ett kalibreringspass i fyrapunktsschemat.
+
 **Placeringen höll. Etiketterna gjorde det inte.**
 
 | Mått | Median | p90 | Max | n |
@@ -231,7 +289,8 @@ föll ur jämförelsen. Det är en icke-observation, inte ett friskintyg; fråga
 när `phase` kommer från manifestet och hinkarna blir hela.
 
 **Målvärdet gick inte att utvärdera.** Specen sätter *medianavvikelse < 0,5 skaftbredd*, men
-2-punktsschemat bär ingen bredd, så det finns inget att dividera med. Rapporten redovisar px
+schemat bär ingen bredd, så det finns inget att dividera med. Fyrapunktsschemat ändrar inte
+det: `toe`–`heel` är solans **längd**, inte skaftets bredd. Rapporten redovisar px
 och andel av bildhöjden i stället. Antingen behöver målet formuleras om i de enheterna, eller
 så måste en skaftbredd mätas för hand på ett urval frames innan tröskeln kan användas.
 
@@ -321,7 +380,7 @@ extractPoseTrajectory()      pose-sampel för hela klippet
 ```
 
 `cullToPhaseTargets` **tar bort** frames, den väljer aldrig andra: selektionen ger 32
-frames per sving, vilket är långt fler än en människa hinner sätta två punkter på, så
+frames per sving, vilket är långt fler än en människa hinner sätta fyra punkter på, så
 setet skärs till **max 7 per sving** efteråt. Vilka 7 avgörs av målvikterna ovan —
 frames delas ut en i taget till den fas som ligger längst under sin målandel och
 fortfarande har frames kvar. Saknar en sving frames i en fas (ingen verifierad impact,
@@ -329,7 +388,7 @@ avklippt svans) flyter den andelen till nästa fas i stället för att gå förl
 är varför totalen för en körning kan avvika från måltalen även när varje sving är exakt.
 
 **Full upplösning, ingen beskärning**, JPEG-kvalitet 0,92. Ström E:s pose-crop är rätt
-för Vision-anropet (det betalar per pixel) och fel här: att placera två punkter med
+för Vision-anropet (det betalar per pixel) och fel här: att placera fyra punkter med
 sub-skaftbredds-noggrannhet är precis vad en nedskalning kastar bort.
 
 ### ZIP-innehåll
@@ -432,7 +491,7 @@ inget Vision-anrop, ingen `SwingRecord`. `frameExtractor.ts`, `poseEnvelope.ts`,
 `scripts/build-calibration-set.mjs` drar de 100 frames som utgör kalibreringssetet ur
 de exporterade ZIP:arna i `data/shaft/exports/`. Setet har två liv, i den ordningen:
 
-1. **Annotatörsöverenskommelse.** Båda annotatörerna sätter sina två punkter på samma
+1. **Annotatörsöverenskommelse.** Båda annotatörerna sätter sina punkter på samma
    100 bilder, oberoende av varandra, *innan* produktionsannoteringen börjar. Utfallet
    mäts mot målvärdet ovan (medianavvikelse < 0,5 skaftbredd). Punkter som systematiskt
    glider isär betyder att specen är otydlig, inte att någon annoterar slarvigt — då
@@ -586,8 +645,13 @@ ett tecken på att tasken skapades utan manifestvärdet eller att fältet gjorde
 av misstag.
 
 **Skaftbreddsmålet går inte att utvärdera här.** Specen sätter medianavvikelse < 0,5
-skaftbredd, men 2-punktsschemat bär ingen bredd. Rapporten redovisar px och andel av
-bildhöjden och säger det uttryckligen i stället för att räkna om med en gissad bredd.
+skaftbredd, men schemat bär ingen bredd — varken det gamla eller det nya (`toe`–`heel` är
+solans längd). Rapporten redovisar px och andel av bildhöjden och säger det uttryckligen i
+stället för att räkna om med en gissad bredd.
+
+**Skriptet är skrivet mot tvåpunktsexporterna.** Kalibreringssetet annoterades i det
+schemat och mäts i det schemat; `training/evaluate.py` är det som läser fyrapunktsexporter
+och rapporterar bladvinkeln.
 
 Skriptet skriver **aldrig utanför `data/shaft/`** (samma guard som draget) och lägger inga
 nya beroenden till projektet — ZIP-läsningen är återanvänd från
@@ -720,9 +784,16 @@ projektet. Exkludering, faskvoter och determinism är enhetstestade i
 
 ## Förhandsmärkning med modellen
 
-`training/prelabel_batch.py` kör `shaft-v1.onnx` över en batch och skriver en
-CVAT-importerbar fil där modellen redan placerat `butt` och `hosel`. Frames utan
+`training/prelabel_batch.py` kör den levererande ONNX-modellen över en batch och skriver
+en CVAT-importerbar fil där modellen redan placerat `butt` och `hosel`. Frames utan
 förhandsmärkning får **inget objekt** — annotatören ritar från noll där.
+
+**Bara skaftpunkterna förhandsmärks.** Den levererande modellen är tvåpunkts (se
+*Bakåtkompatibilitet* ovan), så `toe` och `heel` skrivs som `outside="1"` — de finns i
+skelettet för att objektet ska matcha etikettschemats fyra sub-etiketter, men de är
+osatta och annotatören placerar dem från noll. Att låta dem vara `outside` i stället för
+att utelämna dem är samma regel som i specen: en punkt ingen kunnat sluta sig till är
+`outside`, inte ett fel.
 
 ```powershell
 py -3.11 training\prelabel_batch.py --batch data\shaft\training\batch-02\batch.zip
@@ -781,14 +852,17 @@ utgåvan (`docs.cvat.ai` → *Dataset management → Formats → CVAT for image*
 källa i `cvat-ai/cvat@develop`) — inte antaget:
 
 - `<skeleton label="shaft" source="…" z_order="…">` med nästlade
-  `<points label="butt|hosel" occluded="0|1" source="…" outside="0|1" points="x,y">` är den
-  dokumenterade representationen. Både schemablocket och det genomgångna exemplet på sidan
-  bär den.
-- `<points label="…">` namnger **sub-etiketten**, alltså `butt` / `hosel`.
+  `<points label="butt|hosel|toe|heel" occluded="0|1" source="…" outside="0|1" points="x,y">`
+  är den dokumenterade representationen. Både schemablocket och det genomgångna exemplet på
+  sidan bär den.
+- `<points label="…">` namnger **sub-etiketten**, alltså `butt` / `hosel` / `toe` / `heel`,
+  och de skrivs i den ordningen.
 - **Etikettschemat kan inte importeras** — samma fallgrop som för `prefill-phase.xml`:
   *"Only label names can be imported this way, colors, attributes, and skeleton labels must
-  be defined manually."* `shaft`-skelettet med sina två sub-etiketter måste alltså redan
-  finnas på tasken, från [`cvat-labels.json`](cvat-labels.json).
+  be defined manually."* `shaft`-skelettet med sina **fyra** sub-etiketter måste alltså redan
+  finnas på tasken, lagt för hand i CVAT:s etikettkonstruktor efter
+  [`cvat-labels.json`](cvat-labels.json) — se *[Etikettdefinitionen i CVAT ligger i
+  databasen](#etikettdefinitionen-i-cvat-ligger-i-databasen-inte-i-repot)*.
 - **COCO Keypoints 1.0** importerar också skeletons och hade fungerat. CVAT-for-images
   valdes för att det är CVAT:s egna förlustfria format, bär per-punkts-flaggan `outside`
   som specens tre synlighetslägen bygger på, och för att repot redan har en verifierad
@@ -805,8 +879,9 @@ en obesvarad fråga när annotatören öppnar framen. Att en frame är förhands
 ingenting om vilken vy den har, bara att svingen den kom ur redan är annoterad som `dtl`
 någon annanstans.
 
-Punktflaggorna är också osatta (båda punkterna ligger som `visible`). Modellens
-keypoint-score är **inte** specens synlighetsbedömning och får inte kläs ut till en.
+Punktflaggorna är också osatta (båda skaftpunkterna ligger som `visible`, `toe`/`heel` som
+`outside`). Modellens keypoint-score är **inte** specens synlighetsbedömning och får inte
+kläs ut till en.
 
 Punkterna skrivs som `source="manual"`, inte `"auto"`. Båda är dokumenterade värden, men
 `auto` är det repot aldrig kört en rundtur på, och en förhandsmärkning som CVAT tar emot

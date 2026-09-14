@@ -9,28 +9,47 @@
         "mutable": true,
         "input_type": "select",
         "default_value": "dtl",
-        "values": ["dtl", "face_on", "other"]
+        "values": [
+          "dtl",
+          "face_on",
+          "other"
+        ]
       },
       {
         "name": "blur",
         "mutable": true,
         "input_type": "select",
         "default_value": "none",
-        "values": ["none", "mild", "severe"]
+        "values": [
+          "none",
+          "mild",
+          "severe"
+        ]
       },
       {
         "name": "phase",
         "mutable": true,
         "input_type": "select",
         "default_value": "address",
-        "values": ["idle", "address", "backswing", "top", "downswing", "impact", "through", "finish"]
+        "values": [
+          "idle",
+          "address",
+          "backswing",
+          "top",
+          "downswing",
+          "impact",
+          "through",
+          "finish"
+        ]
       },
       {
         "name": "no_shaft",
         "mutable": true,
         "input_type": "checkbox",
         "default_value": "false",
-        "values": ["false"]
+        "values": [
+          "false"
+        ]
       }
     ],
     "sublabels": [
@@ -45,8 +64,20 @@
         "color": "#00ff00",
         "type": "points",
         "attributes": []
+      },
+      {
+        "name": "toe",
+        "color": "#0088ff",
+        "type": "points",
+        "attributes": []
+      },
+      {
+        "name": "heel",
+        "color": "#ffcc00",
+        "type": "points",
+        "attributes": []
       }
     ],
-    "svg": "<circle r=\"1.5\" stroke=\"black\" fill=\"#ff0000\" cx=\"20.0\" cy=\"20.0\" data-type=\"element node\" data-element-id=\"1\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"butt\"></circle><circle r=\"1.5\" stroke=\"black\" fill=\"#00ff00\" cx=\"40.0\" cy=\"40.0\" data-type=\"element node\" data-element-id=\"2\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"hosel\"></circle><line x1=\"20.0\" y1=\"20.0\" x2=\"40.0\" y2=\"40.0\" stroke=\"black\" data-type=\"edge\" data-node-from=\"1\" data-node-to=\"2\"></line>"
+    "svg": "<circle r=\"1.5\" stroke=\"black\" fill=\"#ff0000\" cx=\"20.0\" cy=\"10.0\" data-type=\"element node\" data-element-id=\"1\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"butt\"></circle><circle r=\"1.5\" stroke=\"black\" fill=\"#00ff00\" cx=\"40.0\" cy=\"60.0\" data-type=\"element node\" data-element-id=\"2\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"hosel\"></circle><circle r=\"1.5\" stroke=\"black\" fill=\"#0088ff\" cx=\"62.0\" cy=\"78.0\" data-type=\"element node\" data-element-id=\"3\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"toe\"></circle><circle r=\"1.5\" stroke=\"black\" fill=\"#ffcc00\" cx=\"36.0\" cy=\"72.0\" data-type=\"element node\" data-element-id=\"4\" data-node-from=\"\" data-node-to=\"\" data-label-name=\"heel\"></circle><line x1=\"20.0\" y1=\"10.0\" x2=\"40.0\" y2=\"60.0\" stroke=\"black\" data-type=\"edge\" data-node-from=\"1\" data-node-to=\"2\"></line><line x1=\"40.0\" y1=\"60.0\" x2=\"36.0\" y2=\"72.0\" stroke=\"black\" data-type=\"edge\" data-node-from=\"2\" data-node-to=\"4\"></line><line x1=\"36.0\" y1=\"72.0\" x2=\"62.0\" y2=\"78.0\" stroke=\"black\" data-type=\"edge\" data-node-from=\"4\" data-node-to=\"3\"></line>"
   }
 ]

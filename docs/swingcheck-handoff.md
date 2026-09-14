@@ -3,7 +3,41 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-14.
 >
-> **Senast (2026-09-14, stream-shaft):** S-13 — skaftmodellen bytt till **`shaft-v2.onnx`**.
+> **Senast (2026-09-14, stream-shaft):** S-14 — **skaftschemat vidgat från två punkter till
+> fyra**: `butt → hosel → toe → heel`. Ordningen är fast och gäller överallt — CVAT:s
+> sub-etiketter, COCO-exportens keypoint-lista, kolumnerna i YOLO-etiketten, kanalerna i
+> ONNX-utdatan. **Ingen träning körd, `shaft-v2.onnx` orörd**; den fortsätter köra tvåpunkts
+> tills en fyrapunktsmodell finns. Schemat ligger före modellen med flit, så att annoteringen
+> kan börja.
+> **`toe`/`heel` är solans ändpunkter** — klubbhuvudets nedre kant, ytan som möter marken —
+> valda av samma skäl som hoseln valdes framför huvudets centrum: solan syns på både driver
+> och järn och slutar tydligt i båda ändar. **Häl–tå-linjen bär bladets rotation** och är hela
+> skälet punkterna finns; `butt→hosel` ger skaftets riktning, `heel→toe` bladets.
+> **Pekar huvudet rakt mot eller från kameran blir båda `outside`** — solan är då en punkt i
+> projektion, och två punkter ovanpå varandra är en bladvinkel som inte finns.
+> **Bakåtkompatibiliteten sitter på ett ställe:** `_points_of` i `training/shaft_coco.py` paddar
+> en kort keypoint-lista med `v=0`, så batch-01, batch-02 och båda kalibreringspassen läses som
+> fyrapunktsannoteringar vars `toe`/`heel` är `outside` — inte som fel, och inte som punkter i
+> origo. `export_keypoint_names` läser COCO-kategorins egen lista, så körningen **skriver ut
+> vilket schema exporten bar**; fel ordning ger en `UNEXPECTED`-varning, eftersom läsningen är
+> positionell.
+> **`evaluate.py` rapporterar nu bladvinkeln som eget mätvärde** vid sidan av skaftvinkeln,
+> aldrig hopslagen — varje vinkel mäts bara där dess egna två punkter finns på båda sidor, och
+> det finns **inget människogolv för bladvinkeln** eftersom kalibreringssetet annoterades i
+> tvåpunktsschemat. **Kanalantalet är kontraktet:** `[1, 17, N]` för schemat, `[1, 11, N]` för en
+> äldre modell; `shaftPostprocess.ts` läser det ur tensorn och avkodar båda, `export_onnx.py`
+> säger vilket schema den exporterade grafen implementerar och vägrar allt annat.
+> `ShaftDetection` bär `toe`/`heel` plus `modelKeypoints`, som skiljer *"modellen har ingen tå"*
+> från *"framen har ingen synlig tå"*.
+> **CVAT måste ändras för hand.** `docs/shaft/cvat-labels.json` är repots kopia — etiketterna bor
+> i CVAT:s databas och läses aldrig ur repot, så `toe` och `heel` måste läggas in i
+> etikettkonstruktorn, i rätt ordning, innan en task kan annoteras med fyra punkter. **Det är den
+> enda åtgärd som återstår innan nästa batch kan annoteras.**
+> Verifierat: `npm run build` rent · `npm test` 381/381 · `npm run lint` 2 kvarstående fel i
+> orörda filer · `py -3.11 -m unittest discover -s training -t training` 69/69 (ny modul
+> `training/test_shaft_schema.py`).
+>
+> **Dessförinnan (2026-09-14, stream-shaft):** S-13 — skaftmodellen bytt till **`shaft-v2.onnx`**.
 > **Ett ställe namnger modellen:** `MODEL_FILE` i `src/lib/shaft/shaftDetector.ts`; `MODEL_URL`
 > härleds ur den och matar både `preflightAssets()` (via `ORT_ARTIFACTS`) och varje
 > `InferenceSession.create()`. Preflightens felmeddelande och dev-vyns rubrik konsumerar samma
@@ -26,7 +60,7 @@
 > **`shaft-v1.onnx` ligger kvar på disk** (båda är gitignorade) tills v2 är sedd på en **iPhone** —
 > det är den enda återstående punkten i S-13.
 >
-> **Dessförinnan (2026-09-14, stream-shaft):** S-12 batch-02 + förhandsmärkning. 250 frames dragna på en
+> **Innan dess (2026-09-14, stream-shaft):** S-12 batch-02 + förhandsmärkning. 250 frames dragna på en
 > **batchspecifik** faskvot (`--phase-weights docs/shaft/batch-02-phase-weights.json`: downswing
 > 34 → 44 %, top 10 → 16 %, idle → 0 %); **specens målvikter är orörda** — filen bär en obligatorisk
 > `note` som `summary.md` citerar, och vikterna måste summera exakt till 1. `training/prelabel_batch.py`
@@ -45,7 +79,7 @@
 > Python och inte Node för att `onnxruntime`+`cv2` redan är pinnade; priset är en andra kopia av
 > letterbox/postprocessing, pinnad mot S-11:s tre dubbelverifierade frames i `test_prelabel_batch.py`.
 >
-> **Innan dess (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
+> **Och dessförinnan (2026-09-14, stream-shaft):** S-11 skaftdetektorn i webbappen — `onnxruntime-web` 1.29,
 > ny fristående modul `src/lib/shaft/` (`shaftDetector` · `letterbox` · `shaftPostprocess` ·
 > `shaftPreview`) och en dev-vy `ShaftPreviewView` bakom `VITE_DEV_PREVIEW` (launcher "⌁ Shaft").
 > **Pose-kedjan är byte-för-byte orörd** — `git diff main` är tom för `frameExtractor.ts`,

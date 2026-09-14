@@ -12,6 +12,13 @@ the human numbers and the difference between them.
 
 Angle is the headline. The rules measure shaft *direction*: an error along the shaft
 costs nothing, the same error across it costs a rule. Distances are diagnostics for it.
+
+TWO ANGLES, NOT ONE. `butt`->`hosel` is the shaft angle; `heel`->`toe` is the BLADE
+angle, and it is reported beside the shaft angle rather than folded into it. They are
+different measurements of different things -- a shaft can be in the right plane with the
+blade wide open -- and averaging them would hide exactly the error each is there to
+catch. Each is computed only on frames where its own two points are placed, so a
+two-point export simply reports no blade angle instead of reporting a wrong one.
 """
 
 from __future__ import annotations
@@ -29,8 +36,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from shaft_coco import (  # noqa: E402
     KEYPOINT_NAMES,
+    SHAFT_POINTS,
+    SOLE_POINTS,
     ShaftDataError,
+    export_keypoint_names,
     frame_id_from_file_name,
+    keypoint_schema_note,
     parse_export,
     read_coco,
     read_manifest,
@@ -48,14 +59,30 @@ DEFAULT_OUT = REPO_ROOT / "training" / "eval-report.md"
 
 #: Human inter-annotator agreement on this same set, from agreement.md via
 #: docs/shaft/annotation-spec.md -> *Kalibreringsutfall 2026-09*. Medians.
+#:
+#: MEASURED IN THE 2-POINT SCHEMA. The calibration set predates toe/heel, so there is no
+#: human floor for the blade angle or for the sole points. Those rows print "--" rather
+#: than borrowing the shaft numbers: an unmeasured floor is not a floor of zero, and a
+#: comparison against a number from a different measurement is worse than no comparison.
 HUMAN_BASELINE = {
-    "angle_deg_median": 0.3,
-    "angle_deg_p90": 1.3,
+    "shaft_angle_deg_median": 0.3,
+    "shaft_angle_deg_p90": 1.3,
+    "blade_angle_deg_median": None,
+    "blade_angle_deg_p90": None,
     "butt_pct_h_median": 0.17,
     "hosel_pct_h_median": 0.13,
+    "toe_pct_h_median": None,
+    "heel_pct_h_median": None,
 }
 
 GROUP_FIELDS = ("phase", "view", "blur")
+
+#: The two directed vectors the report measures, `(label, from point, to point)`.
+#: Order matters and is never folded at 90 degrees -- see `angle_difference`.
+ANGLES = (
+    ("shaft", SHAFT_POINTS[0], SHAFT_POINTS[1]),       # butt -> hosel
+    ("blade", SOLE_POINTS[1], SOLE_POINTS[0]),         # heel -> toe
+)
 
 
 # -----------------------------------------------------------------------------
@@ -87,16 +114,17 @@ def median(values):
 
 
 def angle_deg(p_from, p_to) -> float:
-    """Direction of the butt -> hosel vector, in degrees."""
+    """Direction of a from -> to vector, in degrees."""
     return math.degrees(math.atan2(p_to[1] - p_from[1], p_to[0] - p_from[0]))
 
 
 def angle_difference(a: float, b: float) -> float:
     """Absolute difference wrapped to [0, 180].
 
-    Deliberately NOT folded at 90 degrees: butt->hosel is directed because the points
+    Deliberately NOT folded at 90 degrees: both vectors are directed because the points
     are ordered, so swapped endpoints must show up as ~180 degrees rather than being
-    quietly absorbed as 0.
+    quietly absorbed as 0. That is the failure mode that cost shaft-v1 its face-on
+    frames, and it is exactly as possible on heel->toe as on butt->hosel.
     """
     return abs((a - b + 180.0) % 360.0 - 180.0)
 
@@ -137,7 +165,12 @@ def predict_frame(model, image_bytes: bytes, args):
     """Run the model on one frame; return the highest-confidence shaft instance.
 
     Returns `(points, box_conf)` where `points` is a list of `(x, y, conf)` per
-    keypoint in butt/hosel order, or `(None, 0.0)` when nothing was detected.
+    keypoint in `KEYPOINT_NAMES` order, or `(None, 0.0)` when nothing was detected.
+
+    A model with FEWER keypoints than the schema is padded with `(0, 0, 0)`, so a
+    two-point checkpoint (shaft-v2 and everything before it) evaluates cleanly against a
+    four-point annotation set: its toe and heel score 0, fall below `--kpt-conf`, and are
+    counted as "model missing" rather than as predictions at the origin.
     """
     import numpy as np
     from PIL import Image
@@ -178,20 +211,25 @@ class Bucket:
     def __init__(self):
         self.point_px = {name: [] for name in KEYPOINT_NAMES}
         self.point_pct = {name: [] for name in KEYPOINT_NAMES}
-        self.angles = []
+        #: One list per entry in ANGLES -- shaft and blade are accumulated separately and
+        #: never merged. A bucket can hold many shaft angles and no blade angles at all.
+        self.angles = {label: [] for label, _from, _to in ANGLES}
         self.frames = 0
 
     def add_point(self, name: str, px: float, pct: float) -> None:
         self.point_px[name].append(px)
         self.point_pct[name].append(pct)
 
+    def add_angle(self, label: str, difference: float) -> None:
+        self.angles[label].append(difference)
+
     def summary(self) -> dict:
-        out = {
-            "frames": self.frames,
-            "angle_n": len(self.angles),
-            "angle_median": median(self.angles),
-            "angle_p90": percentile(self.angles, 0.90),
-        }
+        out = {"frames": self.frames}
+        for label in self.angles:
+            values = self.angles[label]
+            out[label + "_angle_n"] = len(values)
+            out[label + "_angle_median"] = median(values)
+            out[label + "_angle_p90"] = percentile(values, 0.90)
         for name in KEYPOINT_NAMES:
             out[name + "_n"] = len(self.point_px[name])
             out[name + "_px_median"] = median(self.point_px[name])
@@ -241,26 +279,38 @@ def evaluate(model, annotations, images, phase_lookup, manifest, args):
         for field in GROUP_FIELDS:
             groups[field][labels[field]].frames += 1
 
-        annotated_angle = None
-        predicted_angle = None
-        if all(p.placed for p in ann.points):
-            annotated_angle = angle_deg(
-                (ann.points[0].x, ann.points[0].y), (ann.points[1].x, ann.points[1].y)
-            )
-        if predicted is not None and all(p[2] >= args.kpt_conf for p in predicted):
-            predicted_angle = angle_deg(
-                (predicted[0][0], predicted[0][1]), (predicted[1][0], predicted[1][1])
-            )
-
         row = {"frame_id": frame_id, "phase": labels["phase"], "view": labels["view"],
-               "blur": labels["blur"], "box_conf": box_conf, "angle": None}
+               "blur": labels["blur"], "box_conf": box_conf}
 
-        if annotated_angle is not None and predicted_angle is not None:
+        # Each vector is measured only where BOTH its own endpoints exist on both sides.
+        # Gating the shaft angle on toe/heel would have thrown away every frame of every
+        # legacy export; gating the blade angle on butt/hosel would hide a sole the model
+        # found on a frame whose grip it did not.
+        for label, name_from, name_to in ANGLES:
+            row[label + "_angle"] = None
+            index_from = KEYPOINT_NAMES.index(name_from)
+            index_to = KEYPOINT_NAMES.index(name_to)
+
+            if not ann.placed_all(name_from, name_to):
+                continue
+            if predicted is None:
+                continue
+            if min(predicted[index_from][2], predicted[index_to][2]) < args.kpt_conf:
+                continue
+
+            annotated_angle = angle_deg(
+                (ann.point(name_from).x, ann.point(name_from).y),
+                (ann.point(name_to).x, ann.point(name_to).y),
+            )
+            predicted_angle = angle_deg(
+                (predicted[index_from][0], predicted[index_from][1]),
+                (predicted[index_to][0], predicted[index_to][1]),
+            )
             difference = angle_difference(predicted_angle, annotated_angle)
-            overall.angles.append(difference)
+            overall.add_angle(label, difference)
             for field in GROUP_FIELDS:
-                groups[field][labels[field]].angles.append(difference)
-            row["angle"] = difference
+                groups[field][labels[field]].add_angle(label, difference)
+            row[label + "_angle"] = difference
 
         for index, name in enumerate(KEYPOINT_NAMES):
             annotated_point = ann.points[index]
@@ -349,32 +399,40 @@ def render_report(result, args, notes) -> str:
         "differens betyder att modellen avviker mer än människorna gjorde."
     )
     add("")
-    add("| Mått | Modell | Människor | Differens |")
-    add("|---|---:|---:|---:|")
-    add("| Vinkel, median | {} | {} | {} |".format(
-        fmt(overall["angle_median"], 2, "°"),
-        fmt(HUMAN_BASELINE["angle_deg_median"], 2, "°"),
-        fmt_delta(overall["angle_median"], HUMAN_BASELINE["angle_deg_median"]),
-    ))
-    add("| Vinkel, p90 | {} | {} | {} |".format(
-        fmt(overall["angle_p90"], 2, "°"),
-        fmt(HUMAN_BASELINE["angle_deg_p90"], 2, "°"),
-        fmt_delta(overall["angle_p90"], HUMAN_BASELINE["angle_deg_p90"]),
-    ))
-    add("| `butt`, median (% av bildhöjd) | {} | {} | {} |".format(
-        fmt(overall["butt_pct_median"], 2, " %"),
-        fmt(HUMAN_BASELINE["butt_pct_h_median"], 2, " %"),
-        fmt_delta(overall["butt_pct_median"], HUMAN_BASELINE["butt_pct_h_median"]),
-    ))
-    add("| `hosel`, median (% av bildhöjd) | {} | {} | {} |".format(
-        fmt(overall["hosel_pct_median"], 2, " %"),
-        fmt(HUMAN_BASELINE["hosel_pct_h_median"], 2, " %"),
-        fmt_delta(overall["hosel_pct_median"], HUMAN_BASELINE["hosel_pct_h_median"]),
-    ))
+    add("| Mått | n | Modell | Människor | Differens |")
+    add("|---|---:|---:|---:|---:|")
+    for label, title in (("shaft", "Skaftvinkel"), ("blade", "Bladvinkel")):
+        for stat, stat_title in (("median", "median"), ("p90", "p90")):
+            key = "{}_angle_{}".format(label, stat)
+            human = HUMAN_BASELINE["{}_angle_deg_{}".format(label, stat)]
+            add("| {}, {} | {} | {} | {} | {} |".format(
+                title, stat_title,
+                overall["{}_angle_n".format(label)],
+                fmt(overall[key], 2, "°"), fmt(human, 2, "°"),
+                fmt_delta(overall[key], human),
+            ))
+    for name in KEYPOINT_NAMES:
+        human = HUMAN_BASELINE.get(name + "_pct_h_median")
+        add("| `{}`, median (% av bildhöjd) | {} | {} | {} | {} |".format(
+            name,
+            overall[name + "_n"],
+            fmt(overall[name + "_pct_median"], 2, " %"),
+            fmt(human, 2, " %"),
+            fmt_delta(overall[name + "_pct_median"], human),
+        ))
     add("")
     add(
-        "Vinkeln är huvudsiffran. Ett fel *längs* skaftet kostar ingenting, samma fel "
-        "*tvärs* skaftet kostar en regel."
+        "**Skaftvinkeln** (`butt→hosel`) är huvudsiffran. Ett fel *längs* skaftet kostar "
+        "ingenting, samma fel *tvärs* skaftet kostar en regel."
+    )
+    add("")
+    add(
+        "**Bladvinkeln** (`heel→toe`) är ett eget mått vid sidan av, inte en del av "
+        "skaftvinkeln: ett skaft kan ligga i rätt plan med bladet vidöppet. Den mäts bara "
+        "på frames där både `heel` och `toe` är satta av annotatören *och* predicerade av "
+        "modellen — ett tomt värde betyder att ingen sådan frame fanns, inte att felet var "
+        "noll. Människokolumnen är tom av samma skäl: kalibreringssetet annoterades i "
+        "tvåpunktsschemat och bär inget golv för bladvinkeln."
     )
     add("")
 
@@ -392,6 +450,12 @@ def render_report(result, args, notes) -> str:
         ))
     add("")
     add(
+        "`n` är antalet frames där annotatören satt punkten **och** modellen predicerade "
+        "den — inte antalet frames. En tvåpunktsmodell mot ett fyrapunktsfacit ger "
+        "`n = 0` på `toe` och `heel`; det syns här och i avsnitt 4."
+    )
+    add("")
+    add(
         "Två enheter därför att setet blandar upplösningar (720×818 och 1080×1920) — "
         "samma pixelavvikelse är olika stora fel i olika frames. Läs den normaliserade "
         "siffran; px står kvar för att det är vad man ser när man öppnar framen igen."
@@ -403,19 +467,22 @@ def render_report(result, args, notes) -> str:
     for field in GROUP_FIELDS:
         add("### `{}`".format(field))
         add("")
-        add("| {} | frames | Vinkel median | Vinkel p90 | `butt` %H | `hosel` %H |".format(field))
-        add("|---|---:|---:|---:|---:|---:|")
+        header = "| {} | frames | Skaftvinkel median | Skaftvinkel p90 | Bladvinkel median".format(field)
+        header += "".join(" | `{}` %H".format(name) for name in KEYPOINT_NAMES) + " |"
+        add(header)
+        add("|---|---:|---:|---:|---:|" + "---:|" * len(KEYPOINT_NAMES))
         buckets = result["groups"][field]
         for key in sorted(buckets, key=lambda k: (-buckets[k].frames, k)):
             summary = buckets[key].summary()
-            add("| {} | {} | {} | {} | {} | {} |".format(
+            cells = [
                 key,
-                summary["frames"],
-                fmt(summary["angle_median"], 2),
-                fmt(summary["angle_p90"], 2),
-                fmt(summary["butt_pct_median"], 2),
-                fmt(summary["hosel_pct_median"], 2),
-            ))
+                str(summary["frames"]),
+                fmt(summary["shaft_angle_median"], 2),
+                fmt(summary["shaft_angle_p90"], 2),
+                fmt(summary["blade_angle_median"], 2),
+            ]
+            cells += [fmt(summary[name + "_pct_median"], 2) for name in KEYPOINT_NAMES]
+            add("| " + " | ".join(cells) + " |")
         add("")
 
     add("## 4. Synlighet: modellen mot annotatören")
@@ -423,8 +490,11 @@ def render_report(result, args, notes) -> str:
     add(
         "En punkt räknas som predicerad när dess keypoint-konfidens når `--kpt-conf` "
         "({}). En punkt räknas som satt av annotatören när `v>=1`, aldrig på "
-        "koordinaten — CVAT lämnar kvar spökkoordinater för `outside`-punkter.".format(
-            args.kpt_conf
+        "koordinaten — CVAT lämnar kvar spökkoordinater för `outside`-punkter. "
+        "Tabellen har en rad per punkt i schemat ({}); en modell som saknar en punkt "
+        "helt — en tvåpunktsmodell mot ett fyrapunktsfacit — hamnar i kolumnen "
+        "*annotatör satt, modell saknar*, inte i vinkelstatistiken.".format(
+            args.kpt_conf, ", ".join("`{}`".format(n) for n in KEYPOINT_NAMES)
         )
     )
     add("")
@@ -472,14 +542,28 @@ def render_report(result, args, notes) -> str:
 
     add("## 5. Största vinkelavvikelser")
     add("")
-    add("| Frame | Vinkel | `phase` | `view` | `blur` |")
-    add("|---|---:|---|---|---|")
-    with_angle = [r for r in result["rows"] if r["angle"] is not None]
-    for row in sorted(with_angle, key=lambda r: -r["angle"])[:15]:
-        add("| `{}` | {} | {} | {} | {} |".format(
-            row["frame_id"], fmt(row["angle"], 2), row["phase"], row["view"], row["blur"]
-        ))
-    add("")
+    for label, name_from, name_to in ANGLES:
+        key = label + "_angle"
+        title = "Skaftvinkel" if label == "shaft" else "Bladvinkel"
+        add("### {} (`{}→{}`)".format(title, name_from, name_to))
+        add("")
+        with_angle = [r for r in result["rows"] if r[key] is not None]
+        if not with_angle:
+            add(
+                "Inga frames där både annotatören och modellen satte `{}` och `{}`.".format(
+                    name_from, name_to
+                )
+            )
+            add("")
+            continue
+        add("| Frame | Avvikelse | `phase` | `view` | `blur` |")
+        add("|---|---:|---|---|---|")
+        for row in sorted(with_angle, key=lambda r: -r[key])[:15]:
+            add("| `{}` | {} | {} | {} | {} |".format(
+                row["frame_id"], fmt(row[key], 2, "°"),
+                row["phase"], row["view"], row["blur"],
+            ))
+        add("")
 
     return "\n".join(lines) + "\n"
 
@@ -545,6 +629,9 @@ def main(argv=None) -> int:
             raise SystemExit("missing input: {}".format(path))
 
     coco = read_coco(args.annotations)
+    notes.append("Keypoint-schema i annoteringarna: {}".format(
+        keypoint_schema_note(export_keypoint_names(coco))
+    ))
     for warning in verify_visibility_coding(coco):
         notes.append("Synlighetskodning: {}".format(warning))
     if not notes:
@@ -608,16 +695,21 @@ def main(argv=None) -> int:
 
     overall = result["overall"].summary()
     print()
-    print("Angle median : {} (humans {:.2f})".format(
-        fmt(overall["angle_median"], 2), HUMAN_BASELINE["angle_deg_median"]
-    ))
-    print("butt  %H med : {} (humans {:.2f})".format(
-        fmt(overall["butt_pct_median"], 2), HUMAN_BASELINE["butt_pct_h_median"]
-    ))
-    print("hosel %H med : {} (humans {:.2f})".format(
-        fmt(overall["hosel_pct_median"], 2), HUMAN_BASELINE["hosel_pct_h_median"]
-    ))
-    print("Report       : {}".format(args.out))
+    for label, title in (("shaft", "Shaft angle"), ("blade", "Blade angle")):
+        print("{:<12} median : {} over {} frames (humans {})".format(
+            title,
+            fmt(overall[label + "_angle_median"], 2),
+            overall[label + "_angle_n"],
+            fmt(HUMAN_BASELINE[label + "_angle_deg_median"], 2),
+        ))
+    for name in KEYPOINT_NAMES:
+        print("{:<12} %H med : {} over {} frames (humans {})".format(
+            name,
+            fmt(overall[name + "_pct_median"], 2),
+            overall[name + "_n"],
+            fmt(HUMAN_BASELINE.get(name + "_pct_h_median"), 2),
+        ))
+    print("Report              : {}".format(args.out))
     return 0
 
 

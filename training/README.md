@@ -6,6 +6,14 @@ Fristående spår. **Ingenting här importeras av webbappen**, och ingenting hä
 Läs [`docs/shaft/annotation-spec.md`](../docs/shaft/annotation-spec.md) först — den är
 auktoritativ för punktordning, synlighetsflaggor och vad kalibreringssetet är.
 
+**Schemat har fyra punkter: `butt → hosel → toe → heel`.** Ordningen är fast och gäller
+överallt — CVAT:s sub-etiketter, COCO-exportens keypoint-lista, kolumnerna i YOLO-etiketten
+och kanalerna i ONNX-utdatan. `butt→hosel` är skaftvinkeln, `heel→toe` bladvinkeln.
+
+**Den levererande modellen är fortfarande tvåpunkts.** `shaft-v2.onnx` tränades före
+`toe`/`heel` och skriver 11 kanaler; koden läser både 11 och 17 och rapporterar saknade
+punkter som `null` respektive `outside`. Se *[In- och utdataformat](#in--och-utdataformat)*.
+
 **Kalibreringssetet (`data/shaft/calibration/`) är permanent evalset och tränas aldrig
 på.** `prepare_dataset.py` vägrar köra utan `reserved-ids.txt`.
 
@@ -142,6 +150,17 @@ data.yaml
 frame-meta.json
 ```
 
+`data.yaml` sätter `kpt_shape: [4, 3]`. Etikettraden är
+
+```
+0  xc yc w h   bx by bv   hx hy hv   tx ty tv   ex ey ev
+```
+
+— en `x y v`-trippel per punkt i schemats ordning, oavsett hur många av dem som är satta.
+En tvåpunktsexport (batch-01, batch-02) ger samma antal kolumner; dess `toe` och `heel`
+skrivs som `0 0 0` och maskas ur förlusten precis som varje annan `outside`-punkt.
+Körningen skriver ut vilket schema varje export bar.
+
 ### Träna
 
 ```powershell
@@ -190,9 +209,13 @@ py -3.11 training\prelabel_batch.py --batch … --dry-run        # rapporterar, 
 py -3.11 training\prelabel_batch.py --batch … --view-gate off  # mäter vad vygrinden kostar
 ```
 
-Kör `shaft-v1.onnx` över batchens frames och skriver `prelabel.xml` (CVAT for images 1.1,
-ett `<skeleton label="shaft">` med `butt` och `hosel` per förhandsmärkt frame) plus
-`prelabel-report.md` bredvid batch-ZIP:en. Frames utan förhandsmärkning får inget objekt.
+Kör ONNX-modellen över batchens frames och skriver `prelabel.xml` (CVAT for images 1.1,
+ett `<skeleton label="shaft">` per förhandsmärkt frame) plus `prelabel-report.md` bredvid
+batch-ZIP:en. Frames utan förhandsmärkning får inget objekt.
+
+**Bara `butt` och `hosel` förhandsmärks.** Modellen är tvåpunkts och har ingenting att säga
+om solan; `toe` och `heel` skrivs som `outside="1"` så att objektet ändå bär etikettschemats
+alla fyra sub-etiketter. Annotatören placerar dem från noll.
 
 **Läs [`docs/shaft/annotation-spec.md` → *Förhandsmärkning med modellen*](../docs/shaft/annotation-spec.md#förhandsmärkning-med-modellen)
 innan du ändrar något här.** Kortversionen: modellen kastar om ändarna vid förkortning
@@ -238,16 +261,17 @@ Pixelvärdena är normaliserade till **[0, 1]** (dividerat med 255). Bilden mås
 **Utdata**
 
 ```
-[1, 11, N]  float32
+[1, 17, N]  float32        fyrapunktsschemat
+[1, 11, N]  float32        äldre tvåpunktsmodell (shaft-v2 och tidigare)
 ```
 
 | Dimension | Storlek | Innebörd |
 |---|---|---|
 | 0 | 1 | Batch |
-| 1 | 11 | Se kanaltabell nedan |
+| 1 | 17 (eller 11) | 5 boxkanaler + 3 per punkt — se kanaltabell nedan |
 | 2 | N | Antal anchors från tre detektionshuvuden (se *Anchor-räkning*) |
 
-Kanal-layout (index 0–10):
+Kanal-layout (index 0–16):
 
 | Index | Namn | Enhet / skala |
 |---|---|---|
@@ -262,10 +286,24 @@ Kanal-layout (index 0–10):
 | 8 | hosel\_x | `hosel`-punktens x, **pixlar** |
 | 9 | hosel\_y | `hosel`-punktens y, **pixlar** |
 | 10 | hosel\_v | `hosel`-synlighetsscore, sigmoid-aktiverad **[0, 1]** |
+| 11 | toe\_x | `toe`-punktens x, **pixlar** |
+| 12 | toe\_y | `toe`-punktens y, **pixlar** |
+| 13 | toe\_v | `toe`-synlighetsscore, sigmoid-aktiverad **[0, 1]** |
+| 14 | heel\_x | `heel`-punktens x, **pixlar** |
+| 15 | heel\_y | `heel`-punktens y, **pixlar** |
+| 16 | heel\_v | `heel`-synlighetsscore, sigmoid-aktiverad **[0, 1]** |
 
-Punkterna är i `butt → hosel`-ordning, fast och oföränderlig (se
-[annotation-spec](../docs/shaft/annotation-spec.md)). Den riktade vektorn
-`butt → hosel` definierar skaftets riktning.
+Punkterna är i `butt → hosel → toe → heel`-ordning, fast och oföränderlig (se
+[annotation-spec](../docs/shaft/annotation-spec.md)). Den riktade vektorn `butt → hosel`
+definierar skaftets riktning; `heel → toe` definierar bladets.
+
+**Kanalantalet är kontraktet.** Utdatan avkodas positionellt
+([`src/lib/shaft/shaftPostprocess.ts`](../src/lib/shaft/shaftPostprocess.ts)), så det är
+antalet kanaler — inte ett flaggvärde någon skickar runt — som säger vilket schema den
+laddade modellen implementerar. Avkodaren läser det ur tensorn och tar emot **11 eller 17**;
+vid 11 rapporteras `toe` och `heel` som `null`, inte som punkter i origo. Varje annat
+antal är ett fel. `export_onnx.py` skriver ut samma besked direkt efter exporten, så en
+tvåpunktscheckpoint inte kan levereras som en fyrapunktsmodell utan att någon ser det.
 
 **Anchor-räkning (N)**
 
@@ -289,7 +327,8 @@ Skriptet skriver ut faktisk input- och outputform när det körs — läs den ut
 2. Kör ONNX-sessionen.
 3. Filtrera outputs på `conf > tröskelvärde` (prova 0,25 som startpunkt).
 4. Kör NMS (Non-Maximum Suppression) på de kvarvarande.
-5. Plocka ut `butt_x/y` och `hosel_x/y` ur det vinnande boxens kanaler.
+5. Plocka ut punkternas `x/y` ur den vinnande boxens kanaler — så många punkter som
+   kanalantalet bär.
 6. Skala tillbaka koordinaterna till originalbildens pixelutrymme.
 
 Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
@@ -306,8 +345,11 @@ Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
 | `evaluate.py` | Mäter mot kalibreringssetet, skriver `eval-report.md`. |
 | `export_onnx.py` | Exporterar `best.pt` → ONNX och verifierar numeriskt. |
 | `prelabel_batch.py` | Förhandsmärker en batch med ONNX-modellen → CVAT-importerbar XML. |
-| `shaft_coco.py` | Delade läsare för COCO-exporterna. |
-| `test_prelabel_batch.py` | Enhetstester (`py -3.11 -m unittest discover -s training -t training`). |
+| `shaft_coco.py` | Delade läsare för COCO-exporterna; punktordningen bor här. |
+| `test_prelabel_batch.py` | Enhetstester för förhandsmärkningen. |
+| `test_shaft_schema.py` | Enhetstester för fyrapunktsschemat och bakåtkompatibiliteten. |
+
+Kör testen med `py -3.11 -m unittest discover -s training -t training`.
 | `requirements.txt` | Pinnade beroenden (utom PyTorch, se ovan). |
 
 `shaft_coco.py` finns för att `prepare_dataset.py` och `evaluate.py` **måste** tolka
@@ -322,8 +364,9 @@ som ett fel — den syns som en evalsiffra som är tyst felaktig.
 
 ### Bounding box
 
-Skaftet har ingen naturlig box — det är ett linjesegment mellan två annoterade
-ändpunkter. Boxen är därför **punkternas omslutande rektangel plus marginal**:
+Klubban har ingen naturlig box — det är upp till fyra annoterade punkter, ett skaftsegment
+plus ett solsegment. Boxen är därför **de satta punkternas omslutande rektangel plus
+marginal**:
 
 - marginal = `--margin` (0,06) × rektangelns längsta sida,
 - men minst `--min-pad` (0,01) × bildens kortaste sida,
@@ -331,35 +374,53 @@ Skaftet har ingen naturlig box — det är ett linjesegment mellan två annotera
 
 Golvet finns för att ett exakt lodrätt skaft ger en rektangel med bredd noll. Utan golv
 blir boxen degenererad och boxförlusten odefinierad. Marginalen i övrigt håller boxens
-**yta** kopplad till skaftets faktiska utsträckning, vilket spelar roll: pose-förlusten
+**yta** kopplad till objektets faktiska utsträckning, vilket spelar roll: pose-förlusten
 normaliserar keypoint-felet mot boxytan, så en box som inte följer objektets skala
 viktar om precis det mått vi bryr oss om.
 
-### Frames med bara en punkt placerad
+**Rektangeln räknas på de punkter som faktiskt är satta — vilka de än är.** En frame där
+bara `toe` och `heel` gick att placera får en box som spänner solan och ingenting mer. Det
+är inte ett fel att rätta: boxen ska beskriva vad framen annoterar, inte hur en klubba
+brukar se ut.
 
-Cirka 14 % av batch-01 (20 av 143 användbara frames) har en ändpunkt `outside` och den
-andra satt. **Valet: de behålls, med en kvadratisk ersättningsbox** (`--single-point
-square`, förval).
+### Frames med färre än fyra punkter placerade
 
-Sidan på kvadraten är datasetets **mediana skaftlängd delat med √2** — alltså den sida
-en omslutande rektangel har för ett skaft av medianlängd i 45 grader. Skälet är
+Med fyra punkter är antalet satta punkter ett **spektrum från 1 till 4**, inte ett
+ja-eller-nej. Regeln följer geometrin och inget annat:
+
+| Satta punkter | Box |
+|---|---|
+| 2–4 | Omslutande rektangel över just dem, plus marginal. |
+| 1 | Kvadratisk ersättningsbox (`--single-point square`, förval). |
+| 0 | Framen skrivs inte — det finns ingen annotering att träna på. |
+
+Cirka 14 % av batch-01 (20 av 143 användbara frames) hade bara en av sina två punkter satt.
+**De behålls.**
+
+Sidan på kvadraten är datasetets **mediana `butt`–`hosel`-längd delat med √2** — alltså den
+sida en omslutande rektangel har för ett skaft av medianlängd i 45 grader. Skälet är
 boxytan igen: kvadraterna hamnar då i samma ytfördelning som de riktiga boxarna och
-rubbar inte förlustens ytnormalisering. Den saknade punkten skrivs som `0 0 0` och
-maskas ur keypoint-förlusten av Ultralytics.
+rubbar inte förlustens ytnormalisering. Medianen mäts fortfarande på **skaftet**, inte på
+alla fyra punkterna: skaftet dominerar klubbans utsträckning, solan lägger till någon
+procent, och en skala hämtad ur `toe`/`heel` hade varit odefinierad mot batch-01. Den
+saknade punkten skrivs som `0 0 0` och maskas ur keypoint-förlusten av Ultralytics.
 
 Motiveringen till att behålla dem: det är **inte** slumpmässigt bortfall. En punkt är
-`outside` just när den är svår — greppänden bakom axeln, huvudet utanför ramen — så att
-kasta dem vore att kasta 14 % av datan och systematiskt de svåraste framesen. Boxen är
+`outside` just när den är svår — greppänden bakom axeln, huvudet utanför ramen, solan sedd
+rakt framifrån — så att kasta dem vore att kasta systematiskt de svåraste framesen. Boxen är
 en svagare lokaliseringssignal på de framesen; keypoint-målet, det enda som utvärderas,
 är oförändrat.
 
-`--single-point drop` finns för den som vill mäta vad valet kostar.
+`--single-point drop` finns för den som vill mäta vad valet kostar; den kastar frames med
+exakt en satt punkt.
 
 ### Horisontell spegling är av
 
-`data.yaml` sätter `flip_idx: [0, 1]` — identitetsmappningen — och `train.py` sätter
-`fliplr=0.0`. `butt` och `hosel` är de två ändarna av en **riktad** vektor, inte ett
-spegelsymmetriskt par som vänster/höger axel i COCO-pose. Det finns alltså ingen
+`data.yaml` sätter `flip_idx: [0, 1, 2, 3]` — identitetsmappningen — och `train.py` sätter
+`fliplr=0.0`. Ingen av de fyra punkterna är en annan punkts spegelbild: `butt` och `hosel`
+är de två ändarna av en **riktad** vektor, och `toe`/`heel` är solans yttre respektive inre
+ände — att spegla bilden gör inte en tå till en häl, den vänder klubban. Ingen av dem är
+alltså ett spegelsymmetriskt par som vänster/höger axel i COCO-pose. Det finns därför ingen
 indexpermutation som gör en speglad bild korrekt etiketterad, och `flip_idx` kan bara
 vara identiteten för att stilla Ultralytics' schemakontroll. `train.py` avbryter om
 `fliplr` inte är 0.
@@ -392,8 +453,9 @@ bara av `evaluate.py`.
 ### Mosaic är av
 
 `--mosaic` är 0 som förval. Mosaic klistrar fyra frames i en och fjärdedelar därmed
-skaftets skenbara längd. För ett tunt tvåpunktsobjekt är en trovärdig skalfördelning värd
-mer än den extra variationen. Flaggan finns för att pröva motsatsen.
+skaftets skenbara längd. För ett tunt linjeobjekt är en trovärdig skalfördelning värd
+mer än den extra variationen — och solan, som redan är några få pixlar lång, tål det ännu
+sämre än skaftet. Flaggan finns för att pröva motsatsen.
 
 ### Träningsdefaults
 
@@ -416,10 +478,18 @@ påhittat mål: vinkel median 0,3°, `butt` 0,17 %H, `hosel` 0,13 %H
 (annotation-spec → *Kalibreringsutfall 2026-09*). Det är golvet uppgiften har — två
 tränade annotatörer med samma spec kommer inte närmare varandra än så.
 
-**Vinkeln är huvudsiffran.** Reglerna mäter skaftets riktning: ett fel *längs* skaftet
+**Skaftvinkeln är huvudsiffran.** Reglerna mäter skaftets riktning: ett fel *längs* skaftet
 kostar ingenting, samma fel *tvärs* skaftet kostar en regel. Vinkelskillnaden viks inte
 vid 90° — `butt→hosel` är riktad, så ombytta ändpunkter ska synas som ~180°, inte tyst
 absorberas som 0°.
+
+**Bladvinkeln (`heel→toe`) redovisas som ett eget mått vid sidan av**, aldrig hopslagen med
+skaftvinkeln: ett skaft kan ligga i rätt plan med bladet vidöppet, och det är precis det
+felet solpunkterna finns för att göra synligt. Den mäts bara på frames där både `heel` och
+`toe` är satta av annotatören *och* predicerade av modellen; saknas sådana frames står
+måttet tomt i stället för noll. Människokolumnen är tom av samma skäl — kalibreringssetet
+annoterades i tvåpunktsschemat och bär inget golv för bladvinkeln. Samma ovikning vid 90°
+gäller: `heel→toe` är riktad och en omkastad sola ska synas som ~180°.
 
 Avstånd redovisas i **både px och procent av bildhöjden** eftersom setet blandar
 720×818 och 1080×1920. Läs den normaliserade siffran; px står kvar för att det är vad
@@ -431,6 +501,12 @@ flaggade `outside` och hur ofta den saknar en punkt annotatören satte. Det för
 läget — så talet finns för att göra avvikelsen synlig, inte för att straffa den.
 
 ### Levererande modell: `shaft-v2.onnx`
+
+**Tvåpunkts.** `shaft-v2` tränades före schemaändringen och emitterar 11 kanaler, så den
+levererar `butt` och `hosel` och ingenting mer; `toe` och `heel` rapporteras som `null` av
+webbintegrationen och som `n = 0` av `evaluate.py`. Den fortsätter köra tills en
+fyrapunktsmodell finns — schemat och koden ligger före modellen med flit, så att
+annoteringen kan börja.
 
 Vad appen faktiskt kör i dag (`src/lib/shaft/shaftDetector.ts` → `MODEL_FILE`), mätt mot
 kalibreringssetet. Människokolumnen är golvet från *Kalibreringsutfall 2026-09* ovan — den
@@ -467,7 +543,7 @@ lossa på den är ett eget mätbart beslut, inte en följd av ett modellbyte.
 |---|---|
 | Reserverad för kalibreringssetet (`reserved-ids.txt`) | 0 — batchen drogs redan med exkludering |
 | `no_shaft=true` | 3 |
-| Ingen punkt placerad (båda `outside`) | 1 |
+| Ingen punkt placerad (alla `outside`) | 1 |
 
 Frames där en bild bär **fler än ett** `shaft`-objekt (två i batch-01, oavsiktliga
 dubbelritningar) behålls; den annotering som har flest satta punkter vinner, sedan den

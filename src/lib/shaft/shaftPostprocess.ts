@@ -7,7 +7,7 @@
 // unit-tested.
 //
 // INPUT LAYOUT (training/README.md → "Utdataformat"): the graph emits
-// `[1, 11, N]` float32, channel-major, so channel `c` of anchor `i` lives at
+// `[1, C, N]` float32, channel-major, so channel `c` of anchor `i` lives at
 // `data[c * N + i]`. N = 18 900 for imgsz 960. Ultralytics exports WITHOUT NMS
 // (`dynamic=False`), so steps 3–6 of the README's integration list are ours:
 //
@@ -15,6 +15,16 @@
 //   4      conf              sigmoid-activated, [0, 1]
 //   5..7   butt   x, y, v
 //   8..10  hosel  x, y, v
+//   11..13 toe    x, y, v    ← 4-point schema only
+//   14..16 heel   x, y, v    ← 4-point schema only
+//
+// TWO LAYOUTS ARE READ, ONE IS THE SCHEMA. The annotation schema has four points
+// (docs/shaft/annotation-spec.md), so `C = 17`. Every checkpoint trained before that
+// — `shaft-v2.onnx` included, which is what ships today — emits `C = 11` with no toe
+// and no heel. The decoder accepts both and reports the missing points as `null`
+// rather than as coordinates at the origin, because a point the model cannot produce
+// is the same thing as a point the model did not locate: absent, not at (0, 0).
+// Anything other than 11 or 17 is a different model and throws.
 //
 // Coordinates stay in MODEL space here. The caller maps them back through
 // `letterbox.modelToImage`; doing it in two places is how the padding gets
@@ -32,8 +42,24 @@ export const KEYPOINT_THRESHOLD = 0.5;
  */
 export const IOU_THRESHOLD = 0.45;
 
-/** Channels per anchor in the exported graph. A different value means a different model. */
-export const CHANNELS = 11;
+/**
+ * Keypoint order, fixed by docs/shaft/annotation-spec.md and identical in the CVAT
+ * sublabels, the COCO export, the YOLO label columns and the channels above.
+ */
+export const KEYPOINT_NAMES = ['butt', 'hosel', 'toe', 'heel'] as const;
+export type KeypointName = (typeof KEYPOINT_NAMES)[number];
+
+/** Box (cx, cy, w, h) plus objectness. Everything after these is keypoints. */
+const BOX_CHANNELS = 5;
+/** Per keypoint: x, y, visibility. */
+const CHANNELS_PER_KEYPOINT = 3;
+
+/** Channels the 4-point schema emits: 5 + 4 × 3. */
+export const CHANNELS = BOX_CHANNELS + CHANNELS_PER_KEYPOINT * KEYPOINT_NAMES.length;
+/** Channels every pre-2026-09 checkpoint emits: 5 + 2 × 3. `shaft-v2.onnx` is one. */
+export const LEGACY_CHANNELS = BOX_CHANNELS + CHANNELS_PER_KEYPOINT * 2;
+/** Every channel count this decoder knows how to read, widest first. */
+export const SUPPORTED_CHANNELS: readonly number[] = [CHANNELS, LEGACY_CHANNELS];
 
 export interface RawKeypoint {
   x: number;
@@ -51,23 +77,56 @@ export interface Candidate {
   conf: number;
   butt: RawKeypoint;
   hosel: RawKeypoint;
+  /** Null when the graph carries no toe channel — a legacy 2-point model. */
+  toe: RawKeypoint | null;
+  /** Null when the graph carries no heel channel — a legacy 2-point model. */
+  heel: RawKeypoint | null;
+}
+
+/**
+ * How many keypoints a `[1, C, N]` output carries, or null when `C` is neither
+ * layout this decoder reads.
+ */
+export function keypointCountForChannels(channels: number): number | null {
+  if (!SUPPORTED_CHANNELS.includes(channels)) return null;
+  return (channels - BOX_CHANNELS) / CHANNELS_PER_KEYPOINT;
 }
 
 /**
  * Every anchor whose box confidence clears `confThreshold`, converted from
  * centre-form to corner-form. Unsorted — `nms` sorts.
+ *
+ * The channel count is derived from `data.length / numAnchors`, not assumed: that is
+ * the one number that says which schema the loaded model implements, and reading it
+ * off the buffer is what lets a 2-point checkpoint and a 4-point one go through the
+ * same path without a flag being passed around and getting out of date.
  */
 export function decodeCandidates(
   data: Float32Array | number[],
   numAnchors: number,
   confThreshold = CONF_THRESHOLD,
 ): Candidate[] {
-  if (data.length !== CHANNELS * numAnchors) {
+  if (numAnchors <= 0 || data.length % numAnchors !== 0) {
     throw new Error(
-      `Output length ${data.length} is not ${CHANNELS} × ${numAnchors} — wrong model?`,
+      `Output length ${data.length} is not a whole number of channels × ${numAnchors} — wrong model?`,
     );
   }
+  const channels = data.length / numAnchors;
+  const keypoints = keypointCountForChannels(channels);
+  if (keypoints === null) {
+    throw new Error(
+      `Output length ${data.length} implies ${channels} channels × ${numAnchors} anchors; ` +
+        `expected ${CHANNELS} (4-point) or ${LEGACY_CHANNELS} (legacy 2-point) — wrong model?`,
+    );
+  }
+
   const at = (channel: number, i: number) => data[channel * numAnchors + i];
+  const keypointAt = (index: number, i: number): RawKeypoint | null => {
+    if (index >= keypoints) return null;
+    const base = BOX_CHANNELS + CHANNELS_PER_KEYPOINT * index;
+    return { x: at(base, i), y: at(base + 1, i), score: at(base + 2, i) };
+  };
+
   const out: Candidate[] = [];
   for (let i = 0; i < numAnchors; i++) {
     const conf = at(4, i);
@@ -82,8 +141,12 @@ export function decodeCandidates(
       x2: cx + halfW,
       y2: cy + halfH,
       conf,
-      butt: { x: at(5, i), y: at(6, i), score: at(7, i) },
-      hosel: { x: at(8, i), y: at(9, i), score: at(10, i) },
+      // butt and hosel exist in every layout this decoder accepts, so the non-null
+      // assertion is the schema's guarantee, not an optimistic guess.
+      butt: keypointAt(0, i)!,
+      hosel: keypointAt(1, i)!,
+      toe: keypointAt(2, i),
+      heel: keypointAt(3, i),
     });
   }
   return out;
