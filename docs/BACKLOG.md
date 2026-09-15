@@ -2023,6 +2023,79 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > Dokumentation: [shaft/annotation-spec.md](shaft/annotation-spec.md) → *Förhandsmärkning med
 > modellen*.
 
+### [x] S-17 — Bladvinkelns användbarhet över flera klipp
+
+> **Klart (2026-09-15).** `training/trace_swing.py` kör nu samma bildruta-för-bildruta-
+> spårning över **flera klipp** (`--clips`, filer eller en katalog) och sammanställer dem i
+> **[`../training/blade-usability.md`](../training/blade-usability.md)**. Enkelklippsläget
+> är oförändrat — samma konsolutskrift, samma siffror, plus två noter om vilka manifest och
+> annoteringar som lästes. Ingen träning.
+>
+> **Svaret på frågan som ställdes: varken svingfasen eller konfidensen räddar bladvinkeln,
+> och skälen är olika.**
+>
+> **Konfidensen har inget spann att gradera på.** Över de 3 403 bildrutor som bär en
+> bladvinkel ligger `min(toe, heel)` på median **0,26**, p90 0,35 och **max 0,55** — mot
+> skaftets `min(butt, hosel)` 0,99/1,00/1,00. Hinkarna över 0,5 är därför tomma därför att
+> modellen aldrig är så säker på klubbhuvudet, inte därför att urvalet saknar sådana
+> bildrutor. Kvoten blad/skaft ligger dessutom **platt och icke-monoton** genom hinkarna
+> (3,42 · 4,08 · 2,94 · 2,20), så det finns ingen nivå där bladet blir lugnt.
+> **Ingen tröskel når kvot ≤ 1,5** — varken över alla 3 386 steg eller över de 1 263 som
+> ligger inuti en sving-envelope.
+>
+> **Vad grinden däremot köper: omkastningarna.** `toe`/`heel` byter plats i 3 % av stegen i
+> sving vid 0,1, i 1 % vid 0,2 och i **0 av 272 steg vid 0,3**. Ett hopp > 90° är inget brus
+> som jämnar ut sig utan bladvinkeln vänd ett halvt varv — samma fel som kostade `shaft-v1`
+> dess face_on-bildrutor. **0,3 gör alltså bladvinkeln mindre farlig, inte användbar**
+> (kvoten där är fortfarande 2,34), och priset är att 20 % av bildrutorna i sving återstår.
+> De två svaren hålls isär i rapporten av just det skälet.
+>
+> **Fasen vänder åt andra hållet än 002 antydde.** Kvoten är **högst när klubban står still**
+> (`address` 4,30, mellan svingar 4,16) och **lägst i de snabba faserna** (`through` 1,69,
+> `top` 1,87, `downswing` 2,30). Absolut sett rör sig bladet mest i nedsvinget (373,9 °/s)
+> — men det gör skaftet också (162,4 °/s). Bladet bär alltså ett **brusgolv** som ligger kvar
+> när klubban stannar och som drunknar i verklig rörelse när den går fort; att kurvan ser
+> lugn ut i adressen är nämnaren, inte signalen. `002.mp4` är därtill **ytterlighetsfallet**
+> i urvalet: kvot 6,06 i sving mot 0,85–4,00 för de nio andra.
+>
+> **`blur` delar inte heller upp materialet.** `none` 2,09 (143 steg) · `mild` 6,63 (34) ·
+> `severe` 1,29 (43) — ingen ordning, och hinkarna är små eftersom en `blur`-etikett bara
+> beskriver **en** annoterad bildruta och sträcks ±0,10 s, inte längre.
+>
+> **Urvalet av klipp är skrivet ner före körningen**, i
+> [shaft/blade-usability-clips.md](shaft/blade-usability-clips.md), och citeras ordagrant in i
+> rapporten (`--selection-note`). Fem `dtl` och fem `face_on`, båda i skarpt och suddigt
+> skick; face_on och `severe` är medvetet översamplade (5 av poolens 9 enhälligt
+> face_on-klipp; 29 % `severe` mot 10,8 % i materialet som helhet). Poolen är de **80** av 97
+> klipp i `data/shaft/clips/` som har minst en annoterad bildruta i en batch — utan manifest
+> finns ingen envelope att härleda fas ur, utan annotering ingen `blur`.
+>
+> **Fasen härleds ur manifesten, aldrig ur en andra pose-körning** — och absolut aldrig ur
+> spårningen själv: att läsa fasen ur hur fort skaftvinkeln rör sig och sedan rapportera att
+> bladet är sämre i de snabba faserna hade varit en cirkel. `envelopeSec`/`impactSec` ur
+> `data/shaft/training/*/batch.zip` ger `start`, `impact` och `finish` som **mätta** tider;
+> **toppen finns inte i manifestet**, så gränsen backsving/nedsving är typsvingens proportion
+> ur `src/lib/dataset/datasetPhase.ts` utsträckt över de mätta tiderna. Det är mätt och inte
+> påstått: porten håller med manifestets egen `phase` i **577 av 650 bildrutor (89 %)**, och
+> **varje** avvikelse ligger i grannskapet backsving/topp/nedsving, där toppen hade avgjort.
+> Rapporten skriver ut förväxlingstabellen.
+>
+> **Stillestånd räknas separat.** 3 035 av 4 766 bildrutor ligger mellan svingar; huvudsiffran
+> redovisas därför både för allt och för det som ligger inuti en envelope, och svepet i
+> avsnitt 7 finns i båda varianterna.
+>
+> **Nytt per mätt bildruta i CSV:n:** `phase`, `blur`, `shaft_conf_min`/`blade_conf_min` och
+> `*_rate_deg_s` med `*_step_sec` bredvid. CSV-vyn är **ofiltrerad** — `--max-gap-sec` hör
+> till tabellerna, och rådata som redan filtrerats går inte att avfiltrera.
+>
+> **Verifierat:** `py -3.11 -m unittest discover -s training -t training` **239/239**
+> (80 nya: hinkindelning, aggregering, tröskelsvep, rekommendation, fasporten, blur-fönstret,
+> per-bildrute-hastigheterna och `--clips`-upplösningen). Körningen: 10 klipp, 4 766
+> bildrutor, 3 386 steg med båda vinklarna i båda ändar, på `shaft-v3`-vikterna.
+> **Ej gjort:** ingen träning, ingen webbappskod rörd, och ingen mätning av *träffsäkerhet*
+> — utan fyrapunktsfacit är bara rörlighet mätbar, och en bladvinkel kan vara fullkomligt
+> stabil och konsekvent fel.
+
 
 ---
 

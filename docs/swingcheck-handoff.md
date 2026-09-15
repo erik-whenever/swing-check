@@ -3,7 +3,37 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-15.
 >
-> **Senast (2026-09-15, stream-shaft):** `training/trace_swing.py` — **modellen körd på varje
+> **Senast (2026-09-15, stream-shaft):** S-17 — `training/trace_swing.py` kör nu spårningen
+> över **flera klipp** (`--clips`) och sammanställer dem i
+> [`../training/blade-usability.md`](../training/blade-usability.md). Tio klipp ur
+> `data/shaft/clips/`, 4 766 bildrutor, 3 386 steg med båda vinklarna i båda ändar.
+> **Frågan var vad som förutsäger den taggiga bladvinkeln — svingfasen eller modellens
+> konfidens på `toe`/`heel`. Svaret är: ingendera, och skälen skiljer sig.**
+> **Konfidensen har inget spann.** `min(toe, heel)` är median **0,26**, p90 0,35, **max 0,55**
+> över de bildrutor som bär en bladvinkel — skaftets `min(butt, hosel)` ligger på 0,99/1,00/1,00.
+> Kvoten blad/skaft är dessutom platt och icke-monoton genom hinkarna (3,42 · 4,08 · 2,94 · 2,20).
+> **Ingen tröskel ger kvot ≤ 1,5**, varken över allt eller enbart inuti svingarna.
+> **Men 0,3 stoppar omkastningarna:** `toe`/`heel` byter plats i 3 % av stegen i sving vid 0,1,
+> 1 % vid 0,2 och **0 av 272 vid 0,3**. Grinden gör bladvinkeln *mindre farlig, inte användbar*
+> — kvoten där är fortfarande 2,34 och 20 % av bildrutorna i sving återstår.
+> **Fasen vänder åt andra hållet än `002.mp4` antydde:** kvoten är högst när klubban står still
+> (`address` 4,30, mellan svingar 4,16) och lägst i de snabba faserna (`through` 1,69, `top` 1,87,
+> `downswing` 2,30). Bladet bär ett **brusgolv** som ligger kvar när klubban stannar och drunknar
+> i verklig rörelse när den går fort. `002.mp4` är urvalets ytterlighet (kvot 6,06 i sving mot
+> 0,85–4,00 för de nio andra). `blur` delar inte upp materialet alls (`none` 2,09 · `mild` 6,63 ·
+> `severe` 1,29, små hinkar).
+> **Fasen härleds ur manifestens `envelopeSec`/`impactSec`, aldrig ur en andra pose-körning** och
+> aldrig ur spårningen själv — det senare hade varit en cirkel. `start`/`impact`/`finish` är mätta,
+> **toppen finns inte i manifestet**, så gränsen backsving/nedsving är typsvingens proportion ur
+> `src/lib/dataset/datasetPhase.ts`. Porten håller med manifestets egen `phase` i **577/650 (89 %)**
+> och varje avvikelse ligger där toppen hade avgjort; rapporten skriver ut förväxlingstabellen.
+> **Urvalet står skrivet före körningen** i [shaft/blade-usability-clips.md](shaft/blade-usability-clips.md)
+> (citeras ordagrant in i rapporten via `--selection-note`): 5 `dtl` + 5 `face_on`, skarpt och suddigt,
+> med face_on och `severe` medvetet översamplade. Poolen är de 80 av 97 klipp som har en annoterad
+> bildruta i en batch.
+> `py -3.11 -m unittest discover -s training -t training` **239/239** (80 nya).
+>
+> **Dessförinnan (2026-09-15, stream-shaft):** `training/trace_swing.py` — **modellen körd på varje
 > bildruta i ett klipp**, inte bara de envelope-valda, med skaft- och bladvinkel plottade över tid
 > (`training/trace-<klipp>.png`) och rådata per bildruta (`.csv`, gitignorerat). Vid 30 fps blir
 > tidssteget ~0,033 s i stället för träningsbatcharnas ~0,3 s; `measure_blade_stability.py` svarar
@@ -29,7 +59,7 @@
 > vikterna finns.
 > `py -3.11 -m unittest discover -s training -t training` **161/161** (33 nya).
 >
-> **Dessförinnan (2026-09-15, stream-shaft):** S-16 — **`toe`/`heel` levereras placerade**
+> **Och dessförinnan (2026-09-15, stream-shaft):** S-16 — **`toe`/`heel` levereras placerade**
 > (`outside="0"` med riktiga koordinater) i stället för `outside="1"` på platshållare.
 > **batch-03:s frames och urval är orörda**; omkörningen ger samma **181 av 250** och samma
 > skältabell. **Skälet är CVAT:s gränssnitt, inte specen:** en punkt som aldrig dragits har
