@@ -14,4 +14,5 @@ Tre isolerade strömmar redo att starta (en session/branch per ström, se [docs/
 
 ## Horisont (ej schemalagt)
 - Pose-estimering som fallback om rörelse-metoden når sin gräns ([ADR-0001](docs/adr/0001-motion-based-swing-detection.md)).
+- **Plattformsfrågan är öppen:** native iOS + Android i stället för webbapp/PWA före lansering — obeslutat. Konsekvenser (inferenstid, modellstorlek, `shaftDetector.ts`, datamodellen för skaftmätvärden) i [docs/oppna-fragor.md](docs/oppna-fragor.md) → *F6*.
 - Paketnamn `swingcheck-temp` / version `0.0.0` — städa inför första riktiga release.

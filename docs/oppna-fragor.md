@@ -78,3 +78,25 @@ jämförelse mot manuell bedömning av annotatörerna. Underlag i korstabellen f
 bedömning sjunker under en rimlig tröskel (t.ex. < 15 %) — förmodligen kräver det en
 bättre tidsankring av fasövergångarna, eventuellt pose-estimering som stöd.
 
+
+### F6 — Native iOS + Android i stället för webbapp/PWA?
+**Datum:** 2026-09-15 · **Status:** ÖPPEN
+
+SwingCheck är byggd som webbapp/PWA. Erik lutar nu åt **native iOS + Android före lansering**.
+**Beslutet är inte fattat** — den här posten listar konsekvenserna, den avgör ingenting.
+
+**Vad som INTE påverkas.** Skaftmodellen är formatoberoende: samma tränade vikter exporteras
+till ONNX, Core ML eller TFLite **utan omträning**. Dataset, annoteringsschema och
+träningspipeline är opåverkade.
+
+**Vad som påverkas:**
+- **Inferenstid.** 333 ms/frame på WebGPU i webbläsaren. Core ML på Apples Neural Engine
+  ligger typiskt en storleksordning lägre för en modell av den här storleken. Det förändrar
+  vad som är möjligt i en rangesession.
+- **Modellstorlek.** YOLOv8n (nano) valdes delvis för webbläsarbudgeten. Native ger marginal
+  för `s` eller `m` — bättre noggrannhet och färre bortfall på suddiga frames. **Ska mätas mot
+  samma evalset** när datasetet är komplett.
+- **Klientkod.** `src/lib/shaft/shaftDetector.ts` och dev-vyn är byggda mot `onnxruntime-web`
+  och skrivs om vid ett plattformsbyte.
+- **Datamodellen för skaftmätvärdena** (ej byggd än) bör läggas på en nivå som **överlever
+  plattformsbytet** — mätvärden och regler ska inte vara bundna till webbruntime.
