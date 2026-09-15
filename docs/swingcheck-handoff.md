@@ -3,7 +3,33 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-15.
 >
-> **Senast (2026-09-15, stream-shaft):** S-16 — **`toe`/`heel` levereras placerade**
+> **Senast (2026-09-15, stream-shaft):** `training/trace_swing.py` — **modellen körd på varje
+> bildruta i ett klipp**, inte bara de envelope-valda, med skaft- och bladvinkel plottade över tid
+> (`training/trace-<klipp>.png`) och rådata per bildruta (`.csv`, gitignorerat). Vid 30 fps blir
+> tidssteget ~0,033 s i stället för träningsbatcharnas ~0,3 s; `measure_blade_stability.py` svarar
+> på *hur snabbt* vinkeln rör sig, det här skriptet på *hur* den rör sig. Modelladdning, letterbox
+> och vinkelmatte återanvänds ur `evaluate.py`/`measure_blade_stability.py` — ingen duplicerad logik,
+> inga nya beroenden (matplotlib följer med ultralytics).
+> **Två trösklar, inte en:** `--kpt-conf-shaft` 0,5 för `butt`/`hosel`, `--kpt-conf-blade` 0,1 för
+> `toe`/`heel`, och varje vinkel släpps in på sina **egna** två punkter. En gemensam 0,5 gav 0 %
+> täckning på solpunkterna och därmed ingen bladvinkel alls; 0,1 gav 80 %. En gemensam tröskel gör
+> alltså inte mätningen strängare, den gör den tom.
+> **Luckor bryts, aldrig interpoleras** — tomma fält i CSV:n, brott i kurvan, grå band för "ingen
+> detektion" och röda märken för "detektion men punkten under tröskeln". En interpolerad bladvinkel
+> hade ritat precis den jämna kurva skriptet testar efter.
+> **Wrappen:** CSV:n bär rådata ovecklad, grafen visar serien **uppvecklad** (varje steg kortaste
+> vägen runt cirkeln, summerat), så en passage genom ±180° ritas rak. Offseten bärs över luckor —
+> ett segment efter ett långt hål kan ligga ett helt varv fel, och det står i grafens underrubrik.
+> Hastighetsstatistiken räknas aldrig på den uppvecklade serien.
+> **KÖRNINGEN PÅ `data/shaft/clips/002.mp4` ÅTERSTÅR: fyrapunktsvikterna finns inte på den här
+> maskinen.** `training/runs/` är gitignorerat och tomt, och `public/models/` bär bara de
+> tvåpunkts `shaft-v1/v2.onnx`. Röktestat end-to-end med `shaft-v2.onnx` på CPU (40 frames av
+> 002.mp4): avkodning, tidsaxel, CSV, graf och sammanfattning fungerar, skafttäckning 100 %,
+> bladtäckning 0 % — vilket är precis vad en tvåpunktsmodell ska ge. Kör om med `shaft-v3` när
+> vikterna finns.
+> `py -3.11 -m unittest discover -s training -t training` **161/161** (33 nya).
+>
+> **Dessförinnan (2026-09-15, stream-shaft):** S-16 — **`toe`/`heel` levereras placerade**
 > (`outside="0"` med riktiga koordinater) i stället för `outside="1"` på platshållare.
 > **batch-03:s frames och urval är orörda**; omkörningen ger samma **181 av 250** och samma
 > skältabell. **Skälet är CVAT:s gränssnitt, inte specen:** en punkt som aldrig dragits har

@@ -181,6 +181,49 @@ py -3.11 training\evaluate.py --weights training\runs\shaft-v1\weights\best.pt
 Mäter mot kalibreringssetet och skriver `training/eval-report.md`. `--dry-run`
 kontrollerar indata och synlighetskodningen utan att ladda modellen.
 
+### Spåra en sving bildruta för bildruta
+
+```powershell
+py -3.11 training\trace_swing.py data\shaft\clips\002.mp4
+```
+
+Kör modellen på **alla** bildrutor i ett klipp — inte bara de envelope-valda — och skriver
+`training/trace-<klipp>.png` (skaftvinkel och bladvinkel över tid) plus
+`training/trace-<klipp>.csv` (rådata per bildruta). Vid 30 fps blir tidssteget ~0,033 s i
+stället för träningsbatcharnas ~0,3 s, och först vid den upplösningen går det att se
+*formen*: en rotation ritar en ramp, en gissning ritar hack.
+`measure_blade_stability.py` mäter samma två vinklar men bara på de glest samplade
+träningsframesen — den svarar på *hur snabbt* vinkeln rör sig, inte på *hur* den rör sig.
+
+| Flagga | Förval | Förklaring |
+|---|---|---|
+| `--weights` | `runs/shaft-v3/weights/best.pt` | `.pt` eller `.onnx`. |
+| `--kpt-conf-shaft` | 0,5 | Tröskel för `butt` och `hosel`. |
+| `--kpt-conf-blade` | 0,1 | Tröskel för `toe` och `heel`. |
+| `--max-gap-sec` | 1,0 | Förkasta hastighetssteg som spänner över en längre lucka. |
+| `--max-frames` | 0 (alla) | Röktest, inte en spårning. |
+| `--out-dir` | `training/` | Var PNG och CSV hamnar. |
+
+**Två trösklar, inte en, och det är ett fynd snarare än en bekvämlighet.** Modellen är
+systematiskt osäkrare på klubbhuvudet än på skaftet: vid den enda `--kpt-conf 0.5` som
+`measure_blade_stability.py` lägger på alla fyra punkter klarade `toe`/`heel` **0 %** av
+framesen — ingen bladvinkel alls — medan 0,1 klarade 80 %. En gemensam tröskel gör alltså
+inte mätningen strängare, den gör den tom. Varje vinkel släpps därför in på sina **egna**
+två punkter, och täckningen per punkt skrivs ut så att läsaren ser vad respektive ribba
+kostade. En bladvinkel läst vid 0,1 är ett svagt påstående — spårningen finns just för att
+bedöma hur svagt.
+
+**Luckor är data.** En bildruta modellen inte klarar blir ett hål: tomma fält i CSV:n, ett
+brott i kurvan och en markering i grafen. Ingenting interpoleras över den. En interpolerad
+bladvinkel skulle rita precis den jämna kurva skriptet är byggt för att testa efter.
+
+**Vinklarna wrappar vid ±180°.** CSV:n bär rådata ovecklad; grafen visar serien
+**uppvecklad** — varje steg mellan två mätta bildrutor tas kortaste vägen runt cirkeln och
+summeras, så en passage genom sömmen ritas rak i stället för som ett 360°-fall. Ett äkta
+`toe`/`heel`-byte är ett verkligt halvvarv och överlever uppvecklingen som en klippa;
+hoppandelen över 90° rapporteras separat. Hastigheterna räknas aldrig på den uppvecklade
+serien utan på rådata via `angle_difference`, som är wrap-korrekt i sig.
+
 ### Exportera till ONNX
 
 ```powershell
@@ -346,7 +389,9 @@ Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
 | `export_onnx.py` | Exporterar `best.pt` → ONNX och verifierar numeriskt. |
 | `prelabel_batch.py` | Förhandsmärker en batch med ONNX-modellen → CVAT-importerbar XML. |
 | `shaft_coco.py` | Delade läsare för COCO-exporterna; punktordningen bor här. |
+| `trace_swing.py` | Kör modellen på varje bildruta i ett klipp → `trace-<klipp>.png` + `.csv`. |
 | `test_prelabel_batch.py` | Enhetstester för förhandsmärkningen. |
+| `test_trace_swing.py` | Enhetstester för spårningen: wrap-matten, trösklarna, luckorna. |
 | `test_shaft_schema.py` | Enhetstester för fyrapunktsschemat och bakåtkompatibiliteten. |
 
 Kör testen med `py -3.11 -m unittest discover -s training -t training`.

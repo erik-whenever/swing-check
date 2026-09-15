@@ -59,3 +59,7 @@ training/runs/
 training/datasets/
 training/.venv/
 __pycache__/
+
+# Skaftdetektor — spårningar per klipp (regenereras av training/trace_swing.py)
+training/trace-*.png
+training/trace-*.csv
