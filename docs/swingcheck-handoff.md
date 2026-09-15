@@ -1,9 +1,28 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-14.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-15.
 >
-> **Senast (2026-09-14, stream-shaft):** S-15 — **batch-03 dragen** (250 frames, seed `0x7ba7c0de`,
+> **Senast (2026-09-15, stream-shaft):** S-16 — **`toe`/`heel` levereras placerade**
+> (`outside="0"` med riktiga koordinater) i stället för `outside="1"` på platshållare.
+> **batch-03:s frames och urval är orörda**; omkörningen ger samma **181 av 250** och samma
+> skältabell. **Skälet är CVAT:s gränssnitt, inte specen:** en punkt som aldrig dragits har
+> inga koordinater, så den hamnar i bildens övre vänstra hörn i samma stund flaggan kryssas
+> ur — och flaggan är asymmetrisk (`outside` **på** = tangent `O`, **ur** = musklick i
+> PARTS-panelen). Normalfallet var dyrt, undantaget billigt; nu tvärtom. Specregeln är
+> oförändrad: kan annotatören inte urskilja huvudet sätter hen `outside` själv.
+> **Det är ett startläge, inte en förhandsmärkning** — modellen är fortfarande tvåpunkts.
+> Ny `sole_points()` i `training/prelabel_batch.py`: linje ut ur `hosel`, vinkelrät mot
+> `butt→hosel`, längd `SOLE_LENGTH_FRACTION = 0,09` av skaftlängden i bild — ett verkligt
+> klubbhuvud mot klubbans längd minus huvudet (driver ≈ 0,10, järnsjua ≈ 0,086, wedge ≈ 0,09).
+> Hälen 0,01 ut från hoseln, så punkterna går att greppa var för sig. **Sidan är godtycklig**
+> och frihetsgraden läggs på att hålla båda punkterna i bild; klampning som sista utväg.
+> Verifierat på filen: noll `outside="1"`, noll `0.00,0.00`, häl–tå/skaft 0,0898–0,0902,
+> |cos| ≤ 0,0022, alla 362 punkter i bild — **ingen klampning behövdes**.
+> `py -3.11 -m unittest discover -s training -t training` **89/89** · `npm run build` rent ·
+> `npm run lint` 2 kvarstående fel i orörda filer · `npm test` 381/381.
+>
+> **Dessförinnan (2026-09-14, stream-shaft):** S-15 — **batch-03 dragen** (250 frames, seed `0x7ba7c0de`,
 > pool 1435 → 935 efter exkludering; noll överlapp mot `reserved-ids.txt`, batch-01 och batch-02),
 > **förhandsmärkt med `shaft-v2`** och **vygrinden lossad till `dtl` + `face_on`**. Ingen träning körd.
 > **Fyndet som styr allt annat:** v2:s svaghet är inte en *fas*, den är `view` och `blur` —
@@ -28,7 +47,7 @@
 > blockeras. `--view-gate {swing, swing+face_on, off}`, standard `swing+face_on`.
 > **Utfall:** **181 av 250 (72 %)** förhandsmärkta — lossningen gav **+13** (168 → 181); av de 29
 > nyinsläppta föll 16 på `no-detection`, vilket `face_on`:s 60 % täckningslucka förutsäger.
-> `toe`/`heel` skrivna `outside="1"` på alla 181. `DEFAULT_MODEL` är nu `shaft-v2.onnx`;
+> `toe`/`heel` skrevs `outside="1"` på alla 181 — *överspelat av S-16, de levereras nu placerade.* `DEFAULT_MODEL` är nu `shaft-v2.onnx`;
 > parittestet pekar på egen konstant `GEOMETRY_REFERENCE_MODEL = shaft-v1.onnx` (de pinnade
 > koordinaterna är S-11:s webbläsarverifierade v1-utdata).
 > Verifierat: `py -3.11 -m unittest discover -s training -t training` **81/81** (12 nya för vyhinkar

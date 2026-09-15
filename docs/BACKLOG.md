@@ -1980,6 +1980,48 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > nya som pinnar vyhinkarna och grindlägena (`view_bucket`, `GATE_BUCKETS`) — logiken bodde
 > tidigare inline i `main()` och var otestad. XML:en kontrollerad: 250 `<image>`, 181
 > `<skeleton>`, 724 `<points>` = 4×181, `toe`/`heel` alla `outside="1"`.
+> *(Sista meningen överspelad av S-16 samma vecka: `toe`/`heel` levereras nu placerade,
+> `outside="0"`. Urvalet och de 181 är oförändrade.)*
+
+### [x] S-16 — `toe`/`heel` levereras placerade i stället för `outside`
+
+> **Klart (2026-09-15).** `training/prelabel_batch.py` skriver solpunkterna med
+> `outside="0"` och riktiga koordinater. **Batchens frames och urval är orörda** —
+> omkörningen ger samma **181 av 250** och samma skältabell (`no-detection` 53,
+> `keypoint-below-threshold` 12, `view-unknown` 3, `view-blocked` 1, `degenerate-shaft` 0).
+>
+> **Varför.** `outside="1"` med platshållarkoordinater var fel default åt två håll i CVAT:s
+> gränssnitt, inte i specen. En punkt som aldrig dragits har inga koordinater — CVAT släpper
+> den i bildens **övre vänstra hörn** i samma stund annotatören kryssar ur flaggan. Och
+> flaggan är asymmetrisk på tangentbordet: att sätta `outside` **på** är `O`, att kryssa
+> **ur** den kräver musklick i **PARTS**-panelen. Normalfallet (synligt huvud, fyra punkter)
+> var alltså dyrt och undantaget billigt. Nu är det tvärtom; specregeln är oförändrad och
+> fortfarande annotatörens.
+>
+> **Det är ett startläge, inte en förhandsmärkning** — och det står så i skriptets huvud, i
+> rapportens annotatörsnoter och i specen. Modellen är tvåpunkts och har ingen åsikt om
+> solan. Ny `sole_points()`: en linje ut ur `hosel`, vinkelrät mot `butt→hosel`, med
+> `SOLE_LENGTH_FRACTION = 0,09` av skaftlängden i bild. **Proportionen är ett verkligt
+> klubbhuvud** mot den enda längd skriptet känner (klubbans längd minus huvudet): häl–tå
+> ≈ 115/1143 = 0,10 driver, ≈ 81/940 = 0,086 järnsjua, ≈ 0,09 wedge. Hälen ligger
+> `HEEL_OFFSET_FRACTION = 0,01` ut från hoseln — hoseln *är* huvudets hälsida, men två
+> punkter ovanpå varandra går inte att greppa.
+>
+> **Sidan är godtycklig och förblir det** (en tvåpunktsdetektion säger inget om vilken sida
+> huvudet ligger på, och annotatören drar ändå), så frihetsgraden läggs på det som *inte* är
+> godtyckligt: den sida som håller båda punkterna innanför bildkanten. Håller ingen sida,
+> klampas de in i ramen — fortfarande en tiopotens närmare huvudet än origo.
+>
+> **Verifierat på utdatan, inte bara i testen:** alla 181 skeletons har fyra punkter,
+> **noll `outside="1"`** och **noll `points="0.00,0.00"`** i filen; häl–tå/skaft 0,0898–0,0902
+> (spridningen är 2-decimalsavrundningen), |cos| mot skaftet ≤ 0,0022, samtliga 362 punkter
+> innanför bildkanten och inom 0,15 skaftlängder från hoseln — **ingen frame behövde klampas**.
+> `py -3.11 -m unittest discover -s training -t training` **89/89** (8 nya för `sole_points`).
+> `npm run build` rent · `npm run lint` 2 kvarstående fel i orörda filer (baslinjen) ·
+> `npm test` 381/381.
+>
+> Dokumentation: [shaft/annotation-spec.md](shaft/annotation-spec.md) → *Förhandsmärkning med
+> modellen*.
 
 
 ---

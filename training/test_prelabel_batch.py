@@ -280,8 +280,71 @@ class SelectBest(unittest.TestCase):
         self.assertEqual(P.select_best(raw, 0.25)['detections'], 2)
 
 
+class SolePoints(unittest.TestCase):
+    """`toe`/`heel` are a starting position, not a prediction — so what is asserted here
+    is the geometry the annotator is promised: perpendicular to the shaft, club-head
+    sized, at the hosel end, and on screen."""
+
+    W, H = 1000, 1000
+
+    def test_the_sole_is_perpendicular_to_the_shaft(self):
+        butt, hosel = (400.0, 200.0), (500.0, 600.0)
+        toe, heel = P.sole_points(butt, hosel, self.W, self.H)
+        shaft = (hosel[0] - butt[0], hosel[1] - butt[1])
+        sole = (toe[0] - heel[0], toe[1] - heel[1])
+        self.assertAlmostEqual(shaft[0] * sole[0] + shaft[1] * sole[1], 0.0, places=6)
+
+    def test_the_sole_is_a_club_head_long_relative_to_the_shaft(self):
+        butt, hosel = (500.0, 100.0), (500.0, 600.0)
+        toe, heel = P.sole_points(butt, hosel, self.W, self.H)
+        self.assertAlmostEqual(math.dist(toe, heel), P.SOLE_LENGTH_FRACTION * 500.0, places=6)
+
+    def test_the_length_scales_with_the_shaft_in_image(self):
+        """A club further from the camera gets a smaller head, because the only length
+        this function has is the one it measures in the image."""
+        near = P.sole_points((500.0, 100.0), (500.0, 600.0), self.W, self.H)
+        far = P.sole_points((500.0, 350.0), (500.0, 600.0), self.W, self.H)
+        self.assertAlmostEqual(math.dist(*near), 2 * math.dist(*far), places=6)
+
+    def test_the_heel_sits_at_the_hosel_end_and_the_toe_beyond_it(self):
+        """The hosel IS the heel side of the head, so the sole runs outward from there."""
+        hosel = (500.0, 600.0)
+        toe, heel = P.sole_points((500.0, 100.0), hosel, self.W, self.H)
+        self.assertLess(math.dist(heel, hosel), math.dist(toe, hosel))
+        self.assertAlmostEqual(math.dist(heel, hosel), P.HEEL_OFFSET_FRACTION * 500.0, places=6)
+
+    def test_both_points_land_at_the_head_not_in_a_corner(self):
+        """The whole reason for placing them: the annotator starts a short drag from the
+        head instead of a long one out of the image origin."""
+        hosel = (500.0, 600.0)
+        for toe_or_heel in P.sole_points((500.0, 100.0), hosel, self.W, self.H):
+            self.assertLess(math.dist(toe_or_heel, hosel), 0.15 * 500.0)
+            self.assertGreater(math.dist(toe_or_heel, (0.0, 0.0)), 100.0)
+
+    def test_picks_the_side_that_keeps_both_points_in_frame(self):
+        """The side is arbitrary — so it is spent on staying on screen. A hosel at the
+        left edge must not put the sole off the left of the image."""
+        toe, heel = P.sole_points((5.0, 100.0), (5.0, 600.0), self.W, self.H)
+        for point in (toe, heel):
+            self.assertGreaterEqual(point[0], 0.0)
+            self.assertLessEqual(point[0], self.W - 1)
+
+    def test_clamps_into_the_frame_when_neither_side_fits(self):
+        """A 1-pixel-wide image has no side that fits; clamped beats off-canvas."""
+        toe, heel = P.sole_points((0.0, 100.0), (0.0, 600.0), 1, self.H)
+        for point in (toe, heel):
+            self.assertGreaterEqual(point[0], 0.0)
+            self.assertLessEqual(point[0], 0.0)
+
+    def test_a_collapsed_shaft_does_not_divide_by_zero(self):
+        """Unreachable through main() — MIN_SHAFT_FRACTION rejects it first."""
+        hosel = (500.0, 600.0)
+        self.assertEqual(P.sole_points(hosel, hosel, self.W, self.H), (hosel, hosel))
+
+
 class PrelabelXml(unittest.TestCase):
-    PRE = {'butt': (10.5, 20.25), 'hosel': (30.0, 40.0), 'conf': 0.9}
+    PRE = {'butt': (10.5, 20.25), 'hosel': (30.0, 40.0),
+           'toe': (50.5, 60.75), 'heel': (45.0, 55.0), 'conf': 0.9}
 
     def test_emits_all_four_sublabels_in_spec_order(self):
         xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top', 'width': 720, 'height': 1280,
@@ -294,18 +357,22 @@ class PrelabelXml(unittest.TestCase):
         order = [xml.index(f'label="{name}"') for name in ('butt', 'hosel', 'toe', 'heel')]
         self.assertEqual(order, sorted(order))
 
-    def test_writes_the_sole_points_as_outside_rather_than_omitting_them(self):
-        """The shipped model is 2-point. The skeleton still has to carry all four
-        sublabels the task declares, and a point nobody could place is `outside` -- the
-        spec's own word for it -- not a missing element."""
+    def test_writes_the_sole_points_placed_rather_than_outside(self):
+        """Delivered placed, at real coordinates. `outside="1"` with no coordinates left
+        the annotator un-checking a flag from the PARTS panel and then dragging the point
+        out of the image corner; setting `outside` is the cheap direction (key `O`), so it
+        is the exception that pays, not the normal case."""
         xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top', 'prelabel': self.PRE}])
-        for name in P.SOLE_POINTS:
-            self.assertIn(f'<points label="{name}" occluded="0" source="manual" '
-                          f'outside="1" points="0.00,0.00">', xml)
+        self.assertIn('<points label="toe" occluded="0" source="manual" outside="0" '
+                      'points="50.50,60.75">', xml)
+        self.assertIn('<points label="heel" occluded="0" source="manual" outside="0" '
+                      'points="45.00,55.00">', xml)
+        self.assertNotIn('outside="1"', xml)
+        self.assertNotIn('points="0.00,0.00"', xml)
 
-    def test_never_marks_a_pre_labelled_shaft_point_outside(self):
+    def test_never_marks_a_pre_labelled_point_outside(self):
         xml = P.prelabel_xml([{'id': 'a_s00_f01', 'phase': 'top', 'prelabel': self.PRE}])
-        for name in P.SHAFT_POINTS:
+        for name in P.SHAFT_POINTS + P.SOLE_POINTS:
             index = xml.index(f'label="{name}"')
             self.assertIn('outside="0"', xml[index:index + 120])
 

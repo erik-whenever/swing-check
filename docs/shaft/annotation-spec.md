@@ -876,12 +876,28 @@ projektet. Exkludering, faskvoter och determinism är enhetstestade i
 en CVAT-importerbar fil där modellen redan placerat `butt` och `hosel`. Frames utan
 förhandsmärkning får **inget objekt** — annotatören ritar från noll där.
 
-**Bara skaftpunkterna förhandsmärks.** Den levererande modellen är tvåpunkts (se
-*Bakåtkompatibilitet* ovan), så `toe` och `heel` skrivs som `outside="1"` — de finns i
-skelettet för att objektet ska matcha etikettschemats fyra sub-etiketter, men de är
-osatta och annotatören placerar dem från noll. Att låta dem vara `outside` i stället för
-att utelämna dem är samma regel som i specen: en punkt ingen kunnat sluta sig till är
-`outside`, inte ett fel.
+**Bara skaftpunkterna är förhandsmärkta — men alla fyra levereras placerade.** Den
+levererande modellen är tvåpunkts (se *Bakåtkompatibilitet* ovan) och har ingen åsikt om
+solan. `toe` och `heel` skrivs ändå med `outside="0"` och riktiga koordinater: en kort
+linje ut ur `hosel`, ungefär vinkelrät mot skaftet, med längden **9 % av avståndet
+`butt`→`hosel`** i bilden. Det är ett **startläge att dra ifrån, inte en gissning** —
+sidan är godtycklig (skriptet väljer den som håller båda punkterna innanför bildkanten)
+och läget är rätt bara av en slump.
+
+**Annotatören sätter `outside` själv** på de frames där klubbhuvudet inte går att
+urskilja — det är undantaget, inte normalfallet, och regeln i *[Punktflaggor](#punktflaggor-cvat)*
+är oförändrad: en punkt du varken ser eller kan sluta dig till är `outside`. Riktningen är
+vald efter vad den kostar i CVAT:s gränssnitt. Att sätta `outside` **på** är tangenten `O`;
+att kryssa **ur** den kräver ett musklick i **PARTS**-panelen, och en punkt som aldrig
+dragits har inga koordinater — CVAT släpper den då i bildens övre vänstra hörn, varifrån
+den ska dras hela vägen till huvudet. Levererade som `outside="1"` var alltså normalfallet
+dyrt och undantaget billigt; nu är det tvärtom.
+
+Proportionen 9 % är ett verkligt klubbhuvud mätt mot den enda längd skriptet känner till,
+`butt`→`hosel` (klubbans längd minus huvudet): sulans häl–tå-längd delat med den är
+≈ 115/1143 = 0,10 för en driver, ≈ 81/940 = 0,086 för en järnsjua och ≈ 0,09 för en wedge.
+Hälen ligger 1 % ut från `hosel` i stället för på den — hoseln *är* huvudets hälsida, men
+två punkter ovanpå varandra går inte att greppa.
 
 ```powershell
 py -3.11 training\prelabel_batch.py --batch data\shaft\training\batch-02\batch.zip
@@ -972,7 +988,8 @@ källa i `cvat-ai/cvat@develop`) — inte antaget:
   är den dokumenterade representationen. Både schemablocket och det genomgångna exemplet på
   sidan bär den.
 - `<points label="…">` namnger **sub-etiketten**, alltså `butt` / `hosel` / `toe` / `heel`,
-  och de skrivs i den ordningen.
+  och de skrivs i den ordningen. Alla fyra skrivs med `outside="0"` — solpunkterna är ett
+  startläge, inte en modellutdata.
 - **Etikettschemat kan inte importeras** — samma fallgrop som för `prefill-phase.xml`:
   *"Only label names can be imported this way, colors, attributes, and skeleton labels must
   be defined manually."* `shaft`-skelettet med sina **fyra** sub-etiketter måste alltså redan
@@ -995,9 +1012,12 @@ en obesvarad fråga när annotatören öppnar framen. Att en frame är förhands
 ingenting om vilken vy den har, bara att svingen den kom ur redan är annoterad som `dtl`
 någon annanstans.
 
-Punktflaggorna är också osatta (båda skaftpunkterna ligger som `visible`, `toe`/`heel` som
-`outside`). Modellens keypoint-score är **inte** specens synlighetsbedömning och får inte
-kläs ut till en.
+Punktflaggorna är också osatta — **alla fyra** punkterna ligger som `visible`
+(`occluded="0" outside="0"`). Modellens keypoint-score är **inte** specens
+synlighetsbedömning och får inte kläs ut till en, och att `toe`/`heel` levereras placerade
+är inget påstående om att de *är* synliga: det är bara ett startläge (se *[Förhandsmärkning
+med modellen](#förhandsmärkning-med-modellen)*). Sätt flaggorna själv enligt
+*[Punktflaggor](#punktflaggor-cvat)*.
 
 Punkterna skrivs som `source="manual"`, inte `"auto"`. Båda är dokumenterade värden, men
 `auto` är det repot aldrig kört en rundtur på, och en förhandsmärkning som CVAT tar emot

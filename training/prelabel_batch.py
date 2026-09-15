@@ -92,13 +92,31 @@ prefill is disabled project-wide because the derivation was ~50 % wrong (F5). Th
 skeleton is emitted with no attributes at all, so CVAT applies the label defaults and
 every attribute is still an unanswered question when the annotator opens the frame.
 
-TOE AND HEEL ARE NOT PRE-LABELLED. The shipped model predates the four-point schema and
-emits two keypoints; there is nothing to pre-label them with, and inventing a sole from a
-shaft direction would be a guess wearing a measurement's clothes. They are written into
-every skeleton as `outside="1"` so the object carries all four sublabels the task's label
-schema declares — an unplaceable point is `outside`, which is exactly what the spec says
-(annotation-spec.md → *Punktflaggor*). The annotator places them from nothing. When a
-four-point checkpoint exists, `SOLE_POINTS` here is where it plugs in.
+TOE AND HEEL ARE NOT PREDICTED — THEY ARE HANDED OVER PLACED ANYWAY. The shipped model
+predates the four-point schema and emits two keypoints, so there is nothing to pre-label
+the sole WITH. What the script writes for `toe` and `heel` is therefore a STARTING
+POSITION, not a guess dressed as a measurement: a short segment out of the hosel, roughly
+perpendicular to the shaft, sized like a real club head (see `SOLE_LENGTH_FRACTION`). The
+annotator drags both points on every frame regardless.
+
+Why place them at all, instead of shipping them `outside="1"` as this script first did?
+Because `outside` is the wrong default in CVAT's own UI, for two measured reasons:
+
+  1. An `outside` point has no coordinates the annotator can see. CVAT keeps the last
+     dragged position, and a point that was never dragged has none — so the moment the
+     annotator clears the flag, the point appears in the image's top-left corner and has
+     to be dragged the whole way across the frame.
+  2. The flag is asymmetric on the keyboard. Setting `outside` ON is the `O` shortcut;
+     clearing it means a mouse trip into the PARTS panel and a click on the right row.
+
+So `outside="1"` made the NORMAL case (a visible head, four points to place) the expensive
+one and the EXCEPTION (a head that cannot be made out) the cheap one. Delivering the sole
+placed inverts that: the normal case is a drag, and the exception is one keystroke. The
+spec's rule is unchanged and still the annotator's — an unplaceable point is `outside`
+(annotation-spec.md → *Punktflaggor*) — this only changes which answer costs less to give.
+
+When a four-point checkpoint exists, `sole_points()` here is where it is replaced by a
+real prediction.
 
 Usage:
   py -3.11 training/prelabel_batch.py --batch data/shaft/training/batch-03/batch.zip
@@ -164,6 +182,23 @@ MIN_SHAFT_FRACTION = 0.01
 # CVAT silently refuses.
 SHAFT_POINTS = ('butt', 'hosel')
 SOLE_POINTS = ('toe', 'heel')
+
+# How long the delivered sole is, as a fraction of the butt→hosel distance in the image.
+#
+# The script knows exactly one length: butt→hosel, which on a real club is the shaft plus
+# the grip — the whole club minus the head. Heel-to-toe sole length over THAT length is
+# roughly 115/1143 ≈ 0.10 for a driver, 81/940 ≈ 0.086 for a 7-iron and ≈ 0.09 for a
+# wedge, so 0.09 sits in the middle of the clubs a range session actually contains. It is
+# a plausible club head, not a measured one: the point is that the annotator starts at the
+# head instead of at the image corner, and a starting size within ~15 % of every club in
+# the bag is as close as a two-point model can honestly get.
+SOLE_LENGTH_FRACTION = 0.09
+
+# How far out from the hosel the HEEL end of that segment starts. The hosel is the heel
+# side of the head, so geometrically this wants to be ~0, but a point drawn exactly on top
+# of another point is a point the annotator cannot grab. One percent of the club length
+# separates them on screen and is still inside the head.
+HEEL_OFFSET_FRACTION = 0.01
 
 SKIP_REASONS = [
     'view-blocked',
@@ -388,6 +423,53 @@ def select_best(raw: np.ndarray, conf_threshold: float, iou_threshold: float = 0
     )
 
 
+def sole_points(butt, hosel, width: int, height: int):
+    """Starting coordinates for `toe` and `heel`: a short segment out of the hosel,
+    perpendicular to the shaft. Returns `(toe, heel)` in source pixels.
+
+    NOT a prediction. The shipped model is two-point and has no opinion about the sole;
+    this is the position the annotator starts dragging FROM, and the only claim it makes
+    is "the head is at the hosel end, and it is about this big" — see the module docstring
+    and `SOLE_LENGTH_FRACTION`.
+
+    WHICH perpendicular is arbitrary, and stays arbitrary: a club head is as often on one
+    side of the shaft as the other, nothing in a two-point detection says which, and the
+    annotator drags both points either way. That freedom is spent on the one thing here
+    that is not arbitrary — the side that keeps both points inside the image, where they
+    can be seen and grabbed. When neither side does (a hosel near the frame edge), the
+    points are clamped into the frame, which is still an order of magnitude closer to the
+    head than the origin is.
+    """
+    dx, dy = hosel[0] - butt[0], hosel[1] - butt[1]
+    length = math.hypot(dx, dy)
+    if length <= 0:
+        # Unreachable through main(): MIN_SHAFT_FRACTION rejects a collapsed shaft before
+        # this is called. Guarded anyway so the function has no division by zero in it.
+        return hosel, hosel
+    ux, uy = -dy / length, dx / length
+    heel_d = HEEL_OFFSET_FRACTION * length
+    toe_d = heel_d + SOLE_LENGTH_FRACTION * length
+
+    def side(sign: int):
+        return ((hosel[0] + sign * ux * toe_d, hosel[1] + sign * uy * toe_d),
+                (hosel[0] + sign * ux * heel_d, hosel[1] + sign * uy * heel_d))
+
+    def inside(point) -> bool:
+        return 0 <= point[0] <= width - 1 and 0 <= point[1] <= height - 1
+
+    toe, heel = side(1)
+    if not (inside(toe) and inside(heel)):
+        other_toe, other_heel = side(-1)
+        if inside(other_toe) and inside(other_heel):
+            toe, heel = other_toe, other_heel
+
+    def clamp(point):
+        return (min(max(point[0], 0.0), float(width - 1)),
+                min(max(point[1], 0.0), float(height - 1)))
+
+    return clamp(toe), clamp(heel)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CVAT output
 # ─────────────────────────────────────────────────────────────────────────────
@@ -401,8 +483,11 @@ def select_best(raw: np.ndarray, conf_threshold: float, iou_threshold: float = 0
 #     documented representation. Both the schema block and the worked example on that
 #     page carry it.
 #   - `<points label="…">` names the SUBLABEL — `butt`, `hosel`, `toe`, `heel`, written
-#     in that order. The sole points carry `outside="1"`: the model has no opinion about
-#     them, and CVAT's own representation of "point not placed" is the flag, not omission.
+#     in that order. All four carry `outside="0"`, the sole points included: they are a
+#     starting position for the annotator to drag, not a claim about the head (module
+#     docstring → *TOE AND HEEL*). Setting `outside` where the head cannot be made out is
+#     the annotator's call and costs one keystroke; clearing it costs a trip into the
+#     PARTS panel, which is why the placed state is the one shipped.
 #   - The label schema cannot be created by importing the file: "Only label names can be
 #     imported this way, colors, attributes, and skeleton labels must be defined
 #     manually." So the `shaft` skeleton label must already exist on the task, with all
@@ -491,19 +576,13 @@ def prelabel_xml(frames: list[dict], name_prefix: str = 'frames/') -> str:
             continue
         lines.append(f'  <image {attrs}>')
         lines.append('    <skeleton label="shaft" source="manual" z_order="0">')
-        for point_label in SHAFT_POINTS:
+        # All four sublabels, placed, in the schema's fixed order. `toe`/`heel` come from
+        # `sole_points()` — geometry off the hosel, not a prediction.
+        for point_label in SHAFT_POINTS + SOLE_POINTS:
             x, y = pre[point_label]
             lines.append(
                 f'      <points label="{point_label}" occluded="0" source="manual" '
                 f'outside="0" points="{x:.2f},{y:.2f}">'
-            )
-            lines.append('      </points>')
-        # The sole points: present so the skeleton carries every sublabel the task
-        # declares, `outside` because the model has nothing to say about them.
-        for point_label in SOLE_POINTS:
-            lines.append(
-                f'      <points label="{point_label}" occluded="0" source="manual" '
-                f'outside="1" points="0.00,0.00">'
             )
             lines.append('      </points>')
         lines.append('    </skeleton>')
@@ -610,9 +689,14 @@ def report_markdown(frames, ctx) -> str:
           '- **`view`, `blur`, `phase` och `no_shaft` är osatta** och ska sättas som vanligt. Att en',
           '  frame är förhandsmärkt säger ingenting om vilken vy den har — bara att svingen den kom',
           '  ur redan är annoterad som en vy grinden släpper in, någon annanstans.',
-          '- **`toe` och `heel` är inte förhandsmärkta.** Modellen är tvåpunkts och har ingen',
-          '  åsikt om solan; de ligger som `outside` i skelettet och ska placeras från noll.',
-          '- **Punktflaggorna är osatta** (skaftpunkterna ligger som `visible`). Modellens',
+          '- **`toe` och `heel` levereras placerade, men är inte förhandsmärkta.** Modellen är',
+          '  tvåpunkts och har ingen åsikt om solan: punkterna ligger som en kort linje ut ur',
+          '  hoseln, vinkelrätt mot skaftet, med klubbhuvudets ungefärliga längd — ett',
+          '  startläge att dra ifrån, inte en gissning. Sidan är godtycklig. Gå inte vidare',
+          '  för att de ser placerade ut; de är rätt bara av en slump.',
+          '- **Kan du inte urskilja huvudet — sätt `outside` själv** (tangent `O`). Det är',
+          '  undantaget, inte normalfallet, och därför är det den billiga åtgärden.',
+          '- **Punktflaggorna är osatta** (alla fyra punkterna ligger som `visible`). Modellens',
           '  keypoint-score är inte specens synlighetsbedömning; sätt `occluded`/`outside` själv',
           '  enligt *Punktflaggor* i specen.',
           '- En frame **utan** objekt är inte ett påstående om att där inte finns någon klubba — se',
@@ -709,7 +793,8 @@ def main(argv=None) -> int:
             if math.dist(butt, hosel) < MIN_SHAFT_FRACTION * frame['height']:
                 frame['reason'] = 'degenerate-shaft'
                 continue
-            frame['prelabel'] = dict(butt=butt, hosel=hosel, conf=best['conf'])
+            toe, heel = sole_points(butt, hosel, frame['width'], frame['height'])
+            frame['prelabel'] = dict(butt=butt, hosel=hosel, toe=toe, heel=heel, conf=best['conf'])
             if n % 25 == 0 or n == len(frames):
                 print(f'  {n}/{len(frames)} frames')
 
