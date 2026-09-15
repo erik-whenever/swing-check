@@ -100,3 +100,51 @@ träningspipeline är opåverkade.
   och skrivs om vid ett plattformsbyte.
 - **Datamodellen för skaftmätvärdena** (ej byggd än) bör läggas på en nivå som **överlever
   plattformsbytet** — mätvärden och regler ska inte vara bundna till webbruntime.
+
+
+### F7 — Skaftets svikt mot den räta butt→hosel-linjen
+**Datum:** 2026-09-15 · **Status:** ÖPPEN
+
+Skaftet böjer sig under svingen, mest i nedsvinget där kraften är störst. Vår 2-punktslinje
+`butt`→`hosel` är en **rät linje genom ett böjt skaft**, och avvikelsen kan vara flera grader
+— samma storleksordning som modellens hela vinkelfel (v2: vinkelmedian **1,06°**).
+
+**Frågan:** avviker den räta linjen **systematiskt** från det en tränare menar med skaftläge?
+En mittpunkt på skaftet skulle göra böjningen mätbar, men innebär en **femte keypoint** och
+ännu en annoteringsomgång över allt redan annoterat material.
+
+**Åtgärd:** mät när fyrapunktsmodellen finns. **Agera inte innan.**
+
+### F8 — Hosel som `occluded` längs riktningen i stället för `outside`
+**Datum:** 2026-09-15 · **Status:** ÖPPEN
+
+Idag sätts `hosel` till `outside` när klubbhuvudet är utanför bild eller osynligt. Framen bär
+då bara **en** punkt, och skaftets riktning går förlorad trots att annotatören ser skaftet
+tydligt.
+
+**Förslag att pröva:** placera `hosel` **längs skaftets synliga riktning** — vid bildkanten
+eller där skaftet försvinner — och flagga `occluded`. Modellen får då en riktning att lära sig
+av i stället för ingenting.
+
+**Gränsen som måste vara tydlig om det införs:**
+- **occluded** = skaftets *riktning* är känd, hoselns *exakta läge* är det inte
+- **outside** = inte ens riktningen är känd
+
+**Konsekvens:** batch-01, 02 och 03 har `outside` där regeln skulle ge `occluded`. Ingen
+omannotering krävs, men den gamla datan bär **färre användbara punkter än den kunde**.
+
+Berör [Punktflaggor](shaft/annotation-spec.md#punktflaggor-cvat), särskilt regeln
+*"En punkt utanför bildkanten är `outside`"* — den skulle behöva skrivas om för `hosel`.
+
+### F9 — `club` som attribut på shaft-objektet
+**Datum:** 2026-09-15 · **Status:** ÖPPEN
+
+Drivers är nästan omöjliga att sätta `toe`/`heel` på — helt rundade, och formen varierar mellan
+modeller. Vissa järn har också avrundad sola. Observationen är **systematisk, inte slumpmässig**,
+och driver är den klubba där bladvinkeln intresserar mest.
+
+**Förslag:** attributet `club` (`driver | iron | wedge | unknown`) på `shaft`-objektet i
+**batch-04**. Klubbtypen är densamma genom hela svingen, så kostnaden är låg.
+
+Det gör frågan **mätbar**: är modellen sämre på drivers, och behöver `toe`/`heel` en egen
+definition för rundade solor?
