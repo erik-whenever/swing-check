@@ -2023,6 +2023,87 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > Dokumentation: [shaft/annotation-spec.md](shaft/annotation-spec.md) → *Förhandsmärkning med
 > modellen*.
 
+### [x] S-17 — Mät bladvinkelns stabilitet över en sving
+
+> **Klart (2026-09-15).** `training/measure_blade_stability.py` + 39 enhetstest.
+> Kalibreringssetet är tvåpunkts och bär inget facit för bladvinkeln, så **träffsäkerheten**
+> går inte att mäta — **stabiliteten** går, och kräver inga annoteringar: `heel→toe` sitter på
+> samma stela kropp som `butt→hosel` och måste rotera lika jämnt. Skaftvinkeln är därför
+> måttstocken; varje tal rapporteras i par, mätt på samma frames. Grupperar per sving på
+> `clipName`+`swingIndex` över alla tre batchar (en batch ensam bär ~1 frame/sving). Mäter
+> `|Δvinkel/Δt|` i **°/s**, aldrig per frame — tidsstegen går från 0,1 s till flera sekunder.
+> Hopp >90° = omkastade ändar; skaftets hoppandel står bredvid som kontroll.
+> Rapport i `training/blade-stability.md` (genererad, ej i repot).
+
+### [x] S-18 — Spåra skaft- och bladvinkel över varje bildruta i ett klipp
+
+> **Klart (2026-09-15).** `training/trace_swing.py` + 33 enhetstest, 161/161.
+> S-17 mäter samma två vinklar men bara på batchernas samplade frames (mediansteg ~0,3 s) —
+> det säger *hur snabbt* vinkeln rör sig, inte *hur*. Vid 30 fps blir steget ~0,033 s och
+> skillnaden mellan "klubban roterar" (ramp) och "modellen gissar" (hack) syns med blotta ögat.
+> **Två trösklar, inte en:** `--kpt-conf-shaft` 0,5, `--kpt-conf-blade` 0,1 — gemensam 0,5 gav
+> **0 %** täckning på solpunkterna, 0,1 gav **80 %**. En gemensam tröskel gör inte mätningen
+> strängare, den gör den tom. **Luckor bryts, aldrig interpoleras.** Grafen visar serien
+> uppvecklad, CSV:n rådata; hastigheter räknas aldrig på den uppvecklade serien.
+> **Körningen på `data/shaft/clips/002.mp4` återstår** — fyrapunktsvikterna finns inte på
+> maskinen. Röktestat med `shaft-v2.onnx`: skafttäckning 100 %, bladtäckning 0 %.
+
+### [x] S-19 — Datamodellen för skaftmätvärden
+
+> **Klart (2026-09-17).** Ny modul `src/lib/shaft/measure/` — rådatalager,
+> rimlighetskontroll och härledda mätvärden. **Inga regler, ingen UI, ingen koppling till
+> Vision-prompten.** `frameExtractor.ts`, `poseEnvelope.ts`, `poseSegments.ts`,
+> `poseEnvelopeSelection.ts`, `prompt.ts`, `api.ts` och `worker/` är **byte-för-byte orörda**
+> (verifierat med `git diff main`). Dokumentation: [shaft/datamodell.md](shaft/datamodell.md).
+>
+> **Rådatalagret (`shaftSeries.ts`) är ren data.** Per sving: modellidentitet
+> (`file` + `keypoints`), vy, pixelrymd; per bildruta: tid, fas, fyra punkter **med
+> konfidens**, skaftvinkel, bladvinkel, plus de sex MediaPipe-landmärken mätvärdena läser.
+> Ingen beräkning, inget beroende till `onnxruntime-web` eller webbläsaren — inte ens ett
+> typimport. Sömmen ligger i `fromDetection.ts`, som importerar **bara typer** och tar
+> modellens filnamn som argument i stället för via `MODEL_FILE` (den konstanten hade dragit in
+> hela detektormodulen i varje bundle). Överlever plattformsbytet (*F6*) och ett detektorbyte.
+>
+> **Vinkelkonventionen är Pythons**, värde för värde: `atan2(dy, dx)`, riktade `butt→hosel`
+> och `heel→toe`. **En avvikelse, funnen av ett test:** `angle_difference` i `evaluate.py` är
+> rätt i Python men fel som direktöversättning — JS `%` är en *rest* som behåller tecknet, så
+> uttrycket ger 358 där det ska ge 2, precis vid sömmen. TS-versionen gör dubbel modulo.
+>
+> **Rimlighetskontrollen (`plausibility.ts`) är en typgrind, inte en konvention:**
+> `derived.ts` tar en `CheckedShaftSwingSeries` och `checkShaftSeries` är det enda som
+> producerar en. Varje bildruta får **två** flaggor (skaft resp. blad) på tre nivåer
+> `usable`/`uncertain`/`rejected`, varje icke-`usable` flagga bär skäl, och en förkastad
+> bildruta ligger **kvar** med sina koordinater — det är flaggan som ändrats. Testad mot de
+> tre mätta felmönstren: omkastade ändar (150–180°, tröskel 90° med två pass — isolerad
+> vändning förkastas, ett varaktigt byte märks tvetydigt i **båda** ändar), bladets oro
+> (71–78 °/s mot 12 °/s, kvot ~6, bar vid 3, skrivs på varje bladflagga) och **separata
+> konfidenströsklar** (solpunkter median 0,26 / max 0,55 mot 0,99–1,00 — ett test visar att
+> en gemensam ribba tömmer mätningen i stället för att skärpa den).
+>
+> **Fem härledda mätvärden, alla projektioner, alla med sina förutsättningar som data**
+> (`MEASUREMENT_ASSUMPTIONS`): skaftvinkel per fas, skaftläge vid P2 och P4 relativt kroppen
+> (torsolängder — **inte** axelbredd, som kollapsar mot noll i `dtl`), across-the-line vs
+> laid-off, klubbhuvudets bana (spårar **`hosel`**, inte huvudet), svingplanets lutning som
+> projektion med residual. **Vy som saknas och vy som är fel är två olika fel:**
+> `camera-angle-mismatch` → förkastat, `camera-angle-unknown` → beräknat och märkt.
+>
+> **Bladvinkel byggdes INTE som härlett mätvärde.** Den bärs i rådatalagret och mäts fullt ut
+> av kontrollen — att kasta den hade gjort beslutet ofalsifierbart och en fyrapunktsmodell hade
+> inte haft någonstans att landa — men `MEASUREMENT_ASSUMPTIONS` nämner varken `toe` eller
+> `heel`, så beslutet är synligt i datamodellen och inte bara argumenterat i en kommentar.
+>
+> **`// OSÄKER:` på teckenkonventionen** för across-the-line (`ACROSS_THE_LINE_SIGN`): angiven,
+> inte verifierad. Begränsad genom att mätvärdet aldrig når `usable` (`sign-convention-unverified`
+> följer alltid med). Verifieras av **en** annoterad DTL-bildruta av en känd across-the-line-topp.
+>
+> **Vad som inte går att härleda** står i [shaft/datamodell.md](shaft/datamodell.md) med skäl:
+> klubbladsvinkel (en linje bär ingen rullning kring sig själv), klubbväg in-to-out (axeln
+> ligger i djupled och projiceras bort) och anfallsvinkel (djupled **och** tidsupplösning —
+> ~20 frames/sving mot ett ögonblick vid 130 km/h).
+>
+> **Verifierat:** `npm run build` rent · `npm run lint` 2 kvarstående fel i orörda filer
+> (baslinjen) · `npm test` **470/470** (89 nya).
+
 
 ---
 

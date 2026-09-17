@@ -1,9 +1,52 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-15.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-17.
 >
-> **Senast (2026-09-15, stream-shaft):** `training/trace_swing.py` — **modellen körd på varje
+> **Senast (2026-09-17, stream-shaft):** S-19 — **datamodellen för skaftmätvärden**, ny modul
+> `src/lib/shaft/measure/` ([docs/shaft/datamodell.md](shaft/datamodell.md)). **Inga regler, ingen
+> UI, ingen koppling till Vision-prompten.** `frameExtractor.ts`, `poseEnvelope.ts`,
+> `poseSegments.ts`, `poseEnvelopeSelection.ts`, `prompt.ts`, `api.ts` och `worker/` är
+> **byte-för-byte orörda** — verifierat med `git diff main`, inte antaget.
+> **Tre lager med en riktning:** `shaftSeries.ts` (ren data) → `plausibility.ts` (grinden) →
+> `derived.ts` (de fem mätvärden som är ärliga i 2D). Regler ligger ovanför och finns inte än.
+> **Rådatalagret är ren data på riktigt** — ingen beräkning, inget beroende till
+> `onnxruntime-web` eller webbläsaren, inte ens ett typimport. Sömmen ligger i
+> `fromDetection.ts`, som importerar **bara typer** och tar modellens filnamn som argument i
+> stället för via `MODEL_FILE` (den konstanten hade dragit in hela detektormodulen i varje
+> bundle). Per sving bärs modellidentiteten (`file` + `keypoints`); per bildruta tid, fas, fyra
+> punkter med konfidens, skaft- och bladvinkel, plus de sex MediaPipe-landmärken mätvärdena
+> läser. Överlever plattformsbytet (*F6*) och ett detektorbyte.
+> **Kontrollen är en typgrind, inte en konvention:** `derived.ts` tar en
+> `CheckedShaftSwingSeries` och `checkShaftSeries` är det enda som producerar en. Varje
+> bildruta får **två** flaggor (skaft resp. blad), tre nivåer, skäl på varje icke-`usable`
+> flagga — och en förkastad bildruta **ligger kvar** med sina koordinater. Testad mot de tre
+> mätta felmönstren: omkastade ändar (150–180°; tröskel 90°, två pass — isolerad vändning
+> förkastas, ett varaktigt byte märks tvetydigt i båda ändar), bladets oro (71–78 °/s mot
+> 12 °/s, kvot ~6, bar vid 3) och **separata konfidenströsklar** (solpunkter median 0,26 / max
+> 0,55 mot 0,99–1,00). Ett test visar direkt att en **gemensam** ribba tömmer mätningen i
+> stället för att skärpa den.
+> **Bladvinkel byggdes INTE uppåt.** Den bärs i rådatalagret och mäts fullt ut av kontrollen —
+> att kasta den hade gjort beslutet ofalsifierbart — men `MEASUREMENT_ASSUMPTIONS` nämner
+> varken `toe` eller `heel`, så beslutet är synligt i datamodellen.
+> **Fem härledda mätvärden, alla projektioner, alla med sina förutsättningar som data:**
+> skaftvinkel per fas, skaftläge vid P2/P4 relativt kroppen (**torsolängder**, inte axelbredd —
+> den kollapsar mot noll i `dtl`), across-the-line vs laid-off, klubbhuvudets bana (spårar
+> **`hosel`**, inte huvudet), svingplanets lutning med residual. Vy som **saknas** och vy som är
+> **fel** behandlas olika: `camera-angle-mismatch` → förkastat, `camera-angle-unknown` → beräknat
+> och märkt.
+> **`// OSÄKER:` på teckenkonventionen** för across-the-line — angiven, inte verifierad; mätvärdet
+> når därför aldrig `usable`. **En** annoterad DTL-bildruta av en känd across-the-line-topp
+> avgör den.
+> **En riktig bugg fångad av ett test:** `angle_difference` i `training/evaluate.py` är rätt i
+> Python men fel som direktöversättning — JS `%` är en *rest* som behåller tecknet, så uttrycket
+> ger 358 där det ska ge 2, precis vid sömmen. TS-versionen gör dubbel modulo.
+> **Två luckor i BACKLOG stängda samtidigt:** S-17 och S-18 (blade-stabiliteten och
+> `trace_swing.py`, båda committade 2026-09-15) saknade poster och har fått dem.
+> `npm run build` rent · `npm run lint` 2 kvarstående fel i orörda filer (baslinjen) ·
+> `npm test` **470/470** (89 nya).
+>
+> **Dessförinnan (2026-09-15, stream-shaft):** `training/trace_swing.py` — **modellen körd på varje
 > bildruta i ett klipp**, inte bara de envelope-valda, med skaft- och bladvinkel plottade över tid
 > (`training/trace-<klipp>.png`) och rådata per bildruta (`.csv`, gitignorerat). Vid 30 fps blir
 > tidssteget ~0,033 s i stället för träningsbatcharnas ~0,3 s; `measure_blade_stability.py` svarar
