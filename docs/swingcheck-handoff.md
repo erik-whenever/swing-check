@@ -42,6 +42,14 @@
 > address- eller nedslagsbildruta står nära lodrätt av skäl som inte har med en topp att göra.
 > **Kvar för att stärka tecknet:** en bedömd laid-off-topp och en verifierat vänsterhänt,
 > ospeglad bildruta. Ingendera finns i materialet.
+> **Blind omgång att fylla i:** `scripts/across-sign-candidates.ts --blind` skriver
+> [shaft/across-sign-blind.md](shaft/across-sign-blind.md) — 12 bildrutor med **bara frame-id,
+> bildlänk och tom svarskolumn**, slumpad ordning med fast frö `0x5ca1ab1e`. Facit ligger i
+> [shaft/across-sign-blind-key.md](shaft/across-sign-blind-key.md) och nämns inte i den blinda
+> filen. Urvalet är alla kandidater höger om lodrätt plus de 7 närmast vikningen till vänster;
+> **hela klippet `093-2c11c3c0` är undantaget**, inte bara den namngivna bildrutan — `s01_f01`
+> är en annan sving ur samma spegelvända inspelning och bär samma inversion. Kvar: 5 höger +
+> 7 vänster. Kandidatrapporten och dess 20 bildrutor rörs inte av `--blind`.
 > `npm run lint` baslinjen (2 fel i orörda `useHistory.ts`) · `npm test` **472/472**.
 >
 > **Dessförinnan (2026-09-17, stream-shaft):** S-21 — **teckenkonventionen för across-the-line är

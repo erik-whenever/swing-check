@@ -533,6 +533,15 @@ function run(work: string): void {
   }
 
   const dtl = rows.filter((r) => r.bucket === 'dtl').sort((a, b) => a.distanceTo90Deg - b.distanceTo90Deg);
+
+  // `--blind` produces the judging round instead of the report, and deliberately leaves
+  // the report and its 20 frames byte-for-byte alone: re-running the whole thing to get a
+  // second artefact would rewrite the very file the round is meant to be checked against.
+  if (process.argv.includes('--blind')) {
+    writeBlindRound(dtl, work);
+    return;
+  }
+
   writeReport(dtl, rows, {
     predictions: predictions.length,
     joined: records.length,
@@ -901,6 +910,193 @@ ${stats.swings} svingar med predictions totalt.${stats.unjoined.length ? ` ${sta
 
   mkdirSync(path.dirname(OUT_DOC), { recursive: true });
   writeFileSync(OUT_DOC, doc, 'utf8');
+}
+
+// ── The blind round (`--blind`) ──────────────────────────────────────────────
+
+const OUT_BLIND = path.join(ROOT, 'docs', 'shaft', 'across-sign-blind.md');
+const OUT_BLIND_KEY = path.join(ROOT, 'docs', 'shaft', 'across-sign-blind-key.md');
+const OUT_BLIND_FRAMES = path.join(ROOT, 'docs', 'shaft', 'across-sign-blind');
+
+/** Shuffle seed. Printed in both files so the order can be reproduced, never inferred. */
+const BLIND_SEED = 0x5ca1ab1e;
+
+/** How many of the left-of-vertical candidates to take, nearest the fold first. */
+const BLIND_LEFT_COUNT = 7;
+
+/**
+ * CLIPS kept out of the round, with the reason — clips, not frames, and that is the point.
+ *
+ * `093-2c11c3c0_s00_f02` is the frame the mirroring was found in, but a mirrored camera is
+ * a property of the recording: `093-2c11c3c0_s01_f01` is another swing out of the same clip
+ * and is just as flipped. Excluding only the named frame would have left its twin in the
+ * round, carrying the one inversion the round is not testing for.
+ */
+const BLIND_EXCLUDED_CLIPS: Record<string, string> = {
+  '093-2c11c3c0': 'spegelvänd inspelning — hanteras separat',
+};
+
+/** The clip part of a frame id: everything before `_sNN`. */
+function clipKeyOf(frameId: string): string {
+  return frameId.replace(/_s\d+_f\d+$/, '');
+}
+
+function blindExclusion(frameId: string): string | undefined {
+  return BLIND_EXCLUDED_CLIPS[clipKeyOf(frameId)];
+}
+
+/** mulberry32: small, seeded, and the same sequence on every platform. */
+function rng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Fisher-Yates, back to front, on a copy. */
+function shuffle<T>(items: readonly T[], next: () => number): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/**
+ * The judging round: one file to judge from, one to check against afterwards.
+ *
+ * WHAT THE BLIND FILE MAY NOT CONTAIN, and why each one is a leak: the shaft angle and the
+ * distance to 90° (the answer, in degrees); the side of vertical (the answer, as a
+ * direction); the computed sign or category (the answer, in words); the table order from
+ * the report (sorted on distance to the fold, so position is the answer); how many frames
+ * came from each side (a count that turns 13 judgements into 13 guesses with a known sum);
+ * and the file name of the key. The frames are copied under plain `<frame-id>.jpg` for the
+ * same reason — a rank prefix would carry the sort order into the file listing.
+ */
+function writeBlindRound(dtl: Row[], work: string): void {
+  const right = dtl.filter((r) => r.orientationDeg > 0 && !blindExclusion(r.frameId));
+  const left = dtl
+    .filter((r) => r.orientationDeg < 0 && !blindExclusion(r.frameId))
+    .slice(0, BLIND_LEFT_COUNT);
+  const selected = [...right, ...left];
+  const excluded = dtl.filter((r) => blindExclusion(r.frameId));
+
+  const order = shuffle(selected, rng(BLIND_SEED));
+  const seedHex = `0x${BLIND_SEED.toString(16)}`;
+  const today = new Date().toISOString().slice(0, 10);
+
+  copyBlindFrames(order, work);
+
+  const blind = `# Blind bedömningsomgång — skaftet vid toppen
+
+> ${order.length} bildrutor att bedöma för hand. Ordningen är slumpad med fast frö
+> **\`${seedHex}\`** (mulberry32 + Fisher-Yates i \`scripts/across-sign-candidates.ts --blind\`)
+> och **bär ingen information** — varken radnumret, filnamnet eller grannraderna säger något
+> om svaret. Genererad ${today}.
+
+## Vad som ska fyllas i
+
+För varje bildruta: står skaftet **across the line** eller **laid off** vid toppen, sett
+bakifrån mot mållinjen?
+
+- \`across\` — klubban pekar höger om mållinjen (för en högerhänt spelare sett bakifrån)
+- \`laid-off\` — klubban pekar vänster om mållinjen
+- \`kan inte avgöra\` — bildrutan är ingen topp, vyn räcker inte, eller läget är för nära
+  mållinjen för att kalla åt något håll
+
+Skriv svaret i sista kolumnen. **Läs ingenting annat i \`docs/shaft/\` förrän alla rader är
+ifyllda** — resten av mappen innehåller det uträknade svaret.
+
+| # | frame-id | bild | ditt svar |
+|---:|---|---|---|
+${order
+  .map(
+    (r, i) =>
+      `| ${i + 1} | \`${r.frameId}\` | [\`${path.basename(OUT_BLIND_FRAMES)}/${r.frameId}.jpg\`](${path.basename(OUT_BLIND_FRAMES)}/${r.frameId}.jpg) |  |`,
+  )
+  .join('\n')}
+`;
+
+  const key = `# Facit till den blinda omgången
+
+> **Öppna inte förrän [across-sign-blind.md](across-sign-blind.md) är ifylld.**
+> Genererad ${today} av \`scripts/across-sign-candidates.ts --blind\`, samma körning som den
+> blinda filen. Frö: \`${seedHex}\`.
+
+## Urvalet
+
+Ur kandidattabellen i [across-sign-candidates.md](across-sign-candidates.md): **alla
+${right.length + excluded.length} kandidater höger om lodrätt** och de **${left.length}
+närmast vikningen till vänster**.
+${
+  excluded.length
+    ? `Undantagna: ${excluded
+        .map((r) => `\`${r.frameId}\``)
+        .join(', ')} — hela klippet \`${[...new Set(excluded.map((r) => clipKeyOf(r.frameId)))].join('`, `')}\` (${[...new Set(excluded.map((r) => blindExclusion(r.frameId)))].join('; ')}). Därav ${right.length} + ${left.length} = **${selected.length}** rader.`
+    : `Totalt **${selected.length}** rader.`
+}
+Alla är \`dtl\`, alla bär fasen \`top\` från minst en etikett, och alla är räknade med
+\`handedness: 'right'\` — det är antagandet i hela tabellen, inte ett påstående om spelaren.
+
+**Varje bildruta i omgången är kontrollerad mot spegling** (bakgrundstext och vilken sida
+bollen ligger på) innan den släpptes in, eftersom en spegelvänd bild vänder tecknet utan att
+något i datamodellen märker det. Bara klippet nedan var spegelvänt; ingen annan bildruta i
+listan bär vänsterhänt geometri. Kontrollen säger ingenting om *utfallet* — den är gjord på
+bakgrunden, inte på klubban.
+
+**Vad omgången kan visa.** Stämmer ögat och \`ACROSS_THE_LINE_SIGN\` överens på båda sidor om
+lodrätt, är tecknet prövat på mer än den enda bildruta S-21 vilade på. Går de isär
+**systematiskt på den ena sidan**, ligger felet i vikningen vid ±90° och inte i tecknet.
+Enstaka \`kan inte avgöra\` säger i sig ingenting om tecknet — de säger att bildrutan inte
+var en topp.
+
+| # i blinda listan | frame-id | sida om lodrätt | \\|vinkel\\| mot horisontalen | avstånd till 90° | beräknat tecken | beräknat utfall | flagga |
+|---:|---|---|---:|---:|---:|---|---|
+${order
+  .map(
+    (r, i) =>
+      `| ${i + 1} | \`${r.frameId}\` | ${sideLabel(r)} | ${fmt(r.absFromHorizontalDeg)}° | ${fmt(r.distanceTo90Deg)}° | ${r.sign > 0 ? '+' : '−'} (${fmt(r.deviationDeg)}°) | \`${r.category}\` | \`${r.frameLevel}\`${r.frameReasons.length ? ` (${r.frameReasons.join(', ')})` : ''} |`,
+  )
+  .join('\n')}
+
+## Det uteslutna fallet
+
+${
+  excluded.length
+    ? excluded
+        .map(
+          (r) =>
+            `\`${r.frameId}\`: ${fmt(r.absFromHorizontalDeg)}° från horisontalen, ${fmt(r.distanceTo90Deg)}° från vikningen, ${sideLabel(r)}, beräknat \`${r.category}\`. ${HAND_READ[r.frameId]?.note ?? blindExclusion(r.frameId)}. Bedöm dem för sig: speglar man tillbaka bilden byter både händigheten och utfallet plats, och det är två fel som tar ut varandra bara om båda görs.`,
+        )
+        .join('\n\n')
+    : 'Inga.'
+}
+`;
+
+  writeFileSync(OUT_BLIND, blind, 'utf8');
+  writeFileSync(OUT_BLIND_KEY, key, 'utf8');
+  console.log(
+    `blind omgång: ${order.length} bildrutor (frö ${seedHex}) · ${path.relative(ROOT, OUT_BLIND)} · facit: ${path.relative(ROOT, OUT_BLIND_KEY)}`,
+  );
+}
+
+/** Blind frames keep their own plain names — no rank, no ordering, no hint. */
+function copyBlindFrames(rows: Row[], work: string): void {
+  rmSync(OUT_BLIND_FRAMES, { recursive: true, force: true });
+  mkdirSync(OUT_BLIND_FRAMES, { recursive: true });
+  const staging = path.join(work, 'blind');
+  for (const row of rows) {
+    unzip(path.join(row.batchDir, 'batch.zip'), staging, `frames/${row.frameId}.jpg`);
+    copyFileSync(
+      path.join(staging, 'frames', `${row.frameId}.jpg`),
+      path.join(OUT_BLIND_FRAMES, `${row.frameId}.jpg`),
+    );
+  }
 }
 
 function copyFrames(rows: Row[], work: string): void {

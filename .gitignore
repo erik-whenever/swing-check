@@ -68,3 +68,4 @@ training/trace-*.csv
 # scripts/across-sign-candidates.ts. Samma personer som originalen, samma skäl:
 # bilderna publiceras aldrig. Rapporten bredvid dem är text och committas.
 docs/shaft/across-sign-candidates/
+docs/shaft/across-sign-blind/

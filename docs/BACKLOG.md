@@ -2250,6 +2250,22 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 >
 > **Verifierat:** `npm run lint` (baslinjen, 2 fel i orörda `useHistory.ts`) · `npm test`
 > **472/472** · `git status` visar inga ändringar under `src/`.
+>
+> **Tillägg (2026-09-17): blind bedömningsomgång.** `--blind` på samma verktyg skriver
+> [shaft/across-sign-blind.md](shaft/across-sign-blind.md) — **12 bildrutor, bara frame-id,
+> bildlänk och en tom svarskolumn**, i ordning slumpad med fast frö `0x5ca1ab1e`
+> (mulberry32 + Fisher-Yates). Ingen vinkel, inget avstånd till 90°, inget tecken, inget
+> utfall, ingen sidofördelning och ingen hänvisning till facit finns i den filen; bilderna
+> ligger under sina egna namn i en egen katalog, eftersom rangprefixen i
+> `across-sign-candidates/` bär sorteringen på avstånd till vikningen. Facit:
+> [shaft/across-sign-blind-key.md](shaft/across-sign-blind-key.md).
+> **Urval:** alla kandidater höger om lodrätt + de 7 närmast vikningen till vänster.
+> **Undantaget utvidgades från bildruta till klipp:** `093-2c11c3c0_s01_f01` är en annan
+> sving ur samma spegelvända inspelning som `093-2c11c3c0_s00_f02` och är lika vänd — hade
+> bara den namngivna bildrutan uteslutits hade dess tvilling burit in samma inversion i
+> omgången. Därav 5 höger + 7 vänster. Varje insläppt bildruta är kontrollerad mot spegling
+> på bakgrunden (text, bollens sida), inte på klubban; ingen annan var vänd.
+> Rapporten och dess 20 bildrutor är **oförändrade** — `--blind` skriver inte om dem.
 
 
 ---
