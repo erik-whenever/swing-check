@@ -265,10 +265,64 @@ describe('top shaft orientation', () => {
     expect(ACROSS_THE_LINE_SIGN.right).toBe(-ACROSS_THE_LINE_SIGN.left);
   });
 
-  it('never claims to be `usable` while the sign convention is unverified', () => {
-    const m = build(swing(20)).topShaftOrientation;
-    expect(m.quality.level).toBe('uncertain');
-    expect(m.quality.reasons).toContain('sign-convention-unverified');
+  // The sign convention itself, pinned on geometry rather than on a tilt argument.
+  //
+  // `ACROSS_THE_LINE_SIGN` was a stated convention until it was checked against
+  // `049-88216ea7_s00_f05` (batch-03, `dtl`, right-handed), a top of the backswing Erik
+  // read by eye as slightly across the line. The two cases below carry that frame's own
+  // pixels and their mirror image, so they fail if the table is flipped — which is the
+  // only thing standing between this measurement and a confidently inverted label.
+  //
+  // ONE FRAME, AND ONLY THE ACROSS-THE-LINE HALF OF IT. The laid-off case is the mirror
+  // by construction; nobody has read a laid-off top by eye. See `ACROSS_THE_LINE_SIGN`.
+  describe('the sign convention, against the reference frame', () => {
+    const REFERENCE_IMAGE = { width: 460, height: 854 };
+    /** The reference frame's own detection: club end up and to the RIGHT of the grip. */
+    const REFERENCE_BUTT = { x: 126.027, y: 194.819 };
+    const REFERENCE_HOSEL = { x: 155.474, y: 67.021 };
+    /** Mirrored about the image's vertical: club end up and to the LEFT. */
+    const mirror = (p: { x: number; y: number }) => ({ x: REFERENCE_IMAGE.width - p.x, y: p.y });
+
+    function topOf(butt: { x: number; y: number }, hosel: { x: number; y: number }) {
+      const b = { ...butt, conf: CONF };
+      const h = { ...hosel, conf: CONF };
+      const top: ShaftFrameSample = {
+        tSec: 0.5,
+        phase: 'top',
+        butt: b,
+        hosel: h,
+        toe: null,
+        heel: null,
+        shaftAngleDeg: angleDeg(b, h),
+        bladeAngleDeg: null,
+        body: body(),
+      };
+      const checked = checkShaftSeries({
+        ...series([top]),
+        imageSize: REFERENCE_IMAGE,
+      });
+      return buildShaftMeasurements(checked, { handedness: 'right' }).topShaftOrientation;
+    }
+
+    it('calls the hand-read frame across-the-line, positive', () => {
+      const m = topOf(REFERENCE_BUTT, REFERENCE_HOSEL);
+      expect(m.value!.category).toBe('across-the-line');
+      expect(m.value!.deviationDeg).toBeGreaterThan(0);
+      expect(m.value!.deviationDeg).toBeCloseTo(77.0, 1);
+    });
+
+    it('calls its mirror laid-off, negative', () => {
+      const m = topOf(mirror(REFERENCE_BUTT), mirror(REFERENCE_HOSEL));
+      expect(m.value!.category).toBe('laid-off');
+      expect(m.value!.deviationDeg).toBeLessThan(0);
+      expect(m.value!.deviationDeg).toBeCloseTo(-77.0, 1);
+    });
+
+    it('no longer holds the category below `usable` on its own account', () => {
+      const m = topOf(REFERENCE_BUTT, REFERENCE_HOSEL);
+      expect(m.quality.level).toBe('usable');
+      expect(m.quality.reasons).toEqual([]);
+    });
   });
 
   it('is rejected when nobody said which way round the player stands', () => {

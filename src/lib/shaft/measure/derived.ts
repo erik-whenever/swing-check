@@ -77,16 +77,37 @@ export const ON_PLANE_BAND_DEG = 10;
 export const MIN_PLANE_POINTS = 3;
 
 /**
- * Which way a positive on-screen tilt at the top reads, per handedness.
+ * Which way a positive on-screen tilt at the top reads, per handedness: for a
+ * right-handed player filmed down-the-line, a shaft line tilting anticlockwise on
+ * screen at the top is across-the-line, and the mirror for a left-hander.
  *
- * // OSÄKER: this sign is a stated convention, not a verified one. It says that for a
- * // right-handed player filmed down-the-line, a shaft line tilting anticlockwise on
- * // screen at the top is across-the-line, and the mirror for a left-hander. Risk: if
- * // it is backwards, every such swing gets the opposite label — a confident wrong
- * // answer, the worst kind. It is bounded by the measurement never being allowed to
- * // reach `usable` (see `sign-convention-unverified`), so a rule reading it is told
- * // the value is soft. Verifying it needs exactly one annotated down-the-line frame of
- * // a known across-the-line top; flip this table if it disagrees.
+ * VERIFIED AGAINST ONE FRAME, AND THAT ONE FRAME IS THE WHOLE EVIDENCE.
+ * `049-88216ea7_s00_f05` (batch-03, `dtl`, right-handed) is a top of the backswing that
+ * Erik read by eye as *slightly across the line* — the shaft points a little right of
+ * the target line seen from behind. Run through the production path
+ * (`buildShaftSwingSeries` → `checkShaftSeries` → `buildShaftMeasurements`) it puts the
+ * grip at (126.0, 194.8) and the hosel at (155.5, 67.0): the club end is up and to the
+ * RIGHT of the grip on screen, `lineOrientationDeg` = +77.0°. With the table below that
+ * comes out `across-the-line`, the same label the eye gave it, so the table stands.
+ * `derived.test.ts` pins it on those coordinates and on their mirror image — flip this
+ * table and the suite fails.
+ *
+ * WHAT ONE FRAME DOES NOT SETTLE. It fixes the sign and nothing else:
+ *
+ *   - The reference shaft sits 77° from the image horizontal, i.e. 13° from the fold at
+ *     ±90° that `lineOrientationDeg` performs. A top whose shaft passes the vertical
+ *     changes this measurement's sign with no warning, and the reference is one of the
+ *     near-vertical tops — it constrains the sign from the weakest end of the range.
+ *   - No laid-off frame has been read by eye at all. That half of the split is the
+ *     mirror of the verified half by construction, not by observation. The same goes for
+ *     left-handed play: mirrored, never measured.
+ *   - `ON_PLANE_BAND_DEG` is untouched by this. The reference lands at 77°, nowhere near
+ *     the band, so it says nothing about where the band belongs.
+ *
+ * What would strengthen it: a hand-read across-the-line top whose shaft is nearer the
+ * horizontal (away from the fold), a hand-read laid-off top, and one left-handed frame.
+ * Re-open the question against the same reference — the frame is in batch-03 and the
+ * numbers above are what the current path produces for it.
  */
 export const ACROSS_THE_LINE_SIGN: Record<Handedness, 1 | -1> = { right: 1, left: -1 };
 
@@ -128,9 +149,7 @@ export type DerivedReason =
   /** No frame the measurement could use carries the body landmarks it needs. */
   | 'body-reference-missing'
   /** Fewer frames survived than the measurement needs. */
-  | 'insufficient-frames'
-  /** The value's sign convention has not been verified against labelled data. */
-  | 'sign-convention-unverified';
+  | 'insufficient-frames';
 
 export type MeasurementReason = QualityReason | DerivedReason;
 
@@ -559,22 +578,20 @@ function topShaftOrientation(
         ? 'laid-off'
         : 'on-plane';
 
-  // Never `usable`: the sign convention above has not been checked against labelled
-  // data, and a category is exactly the kind of value a rule would act on unhedged.
+  // Held below `usable` on its own account until 2026-09-17, while the sign convention
+  // in `ACROSS_THE_LINE_SIGN` was only stated. It is now verified against a hand-read
+  // frame, so the category carries the camera gate and the frame's own flag like every
+  // other value here, and nothing more.
   const reasons: MeasurementReason[] = [
     ...gate.reasons,
     ...checked.quality.frames[index].shaftAngle.reasons,
-    'sign-convention-unverified',
   ];
   return {
     id,
     value: { category, deviationDeg, frameIndex: index },
     unit: 'category',
     quality: {
-      level: worst(
-        worst(gate.level, checked.quality.frames[index].shaftAngle.level),
-        'uncertain',
-      ),
+      level: worst(gate.level, checked.quality.frames[index].shaftAngle.level),
       reasons,
     },
     assumes: MEASUREMENT_ASSUMPTIONS[id],

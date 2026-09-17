@@ -252,21 +252,56 @@ faktiskt var. Ett stort residualvärde betyder att lutningen beskriver en kurva,
 Att slå ihop dem hade antingen kastat bort hälften av de användbara klippen eller skickat
 kända felaktiga tal uppåt.
 
-### `// OSÄKER:` — teckenkonventionen för across-the-line
+### Teckenkonventionen för across-the-line — verifierad mot **en** bildruta
 
 `ACROSS_THE_LINE_SIGN` säger att för en **högerhänt spelare filmad `dtl`** är en skaftlinje
 som lutar moturs på skärmen vid toppen *across-the-line*, och spegelvänt för vänsterhänt.
-**Det är en angiven konvention, inte en verifierad.** Går den åt fel håll får varje sådan
-sving motsatt etikett — ett självsäkert fel svar, den värsta sorten.
+Fram till 2026-09-17 var det en **angiven** konvention, och mätvärdet hölls därför aldrig
+högre än `uncertain`. Nu är tecknet **prövat**, och både `// OSÄKER:`-markeringen och
+skälet `sign-convention-unverified` är borta — kategorin bär numera kameragrinden och
+bildrutans egen flagga, inget mer.
 
-Begränsat på två sätt: mätvärdet **når aldrig `usable`** (skälet
-`sign-convention-unverified` följer alltid med), och kategorin produceras bara när både
-handedness och `dtl` är kända. Att verifiera kräver **en** annoterad down-the-line-bildruta
-av en känd across-the-line-topp; visar den motsatsen vänder man tabellen.
+**Referensen:** `049-88216ea7_s00_f05` (batch-03, `dtl`, högerhänt), en topp av baksvingen
+som **Erik bedömt manuellt** som *lätt across the line* — skaftet pekar svagt höger om
+mållinjen sett bakifrån. Körd genom produktionsvägen (`buildShaftSwingSeries` →
+`checkShaftSeries` → `buildShaftMeasurements`) ligger greppet på (126,0, 194,8) och hoseln
+på (155,5, 67,0) — klubbänden upp och till **höger** om greppet på skärmen,
+`lineOrientationDeg` = **+77,0°**. Med tabellen som den står blir det `across-the-line`,
+samma etikett som ögat gav. Tecknet står alltså kvar.
+
+> **Bildrutans egna faser ljuger, ögat gör det inte.** Manifestet kallar bildrutan `impact`
+> och CVAT-attributet `address`; klippet är `suspectMultiSwing` utan säker `impactSec`, så
+> den automatiska fasmärkningen är inte att lita på här. Bilden visar en topp. Det är
+> Eriks avläsning som använts, inte manifestets.
+>
+> **Vikterna.** `shaft-v3` (fyrapunkts) finns inte på maskinen — `training/runs/` är
+> gitignorerat och tomt. Körningen gjordes på `public/models/shaft-v2.onnx`, och den
+> ger `butt`/`hosel` **identiska med den manuella annoteringen** (126,03/194,82 resp.
+> 155,47/67,02, konfidens 1,00 och 1,00). Skaftlinjen är alltså densamma vilken av de två
+> källorna man väljer, och `toe`/`heel` används inte av det här mätvärdet över huvud taget
+> — en fyrapunktsmodell kan inte ändra tecknet, bara punkternas precision.
+
+**En bildruta är tunt underlag, och det är hela underlaget.** Den fastställer tecknet och
+ingenting annat:
+
+- Referensskaftet ligger **77° från horisontalen, 13° från vikningen vid ±90°** som
+  `lineOrientationDeg` gör. En topp vars skaft passerar lodrätt byter tecken på mätvärdet
+  utan varning — referensen ligger därmed i den svagaste änden av intervallet.
+- **Ingen laid-off-bildruta är bedömd alls.** Den halvan av uppdelningen är spegelbilden av
+  den verifierade halvan *per konstruktion*, inte per observation. Detsamma gäller
+  vänsterhänt spel.
+- **`ON_PLANE_BAND_DEG` rörs inte av det här.** Referensen landar på 77°, långt utanför
+  bandet, och säger därför ingenting om var bandet hör hemma.
+
+**Vad som skulle stärka den:** en manuellt bedömd across-the-line-topp vars skaft ligger
+närmare horisontalen (bort från vikningen), en manuellt bedömd laid-off-topp, och en
+vänsterhänt bildruta. Tills dess är `derived.test.ts` det som håller tecknet på plats:
+referensens egna pixlar och deras spegelbild, så att en vänd tabell fäller testsviten.
 
 Referensriktningen är **bildens horisontal**, eftersom det är vad mållinjen projiceras till
 i en down-the-line-bild. Det förutsätter att telefonen står ungefär i våg och ungefär på
-mållinjen. Båda är angivna, ingen är mätt.
+mållinjen. Båda är angivna, ingen är mätt — och referensbildrutans kamera står bakom
+spelaren snett mot green, inte exakt på linjen.
 
 ---
 

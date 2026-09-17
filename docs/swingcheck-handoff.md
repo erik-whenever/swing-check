@@ -3,7 +3,32 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-17.
 >
-> **Senast (2026-09-17, stream-shaft):** S-19 — **datamodellen för skaftmätvärden**, ny modul
+> **Senast (2026-09-17, stream-shaft):** S-21 — **teckenkonventionen för across-the-line är
+> verifierad och står kvar.** `ACROSS_THE_LINE_SIGN` var angiven med `// OSÄKER:`, och
+> `top-shaft-orientation` hölls därför aldrig högre än `uncertain`. Markeringen, spärren och
+> skälet `sign-convention-unverified` är **borta**; mätvärdet bär numera bara kameragrinden och
+> bildrutans egen flagga.
+> **Referensen:** `049-88216ea7_s00_f05` (batch-03, `dtl`, högerhänt) — av Erik manuellt bedömd
+> som topp av baksvingen med skaftet svagt **höger** om mållinjen sett bakifrån, alltså lätt
+> across the line. Genom produktionsvägen (`buildShaftSwingSeries` → `checkShaftSeries` →
+> `buildShaftMeasurements`): grepp (126,0, 194,8), hosel (155,5, 67,0), `lineOrientationDeg`
+> **+77,0°** → `deviationDeg` **+77,0°** → **`across-the-line`**. Samma etikett som ögat gav.
+> **`shaft-v3` finns inte på maskinen** (`training/runs/` gitignorerat och tomt), så körningen
+> gjordes på `shaft-v2.onnx` — den ger `butt`/`hosel` **identiska med den manuella
+> annoteringen** (konfidens 1,00), och mätvärdet läser varken `toe` eller `heel`, så en
+> fyrapunktsmodell kan inte ändra tecknet. **Bildrutans automatiska fas ljuger** (manifest
+> `impact`, CVAT-attribut `address`, klippet `suspectMultiSwing` utan säker `impactSec`) —
+> ögats avläsning användes.
+> **Underlaget är tunt och det står i både kod och dokument:** en enda bedömd bildruta, som
+> dessutom ligger **13° från vikningen vid ±90°** (en topp som passerar lodrätt byter tecken
+> utan varning); ingen laid-off-topp och ingen vänsterhänt bildruta är bedömd — de halvorna är
+> spegelbilder per konstruktion. `ON_PLANE_BAND_DEG` är orört (77° ligger långt utanför bandet).
+> **Låst av test:** referensens egna pixlar och deras spegelbild genom produktionsvägen;
+> vänder man konstanten faller **4 test** (kontrollerat, inte antaget).
+> `npm run build` rent · `npm run lint` 2 kvarstående fel i `src/hooks/useHistory.ts`
+> (baslinjen, orörd) · `npm test` **472/472** (2 nya).
+>
+> **Dessförinnan (2026-09-17, stream-shaft):** S-19 — **datamodellen för skaftmätvärden**, ny modul
 > `src/lib/shaft/measure/` ([docs/shaft/datamodell.md](shaft/datamodell.md)). **Inga regler, ingen
 > UI, ingen koppling till Vision-prompten.** `frameExtractor.ts`, `poseEnvelope.ts`,
 > `poseSegments.ts`, `poseEnvelopeSelection.ts`, `prompt.ts`, `api.ts` och `worker/` är
@@ -37,7 +62,7 @@
 > och märkt.
 > **`// OSÄKER:` på teckenkonventionen** för across-the-line — angiven, inte verifierad; mätvärdet
 > når därför aldrig `usable`. **En** annoterad DTL-bildruta av en känd across-the-line-topp
-> avgör den.
+> avgör den. **→ gjord i S-21 nedan; tecknet står, markeringen och spärren är borta.**
 > **En riktig bugg fångad av ett test:** `angle_difference` i `training/evaluate.py` är rätt i
 > Python men fel som direktöversättning — JS `%` är en *rest* som behåller tecknet, så uttrycket
 > ger 358 där det ska ge 2, precis vid sömmen. TS-versionen gör dubbel modulo.

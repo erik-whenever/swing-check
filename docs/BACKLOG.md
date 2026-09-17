@@ -2095,6 +2095,7 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > **`// OSÄKER:` på teckenkonventionen** för across-the-line (`ACROSS_THE_LINE_SIGN`): angiven,
 > inte verifierad. Begränsad genom att mätvärdet aldrig når `usable` (`sign-convention-unverified`
 > följer alltid med). Verifieras av **en** annoterad DTL-bildruta av en känd across-the-line-topp.
+> **→ gjort i S-21 (2026-09-17): tecknet står, markeringen och spärren är borta.**
 >
 > **Vad som inte går att härleda** står i [shaft/datamodell.md](shaft/datamodell.md) med skäl:
 > klubbladsvinkel (en linje bär ingen rullning kring sig själv), klubbväg in-to-out (axeln
@@ -2176,6 +2177,41 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > **Ej gjort:** ingen träning, ingen webbappskod rörd, och ingen mätning av *träffsäkerhet*
 > — utan fyrapunktsfacit är bara rörlighet mätbar, och en bladvinkel kan vara fullkomligt
 > stabil och konsekvent fel.
+
+### [x] S-21 — Teckenkonventionen för across-the-line verifierad
+
+> **Klart (2026-09-17).** `ACROSS_THE_LINE_SIGN` var en **angiven** konvention med
+> `// OSÄKER:` i koden, och mätvärdet `top-shaft-orientation` hölls därför aldrig högre än
+> `uncertain` (`sign-convention-unverified` följde alltid med). **Tecknet är nu prövat mot en
+> manuellt bedömd bildruta och står kvar** — markeringen, spärren och skälet är borttagna.
+>
+> **Referensen:** `049-88216ea7_s00_f05` (batch-03, `dtl`, högerhänt), av Erik bedömd som en
+> topp av baksvingen där skaftet pekar svagt **höger** om mållinjen sett bakifrån — alltså
+> lätt across the line. Körd genom produktionsvägen (`buildShaftSwingSeries` →
+> `checkShaftSeries` → `buildShaftMeasurements`): grepp (126,0, 194,8), hosel (155,5, 67,0),
+> `lineOrientationDeg` **+77,0°**, `deviationDeg` **+77,0°** → **`across-the-line`**. Samma
+> etikett som ögat gav, så tabellen behöver inte vändas.
+>
+> **Vikterna:** `shaft-v3` finns **inte** på maskinen (`training/runs/` är gitignorerat och
+> tomt), så körningen gjordes på `public/models/shaft-v2.onnx`. Den ger `butt`/`hosel`
+> **identiska med den manuella annoteringen** i `annotated-v1.zip` (126,03/194,82 resp.
+> 155,47/67,02) med konfidens 1,00 — och mätvärdet läser varken `toe` eller `heel`, så en
+> fyrapunktsmodell kan inte ändra tecknet. **Bildrutans automatiska fas ljuger** (manifestet
+> säger `impact`, CVAT-attributet `address`; klippet är `suspectMultiSwing` utan säker
+> `impactSec`) — Eriks avläsning användes, inte manifestets.
+>
+> **En bildruta är tunt underlag, och det står både i koden och i
+> [shaft/datamodell.md](shaft/datamodell.md):** referensskaftet ligger 77° från horisontalen,
+> **13° från vikningen vid ±90°** — en topp som passerar lodrätt byter tecken utan varning,
+> så referensen ligger i den svagaste änden. **Ingen laid-off-topp och ingen vänsterhänt
+> bildruta är bedömd alls**; de halvorna är spegelbilder per konstruktion. `ON_PLANE_BAND_DEG`
+> är orört — 77° ligger långt utanför bandet och säger ingenting om var det hör hemma.
+>
+> **Låst av ett test:** `derived.test.ts` kör referensens egna pixlar och deras spegelbild
+> genom produktionsvägen och kräver `across-the-line`/positiv resp. `laid-off`/negativ.
+> Kontrollerat genom att faktiskt vända konstanten: **4 test faller**.
+>
+> **Verifierat:** `npm run build` rent · `npm run lint` (baslinjen) · `npm test` grönt.
 
 
 ---
