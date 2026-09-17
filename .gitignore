@@ -63,3 +63,8 @@ __pycache__/
 # Skaftdetektor — spårningar per klipp (regenereras av training/trace_swing.py)
 training/trace-*.png
 training/trace-*.csv
+
+# Skaftmätning — kandidatbildrutor kopierade ur data/shaft av
+# scripts/across-sign-candidates.ts. Samma personer som originalen, samma skäl:
+# bilderna publiceras aldrig. Rapporten bredvid dem är text och committas.
+docs/shaft/across-sign-candidates/

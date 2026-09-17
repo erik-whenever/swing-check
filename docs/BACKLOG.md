@@ -2213,6 +2213,44 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 >
 > **Verifierat:** `npm run build` rent · `npm run lint` (baslinjen) · `npm test` grönt.
 
+### [x] S-22 — Kandidatbildrutor för att pröva across-the-line-tecknet nära vikningen
+
+> **Klart (2026-09-17).** Engångsverktyget `scripts/across-sign-candidates.ts` (**läser bara**,
+> ingen produktionskod rörd) plockar fram de toppbildrutor där en felvänd
+> `ACROSS_THE_LINE_SIGN` skulle synas: rapport i
+> [shaft/across-sign-candidates.md](shaft/across-sign-candidates.md), de 20 översta kopierade
+> till `docs/shaft/across-sign-candidates/` (**gitignorerad** — samma identifierbara personer
+> som `data/shaft/*`).
+>
+> **Källan är hela predictionsunderlaget som finns:** `prelabel.xml` i batch-02/03 (299
+> bildrutor ur `shaft-v2.onnx` via `prelabel_batch.py`), joinad mot batch-manifesten och
+> CVAT-exporternas `view`. `training/runs/` är tomt och `trace-*.csv` finns inte på maskinen;
+> ingen ny modellkörning gjordes. Serierna går genom `checkShaftSeries` →
+> `buildShaftMeasurements` oförändrade.
+>
+> **63 toppkandidater i 166 `dtl`-svingar, sorterade närmast 90° först: 7 höger om lodrätt,
+> 56 vänster.** Närmast vikningen ligger `045-224bdedb_s00_f01` (7,8° från 90°). Referensens
+> egen sving bidrar med `049-88216ea7_s00_f04` (11,1° från 90°, `top`, `usable`).
+>
+> **Tre mätta fynd som ändrar hur underlaget ska läsas:**
+> 1. **`batch-03/annotated-v1.zip` bär `phase: address` på alla 242 bildrutor** — CVAT:s
+>    `default_value`, aldrig rörd. Verktyget upptäcker en konstant fasattribut och kastar den;
+>    att ta den för god hade omdöpt varje topp i den största batchen till en address-bildruta.
+> 2. **`093-2c11c3c0_s00_f02` är spegelvänd** (skyltarna läser `TIH`/`ƎM`, markeringen `00Ɛ`).
+>    Svingen är en högerhänts men **vänsterhänt i bilden**, vilket är vad mätvärdet ser: raden
+>    blir `across-the-line` på `handedness: 'right'` och `laid-off` på bildens händighet.
+>    **Varken händighet eller spegling finns någonstans i datamodellen.**
+> 3. **Vändpunktsfallbacken mättes och användes inte.** 118 av 178 svingar bär ingen
+>    `top`-bildruta alls; den tidsmässigt närmaste bildrutan till en skattad vändpunkt är
+>    `downswing`/`impact` i 64 fall av 107, och 13 av dem hade legat inom 20° från vikningen
+>    och tagit tabellens topp.
+>
+> **Vad som fortfarande fattas för att stärka tecknet:** en bedömd laid-off-topp och en
+> **verifierat** vänsterhänt (ospeglad) bildruta. Ingen av dem finns i materialet.
+>
+> **Verifierat:** `npm run lint` (baslinjen, 2 fel i orörda `useHistory.ts`) · `npm test`
+> **472/472** · `git status` visar inga ändringar under `src/`.
+
 
 ---
 

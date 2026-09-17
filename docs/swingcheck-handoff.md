@@ -3,7 +3,48 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-17.
 >
-> **Senast (2026-09-17, stream-shaft):** S-21 — **teckenkonventionen för across-the-line är
+> **Senast (2026-09-17, stream-shaft):** S-22 — **kandidatbildrutor för att pröva
+> across-the-line-tecknet nära vikningen**. Engångsverktyg, `scripts/across-sign-candidates.ts`,
+> som **bara läser**: `git status` visar inga ändringar under `src/`, och serierna går genom
+> `checkShaftSeries` → `buildShaftMeasurements` orörda. Rapport:
+> [shaft/across-sign-candidates.md](shaft/across-sign-candidates.md); de 20 översta bildrutorna
+> kopierade till `docs/shaft/across-sign-candidates/`, som är **gitignorerad** av samma skäl som
+> `data/shaft/*` (identifierbara personer).
+> **Källan är allt predictionsunderlag som finns på maskinen:** `prelabel.xml` i batch-02/03 —
+> 299 bildrutor ur `public/models/shaft-v2.onnx` via `prelabel_batch.py` — joinade mot
+> batch-manifesten (tid, klipp, sving, fas, envelope) och mot CVAT-exporternas `view`, unionerad
+> per sving precis som i `prelabel_batch.py`. `training/runs/` är tomt och `trace-*.csv` finns
+> inte här; **ingen ny modellkörning gjordes**, att köra detektorn igen hade varit att tillverka
+> underlaget.
+> **Tre saker källan inte bär, alla utskrivna i rapporten:** ingen keypoint-konfidens (bara
+> körningens gräns ≥ 0,5 — konfidenstestet är alltså passerat *per konstruktion*, flaggorna
+> vilar på geometri och grannjämförelser), `toe`/`heel` i `prelabel.xml` är **ritade** av
+> `sole_points()` och inte predictions (kastas, serierna deklarerar `keypoints: 2`), och
+> **ingen händighet** finns någonstans — tabellen är räknad på `handedness: 'right'`.
+> **63 toppkandidater ur 166 `dtl`-svingar: 7 höger om lodrätt, 56 vänster.** Närmast vikningen
+> `045-224bdedb_s00_f01` (7,8° från 90°); referensens egen sving bidrar med
+> `049-88216ea7_s00_f04` (11,1°, `top`, `usable`). Referensbildrutan själv kommer **inte** med —
+> ingen av fasetiketterna kallar den `top`.
+> **`batch-03/annotated-v1.zip` bär `phase: address` på alla 242 bildrutor** — CVAT:s
+> `default_value`, aldrig rörd (batch-01: 7 värden, batch-02: 8). Verktyget upptäcker en konstant
+> fasattribut och kastar fasen därifrån men behåller `view`; att tro på den hade omdöpt varje
+> topp i den största batchen till en address-bildruta.
+> **En spegelvänd bildruta hittad i ögats genomgång av de 20:** `093-2c11c3c0_s00_f02` — skyltarna
+> läser `TIH`/`ƎM` och distansmarkeringen `00Ɛ`. Spelaren är högerhänt, **bilden är vänsterhänt**,
+> och det är bilden mätvärdet ser: raden blir `across-the-line` på `handedness: 'right'` och
+> `laid-off` på bildens händighet. Varken händighet eller spegling bärs någonstans i
+> datamodellen, så inversionen är osynlig hela vägen upp. Övriga 19 är högerhänta i bilden;
+> **ingen verifierat vänsterhänt bildruta finns**, och `img-4982-23afcab9_s00_f02` är ingen topp
+> alls (manifestet säger `top`, annotatören `finish` — annotatören har rätt).
+> **Vändpunktsfallbacken mättes och valdes bort:** 118 av 178 svingar bär ingen `top`-bildruta,
+> och den tidsmässigt närmaste bildrutan till en skattad vändpunkt är `downswing`/`impact` i 64
+> fall av 107. 13 av dem ligger inom 20° från vikningen och hade tagit tabellens topp — en
+> address- eller nedslagsbildruta står nära lodrätt av skäl som inte har med en topp att göra.
+> **Kvar för att stärka tecknet:** en bedömd laid-off-topp och en verifierat vänsterhänt,
+> ospeglad bildruta. Ingendera finns i materialet.
+> `npm run lint` baslinjen (2 fel i orörda `useHistory.ts`) · `npm test` **472/472**.
+>
+> **Dessförinnan (2026-09-17, stream-shaft):** S-21 — **teckenkonventionen för across-the-line är
 > verifierad och står kvar.** `ACROSS_THE_LINE_SIGN` var angiven med `// OSÄKER:`, och
 > `top-shaft-orientation` hölls därför aldrig högre än `uncertain`. Markeringen, spärren och
 > skälet `sign-convention-unverified` är **borta**; mätvärdet bär numera bara kameragrinden och
@@ -28,7 +69,7 @@
 > `npm run build` rent · `npm run lint` 2 kvarstående fel i `src/hooks/useHistory.ts`
 > (baslinjen, orörd) · `npm test` **472/472** (2 nya).
 >
-> **Dessförinnan (2026-09-17, stream-shaft):** S-19 — **datamodellen för skaftmätvärden**, ny modul
+> **Och dessförinnan (2026-09-17, stream-shaft):** S-19 — **datamodellen för skaftmätvärden**, ny modul
 > `src/lib/shaft/measure/` ([docs/shaft/datamodell.md](shaft/datamodell.md)). **Inga regler, ingen
 > UI, ingen koppling till Vision-prompten.** `frameExtractor.ts`, `poseEnvelope.ts`,
 > `poseSegments.ts`, `poseEnvelopeSelection.ts`, `prompt.ts`, `api.ts` och `worker/` är
