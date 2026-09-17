@@ -201,8 +201,11 @@ träningsframesen — den svarar på *hur snabbt* vinkeln rör sig, inte på *hu
 | `--kpt-conf-shaft` | 0,5 | Tröskel för `butt` och `hosel`. |
 | `--kpt-conf-blade` | 0,1 | Tröskel för `toe` och `heel`. |
 | `--max-gap-sec` | 1,0 | Förkasta hastighetssteg som spänner över en längre lucka. |
-| `--max-frames` | 0 (alla) | Röktest, inte en spårning. |
+| `--max-frames` | 0 (alla) | Röktest, inte en spårning. Gäller **per klipp**. |
 | `--out-dir` | `training/` | Var PNG och CSV hamnar. |
+| `--clips` | — | Flera klipp, eller en katalog → tvärklippsrapporten nedan. |
+| `--no-plots` | av | Hoppa över PNG:erna. CSV:n skrivs alltid — den *är* mätningen. |
+| `--selection-note` | — | Markdown-fil som citeras ordagrant som skälet till urvalet. |
 
 **Två trösklar, inte en, och det är ett fynd snarare än en bekvämlighet.** Modellen är
 systematiskt osäkrare på klubbhuvudet än på skaftet: vid den enda `--kpt-conf 0.5` som
@@ -223,6 +226,42 @@ summeras, så en passage genom sömmen ritas rak i stället för som ett 360°-f
 `toe`/`heel`-byte är ett verkligt halvvarv och överlever uppvecklingen som en klippa;
 hoppandelen över 90° rapporteras separat. Hastigheterna räknas aldrig på den uppvecklade
 serien utan på rådata via `angle_difference`, som är wrap-korrekt i sig.
+
+### Var är bladvinkeln användbar? (flera klipp)
+
+```powershell
+py -3.11 training	race_swing.py --clips data\shaft\clips.mp4 data\shaft\clips%.mp4 `
+  --selection-note docs\shaftlade-usability-clips.md
+```
+
+Samma spårning över flera klipp, plus **en** tvärklippsrapport: `training/blade-usability.md`.
+Varje klipp får fortfarande sin egen CSV och PNG. Enkelklippsläget är oförändrat och skriver
+ingen rapport.
+
+Frågan rapporten finns för: **vad förutsäger att bladvinkeln blir taggig — svingfasen eller
+modellens egen konfidens på `toe`/`heel`?** Är det fasen är bladvinkeln användbar i svingens
+lugna delar och ingen annanstans; är det konfidensen räcker en grind. Därför delas
+`|Δbladvinkel/Δt|` upp i konfidenshinkar om 0,1 först, sedan per fas och per `blur`, och
+**skaftvinkeln står som referens i varje rad** — mätt på **samma steg**, eftersom ett steg
+kommer med bara när båda vinklarna finns i båda ändar.
+
+**Fasen kommer ur manifesten, aldrig ur en andra pose-körning** — och aldrig ur spårningen
+själv, vilket hade varit en cirkel (fas härledd ur skaftets hastighet, sedan använd för att
+förklara bladets). `envelopeSec`/`impactSec` i `data/shaft/training/*/batch.zip` ger `start`,
+`impact` och `finish` som mätta tider. **Toppen finns inte i manifestet**, så gränsen
+backsving/nedsving är typsvingens proportion ur `src/lib/dataset/datasetPhase.ts` utsträckt
+över de mätta tiderna. Rapporten mäter den kostnaden i stället för att vifta bort den: porten
+jämförs mot manifestets egen `phase` och skriver ut förväxlingstabellen. Ett klipp utan
+manifestpost får **ingen** fas, inte en gissad.
+
+**`blur` läses ur `annotated-v*.zip`** precis som `measure_blade_stability.py` gör, och en
+etikett sträcker sig `--blur-window-sec` (0,10 s) från sin egen annoterade bildruta och inte
+längre — rörelseoskärpa ändras inom en tiondels sekund kring träffen.
+
+**Urvalet av klipp hör till mätningen.** `--selection-note` citerar en committad fil ordagrant
+in i rapporten, så ett urval går att argumentera mot i efterhand;
+[`docs/shaft/blade-usability-clips.md`](../docs/shaft/blade-usability-clips.md) är den som
+användes för körningen på tio klipp.
 
 ### Exportera till ONNX
 
@@ -389,9 +428,9 @@ Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
 | `export_onnx.py` | Exporterar `best.pt` → ONNX och verifierar numeriskt. |
 | `prelabel_batch.py` | Förhandsmärker en batch med ONNX-modellen → CVAT-importerbar XML. |
 | `shaft_coco.py` | Delade läsare för COCO-exporterna; punktordningen bor här. |
-| `trace_swing.py` | Kör modellen på varje bildruta i ett klipp → `trace-<klipp>.png` + `.csv`. |
+| `trace_swing.py` | Kör modellen på varje bildruta i ett eller flera klipp → `trace-<klipp>.png` + `.csv`, och med `--clips` även `blade-usability.md`. |
 | `test_prelabel_batch.py` | Enhetstester för förhandsmärkningen. |
-| `test_trace_swing.py` | Enhetstester för spårningen: wrap-matten, trösklarna, luckorna. |
+| `test_trace_swing.py` | Enhetstester för spårningen: wrap-matten, trösklarna, luckorna, hinkindelningen och aggregeringen. |
 | `test_shaft_schema.py` | Enhetstester för fyrapunktsschemat och bakåtkompatibiliteten. |
 
 Kör testen med `py -3.11 -m unittest discover -s training -t training`.
