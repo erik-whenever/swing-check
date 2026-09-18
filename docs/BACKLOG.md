@@ -2468,6 +2468,22 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > bana — den är inte visad att lösa någon halva. **Tät signal (varje videobildruta) är oprövad.**
 
 
+### [x] S-28 — Spike: bär den täta skaftsignalen en observerad topp?
+
+> **Klart (2026-09-18). Nej med vändpunktsmetoden, men av ett nytt skäl. Ingen produktionskod
+> rörd, ingen fix byggd.** Rapport: [shaft/top-from-dense-signal.md](shaft/top-from-dense-signal.md);
+> skripten i `shaft/top-from-dense-signal/` (läser bara, koordinater till temp).
+>
+> Detektorn körd på varje videobildruta i envelopen för de **103 av 205** svingar vars klipp finns
+> lokalt (102 `web` + 1 `own`, alltså konfunderat med källan): 6 548 bildrutor, 34,6 min, median
+> 9,4 s per sving. **Steg > 90° går från 44 % till 1,4 %**, och i mittbandet ε 2–5° är valet
+> stabilt för ungefär hälften av svingarna (median 1 bildruta). Men valet låser på brus i platån
+> *före* toppen: **0 av 6** exakta träffar, 1 av 6 ens bland kandidaterna (n för litet), och
+> **4 av 6 utpekade toppar ligger i en detektionslucka**. Ingen sving har full täckning (median
+> 79 %). Pris i produktion: ~7× fler inferenser, ~16–18 s per sving i webbläsaren (dokumenterad
+> tid, ej mätt här). **Det som begränsar nu är detektionstäckningen vid toppen, inte glesheten.**
+
+
 ---
 
 ## Avklarat

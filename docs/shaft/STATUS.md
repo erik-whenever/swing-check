@@ -92,7 +92,8 @@ konfunderat, eller noll varians — alla rader är `dtl` per konstruktion).
 **Skaftsignalen löser det inte på envelope-rutorna (S-27).** Vändpunkten i skaftvinkeln ger
 noll kandidater i 31 av 66 hela banor och träffar 2 av 5 bedömda toppar (n för litet); toppen
 ligger på en platå inom detektorbruset. Tät signal är oprövad. Se
-[top-from-signal.md](top-from-signal.md).
+[top-from-signal.md](top-from-signal.md). **Tät signal (S-28)** tar bort glesheten men inte problemet: 0 av 6 bedömda toppar
+träffas, och 4 av 6 ligger i en detektionslucka. Se [top-from-dense-signal.md](top-from-dense-signal.md).
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 

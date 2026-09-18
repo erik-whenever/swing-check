@@ -3,7 +3,14 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-27 — **spike: skaftsignalen på envelope-rutorna bär
+> **Senast (2026-09-18, stream-shaft):** S-28 — **spike: inte heller den täta skaftsignalen ger
+> en läsbar topp med vändpunktsmetoden.** Detektorn körd per videobildruta på 103 av 205 svingar
+> (de med lokalt klipp, nästan bara `web`). Glesheten är borta (steg > 90°: 44 % → 1,4 %), men
+> valet låser på brus i platån före toppen: 0 av 6 exakta träffar (n för litet), och 4 av 6
+> utpekade toppar ligger i en detektionslucka. Nästa flaskhals är detektorns täckning vid
+> övergången, inte tröskeln. Rapport: [shaft/top-from-dense-signal.md](shaft/top-from-dense-signal.md).
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-27 — **spike: skaftsignalen på envelope-rutorna bär
 > ingen observerad topp.** Ingen produktionskod rörd. Detektorn (`shaft-v2`, produktionens
 > trösklar) körd på alla 1 435 exportrutor; 66 av 205 svingar har hel bana, vändpunktsmetoden ger
 > noll kandidater i 31 av dem, och mot Eriks bedömningar 2 av 5 exakt (n för litet). Toppen ligger
