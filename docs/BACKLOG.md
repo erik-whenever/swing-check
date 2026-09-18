@@ -2346,6 +2346,58 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > `derived.test.ts`, verktyget och två dokument.
 
 
+### [x] S-24 — Blint granskningspaket för fasen `top`
+
+> **Klart (2026-09-18). Ingen fix byggd — det var uppdraget.** Felfrekvensen ska mätas innan
+> något byggs på den. Paketet ligger i [shaft/phase-audit/](shaft/phase-audit/):
+> `select.ts` (urvalsskript), `review.md` (bedöms för hand), `facit.md`, `README.md` och
+> `frames/` (**gitignorerad** — samma identifierbara personer som `data/shaft/*`).
+>
+> **De tre mängderna reproducerar rapportens tal exakt: 63 / 30 (26 + 4) / 22.** Härledningen
+> skrivs ut i konsolen (`--dry-run` skriver ingenting): `prelabel.xml` ⋈ `batch.zip/manifest.json`
+> ⋈ annoterade exporter → 63 `dtl`-toppkandidater; minus de 33 där annotatören själv sa `top`
+> → 30; de av dem där `topFrameIndex` returnerar just den bildrutan → 22. **Talen asserteras**
+> mot [shaft/across-sign-result.md](shaft/across-sign-result.md) (`EXPECTED` i skriptet) och
+> körningen **stannar** om de inte stämmer — en omgång byggd på en annan mängd hade mätt något
+> annat och sagt att den mätte det här.
+>
+> **Rundan är 22 kandidater + 10 kontroller = 32 rader, frö `0xfa5ec0de`** (mulberry32 +
+> Fisher-Yates; samma frö styr kontrollurvalet, så hela paketet går att återskapa).
+> Kontrollerna är stratifierade 4 `top` / 2 `backswing` / 2 `downswing` / 2 `finish`, alla
+> `dtl`, alla ur svingar där ingen kandidat ligger, högst en per sving.
+>
+> **Två skärpningar av "pålitlig annoterad fas" som underlaget tvingade fram:**
+> `batch-03/annotated-v1.zip` är ute (CVAT:s orörda `default_value`, som S-22 redan mätte), och
+> **en dubbelannoterad bildruta måste ha eniga pass** — batch-01 har två pass som skiljer sig på
+> **10 av 146** bildrutor, och en bildruta vars egna annotatörer är oense är ingen fas att mäta
+> mot. Sex av tio kontroller är dubbelannoterade och eniga.
+>
+> **Kontext för varje rad, inte bara för de svåra.** `<id>_prev`/`<id>_next` är närmaste
+> envelope-bildruta på var sida, hämtad ur `data/shaft/exports/` (envelope-urvalets egen utdata,
+> 7 bildrutor/sving) och **inte** ur träningsbatchen, som är ett glesare stickprov. Vilka rutor
+> som är svåra är i sig en bedömning — en runda där bara vissa rader bär kontext berättar för
+> granskaren vilka någon redan tvekat om. Grannarna heter efter **raden**, inte efter sig
+> själva, så fillistan bär ingen tidsordning.
+>
+> **`review.md` bär bara löpnummer, frame-id och bildsökväg** — ingen fas, ingen källa, ingen
+> kandidat/kontroll-markering, ingen länk till facit. En ny körning vägrar skriva över en
+> ifylld review utan `--force`. **README:t bär rundans sammansättning och säger det rakt ut:**
+> läser man det före `review.md` vet man ungefär hur många `top` som ska hittas, och då är
+> bedömningen inte längre helt blind.
+>
+> **Klipplängd och fps läses ur MP4:ens `mvhd`/`mdhd`+`stts`.** Varken batch- eller
+> exportmanifestet bär dem och ingen `ffprobe` finns på maskinen; klipp som inte ligger i repot
+> får `—`, aldrig ett tal härlett ur envelopen (envelopens längd är svingens, inte klippets).
+>
+> **Orört:** `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG`, teckenkonventionen,
+> `plausibility.ts`, `derived.ts` — `git diff` rör bara `.gitignore`, det nya paketet och tre
+> dokument. `npm run lint` baslinjen (2 fel i orörda `useHistory.ts`).
+>
+> **Nästa:** Erik fyller i `review.md`, sedan utvärderas den enligt README:t — kontrollerna
+> först (omgångens eget felmått), därefter felfrekvensen bland de 22 med `osäker` som **egen**
+> tredje kategori, sist om felen klustrar på källklipp, saknad `impactSec`, klipplängd eller
+> envelope-proportion.
+
 ---
 
 ## Avklarat

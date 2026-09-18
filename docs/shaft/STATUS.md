@@ -5,7 +5,7 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-18.
+> Senast uppdaterad: 2026-09-18 (S-24: fasrevisionen i §3 har ett mätpaket).
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -68,6 +68,13 @@ ligger kvar på peggen 6,576 s och är borta 7,572 s; bildrutan är tagen 7,107 
 `plausibility.ts` mäter punkternas rimlighet, inte fasens, och har **inget test som fångar
 det här**. Ett värde med flaggan `usable` kan alltså vara räknat på fel ögonblick.
 **Egen uppgift — fasderiveringen är inte rörd av spärrarbetet ovan.**
+
+**Hur ofta det händer är fortfarande okänt, men det mäts nu.** De 22 bildrutorna ligger i ett
+blint granskningspaket, [phase-audit/](phase-audit/) (frö `0xfa5ec0de`): 22 kandidater plus 10
+kontroller med annoterad fas, oidentifierade och blandade. **Ingen fix är byggd** — siffran ska
+finnas först. Så länge `phase-audit/review.md` är obesvarad är den enda mätta punkten
+fortfarande de 4 rader där en människa säger emot manifestet, plus det enda bevisade fallet
+ovan. Läs inte `phase-audit/facit.md` innan review är ifylld.
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 

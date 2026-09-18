@@ -1,9 +1,33 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-17.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-23 — **närlodrätt-spärren är på.**
+> **Senast (2026-09-18, stream-shaft):** S-24 — **blint granskningspaket för fasen `top`.**
+> Ingen produktionskod rörd och **ingen fix byggd** — det var uppdraget: felfrekvensen ska mätas
+> innan något byggs på den. Paketet: [shaft/phase-audit/](shaft/phase-audit/) med `select.ts`,
+> `review.md`, `facit.md`, `README.md` och `frames/` (**gitignorerad**, samma identifierbara
+> personer som `data/shaft/*`).
+> **De tre mängderna reproducerar rapportens tal exakt — 63 / 30 (26 + 4) / 22** — och
+> **asserteras** mot [shaft/across-sign-result.md](shaft/across-sign-result.md): stämmer de inte
+> stannar körningen i stället för att bygga en annan omgång än den rapporten beskriver.
+> `--dry-run` skriver ut hela härledningen utan att röra en fil.
+> **Rundan är 22 kandidater + 10 kontroller = 32 rader, frö `0xfa5ec0de`**, kontrollerna
+> stratifierade 4 `top` / 2 `backswing` / 2 `downswing` / 2 `finish`, alla `dtl`, alla ur svingar
+> där ingen kandidat ligger.
+> **Underlaget tvingade fram två skärpningar av "pålitlig annoterad fas":** `batch-03` är ute
+> (CVAT:s orörda förval, redan mätt i S-22), och en dubbelannoterad bildruta måste ha **eniga
+> pass** — batch-01:s två pass skiljer sig på **10 av 146** bildrutor.
+> **Varje rad bär kontext** (`_prev`/`_next` ur `data/shaft/exports/`, inte ur den glesare
+> träningsbatchen), inte bara de rutor jag tyckte var svåra — vilka som är svåra är i sig en
+> bedömning. `review.md` bär bara löpnummer, frame-id och bildsökväg, och länkar inte till facit.
+> **README:t bär rundans sammansättning och säger rakt ut att det ska läsas efter review.**
+> **Klipplängd och fps läses ur MP4-boxarna** — inget manifest bär dem, ingen `ffprobe` finns;
+> klipp som saknas i repot får `—`, aldrig ett tal härlett ur envelopen.
+> **Nästa:** Erik fyller i `review.md`; utvärderingen görs enligt README:t — kontrollerna först,
+> sedan felfrekvensen bland de 22 med `osäker` som egen tredje kategori, sist klustringen.
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-23 — **närlodrätt-spärren är på.**
 > `NEAR_VERTICAL_GATE_DEG = 16` i `derived.ts`: inom 16° från lodrätt blir
 > `top-shaft-orientation` **`cannot-determine`**, tecknet beräknas aldrig (spärren ligger före
 > multiplikationen), `deviationDeg` är `null` i typen, nya `distanceToVerticalDeg` bärs på varje
