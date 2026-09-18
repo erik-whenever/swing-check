@@ -16,8 +16,9 @@
 > men oklar bildruta (9 %), plus 1 `osäker` utan motivering som redovisas som rest.
 > **Felet är systematiskt och byter riktning med `impactSec`:** utan den är 5 av 5 fel, alla på
 > exakt envelope-andel **0,484** (rena `FALLBACK_BOUNDS`-rader); med den är 7 av 8 fel
-> `backswing`, alltså etiketten för tidigt. Ingen rad över envelope-andel 0,46 är fel, ingen
-> under 0,335 är rätt.
+> `backswing`, alltså etiketten för tidigt. Monotoniciteten i envelope-andelen gäller **bara**
+> den impact-ankrade delmängden (fel-fas ≤ 0,444, allt ≥ 0,500 är något annat än fel);
+> fallback-raderna ligger ovanför den gränsen på 0,484 och är ändå fel rakt igenom.
 > **Källklipp, klipplängd, fps och DTL/face-on säger ingenting** — n för litet, konfunderat med
 > källan, eller noll varians (alla rader är `dtl` per konstruktion). Det står som "n för litet" i
 > rapporten, inte som en hypotes.

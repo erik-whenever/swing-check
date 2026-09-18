@@ -161,9 +161,20 @@ utan det landar den **för sent**. Ensidigt hypergeometriskt p ≈ **0,032**. Sa
 | 0,500–0,556 | 4 | 3 | **0** | 1 | 0 |
 
 Monotont och i den riktning man väntar sig: ju tidigare i envelopen bildrutan ligger, desto
-oftare säger ögat att klubban inte vänt än. **Ingen** rad över 0,46 är fel fas, och **ingen**
-rad under 0,335 är rätt fas. Sambandet är tydligt men n är 4–7 per hink — det pekar ut var man
-ska titta, det bär ingen tröskel.
+oftare säger ögat att klubban inte vänt än.
+
+**Skarpt uttryckt — och påståendet gäller bara de 17 raderna med `impactSec`:** varje
+fel-fas-rad i den delmängden ligger på **≤ 0,444**, och varje rad på **≥ 0,500** är något
+annat än fel fas. Gränsen faller alltså i glappet 0,444–0,500, och glappet är tomt: det är
+frånvaron av data, inte en tröskel. Den låga änden är inte heller ren — rad 8 på 0,278 ligger
+i hink 3 och är alltså **ingen** feletikett, så "under 0,335 finns ingen rätt fas" gäller hink
+1 och inte hink 3.
+
+**Och utanför delmängden håller det inte.** De fem raderna utan `impactSec` ligger alla på
+**0,484** — över 0,46, mitt i glappet — och är fel rakt igenom. Monotoniciteten är alltså en
+egenskap hos den impact-ankrade vägen, inte hos envelope-andelen som sådan; fallback-raderna
+motsäger den. Sambandet är tydligt inom sitt scope men n är 4–7 per hink — det pekar ut var
+man ska titta, det bär ingen tröskel.
 
 ### Källklipp
 
@@ -228,8 +239,9 @@ Vad som ändå går att säga, och som pekar åt rätt håll:
 
 - **Fem av sex stjärnrader ligger på envelope-andel ≤ 0,444** (0,333, 0,333, 0,334, 0,389,
   0,444; den sjätte är 0,484 och är en av fallback-raderna). De ligger alltså i det spann där
-  *alla* rader med `impactSec` som bedömdes bär fel — 0 rätt fas under 0,335. Avläsningen
-  hamnar alltså i samma del av materialet som den oberoende envelope-analysen i §4 pekar ut.
+  ingen rad med `impactSec` hamnade i hink 1: av de sex raderna under 0,335 är fem fel fas och
+  den sjätte (rad 8) ligger i hink 3. Avläsningen hamnar alltså i samma del av materialet som
+  den oberoende envelope-analysen i §4 pekar ut.
 - **Samma observation görs en gång till utan stjärna:** rad 6 bär i fritext *"man ser lite på
   klubbhuvudet att efter-bilden är absoluta toppen"* utan att Erik satte stjärna på den. Sju
   rader använder alltså samma kriterium.
@@ -250,13 +262,118 @@ Siffran bär, för granskaren gick 7 rätt och **0 fel** på de tio kontrollerna
 korrekt när en annoterad topp låg framför honom, så det här mäter etiketten och inte ögat.
 **Felet är systematiskt, inte slumpmässigt, och det har två olika ansikten:** utan `impactSec`
 landar etiketten *för sent* (5 av 5 fel, alla på exakt envelope-andel 0,484, alltså rena
-`FALLBACK_BOUNDS`-rader), med `impactSec` landar den *för tidigt* (7 av 8 fel är `backswing`),
-och ingen rad över envelope-andel 0,46 är fel medan ingen rad under 0,335 är rätt.
+`FALLBACK_BOUNDS`-rader), med `impactSec` landar den *för tidigt* (7 av 8 fel är `backswing`,
+och varje fel-fas-rad i den delmängden ligger på envelope-andel ≤ 0,444 medan varje rad ≥ 0,500
+är något annat än fel) — men den monotoniciteten gäller **bara** den impact-ankrade
+delmängden, för fallback-radernas 0,484 ligger ovanför gränsen och är ändå fel rakt igenom.
 Källklipp, klipplängd, fps och DTL/face-on säger **ingenting** i det här underlaget — de tre
 första för att n är för litet eller variabeln konfunderad, den sista för att alla 32 rader är
 `dtl` per konstruktion. Kvar står att `usable`-flaggan på `top-shaft-orientation` i dag kan
 sitta på ett värde räknat på fel ögonblick i ungefär tre fall av fem, och att det inte är en
 brist i `derived.ts` utan i vad ordet `top` betyder när det sätts.
+
+## 7. Blast radius — hur många bildrutor i hela datasetet som står på samma etikett
+
+> **Det här avsnittet mäter populationen, inte felfrekvensen.** §1–§6 bygger på 22 bedömda
+> bildrutor; talen nedan säger hur många bildrutor som står på *samma sorts* etikett och
+> alltså kan bära samma fel. Ingen av dem är bedömd. Räknat med
+> `data/shaft/exports/*/manifest.json` (envelope-urvalets egen utdata) och
+> `data/shaft/training/batch-*/batch.zip`; vyn är unionerad per sving ur CVAT-exporterna,
+> exakt som `prelabel_batch.py` gör.
+
+### Bildrutenivå
+
+| | Exportpoolen | Träningsbatcherna |
+|---|---:|---:|
+| Bildrutor totalt | **1 435** | **650** |
+| Saknar `impactSec` | **280** (19,5 %) | **135** (20,8 %) |
+| … varav `phase: top` ur manifestet | **32** | **23** |
+| … varav envelope-andel i `FALLBACK_BOUNDS` toppfönster **[0,45, 0,52)** | **32** | **23** |
+| `phase: top` totalt (med och utan nedslag) | 144 | 85 |
+| … andel av alla `top` som är fallback-härledda | **22,2 %** | **27,1 %** |
+
+**De två sista fallback-talen är identiska, och det är ingen slump.** Mängden "saknar
+`impactSec` **och** bär `top`" och mängden "saknar `impactSec` **och** ligger i 0,45–0,52" är
+**samma 32 bildrutor** (23 i batcherna) — inte bara lika stora. Det är `derivePhase` som säger
+det: utan nedslag *är* `top` definitionsmässigt fönstret och ingenting annat. Kontroll på
+köpet: `impactSec === null` sammanfaller exakt med `hasConfidentImpact === false` (280 mot
+280, 135 mot 135), så de två fälten säger samma sak i hela datasetet.
+
+### Svingnivå — enheten ett mätvärde faktiskt räknas på
+
+Ett mätvärde beräknas per **sving**, inte per bildruta, så det här är talet som betyder något
+för spridningen:
+
+| | Svingar |
+|---|---:|
+| Svingar totalt (exportpoolen) | **205** |
+| Utan `impactSec` över huvud taget | 40 |
+| Med minst en `phase: top`-bildruta | **140** |
+| … toppetiketten ur `FALLBACK_BOUNDS` | **32** (23 %) |
+| … toppetiketten ankrad i ett mätt nedslag | 108 (77 %) |
+
+### dtl mot face-on — och varför face-on är **omätt**, inte "samma"
+
+Bildrutenivå, exportpoolen (vyn är känd för 204 av 205 svingar, så täckningen är nästan total):
+
+| Vy | Bildrutor | Utan `impactSec` | … därav `top` | … i fönstret | `top` totalt |
+|---|---:|---:|---:|---:|---:|
+| `dtl` | 1 253 | 238 | **28** | 28 | 129 |
+| `face_on` | 168 | 35 | **3** | 3 | 13 |
+| `övrig` | 7 | 7 | 1 | 1 | 1 |
+| `okänd` | 7 | 0 | 0 | 0 | 1 |
+
+Svingnivå: `dtl` 179 svingar (125 med `top`, varav **28 ur fallback**), `face_on` 24 svingar
+(13 med `top`, varav **3 ur fallback**).
+
+**Felfrekvensen för face-on är omätt.** Revisionen i §1–§6 är **100 % `dtl` per konstruktion** —
+urvalet krävde vy-bucket `dtl` för både kandidater och kontroller — så **noll** face-on-bildrutor
+har bedömts av någon. De 3 face-on-bildrutorna ovan är alltså *exponering*, inte *fel*: att
+skriva "samma 59 %" för dem vore att hitta på ett tal. Vad som skulle krävas är en egen omgång
+med face-on-bildrutor, och den finns inte.
+
+**En sak talar ändå emot att face-on är exponerat via `topFrameIndex`:** båda de mätvärden som
+ankrar där deklarerar `cameraAngle: 'dtl'`, och `cameraGate` **förkastar** en annan vinkel
+(`angle !== want` → `rejected`) *innan* fasen läses. Face-on når alltså aldrig fram till
+`topFrameIndex`. Den vägen in är i stället `shaft-angle-by-phase` — se nedan.
+
+### Vad som är förankrat i `topFrameIndex`
+
+**Två av sex** härledda mätvärden i `src/lib/shaft/measure/derived.ts`:
+
+| Mätvärde | Hur `top` används | `cameraAngle` |
+|---|---|---|
+| **`shaft-position-p4`** | `topFrameIndex(checked)` — hela mätvärdet är den bildrutan | `dtl` |
+| **`top-shaft-orientation`** | `topFrameIndex(checked)` — hela mätvärdet är den bildrutan | `dtl` |
+
+Båda avvisar en icke-`dtl`-vinkel i `cameraGate` och flaggar okänd vinkel som `uncertain`.
+Saknas `top` helt returnerar de `reject(…, 'phase-missing')`.
+
+**Ett tredje mätvärde läser fasen `top` utan att gå via `topFrameIndex`:**
+
+| Mätvärde | Hur `top` används | `cameraAngle` |
+|---|---|---|
+| `shaft-angle-by-phase` | en hink **per fas**, inklusive `top` — medianvinkel över alla `top`-bildrutor | **`any`** |
+
+Det är den enda vägen där en fallback-satt `top` når en `face_on`-sving, eftersom kameragrinden
+där släpper igenom allt. Hinken `top` i det mätvärdet bär alltså samma etikettproblem, men
+utspätt: den tar medianen över *alla* `top`-bildrutor i svingen, inte den sista.
+
+**De tre övriga rör inte `top`:** `shaft-position-p2` filtrerar på `backswing`,
+`swing-plane-tilt` på `backswing` + `downswing`, och `clubhead-path` går över alla användbara
+bildrutor utan fasfilter.
+
+### Hur stor del av populationen revisionen faktiskt tittade på
+
+| Population (träningsbatcherna) | Antal | Bedömda i §1–§6 | Utfall bland de bedömda |
+|---|---:|---:|---|
+| `top` ur `FALLBACK_BOUNDS` (utan `impactSec`) | 23 | **5** | **5 fel fas av 5** |
+| `top` ankrad i mätt nedslag | 62 | 17 | 8 fel fas av 17 |
+
+De 22 bedömda raderna är alltså ett stickprov ur en population på 85 `top`-bildrutor i
+batcherna — och 32 respektive 144 i hela exportpoolen. **Ingen extrapolering görs här:** talen
+står bredvid varandra för att visa hur mycket som är omätt, inte för att räkna fram ett tal för
+resten.
 
 ---
 

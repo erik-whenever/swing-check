@@ -80,7 +80,9 @@ framför honom, så talet mäter etiketten och inte ögat.
 **Felet är systematiskt och har två ansikten.** Utan `impactSec` landar etiketten **för sent**
 — 5 av 5 fel, alla på exakt envelope-andel **0,484**, alltså rena `FALLBACK_BOUNDS`-rader där
 `top` ordagrant betyder "48,4 % in i envelopen". Med `impactSec` landar den **för tidigt**: 7
-av 8 fel är `backswing`. Ingen rad över envelope-andel 0,46 är fel, ingen under 0,335 är rätt.
+av 8 fel är `backswing`. **Inom den impact-ankrade delmängden** ligger varje fel-fas-rad på
+envelope-andel ≤ 0,444 och varje rad ≥ 0,500 är något annat än fel — men den monotoniciteten
+gäller *bara* där: fallback-raderna ligger alla på 0,484 och är fel rakt igenom.
 Källklipp, klipplängd, fps och DTL/face-on säger ingenting i underlaget (n för litet,
 konfunderat, eller noll varians — alla rader är `dtl` per konstruktion).
 
