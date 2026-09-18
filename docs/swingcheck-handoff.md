@@ -3,7 +3,28 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-17.
 >
-> **Senast (2026-09-17, stream-shaft):** S-22 — **kandidatbildrutor för att pröva
+> **Senast (2026-09-18, stream-shaft):** S-23 — **närlodrätt-spärren är på.**
+> `NEAR_VERTICAL_GATE_DEG = 16` i `derived.ts`: inom 16° från lodrätt blir
+> `top-shaft-orientation` **`cannot-determine`**, tecknet beräknas aldrig (spärren ligger före
+> multiplikationen), `deviationDeg` är `null` i typen, nya `distanceToVerticalDeg` bärs på varje
+> utfall och skälet `top-shaft-near-vertical` skiljer den från vy/konfidens/saknad bildruta.
+> Flaggan sänks inte — "går inte att avgöra" är ett fynd, inte ett tvivel.
+> **Uppgiftens två testkrav går inte att uppfylla samtidigt, och det är underlagets fel, inte
+> spärrens:** två kallade rader ligger närmare lodrätt (10,86°, 11,11°) än två stoppade
+> (14,17°, 16,08°). Med 16 blir det 4 av 5 stoppade och 2 av 6 kallade spärrade, och
+> `img-5384` slinker igenom med 0,076°. Alla fyra fallen är pinnade i `derived.test.ts`.
+> **Referensbildrutan från S-21 spärras nu själv** (13,0° från lodrätt); tecknet hålls i stället
+> av blint bedömda bildrutor utanför spärren, på båda riktningarna. Vänder man konstanten faller
+> **7 test** (var 4).
+> **Kostnad, mätt:** 6 av 63 kandidater (10 %) går från kallat utfall till `cannot-determine`,
+> räknat av `--gate-impact` som importerar konstanten ur produktionen.
+> **`ON_PLANE_BAND_DEG` och fasderiveringen är orörda.** Den blinda fläcken vid horisontalen
+> står som känd begränsning i nya [shaft/STATUS.md](shaft/STATUS.md), tillsammans med
+> fasproblemet (30 av 63 vilar på manifestfasen, 22 är produktionsvägens val), händigheten och
+> speglingen, och bladvinkeln. **Fasderiveringen är nästa egna uppgift.**
+> `npm run build` rent · `npm run lint` baslinjen · `npm test` **483/483** (+11).
+>
+> **Dessförinnan (2026-09-17, stream-shaft):** S-22 — **kandidatbildrutor för att pröva
 > across-the-line-tecknet nära vikningen**. Engångsverktyg, `scripts/across-sign-candidates.ts`,
 > som **bara läser**: `git status` visar inga ändringar under `src/`, och serierna går genom
 > `checkShaftSeries` → `buildShaftMeasurements` orörda. Rapport:

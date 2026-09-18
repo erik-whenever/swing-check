@@ -30,6 +30,7 @@ import path from 'node:path';
 
 import {
   ACROSS_THE_LINE_SIGN,
+  NEAR_VERTICAL_GATE_DEG,
   ON_PLANE_BAND_DEG,
   buildShaftMeasurements,
   checkShaftSeries,
@@ -547,6 +548,28 @@ function run(work: string): void {
   // report, the key and both frame folders alone.
   if (process.argv.includes('--result')) {
     writeResultReport(dtl, manifests);
+    return;
+  }
+
+  // `--gate-impact` counts what `NEAR_VERTICAL_GATE_DEG` costs over the whole candidate
+  // table. It imports the constant from production rather than repeating the number, so
+  // the count cannot drift from the gate it is meant to describe. Prints only.
+  if (process.argv.includes('--gate-impact')) {
+    const gated = dtl.filter((r) => r.distanceTo90Deg <= NEAR_VERTICAL_GATE_DEG);
+    const wereCalled = gated.filter((r) => r.category !== 'on-plane');
+    const byLevel = (level: string) => gated.filter((r) => r.frameLevel === level).length;
+    console.log(`NEAR_VERTICAL_GATE_DEG = ${NEAR_VERTICAL_GATE_DEG}`);
+    console.log(`kandidater totalt:            ${dtl.length}`);
+    console.log(`innanför spärren:             ${gated.length} (${((100 * gated.length) / dtl.length).toFixed(0)} %)`);
+    console.log(`  varav kallade i dag:        ${wereCalled.length} (${wereCalled.filter((r) => r.category === 'across-the-line').length} across / ${wereCalled.filter((r) => r.category === 'laid-off').length} laid-off)`);
+    console.log(`  varav on-plane i dag:       ${gated.length - wereCalled.length}`);
+    console.log(`  flaggor: usable ${byLevel('usable')}, uncertain ${byLevel('uncertain')}, rejected ${byLevel('rejected')}`);
+    console.log(`utanför spärren:              ${dtl.length - gated.length}`);
+    const margin = dtl
+      .filter((r) => r.distanceTo90Deg > NEAR_VERTICAL_GATE_DEG)
+      .sort((a, b) => a.distanceTo90Deg - b.distanceTo90Deg)
+      .slice(0, 3);
+    console.log(`närmast spärren utifrån:      ${margin.map((r) => `${r.frameId} ${fmt(r.distanceTo90Deg, 3)}°`).join(', ')}`);
     return;
   }
 

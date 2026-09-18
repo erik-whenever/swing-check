@@ -2298,6 +2298,54 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > `--blind` vägrar numera skriva över en ifylld blindfil utan `--force`.
 
 
+### [x] S-23 — Närlodrätt-spärr på across-the-line-mätvärdet
+
+> **Klart (2026-09-18).** `NEAR_VERTICAL_GATE_DEG = 16` i `derived.ts`: ligger skaftlinjen
+> inom 16° från lodrätt vid toppen blir utfallet **`cannot-determine`** och **tecknet
+> beräknas aldrig** — spärren ligger före multiplikationen med `ACROSS_THE_LINE_SIGN`, så
+> det finns inget undertryckt tal kvar i koden. `deviationDeg` blir `null` där (i typen, inte
+> per konvention), nya fältet `distanceToVerticalDeg` bärs på **varje** utfall, och skälet
+> `top-shaft-near-vertical` skiljer tomheten från vy, konfidens och saknad bildruta.
+> Flaggan **sänks inte** av spärren: "går inte att avgöra" är ett tillförlitligt fynd om
+> svingen, inte ett tvivel om mätningen.
+>
+> **16 är överlappets övre kant, inte en punktskattning** — ögat slutade kunna kalla riktning
+> mellan 10,9° och 16,1° från lodrätt, utan rent snitt, och konservativ riktning här är fler
+> `cannot-determine`. Motiveringen står i konstantens doc-kommentar.
+>
+> **Underlaget säger emot uppgiftens testkrav, och testerna följer underlaget.** Kravet löd
+> att alla sex kallade rader ska behålla sitt tecken och alla fem stoppade bli
+> `cannot-determine`. Det går inte att uppfylla samtidigt: två *kallade* rader ligger
+> **närmare** lodrätt (10,86° och 11,11°) än två *stoppade* (14,17° och 16,08°). Ingen
+> tröskel kan alltså släppa igenom alla kallade och stoppa alla stoppade — det är precis det
+> överlapp rapporten mätte. Med spärren på 16 gäller: **4 av 5 stoppade** blir
+> `cannot-determine`, **2 av 6 kallade** blir det också (`082-a6b3c908_s01_f02`,
+> `049-88216ea7_s00_f04`), och `img-5384-acea6a74_s00_f02` slinker igenom med **0,076°**.
+> Alla fyra fallen är pinnade i `derived.test.ts` så att avvikelsen är synlig och avsiktlig.
+>
+> **Referensbildrutan från S-21 svalde spärren sig själv:** `049-88216ea7_s00_f05` ligger 13,0°
+> från lodrätt och kallas inte längre. Teckenkonventionen hålls nu i stället av blint bedömda
+> bildrutor **utanför** spärren, på båda riktningarna — starkare än referensen var. Vänder man
+> `ACROSS_THE_LINE_SIGN` faller **7 test** (kontrollerat genom att faktiskt vända den, inte
+> antaget; var 4 före).
+>
+> **Mätt kostnad:** **6 av 63** `dtl`-toppbildrutor (10 %) går från kallat utfall till
+> `cannot-determine` — 2 `across-the-line`, 4 `laid-off` (flaggor: 4 `usable`, 1 `uncertain`,
+> 1 `rejected`). Tre bildrutor ligger 0,076–0,257° **utanför** spärren. Räknat av
+> `scripts/across-sign-candidates.ts --gate-impact`, som importerar konstanten ur produktionen
+> i stället för att upprepa talet.
+>
+> **Orört enligt uppdrag:** `ON_PLANE_BAND_DEG` (värdet oförändrat; nämns bara i en
+> doc-kommentar) och hela fasderiveringen. Den blinda fläcken vid **horisontalen**
+> (`040-42b11ae6_s00_f03`, ögat `laid-off` mot beräknat `on-plane` vid +2,1°) står i stället
+> som känd begränsning i nya [shaft/STATUS.md](shaft/STATUS.md) tillsammans med fasproblemet,
+> händigheten/speglingen och bladvinkeln.
+>
+> **Verifierat:** `npm run build` rent · `npm run lint` baslinjen (2 fel i orörda
+> `useHistory.ts`) · `npm test` **483/483** (+11) · `git diff` rör bara `derived.ts`,
+> `derived.test.ts`, verktyget och två dokument.
+
+
 ---
 
 ## Avklarat

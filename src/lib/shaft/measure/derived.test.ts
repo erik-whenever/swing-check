@@ -7,6 +7,7 @@ import { angleDeg } from './angles';
 import {
   ACROSS_THE_LINE_SIGN,
   MEASUREMENT_ASSUMPTIONS,
+  NEAR_VERTICAL_GATE_DEG,
   ON_PLANE_BAND_DEG,
   buildShaftMeasurements,
   type MeasurementId,
@@ -259,7 +260,7 @@ describe('top shaft orientation', () => {
     expect(right.topShaftOrientation.value!.category).toBe('across-the-line');
     expect(left.topShaftOrientation.value!.category).toBe('laid-off');
     expect(left.topShaftOrientation.value!.deviationDeg).toBeCloseTo(
-      -right.topShaftOrientation.value!.deviationDeg,
+      -right.topShaftOrientation.value!.deviationDeg!,
       6,
     );
     expect(ACROSS_THE_LINE_SIGN.right).toBe(-ACROSS_THE_LINE_SIGN.left);
@@ -304,24 +305,226 @@ describe('top shaft orientation', () => {
       return buildShaftMeasurements(checked, { handedness: 'right' }).topShaftOrientation;
     }
 
-    it('calls the hand-read frame across-the-line, positive', () => {
+    // THE GATE SWALLOWED THE REFERENCE, AND THAT IS THE POINT.
+    //
+    // The frame the sign convention was born from sits 77.0° from the horizontal — 13.0°
+    // from the fold — and `NEAR_VERTICAL_GATE_DEG` is 16. So the measurement no longer
+    // calls it either way, and the two assertions that used to pin `across-the-line` on
+    // these pixels now pin `cannot-determine` on them instead. Nothing about the sign
+    // changed; what changed is that this frame is no longer considered answerable, which
+    // is precisely what the blind round found about frames at this tilt.
+    //
+    // The convention itself is pinned further down, on hand-read frames that lie OUTSIDE
+    // the gate — stronger evidence than this one ever was, and on both directions.
+    it('now refuses the reference frame: it sits inside the near-vertical gate', () => {
       const m = topOf(REFERENCE_BUTT, REFERENCE_HOSEL);
-      expect(m.value!.category).toBe('across-the-line');
-      expect(m.value!.deviationDeg).toBeGreaterThan(0);
-      expect(m.value!.deviationDeg).toBeCloseTo(77.0, 1);
+      expect(m.value!.category).toBe('cannot-determine');
+      expect(m.value!.deviationDeg).toBeNull();
+      expect(m.value!.distanceToVerticalDeg).toBeCloseTo(13.0, 1);
+      expect(m.quality.reasons).toContain('top-shaft-near-vertical');
     });
 
-    it('calls its mirror laid-off, negative', () => {
+    it('refuses its mirror too, at the same distance from vertical', () => {
       const m = topOf(mirror(REFERENCE_BUTT), mirror(REFERENCE_HOSEL));
-      expect(m.value!.category).toBe('laid-off');
-      expect(m.value!.deviationDeg).toBeLessThan(0);
-      expect(m.value!.deviationDeg).toBeCloseTo(-77.0, 1);
+      expect(m.value!.category).toBe('cannot-determine');
+      expect(m.value!.deviationDeg).toBeNull();
+      expect(m.value!.distanceToVerticalDeg).toBeCloseTo(13.0, 1);
     });
 
-    it('no longer holds the category below `usable` on its own account', () => {
+    it('does not downgrade the flag on the gate\'s account', () => {
+      // `cannot-determine` is a finding, not a doubt: the level still reflects only the
+      // camera gate and the frame's own flag, and the reason carries the rest.
       const m = topOf(REFERENCE_BUTT, REFERENCE_HOSEL);
       expect(m.quality.level).toBe('usable');
-      expect(m.quality.reasons).toEqual([]);
+      expect(m.quality.reasons).toEqual(['top-shaft-near-vertical']);
+    });
+  });
+
+  // ── The blind round ────────────────────────────────────────────────────────
+  //
+  // Eleven down-the-line tops read by eye with the computed values hidden
+  // (`docs/shaft/across-sign-blind.md`, scored in `docs/shaft/across-sign-result.md`).
+  // Each case below carries the frame's own `butt`/`hosel` out of
+  // `data/shaft/training/batch-0*/prelabel.xml`, so these run the real detector output
+  // through the real path. Flip `ACROSS_THE_LINE_SIGN` and the direction cases fail.
+  //
+  // The twelfth judged frame, `img-3641-adde195e_s00_f02`, is deliberately absent: the eye
+  // refused it because it is a follow-through wearing a derived `top` label, which is a
+  // phase problem and not a measurement limit. It belongs to the phase work, not here.
+  describe('the blind round', () => {
+    interface Judged {
+      id: string;
+      image: { width: number; height: number };
+      butt: { x: number; y: number };
+      hosel: { x: number; y: number };
+      /** What the eye said, with the numbers hidden. */
+      eye: 'across' | 'laid-off' | 'too-near-vertical';
+    }
+
+    /** Called by eye, and far enough from the fold that the gate lets the call stand. */
+    const CALLED_OUTSIDE_GATE: Judged[] = [
+      {
+        id: 'img-4949-218bb1b6_s00_f02',
+        image: { width: 720, height: 1280 },
+        butt: { x: 179.54, y: 507.23 },
+        hosel: { x: 139.62, y: 370.33 },
+        eye: 'laid-off',
+      },
+      {
+        id: 'img-5425-f0abd4a8_s02_f02',
+        image: { width: 720, height: 1280 },
+        butt: { x: 181.36, y: 362.98 },
+        hosel: { x: 144.51, y: 235.67 },
+        eye: 'laid-off',
+      },
+      {
+        id: '090-971827ab_s03_f03',
+        image: { width: 1080, height: 1920 },
+        butt: { x: 218.78, y: 778.33 },
+        hosel: { x: 254.22, y: 757.4 },
+        eye: 'across',
+      },
+    ];
+
+    /**
+     * Called by eye, but nearer the fold than the gate allows. The gate wins on purpose:
+     * the eye could read these two, and at 10,9° and 11,1° from vertical it could not read
+     * others, so the call is not reproducible at that tilt. Refusing them is the
+     * conservative direction `NEAR_VERTICAL_GATE_DEG` was chosen for.
+     */
+    const CALLED_INSIDE_GATE: Judged[] = [
+      {
+        id: '082-a6b3c908_s01_f02',
+        image: { width: 1080, height: 1920 },
+        butt: { x: 286.39, y: 689.06 },
+        hosel: { x: 250.81, y: 503.68 },
+        eye: 'laid-off',
+      },
+      {
+        id: '049-88216ea7_s00_f04',
+        image: { width: 460, height: 854 },
+        butt: { x: 132.75, y: 190.34 },
+        hosel: { x: 159.38, y: 54.78 },
+        eye: 'across',
+      },
+    ];
+
+    /** Refused by eye as too near vertical — and inside the gate, so refused here too. */
+    const REFUSED_BY_EYE_AND_GATE: Judged[] = [
+      {
+        id: 'img-5385-1f59ec8d_s00_f01',
+        image: { width: 720, height: 1280 },
+        butt: { x: 210.78, y: 213.81 },
+        hosel: { x: 219.62, y: 178.79 },
+        eye: 'too-near-vertical',
+      },
+      {
+        id: '045-224bdedb_s00_f01',
+        image: { width: 1080, height: 1920 },
+        butt: { x: 418.74, y: 732.8 },
+        hosel: { x: 413.07, y: 691.26 },
+        eye: 'too-near-vertical',
+      },
+      {
+        id: 'img-1558-8e59ca37_s02_f03',
+        image: { width: 720, height: 1280 },
+        butt: { x: 199.02, y: 492.23 },
+        hosel: { x: 184.89, y: 408.03 },
+        eye: 'too-near-vertical',
+      },
+      {
+        id: '032-dc66dfc3_s00_f02',
+        image: { width: 1080, height: 1920 },
+        butt: { x: 321.19, y: 454.48 },
+        hosel: { x: 269.28, y: 134.68 },
+        eye: 'too-near-vertical',
+      },
+    ];
+
+    function orientationOf(j: Judged) {
+      const b = { ...j.butt, conf: CONF };
+      const h = { ...j.hosel, conf: CONF };
+      const top: ShaftFrameSample = {
+        tSec: 0.5,
+        phase: 'top',
+        butt: b,
+        hosel: h,
+        toe: null,
+        heel: null,
+        shaftAngleDeg: angleDeg(b, h),
+        bladeAngleDeg: null,
+        body: body(),
+      };
+      const checked = checkShaftSeries({ ...series([top]), imageSize: j.image });
+      return buildShaftMeasurements(checked, { handedness: 'right' }).topShaftOrientation;
+    }
+
+    it.each(CALLED_OUTSIDE_GATE)('agrees with the eye on $id', (j) => {
+      const m = orientationOf(j);
+      expect(m.value!.category).toBe(j.eye === 'across' ? 'across-the-line' : 'laid-off');
+      expect(m.value!.deviationDeg).not.toBeNull();
+      expect(Math.sign(m.value!.deviationDeg!)).toBe(j.eye === 'across' ? 1 : -1);
+      expect(m.value!.distanceToVerticalDeg).toBeGreaterThan(NEAR_VERTICAL_GATE_DEG);
+    });
+
+    it.each(CALLED_INSIDE_GATE)('refuses $id although the eye called it', (j) => {
+      const m = orientationOf(j);
+      expect(m.value!.category).toBe('cannot-determine');
+      expect(m.value!.deviationDeg).toBeNull();
+      expect(m.value!.distanceToVerticalDeg).toBeLessThanOrEqual(NEAR_VERTICAL_GATE_DEG);
+      expect(m.quality.reasons).toContain('top-shaft-near-vertical');
+    });
+
+    it.each(REFUSED_BY_EYE_AND_GATE)('refuses $id, as the eye did', (j) => {
+      const m = orientationOf(j);
+      expect(m.value!.category).toBe('cannot-determine');
+      expect(m.value!.deviationDeg).toBeNull();
+      expect(m.quality.reasons).toContain('top-shaft-near-vertical');
+    });
+
+    /**
+     * THE ONE THE GATE MISSES, AND IT IS IN THE SUITE ON PURPOSE.
+     *
+     * `img-5384-acea6a74_s00_f02` sits 16,076° from the vertical. The eye refused it; the
+     * gate at 16 lets it through by 0,076°. That is not a rounding accident to be nudged
+     * away — it is the overlap the blind round measured, in one frame: the same tilt was
+     * called by eye on one frame and refused on another, so no threshold reproduces the
+     * eye, and moving the gate to catch this one would swallow two frames the eye DID
+     * call. The case is pinned so that the miss is visible and deliberate rather than
+     * discovered later as a surprise.
+     */
+    it('lets the shallowest refused frame through, by 0.076°', () => {
+      const m = orientationOf({
+        id: 'img-5384-acea6a74_s00_f02',
+        image: { width: 720, height: 1280 },
+        butt: { x: 299.39, y: 224.71 },
+        hosel: { x: 287.39, y: 183.07 },
+        eye: 'too-near-vertical',
+      });
+      expect(m.value!.distanceToVerticalDeg).toBeCloseTo(16.076, 2);
+      expect(m.value!.distanceToVerticalDeg).toBeGreaterThan(NEAR_VERTICAL_GATE_DEG);
+      expect(m.value!.category).toBe('laid-off');
+    });
+
+    /**
+     * The known blind spot at the OTHER end, carried as a test so it stays known.
+     * `040-42b11ae6_s00_f03` has the shaft 2,1° from the horizontal — the club parallel to
+     * the ground — where across/laid-off is decided in the horizontal plane and a 2D tilt
+     * cannot carry it. The eye called it `laid-off`; the measurement says `on-plane` and
+     * asserts no direction. `ON_PLANE_BAND_DEG` is what keeps it honest there, and it is
+     * untouched: one frame is not grounds for moving a threshold.
+     */
+    it('still answers on-plane, not a direction, at the horizontal end', () => {
+      const m = orientationOf({
+        id: '040-42b11ae6_s00_f03',
+        image: { width: 1080, height: 1920 },
+        butt: { x: 459.41, y: 700.84 },
+        hosel: { x: 400.48, y: 702.96 },
+        eye: 'laid-off',
+      });
+      expect(m.value!.category).toBe('on-plane');
+      expect(m.value!.deviationDeg).toBeCloseTo(2.06, 1);
+      expect(m.value!.distanceToVerticalDeg).toBeGreaterThan(NEAR_VERTICAL_GATE_DEG);
     });
   });
 

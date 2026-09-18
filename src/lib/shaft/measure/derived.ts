@@ -70,6 +70,42 @@ import { MEASUREMENT_PHASES } from './shaftSeries';
 export const ON_PLANE_BAND_DEG = 10;
 
 /**
+ * How near the vertical the shaft may sit at the top before the across/laid-off call is
+ * refused outright — degrees from the vertical, measured on the undirected shaft line.
+ *
+ * WHY THIS GATE EXISTS. `lineOrientationDeg` folds at ±90°, so a shaft that passes the
+ * vertical changes this measurement's sign with no warning and no flag. That was written
+ * down as the standing weakness of `ACROSS_THE_LINE_SIGN` when the sign was verified
+ * against a single frame (S-21); this constant is what closes it.
+ *
+ * WHY 16, AND WHY IT IS NOT A POINT ESTIMATE. From the blind judging round in
+ * `docs/shaft/across-sign-result.md`: twelve down-the-line tops were read by eye with the
+ * computed values hidden. The eye stopped being able to call a direction somewhere
+ * between **10,9° and 16,1° from the vertical**, and — this is the part that matters —
+ * there is **no clean cut**. 16,1° from vertical appears on BOTH sides of the eye's own
+ * boundary: one frame at that tilt was called `laid-off`, another was refused. What
+ * separates them is the frame's own clarity (clubhead visibility, blur, how much of the
+ * target line is in shot), not the angle. So no threshold reproduces the eye, and a
+ * threshold in the middle of the overlap would only look precise.
+ *
+ * 16 is therefore the TOP of the measured overlap, rounded down to a whole degree, and it
+ * is chosen deliberately wide. The two errors are not symmetric: refusing a call that
+ * could have been made costs the golfer one missing hint, while making a call on the
+ * wrong side of the fold tells them the opposite of the truth about their own swing.
+ * Conservative here means MORE `cannot-determine`, not fewer — so the gate is set at the
+ * far edge of the zone where a human could still sometimes read it, not at the near edge
+ * where a human always could.
+ *
+ * WHAT IT IS NOT. It is not derived from `ON_PLANE_BAND_DEG`, which is measured from the
+ * HORIZONTAL and is untouched by this: the two bands sit at opposite ends of the same
+ * scale and answer different questions. And it rests on **one round, one observer, eleven
+ * judged frames** — a second round, another pair of eyes, or a left-handed frame could
+ * move it. The overlap it was read off is in the report, so the next person can disagree
+ * with the number without re-running the judging.
+ */
+export const NEAR_VERTICAL_GATE_DEG = 16;
+
+/**
  * Fewest clubhead positions a plane fit is allowed to run on. Two points define a line
  * exactly and tell you nothing about whether the cloud was line-like, which is half of
  * what the fit is for.
@@ -148,6 +184,14 @@ export type DerivedReason =
   | 'phase-missing'
   /** No frame the measurement could use carries the body landmarks it needs. */
   | 'body-reference-missing'
+  /**
+   * The shaft sat within `NEAR_VERTICAL_GATE_DEG` of the vertical at the top, where
+   * `lineOrientationDeg`'s fold at ±90° flips the sign without warning. Distinct from the
+   * other ways this measurement declines — the view, the confidence, a missing frame —
+   * because this one is a property of the SWING, not of the recording or the detector:
+   * nothing about the footage could be improved to make this frame answerable.
+   */
+  | 'top-shaft-near-vertical'
   /** Fewer frames survived than the measurement needs. */
   | 'insufficient-frames';
 
@@ -300,7 +344,13 @@ export interface BodyRelativeShaft {
   orientationDeg: number;
 }
 
-export type TopShaftCategory = 'across-the-line' | 'on-plane' | 'laid-off';
+/**
+ * `cannot-determine` is a RESULT, not a failure: the frame was measured, and what the
+ * measurement found is that this top cannot be called either way. It is reached only
+ * through `NEAR_VERTICAL_GATE_DEG`, and the reason `top-shaft-near-vertical` always
+ * travels with it, so it never has to be told apart from a missing value by guesswork.
+ */
+export type TopShaftCategory = 'across-the-line' | 'on-plane' | 'laid-off' | 'cannot-determine';
 
 export interface TopShaftOrientation {
   category: TopShaftCategory;
@@ -313,8 +363,20 @@ export interface TopShaftOrientation {
    * projects to in a down-the-line frame. That is an approximation: it assumes the
    * phone is roughly level and roughly on the target line. Both are stated, neither is
    * measured.
+   *
+   * NULL WHEN THE CATEGORY IS `cannot-determine`, and null in the type rather than
+   * absent by convention: the near-vertical gate runs BEFORE the sign is computed, so
+   * there is no signed deviation to report — not a hidden one, none. A consumer that
+   * wants to know how near the vertical the shaft sat reads `distanceToVerticalDeg`,
+   * which carries no direction and therefore cannot be mistaken for the call.
    */
-  deviationDeg: number;
+  deviationDeg: number | null;
+  /**
+   * How far the shaft LINE sat from the vertical at the top, degrees, unsigned, 0–90.
+   * Always present, including on the calls that were made — it is what the gate tests,
+   * and a reader who wants to see how close to the fold a given call sat needs it.
+   */
+  distanceToVerticalDeg: number;
   frameIndex: number;
 }
 
@@ -570,6 +632,42 @@ function topShaftOrientation(
     return reject(id, 'category', [...gate.reasons, 'insufficient-frames'], [index]);
   }
 
+  // Held below `usable` on its own account until 2026-09-17, while the sign convention
+  // in `ACROSS_THE_LINE_SIGN` was only stated. It is now verified against hand-read
+  // frames, so the category carries the camera gate and the frame's own flag like every
+  // other value here, and nothing more.
+  const reasons: MeasurementReason[] = [
+    ...gate.reasons,
+    ...checked.quality.frames[index].shaftAngle.reasons,
+  ];
+  const level = worst(gate.level, checked.quality.frames[index].shaftAngle.level);
+  const distanceToVerticalDeg = 90 - Math.abs(orientation);
+
+  // THE NEAR-VERTICAL GATE, AND IT RUNS FIRST. Inside `NEAR_VERTICAL_GATE_DEG` of the
+  // vertical the sign is not weak evidence, it is no evidence: `lineOrientationDeg` folds
+  // at ±90°, so a shaft a hair either side of vertical reads as a confident opposite. The
+  // deviation is therefore never computed here rather than computed and then suppressed —
+  // a suppressed number is one refactor away from being read.
+  if (distanceToVerticalDeg <= NEAR_VERTICAL_GATE_DEG) {
+    return {
+      id,
+      value: {
+        category: 'cannot-determine',
+        deviationDeg: null,
+        distanceToVerticalDeg,
+        frameIndex: index,
+      },
+      unit: 'category',
+      // Not downgraded on the gate's account: "this cannot be called" is a reliable
+      // finding about the swing, not a doubt about the measurement. The level still
+      // carries whatever the camera gate and the frame's own flag said, and the reason
+      // below is what separates this from every other way the value can come back empty.
+      quality: { level, reasons: [...reasons, 'top-shaft-near-vertical'] },
+      assumes: MEASUREMENT_ASSUMPTIONS[id],
+      frameIndices: [index],
+    };
+  }
+
   const deviationDeg = ACROSS_THE_LINE_SIGN[handedness] * orientation;
   const category: TopShaftCategory =
     deviationDeg > ON_PLANE_BAND_DEG
@@ -578,22 +676,11 @@ function topShaftOrientation(
         ? 'laid-off'
         : 'on-plane';
 
-  // Held below `usable` on its own account until 2026-09-17, while the sign convention
-  // in `ACROSS_THE_LINE_SIGN` was only stated. It is now verified against a hand-read
-  // frame, so the category carries the camera gate and the frame's own flag like every
-  // other value here, and nothing more.
-  const reasons: MeasurementReason[] = [
-    ...gate.reasons,
-    ...checked.quality.frames[index].shaftAngle.reasons,
-  ];
   return {
     id,
-    value: { category, deviationDeg, frameIndex: index },
+    value: { category, deviationDeg, distanceToVerticalDeg, frameIndex: index },
     unit: 'category',
-    quality: {
-      level: worst(gate.level, checked.quality.frames[index].shaftAngle.level),
-      reasons,
-    },
+    quality: { level, reasons },
     assumes: MEASUREMENT_ASSUMPTIONS[id],
     frameIndices: [index],
   };

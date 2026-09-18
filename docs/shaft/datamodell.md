@@ -208,7 +208,7 @@ torsolängden** (mittaxel → mitthöft). Axlarna är **bildens**, inte kroppens
 | `shaft-angle-by-phase` | cirkulär median av riktad `butt → hosel`-vinkel per fas | båda | `butt`, `hosel` |
 | `shaft-position-p2` | skaftets läge relativt kroppen vid P2, i torsolängder | **`dtl`** | `butt`, `hosel`, axlar + höfter, fas `backswing` |
 | `shaft-position-p4` | samma vid toppen | **`dtl`** | d:o, fas `top` |
-| `top-shaft-orientation` | across-the-line / on-plane / laid-off | **`dtl`** | d:o + **handedness** |
+| `top-shaft-orientation` | across-the-line / on-plane / laid-off / **cannot-determine** | **`dtl`** | d:o + **handedness** |
 | `clubhead-path` | klubbhuvudets bana i bild, i torsolängder | båda | `hosel`, axlar + höfter |
 | `swing-plane-tilt` | svingplanets lutning som projektion | båda | `hosel`, axlar + höfter |
 
@@ -297,6 +297,51 @@ ingenting annat:
 närmare horisontalen (bort från vikningen), en manuellt bedömd laid-off-topp, och en
 vänsterhänt bildruta. Tills dess är `derived.test.ts` det som håller tecknet på plats:
 referensens egna pixlar och deras spegelbild, så att en vänd tabell fäller testsviten.
+
+### Närlodrätt-spärren — och vad den blinda omgången gjorde med allt ovanför
+
+*2026-09-18. Två av de tre luckorna ovan är stängda, och den kvarvarande svagheten — att
+tecknet vänder vid vikningen — är inte längre bara dokumenterad utan **spärrad**.*
+
+**Underlaget är inte längre en bildruta.** Elva `dtl`-toppar bedömdes blint (frame-id och
+bild, inget annat — [across-sign-blind.md](across-sign-blind.md)) och stämdes av mot facit
+efteråt ([across-sign-result.md](across-sign-result.md)). **Tecknet höll i 5 av 6 kallade
+rader, på båda sidor om lodrätt** — tre negativa som ögat kallade `laid-off` och två
+positiva som det kallade `across`. Laid-off-halvan är alltså inte längre en spegling per
+konstruktion; den är bedömd. Den sjätte raden är ingen inversion (en vänd konstant hade
+fällt alla sex) utan den horisontella blinda fläcken nedan.
+
+**`NEAR_VERTICAL_GATE_DEG = 16`.** Ligger skaftlinjen inom 16° från lodrätt vid toppen blir
+utfallet `cannot-determine`, och **tecknet beräknas aldrig** — spärren ligger före
+multiplikationen med `ACROSS_THE_LINE_SIGN`, så det finns inget undertryckt tal som en
+senare refaktorering kan råka läsa. `deviationDeg` är `null` där, och `distanceToVerticalDeg`
+bärs på varje utfall så att en läsare ser hur nära vikningen även de kallade raderna låg.
+Skälet `top-shaft-near-vertical` följer med, vilket är det som skiljer den här tomheten från
+vy, konfidens och saknad bildruta.
+
+**16 är överlappets övre kant, inte en punktskattning.** Ögat slutade kunna kalla riktning
+någonstans mellan **10,9° och 16,1° från lodrätt**, och det finns **inget rent snitt**:
+16,1° förekommer på båda sidor om ögats egen gräns — en bildruta med den lutningen kallades
+`laid-off`, en annan vägrades. Det som skiljer dem är bildrutans tydlighet, inte vinkeln.
+Spärren är därför satt vid den bortre kanten: **fler `cannot-determine` är den konservativa
+riktningen**, eftersom en utebliven kommentar kostar en golfare ett tips medan ett svar på
+fel sida om vikningen säger motsatsen till sanningen om hans egen sving.
+
+**Vad spärren kostar, mätt:** **6 av de 63** `dtl`-toppbildrutorna i kandidattabellen (10 %)
+går från kallat utfall till `cannot-determine` — 2 `across-the-line` och 4 `laid-off`.
+**Referensbildrutan ovan är en av dem:** `049-88216ea7_s00_f05` ligger 13,0° från lodrätt och
+kallas inte längre. Det är avsiktligt och inte en motsägelse — tecknet den fastställde står,
+men just den lutningen är inte längre något mätvärdet uttalar sig om. Teckenkonventionen
+hålls numera på plats av de blint bedömda bildrutor som ligger **utanför** spärren, vilket är
+starkare bevisning än referensen var: vänder man `ACROSS_THE_LINE_SIGN` faller **7 test**.
+
+**Tre bildrutor ligger 0,08–0,26° utanför spärren** (16,076°, 16,143°, 16,257°), och den
+grundaste av dem är en som ögat vägrade. Att flytta spärren dit hade svalt två bildrutor som
+ögat kunde kalla. Knivseggen är pinnad i `derived.test.ts` så att den syns.
+
+**`ON_PLANE_BAND_DEG` är orört**, och den blinda fläcken vid horisontalen står som **känd
+begränsning** i [STATUS.md](STATUS.md) i stället för som en tröskeländring: underlaget där är
+en (1) bildruta.
 
 Referensriktningen är **bildens horisontal**, eftersom det är vad mållinjen projiceras till
 i en down-the-line-bild. Det förutsätter att telefonen står ungefär i våg och ungefär på
