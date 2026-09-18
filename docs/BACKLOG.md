@@ -2589,7 +2589,34 @@ väg att *härleda* toppen utan annotering — vilket är den öppning som skull
 `swingcheck-handoff.md` (senast-raden) och `shaft/STATUS.md` §3 med utfallet.
 </details>
 
-### [ ] S-32 — Kontrollrik toppomgång: mät E3 mot ögat i stället för att skatta på sex rader
+### [~] S-32 — Kontrollrik toppomgång: mät E3 mot ögat i stället för att skatta på sex rader
+
+**Paketet är byggt, omgången är inte körd.** `docs/shaft/top-review/build_round.py` (endast
+läsande, ingen produktionskod rörd, ingen tröskel satt) har byggt den blinda omgången: **alla
+103 svingar med lokal källvideo, 81 oberoende klipp, 6 548 envelope-videobildrutor** — samma
+6 548 som S-28/S-31, vilket är en kontroll på att fönstret är detsamma. Svaret som efterfrågas
+är ett **intervall** (första och sista rimliga toppruta), inte en enskild bildruta, och inte en
+fasetikett. **Blindning:** E1/E2/E3 beräknas aldrig av byggskriptet, svingnycklarna är utbytta
+mot ogenomskinliga id (`045-224bdedb_s00` står som committad text bredvid Eriks svar i
+`phase-audit/review.md`), och tre skilda frön styr id-tilldelning (`0x70bc0de5`), Eriks ordning
+(`0xe71c0de5`) och Lisas (`0x715a0de5`) — ingen sving hamnar på samma plats hos de två.
+**45 kontrollsvingar i 39 klipp** (exakt en annoterad, enigt bedömd `top`) ligger omarkerade i
+rundan, liksom **S-31:s sex tidigare bedömda svingar**. Kovariater registreras men visas aldrig:
+kameravinkel (**93 `dtl` / 8 `face_on` / 2 blandade — face-on går alltså att bryta ut**), fps,
+slow-mo (15), källa (102 `web` / 1 `own`), bekräftad spegelvändning (2 svingar) och nedslag.
+Händighet står `unknown` på varje sving: den finns inte i datamodellen och gissas inte här.
+Poängsättningsskriptet `score_round.py` är **skrivet men inte kört** (det finns inga svar än);
+det mäter åtskilt (a) Erik mot Lisa, (b) varje estimator mot vardera annotatören, (c) E3:s
+förskjutning — konstant eller spridd, avgjort med leave-one-clip-out — och räknar **oberoende
+klipp, inte rader**. Bildmaterialet ligger under `data/shaft/top-round/` (gitignorerat).
+
+**Återstår:** (1) Erik och Lisa bedömer oberoende enligt
+[shaft/top-review/KOR-OMGANGEN.md](shaft/top-review/KOR-OMGANGEN.md); (2) kör `score_round.py`;
+(3) skriv resultatrapporten; (4) uppdatera `shaft/STATUS.md` §3 med utfallet och bocka av här.
+**Punkt 3 i specen nedan — verifierat vänsterhänt, ospeglat material — är fortfarande obesvarad:**
+paketet gör luckan synlig men fyller den inte, eftersom sådant material inte finns i datasetet.
+
+<details><summary>Ursprunglig spec</summary>
 
 **S-31 svarade ja, och det utlöser den här uppgiften** (se S-31: *"Om svaret är ja: ny uppgift
 specas"*). E3 — teckenväxling i handledernas vertikala hastighet med hysteres — ligger median
@@ -2616,6 +2643,7 @@ bara när nedslaget är säkert, alltså inte på de 32 `FALLBACK_BOUNDS`-svinga
 
 **Dokumentkrav:** urvals- och bedömningsomgång under `docs/shaft/top-review/`; resultat i en egen
 rapport; bocka av här; uppdatera `swingcheck-handoff.md` och `shaft/STATUS.md` §3.
+</details>
 
 ---
 

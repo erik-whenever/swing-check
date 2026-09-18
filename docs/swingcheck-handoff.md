@@ -3,7 +3,38 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-31 — **spike: handleden bär en observerad topp där
+> **Senast (2026-09-18, stream-shaft):** S-32 (halvgjord, `[~]`) — **det blinda
+> bedömningspaketet är byggt; omgången är inte körd.** Ingen analys, ingen produktionskod, ingen
+> tröskel: `src/lib/shaft/measure/`, `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG` och
+> teckenkonventionen är orörda. `docs/shaft/top-review/build_round.py` (endast läsande) har
+> extraherat **alla 103 svingar med lokal källvideo, 81 oberoende klipp, 6 548
+> envelope-videobildrutor** — samma 6 548 som S-28/S-31, alltså samma fönster. Per sving en
+> bedömarvy (`viewer.html`) där man stegar bildruta för bildruta genom hela envelopen och läser
+> av bildruteindex; svaret är ett **intervall** (första och sista rimliga toppruta), inte en
+> enskild ruta och inte en fasetikett — det är E3:s utdata. **Blindningen är själva poängen:**
+> E1/E2/E3 beräknas aldrig av byggskriptet (de räknas först vid poängsättningen), svingnycklarna
+> är utbytta mot ogenomskinliga id eftersom `045-224bdedb_s00` står som committad text bredvid
+> Eriks svar i `phase-audit/review.md`, och tre skilda frön styr id-tilldelning (`0x70bc0de5`),
+> Eriks ordning (`0xe71c0de5`) och Lisas (`0x715a0de5`) — noll svingar hamnar på samma plats hos
+> de två. **45 kontrollsvingar i 39 klipp** (exakt en annoterad, enigt bedömd `top`) och **S-31:s
+> sex tidigare bedömda svingar** ligger omarkerade i rundan; två av dem är både kontroll och
+> tidigare facit och källorna **pekar inte på samma bildruta** (`S32-034` 0,20 s isär, `S32-023`
+> 0,93 s) — noterat i registret, inte avgjort. Registrerat men aldrig visat: kameravinkel
+> (**93 `dtl` / 8 `face_on` / 2 blandade — face-on går alltså att bryta ut i efterhand**), fps,
+> slow-mo (15), källa (102 `web` / 1 `own`), bekräftad spegelvändning (2 svingar, båda ur
+> `093.mp4`) och nedslag. Händighet står `unknown` på varje sving: den finns inte i datamodellen
+> och gissas inte ur bilden. `score_round.py` är **skrivet men inte kört** — det finns inga svar
+> än — och mäter åtskilt (a) Erik mot Lisa, (b) varje estimator mot vardera annotatören, (c) E3:s
+> förskjutning, konstant eller spridd, avgjord med **leave-one-clip-out**; det **räknar oberoende
+> klipp, inte rader**, och `osäker` är en tredje kategori överallt. Bildmaterialet ligger under
+> `data/shaft/top-round/` (gitignorerat via `data/shaft/*`); bara skript och rapport i `docs/`.
+> **Kvar:** Erik och Lisa bedömer oberoende enligt
+> [shaft/top-review/KOR-OMGANGEN.md](shaft/top-review/KOR-OMGANGEN.md), kör poängsättningen,
+> skriv rapporten, uppdatera `shaft/STATUS.md` §3. Metod och sammansättning:
+> [shaft/top-review/README.md](shaft/top-review/README.md) — **läses efter bedömningen, inte
+> före.**
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-31 — **spike: handleden bär en observerad topp där
 > skaftlinjen inte gör det.** Ingen produktionskod rörd, inget tröskelbeslut fattat. MediaPipe
 > (samma `.task` som webben, `runningMode: VIDEO`, klippets egen upplösning) körd **per
 > videobildruta** på samma 103 svingar som S-28/S-29. **Grinden går åt andra hållet än för

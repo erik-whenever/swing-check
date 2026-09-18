@@ -5,8 +5,8 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-18 (S-31: handledsspåret i §3 — handleden bär en observerad topp,
-> men n = 6 och spärren från S-30 står kvar).
+> Senast uppdaterad: 2026-09-18 (S-32: toppomgången i §3 är byggd men inte körd — inga svar
+> finns än, ingen siffra är mätt, spärren från S-30 står kvar).
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -121,6 +121,17 @@ i 5 oberoende klipp, den träffar *inne* i intervallet bara 1 gång av 6, och fa
 vänsterhänt material är omätt.** Spärren i det här avsnittet står därför kvar oförändrad: det som
 skulle lyfta den är en kontrollrik toppomgång (S-32), inte det här underlaget. Se
 [top-from-pose.md](top-from-pose.md).
+
+**Den omgången är byggd men inte körd (S-32).** [top-review/](top-review/) bär ett blint
+bedömningspaket över **alla 103 svingar med lokal källvideo i 81 oberoende klipp, 6 548
+envelope-videobildrutor** — samma fönster som S-28/S-31. Svaret som efterfrågas är ett
+**intervall** (första och sista rimliga toppruta), inte en fasetikett, och omgången bär **45
+kontrollsvingar i 39 klipp** plus S-31:s sex tidigare bedömda svingar, alla omarkerade. Två av
+dem är både kontroll och tidigare facit, och de två källorna pekar **inte** på samma bildruta
+(0,20 s respektive 0,93 s isär) — noterat, inte avgjort. **93 `dtl` / 8 `face_on` / 2 blandade**
+är registrerade men aldrig visade, så face-on går att bryta ut i efterhand. **Ingenting i
+paragrafen ovan ändras av det här:** inga svar finns än, ingen siffra är mätt, och spärren står
+kvar tills omgången är bedömd och poängsatt. Metod: [top-review/README.md](top-review/README.md).
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 

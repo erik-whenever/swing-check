@@ -1,0 +1,307 @@
+<!doctype html>
+<!--
+  ONE-OFF (S-32): the blind judging view. TEMPLATE -- build_round.py fills the ROUND marker
+  below and writes one filled copy per annotator to data/shaft/top-round/<annotator>/.
+  This file is the reviewable source; the filled copies are gitignored with the frames.
+
+  WHAT THIS PAGE IS ALLOWED TO KNOW: an opaque round id and a frame count, per swing. Not
+  the clip, not the seconds, not the fps, not the slow-mo flag, not the camera angle, not
+  the phase, not the envelope bounds, not the impact -- and above all not E1/E2/E3, which
+  are never computed until scoring. Everything else lives in the registry.
+-->
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toppomgang S-32</title>
+<style>
+  :root {
+    --bg: #12151a; --panel: #1b1f27; --line: #2c333f; --fg: #e6e9ef;
+    --muted: #97a1b2; --accent: #6fb3ff; --ok: #57c98a; --warn: #e0b050;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif;
+    display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden;
+  }
+  header, footer {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 8px 14px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  footer { border-bottom: 0; border-top: 1px solid var(--line); }
+  main { display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+  #stage {
+    display: grid; place-items: center; min-height: 0; min-width: 0;
+    background: #06080b; position: relative;
+  }
+  #shot { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  #counter {
+    position: absolute; left: 12px; top: 10px; font: 600 26px/1 ui-monospace, monospace;
+    background: rgba(6, 8, 11, .72); padding: 7px 11px; border-radius: 6px; letter-spacing: .5px;
+  }
+  #counter small { font-size: 14px; font-weight: 400; color: var(--muted); }
+  aside { border-left: 1px solid var(--line); padding: 14px; overflow-y: auto; background: var(--panel); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+       margin: 18px 0 8px; font-weight: 600; }
+  h2:first-child { margin-top: 0; }
+  button {
+    font: inherit; background: #252b36; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #23405f; border-color: #35618f; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .pill { font: 600 13px ui-monospace, monospace; background: #252b36; border: 1px solid var(--line);
+          border-radius: 999px; padding: 3px 10px; }
+  .val { font: 600 15px ui-monospace, monospace; color: var(--accent); }
+  .val.unset { color: var(--muted); font-weight: 400; }
+  .muted { color: var(--muted); }
+  kbd { font: 12px ui-monospace, monospace; background: #252b36; border: 1px solid var(--line);
+        border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; }
+  input[type=text], textarea {
+    width: 100%; font: inherit; background: #10141a; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+  }
+  textarea { resize: vertical; min-height: 58px; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+  #bar { flex: 1; min-width: 160px; }
+  #progress { height: 6px; background: #252b36; border-radius: 3px; overflow: hidden; min-width: 120px; flex: 1; }
+  #progress i { display: block; height: 100%; background: var(--ok); width: 0; }
+  .done { color: var(--ok); }
+  .todo { color: var(--warn); }
+  ul.help { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+  ul.help li { margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <strong>Toppomgang S-32</strong>
+  <span class="pill" id="who"></span>
+  <span class="pill" id="seed"></span>
+  <span class="muted">Sving <b id="pos"></b> av <b id="total"></b></span>
+  <span class="pill" id="rid"></span>
+  <div id="progress"><i></i></div>
+  <span id="pcount" class="muted"></span>
+</header>
+
+<main>
+  <div id="stage">
+    <img id="shot" alt="">
+    <div id="counter"><span id="fnum">–</span><small> / <span id="fmax">–</span></small></div>
+  </div>
+
+  <aside>
+    <h2>Din bedomning</h2>
+    <div class="row">
+      <button id="setFirst">Forsta <kbd>F</kbd></button>
+      <span class="val unset" id="vFirst">–</span>
+    </div>
+    <div class="row">
+      <button id="setLast">Sista <kbd>L</kbd></button>
+      <span class="val unset" id="vLast">–</span>
+    </div>
+    <div class="row">
+      <button id="clear">Nollstall <kbd>C</kbd></button>
+      <span class="muted" id="width"></span>
+    </div>
+
+    <h2>Om du inte kan avgora</h2>
+    <label class="check">
+      <input type="checkbox" id="unsure">
+      <span><b>Osaker</b> <kbd>U</kbd> — ett riktigt svar. Anvand det hellre an en gissning;
+      en gissning som rakar bli ratt gar inte att skilja fran en bedomning.</span>
+    </label>
+
+    <h2>Anteckning (frivillig)</h2>
+    <textarea id="note" placeholder="t.ex. skymd klubba, kameran rors, tva svingar i klippet"></textarea>
+
+    <h2>Navigering</h2>
+    <div class="row">
+      <button id="prev">&larr; Sving <kbd>P</kbd></button>
+      <button id="next" class="primary">Sving &rarr; <kbd>N</kbd></button>
+    </div>
+    <div class="row">
+      <button id="firstTodo">Nasta obesvarade</button>
+    </div>
+
+    <h2>Tangenter</h2>
+    <ul class="help">
+      <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> en bildruta, med <kbd>Shift</kbd> fem</li>
+      <li><kbd>Home</kbd> <kbd>End</kbd> forsta / sista bildrutan</li>
+      <li><kbd>Space</kbd> spela upp envelopen i loop</li>
+      <li><kbd>F</kbd> / <kbd>L</kbd> satt forsta / sista rutan i intervallet</li>
+      <li><kbd>N</kbd> / <kbd>P</kbd> nasta / foregaende sving</li>
+    </ul>
+
+    <h2>Nar allt ar ifyllt</h2>
+    <div class="row">
+      <button id="export" class="primary">Exportera svar</button>
+    </div>
+    <p class="muted" id="exportHint"></p>
+  </aside>
+</main>
+
+<footer>
+  <button id="stepBack">&larr;</button>
+  <input type="range" id="bar" min="1" value="1">
+  <button id="stepFwd">&rarr;</button>
+  <button id="play">Spela <kbd>Space</kbd></button>
+  <span class="muted">Svara med det <b>intervall</b> som rimligen ar toppen — forsta och
+    sista bildrutan, inte en enda.</span>
+</footer>
+
+<script>
+const ROUND = /*__ROUND__*/ null;
+
+const STORE = 'topround-s32-' + ROUND.annotator;
+const state = load();
+let i = 0, f = 1, playing = 0, cache = new Map();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* private window, blocked storage: start empty rather than fail */ }
+  return {};
+}
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* see load() */ }
+}
+
+const swing = () => ROUND.swings[i];
+const ans = () => (state[swing().id] = state[swing().id] || { first: null, last: null, unsure: false, note: '' });
+const answered = (a) => !!a && (a.unsure || (a.first !== null && a.last !== null));
+const src = (n) => '../frames/' + swing().id + '/' + String(n).padStart(3, '0') + '.jpg';
+
+function preload() {
+  cache = new Map();
+  for (let n = 1; n <= swing().frames; n++) {
+    const img = new Image();
+    img.src = src(n);
+    cache.set(n, img);
+  }
+}
+
+function showFrame(n) {
+  f = Math.min(swing().frames, Math.max(1, n));
+  document.getElementById('shot').src = src(f);
+  document.getElementById('fnum').textContent = f;
+  document.getElementById('bar').value = f;
+}
+
+function renderAnswer() {
+  const a = ans();
+  const vF = document.getElementById('vFirst'), vL = document.getElementById('vLast');
+  vF.textContent = a.first === null ? '–' : a.first;
+  vL.textContent = a.last === null ? '–' : a.last;
+  vF.className = 'val' + (a.first === null ? ' unset' : '');
+  vL.className = 'val' + (a.last === null ? ' unset' : '');
+  document.getElementById('width').textContent =
+    a.first !== null && a.last !== null ? (a.last - a.first + 1) + ' bildrutor brett' : '';
+  document.getElementById('unsure').checked = !!a.unsure;
+  document.getElementById('note').value = a.note || '';
+  const done = ROUND.swings.filter((s) => answered(state[s.id])).length;
+  document.getElementById('pcount').textContent = done + ' / ' + ROUND.swings.length + ' besvarade';
+  document.getElementById('pcount').className = done === ROUND.swings.length ? 'done' : 'todo';
+  document.querySelector('#progress i').style.width = (100 * done / ROUND.swings.length) + '%';
+}
+
+function renderSwing() {
+  document.getElementById('pos').textContent = i + 1;
+  document.getElementById('rid').textContent = swing().id;
+  document.getElementById('fmax').textContent = swing().frames;
+  document.getElementById('bar').max = swing().frames;
+  preload();
+  showFrame(1);
+  renderAnswer();
+}
+
+function goto(n) {
+  i = (n + ROUND.swings.length) % ROUND.swings.length;
+  stop();
+  renderSwing();
+}
+
+function stop() { if (playing) { clearInterval(playing); playing = 0; document.getElementById('play').textContent = 'Spela'; } }
+function toggle() {
+  if (playing) return stop();
+  document.getElementById('play').textContent = 'Stopp';
+  playing = setInterval(() => showFrame(f >= swing().frames ? 1 : f + 1), 110);
+}
+
+function setBound(which) {
+  const a = ans();
+  a[which] = f;
+  // The interval is [first, last]; a `last` before `first` is a slip, not an answer.
+  if (a.first !== null && a.last !== null && a.last < a.first) {
+    if (which === 'first') a.last = f; else a.first = f;
+  }
+  save(); renderAnswer();
+}
+
+document.getElementById('setFirst').onclick = () => setBound('first');
+document.getElementById('setLast').onclick = () => setBound('last');
+document.getElementById('clear').onclick = () => { const a = ans(); a.first = a.last = null; save(); renderAnswer(); };
+document.getElementById('unsure').onchange = (e) => { ans().unsure = e.target.checked; save(); renderAnswer(); };
+document.getElementById('note').oninput = (e) => { ans().note = e.target.value; save(); renderAnswer(); };
+document.getElementById('prev').onclick = () => goto(i - 1);
+document.getElementById('next').onclick = () => goto(i + 1);
+document.getElementById('stepBack').onclick = () => { stop(); showFrame(f - 1); };
+document.getElementById('stepFwd').onclick = () => { stop(); showFrame(f + 1); };
+document.getElementById('play').onclick = toggle;
+document.getElementById('bar').oninput = (e) => { stop(); showFrame(+e.target.value); };
+document.getElementById('firstTodo').onclick = () => {
+  const n = ROUND.swings.findIndex((s) => !answered(state[s.id]));
+  if (n >= 0) goto(n); else alert('Alla svingar ar besvarade.');
+};
+
+document.getElementById('export').onclick = () => {
+  const missing = ROUND.swings.filter((s) => !answered(state[s.id])).length;
+  if (missing && !confirm(missing + ' svingar ar obesvarade. Exportera anda?')) return;
+  const out = {
+    round: 'S-32', annotator: ROUND.annotator, seed: ROUND.seed,
+    exportedAt: new Date().toISOString(),
+    answers: ROUND.swings.map((s, n) => {
+      const a = state[s.id] || {};
+      return {
+        id: s.id, order: n + 1, frames: s.frames,
+        first: a.first ?? null, last: a.last ?? null,
+        unsure: !!a.unsure, note: a.note || '',
+      };
+    }),
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'svar-' + ROUND.annotator + '.json';
+  a.click(); URL.revokeObjectURL(url);
+};
+
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  const step = e.shiftKey ? 5 : 1;
+  const k = e.key;
+  if (k === 'ArrowLeft') { stop(); showFrame(f - step); }
+  else if (k === 'ArrowRight') { stop(); showFrame(f + step); }
+  else if (k === 'Home') { stop(); showFrame(1); }
+  else if (k === 'End') { stop(); showFrame(swing().frames); }
+  else if (k === ' ') toggle();
+  else if (k === 'f' || k === 'F') setBound('first');
+  else if (k === 'l' || k === 'L') setBound('last');
+  else if (k === 'c' || k === 'C') document.getElementById('clear').click();
+  else if (k === 'u' || k === 'U') { ans().unsure = !ans().unsure; save(); renderAnswer(); return; }
+  else if (k === 'n' || k === 'N') { goto(i + 1); return; }
+  else if (k === 'p' || k === 'P') { goto(i - 1); return; }
+  else return;
+  e.preventDefault();
+});
+
+document.getElementById('who').textContent = ROUND.annotator;
+document.getElementById('seed').textContent = 'fro ' + ROUND.seed;
+document.getElementById('total').textContent = ROUND.swings.length;
+document.getElementById('exportHint').textContent =
+  'Spara filen som data/shaft/top-round/svar-' + ROUND.annotator + '.json';
+goto(0);
+</script>
+</body>
+</html>
