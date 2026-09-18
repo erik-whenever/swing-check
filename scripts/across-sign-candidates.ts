@@ -39,6 +39,7 @@ import {
   type MeasurementPhase,
   type ShaftFrameSample,
   type ShaftSwingSeries,
+  type TopShaftCategory,
 } from '../src/lib/shaft/measure/index';
 import type { CameraAngle } from '../src/lib/cameraAngle';
 
@@ -542,6 +543,13 @@ function run(work: string): void {
     return;
   }
 
+  // `--result` reads the filled-in blind file back and scores it. Same rule: it leaves the
+  // report, the key and both frame folders alone.
+  if (process.argv.includes('--result')) {
+    writeResultReport(dtl, manifests);
+    return;
+  }
+
   writeReport(dtl, rows, {
     predictions: predictions.length,
     joined: records.length,
@@ -624,7 +632,7 @@ interface Row {
   distanceTo90Deg: number;
   sign: -1 | 0 | 1;
   deviationDeg: number;
-  category: string;
+  category: TopShaftCategory;
   directedAngleDeg: number;
   frameLevel: string;
   frameReasons: readonly string[];
@@ -979,6 +987,17 @@ function shuffle<T>(items: readonly T[], next: () => number): T[] {
  * same reason — a rank prefix would carry the sort order into the file listing.
  */
 function writeBlindRound(dtl: Row[], work: string): void {
+  // A second `--blind` would rewrite the very file the answers live in. The round is hand
+  // work that cannot be regenerated, so a filled-in file stops the run rather than being
+  // quietly replaced by an empty one.
+  if (existsSync(OUT_BLIND)) {
+    const filled = readAnswers().filter((a) => a.raw !== '');
+    if (filled.length > 0 && !process.argv.includes('--force')) {
+      throw new Error(
+        `${path.relative(ROOT, OUT_BLIND)} har ${filled.length} ifyllda svar — kör med --force för att skriva över dem (de går inte att återskapa).`,
+      );
+    }
+  }
   const right = dtl.filter((r) => r.orientationDeg > 0 && !blindExclusion(r.frameId));
   const left = dtl
     .filter((r) => r.orientationDeg < 0 && !blindExclusion(r.frameId))
@@ -1043,11 +1062,13 @@ ${
 Alla är \`dtl\`, alla bär fasen \`top\` från minst en etikett, och alla är räknade med
 \`handedness: 'right'\` — det är antagandet i hela tabellen, inte ett påstående om spelaren.
 
-**Varje bildruta i omgången är kontrollerad mot spegling** (bakgrundstext och vilken sida
-bollen ligger på) innan den släpptes in, eftersom en spegelvänd bild vänder tecknet utan att
-något i datamodellen märker det. Bara klippet nedan var spegelvänt; ingen annan bildruta i
-listan bär vänsterhänt geometri. Kontrollen säger ingenting om *utfallet* — den är gjord på
-bakgrunden, inte på klubban.
+**Varje bildruta i omgången är granskad mot spegling** innan den släpptes in — på
+bakgrundstext och på vilken sida bollen ligger — eftersom en spegelvänd bild vänder tecknet
+utan att något i datamodellen märker det. Granskningen säger ingenting om *utfallet*; den är
+gjord på bakgrunden, inte på klubban. **Den är inte heller lika stark överallt:** klippet
+nedan avgjordes av läsbar text i bakgrunden, medan ett klipp utan text och utan synlig boll
+inte går att avgöra på en bildruta. Vad granskningen faktiskt gav per bildruta står i
+resultatrapporten, inte här.
 
 **Vad omgången kan visa.** Stämmer ögat och \`ACROSS_THE_LINE_SIGN\` överens på båda sidor om
 lodrätt, är tecknet prövat på mer än den enda bildruta S-21 vilade på. Går de isär
@@ -1083,6 +1104,353 @@ ${
   console.log(
     `blind omgång: ${order.length} bildrutor (frö ${seedHex}) · ${path.relative(ROOT, OUT_BLIND)} · facit: ${path.relative(ROOT, OUT_BLIND_KEY)}`,
   );
+}
+
+// ── Scoring the round (`--result`) ───────────────────────────────────────────
+
+const OUT_RESULT = path.join(ROOT, 'docs', 'shaft', 'across-sign-result.md');
+
+type Verdict = 'across' | 'laid-off' | 'undecided';
+
+interface Answer {
+  index: number;
+  frameId: string;
+  verdict: Verdict;
+  /** The text after the em dash, when a reason was given. */
+  reason: string;
+  raw: string;
+}
+
+/**
+ * Read the answer column back out of the blind file.
+ *
+ * Deliberately strict: an answer that is neither `across`, `laid-off` nor a
+ * `kan inte avgöra` throws instead of being bucketed as undecided. The whole point of the
+ * round is a count, and a silently reinterpreted cell is a wrong count that looks right.
+ */
+function readAnswers(): Answer[] {
+  const out: Answer[] = [];
+  for (const line of readFileSync(OUT_BLIND, 'utf8').split(/\r?\n/)) {
+    if (!line.trim().startsWith('|')) continue;
+    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+    if (cells.length < 4) continue;
+    const index = Number(cells[0]);
+    if (!Number.isInteger(index)) continue;
+    const frameId = cells[1].replace(/`/g, '').trim();
+    const raw = cells[3];
+    const lower = raw.toLowerCase();
+    const reason = raw.includes('—') ? raw.split('—').slice(1).join('—').trim() : '';
+    let verdict: Verdict;
+    if (lower.startsWith('across')) verdict = 'across';
+    else if (lower.startsWith('laid')) verdict = 'laid-off';
+    else if (lower.includes('kan inte avgöra')) verdict = 'undecided';
+    else throw new Error(`rad ${index} (${frameId}): obegripligt svar ${JSON.stringify(raw)}`);
+    out.push({ index, frameId, verdict, reason, raw });
+  }
+  if (out.length === 0) throw new Error(`inga ifyllda rader i ${path.relative(ROOT, OUT_BLIND)}`);
+  return out;
+}
+
+/** What the eye's verdict implies about the sign, for the rows the eye called. */
+function expectedSign(verdict: Verdict): 1 | -1 | null {
+  return verdict === 'across' ? 1 : verdict === 'laid-off' ? -1 : null;
+}
+
+/**
+ * The eye's word for the measurement's category. `across` and `across-the-line` are the same
+ * verdict in two vocabularies — comparing the strings raw makes every correct across-call
+ * read as a miss, which is a scoring bug that flatters nothing and confuses everything.
+ */
+function asCategory(verdict: Verdict): TopShaftCategory | null {
+  return verdict === 'across' ? 'across-the-line' : verdict === 'laid-off' ? 'laid-off' : null;
+}
+
+function writeResultReport(dtl: Row[], manifests: Map<string, ManifestFrame>): void {
+  const byId = new Map(dtl.map((r) => [r.frameId, r]));
+  const answers = readAnswers();
+  const joined = answers.map((a) => {
+    const row = byId.get(a.frameId);
+    if (!row) throw new Error(`${a.frameId} finns inte bland kandidaterna längre`);
+    return { a, row };
+  });
+
+  const called = joined.filter(({ a }) => a.verdict !== 'undecided');
+  const undecided = joined.filter(({ a }) => a.verdict === 'undecided');
+  const nearVertical = undecided.filter(({ a }) => /lodr(ä|a)t/i.test(a.reason));
+  const otherStops = undecided.filter(({ a }) => !/lodr(ä|a)t/i.test(a.reason));
+
+  const signAgree = called.filter(({ a, row }) => expectedSign(a.verdict) === Math.sign(row.deviationDeg));
+  const signDisagree = called.filter(({ a, row }) => expectedSign(a.verdict) !== Math.sign(row.deviationDeg));
+  const categoryAgree = called.filter(({ a, row }) => asCategory(a.verdict) === row.category);
+
+  // Boundary: where the eye stopped calling, in |angle from horizontal|.
+  // Rounded to the tenth the report prints, so that no sentence below compares two numbers
+  // the reader sees as equal and the code sees as different.
+  const tenth = (v: number) => Math.round(v * 10) / 10;
+  const calledAngles = called.map(({ row }) => tenth(row.absFromHorizontalDeg)).sort((x, y) => x - y);
+  const stoppedAngles = nearVertical.map(({ row }) => tenth(row.absFromHorizontalDeg)).sort((x, y) => x - y);
+  const overlapLow = Math.min(...stoppedAngles);
+  const overlapHigh = Math.max(...calledAngles);
+  const clean = overlapLow > overlapHigh;
+  const ties = [...new Set(calledAngles.filter((c) => stoppedAngles.includes(c)))];
+
+  // Phase audit over the whole candidate table.
+  const humanTop = dtl.filter((r) => r.annPhase === 'top');
+  const manifestOnly = dtl.filter((r) => r.annPhase !== 'top' && r.manifestPhase === 'top');
+  const unlabelled = manifestOnly.filter((r) => r.annPhase === null);
+  const contradicted = manifestOnly.filter((r) => r.annPhase !== null);
+  const productionPicks = manifestOnly.filter((r) => r.onProductionPath);
+
+  const doc = `# Resultat av den blinda omgången
+
+> ${joined.length} bildrutor bedömda för hand i
+> [across-sign-blind.md](across-sign-blind.md) (frö \`${`0x${BLIND_SEED.toString(16)}`}\`),
+> stämda mot [across-sign-blind-key.md](across-sign-blind-key.md). Sammanställd
+> ${new Date().toISOString().slice(0, 10)} av \`scripts/across-sign-candidates.ts --result\`,
+> som bara läser. Inga trösklar och ingen produktionskod är rörd.
+
+## 1. Rad för rad
+
+\`skaftvinkel\` är \`lineOrientationDeg\` för \`butt → hosel\`: beloppet är lutningen mot
+bildens horisontal, tecknet är sidan om lodrätt (+ = klubbänden upp åt höger).
+
+| # | frame-id | mitt svar | beräknat utfall | skaftvinkel | avstånd till 90° | sammanfaller |
+|---:|---|---|---|---:|---:|---|
+${joined
+  .map(({ a, row }) => {
+    const same =
+      a.verdict === 'undecided'
+        ? '— (ej kallad)'
+        : asCategory(a.verdict) === row.category
+          ? '**ja**'
+          : '**NEJ**';
+    return `| ${a.index} | \`${a.frameId}\` | ${a.verdict === 'undecided' ? `kan inte avgöra${a.reason ? ` — ${a.reason}` : ''}` : `\`${a.verdict}\``} | \`${row.category}\` | ${fmt(row.deviationDeg)}° | ${fmt(row.distanceTo90Deg)}° | ${same} |`;
+  })
+  .join('\n')}
+
+**Fördelningen av svaren:** ${called.length} kallade (${called.filter(({ a }) => a.verdict === 'across').length} \`across\`,
+${called.filter(({ a }) => a.verdict === 'laid-off').length} \`laid-off\`), ${nearVertical.length} stoppade
+på *för nära lodrätt*, ${otherStops.length} stoppad${otherStops.length === 1 ? '' : 'e'} på annat skäl
+(${otherStops.map(({ a }) => `rad ${a.index}: ${a.reason}`).join('; ') || '—'}).
+
+## 2. Teckenfrågan
+
+Räknat **bara** på de rader som kallades \`across\` eller \`laid-off\`.
+\`kan inte avgöra\` är inte ett svar om tecknet och räknas inte in.
+
+**De kallade raderna är ${called.length}, inte 5.** Uppdraget sa fem; filen bär sex
+(${called.map(({ a }) => `rad ${a.index}`).join(', ')}). Siffrorna nedan är räknade på alla sex,
+och eftersom den sjätte råkar vara just den avvikande står båda talen här: **${signAgree.length} av
+${called.length}** med den, **${signAgree.length} av ${signAgree.length}** utan den.
+
+| | Antal |
+|---|---:|
+| Tecknet sammanfaller (ögats sida = \`deviationDeg\`-tecknet) | **${signAgree.length} av ${called.length}** |
+| Tecknet avviker | ${signDisagree.length} |
+| Utfallet sammanfaller hela vägen (även \`on-plane\`-bandet) | ${categoryAgree.length} av ${called.length} |
+
+${signDisagree.length === 0 ? '**Alla kallade rader sammanfaller.**' : `**Avvikande rad${signDisagree.length === 1 ? '' : 'er'}:** ${signDisagree.map(({ a, row }) => `rad ${a.index}, \`${a.frameId}\` — ögat \`${a.verdict}\`, beräknat \`${row.category}\` vid ${fmt(row.deviationDeg)}°`).join('; ')}.`}
+
+### Är det en inversion?
+
+**Nej.** En vänd \`ACROSS_THE_LINE_SIGN\` vänder *varenda* rad samtidigt — det är en konstant,
+inte en per-bildruta-egenskap. Här står ${signAgree.length} rader rätt, och de står rätt **på
+båda sidor om lodrätt**: ${signAgree.filter(({ row }) => row.orientationDeg < 0).length} negativa
+som ögat kallade \`laid-off\` och ${signAgree.filter(({ row }) => row.orientationDeg > 0).length}
+positiva som ögat kallade \`across\`. En inversion hade fällt alla ${called.length}.
+
+${signDisagree
+  .map(({ a, row }) => {
+    const seen = `rad ${a.index} (\`${a.frameId}\`)`;
+    return `**Vad ${seen} är i stället.** Skaftet ligger ${fmt(row.absFromHorizontalDeg)}° från
+horisontalen — klubban står i praktiken **parallell med marken** vid toppen, alltså
+${fmt(row.distanceTo90Deg)}° från lodrätt och rakt i den andra änden av skalan än vikningen.
+Där är beloppet (${fmt(Math.abs(row.deviationDeg))}°) mindre än \`ON_PLANE_BAND_DEG\` = ${ON_PLANE_BAND_DEG},
+så mätvärdet **påstår ingenting**: det svarar \`on-plane\`, inte \`across-the-line\`. Ögat kunde
+ändå kalla den, och det är upplysande — vid ett vågrätt skaft avgörs across/laid-off av vart
+klubban pekar i **horisontalplanet**, till höger eller vänster om mållinjen, och den
+riktningen ligger i djupled. En 2D-projektion av skaftets lutning i bilden bär den inte:
+båda lägena projiceras till ungefär samma vågräta streck. Ögat läser förkortning,
+klubbhuvudets läge mot kroppen och bollinjen — data som \`lineOrientationDeg\` per konstruktion
+kastar.
+
+**Vad raden därför visar:** inte ett fel i tecknet, utan att mätvärdets blinda fläck sitter
+vid **horisontalen**, inte bara vid vikningen. \`ON_PLANE_BAND_DEG\` är det som hindrar den
+från att svara fel där — och den här raden är det första mätta belägget för att bandet gör
+ett arbete. Ett (1) fall räcker inte för att flytta bandet, och ingen tröskel har rörts.`;
+  })
+  .join('\n\n')}
+
+## 3. Gränsen mellan kallade och stoppade
+
+Ögats stopp *"för nära lodrätt"* mot de kallade raderna, i lutning mot horisontalen
+(90° = lodrätt skaft):
+
+| | Antal | Intervall \\|vinkel\\| | Motsvarar avstånd till 90° |
+|---|---:|---|---|
+| Kallade | ${called.length} | ${fmt(calledAngles[0])}° – ${fmt(calledAngles[calledAngles.length - 1])}° | ${fmt(90 - calledAngles[calledAngles.length - 1])}° – ${fmt(90 - calledAngles[0])}° |
+| Stoppade (*för nära lodrätt*) | ${nearVertical.length} | ${fmt(stoppedAngles[0])}° – ${fmt(stoppedAngles[stoppedAngles.length - 1])}° | ${fmt(90 - stoppedAngles[stoppedAngles.length - 1])}° – ${fmt(90 - stoppedAngles[0])}° |
+
+**${clean ? 'Rent snitt' : 'Inget rent snitt — intervallen överlappar'}.**
+${
+  clean
+    ? `Allt under ${fmt(overlapHigh)}° kallades, allt över ${fmt(overlapLow)}° stoppades.`
+    : `Överlappet går från **${fmt(overlapLow)}° till ${fmt(overlapHigh)}°** mot horisontalen — motsvarande **${fmt(90 - overlapHigh)}°–${fmt(90 - overlapLow)}° från lodrätt** — och i det bandet finns både kallade och stoppade rader.${
+        ties.length
+          ? ` Skarpaste fallet: ${ties
+              .map((t) => `${fmt(t)}°`)
+              .join(', ')} förekommer på **båda** sidor om gränsen (${called
+              .filter(({ row }) => ties.includes(tenth(row.absFromHorizontalDeg)))
+              .map(({ a }) => `rad ${a.index}`)
+              .join(', ')} kallades, ${nearVertical
+              .filter(({ row }) => ties.includes(tenth(row.absFromHorizontalDeg)))
+              .map(({ a }) => `rad ${a.index}`)
+              .join(', ')} stoppades — samma vinkel, olika svar).`
+          : ''
+      }`
+}
+
+Rent under överlappet (< ${fmt(overlapLow)}°): ${called.filter(({ row }) => tenth(row.absFromHorizontalDeg) < overlapLow).length} rader, alla kallade.
+Rent över (> ${fmt(overlapHigh)}°): ${nearVertical.filter(({ row }) => tenth(row.absFromHorizontalDeg) > overlapHigh).length} rader, alla stoppade.
+
+**Vad det säger.** Gränsen är ingen skarp vinkel, och den kan inte bli en tröskel: ögat
+stannade på ${fmt(stoppedAngles[0])}° i en bildruta och kallade ${fmt(overlapHigh)}° i en annan.
+Det som skiljer raderna i bandet åt är alltså inte skaftvinkeln utan bildrutans egen tydlighet
+— klubbhuvudets synlighet, suddigheten, hur mycket av mållinjen som syns. Men zonen ligger
+**vid lodrätt**, exakt där vikningen i \`lineOrientationDeg\` gör tecknet ömtåligt: där
+mätvärdet är som skörast vägrar ögat svara. Det är den mest användbara överensstämmelsen i
+hela omgången, och den går åt rätt håll — ingen av de ${nearVertical.length} stoppade raderna
+motsäger tecknet, de säger att en människa inte heller kan avgöra det där.
+
+## 4. Rad ${joined.find(({ a }) => a.frameId === 'img-3641-adde195e_s00_f02')?.a.index ?? '—'} — \`img-3641-adde195e_s00_f02\`
+
+${auditFrame(byId.get('img-3641-adde195e_s00_f02'), manifests)}
+
+### Hur många fler kan bära samma fel
+
+Av de **${dtl.length}** \`dtl\`-toppbildrutorna i kandidattabellen:
+
+| Hur bildrutan kom in | Antal | Vad etiketten är värd |
+|---|---:|---|
+| Annotatören sa \`top\` | ${humanTop.length} | En människa såg bildrutan och kallade den topp |
+| Bara manifestet sa \`top\`, ingen användbar annoterad fas | ${unlabelled.length} | Härledd fas, oemotsagd och oberörd av någon människa |
+| Bara manifestet sa \`top\`, annotatören sa något annat | ${contradicted.length} | Manifestet motsägs av en människa som sett bildrutan |
+| **Summa** | **${dtl.length}** | |
+
+**${unlabelled.length + contradicted.length} rader vilar alltså helt eller delvis på manifestets
+fas**, och det är den population där samma fel kan sitta — ${productionPicks.length} av dem är
+dessutom *produktionsvägens val*, alltså den bildruta \`topFrameIndex\` faktiskt hade räknat på.
+Andelen är inte överraskande: \`batch-03/annotated-v1.zip\` bär CVAT:s orörda förval på alla sina
+bildrutor och ger därför ingen användbar fas alls, vilket rapporten
+[across-sign-candidates.md](across-sign-candidates.md) redan mäter.
+
+**Hur stor del av dem som verkligen är felfasade vet ingen** — det kräver att någon tittar på
+dem, precis som här. Den enda mätta punkten är att ${
+    contradicted.length
+  } rader har en människa som säger emot manifestet, och den bland de 20 granskade bildrutorna
+som visade sig vara en genomsving (\`img-4982-23afcab9_s00_f02\`) ligger i just den gruppen.
+`;
+
+  writeFileSync(OUT_RESULT, doc, 'utf8');
+  console.log(
+    `resultat: ${signAgree.length}/${called.length} tecken sammanfaller · ${nearVertical.length} stopp vid lodrätt · ${path.relative(ROOT, OUT_RESULT)}`,
+  );
+  console.log(
+    `audit: human-top ${humanTop.length}, manifest-only ${manifestOnly.length} (omärkt ${unlabelled.length}, motsagd ${contradicted.length}, produktionsval ${productionPicks.length})`,
+  );
+}
+
+/** The phase provenance of one frame, straight out of its row. */
+/**
+ * The phase provenance of one frame — from its own row AND from its clip's other frames,
+ * because a proportional label can only be caught by looking at what it was proportional to.
+ */
+function auditFrame(row: Row | undefined, manifests: Map<string, ManifestFrame>): string {
+  if (!row) return 'Bildrutan finns inte i kandidattabellen.';
+  const clip = clipKeyOf(row.frameId);
+  // From the MANIFESTS, not from the prediction records: batch-01 carries no `prelabel.xml`, so
+  // a frame of this clip that exists only there would drop silently out of the very table that
+  // is meant to show where the swing's labels came from.
+  const siblings = [...manifests.values()]
+    .filter((m) => clipKeyOf(m.id) === clip)
+    .sort((a, b) => a.tSec - b.tSec);
+  const self = manifests.get(row.frameId) ?? null;
+  const first = siblings[0];
+  const last = siblings[siblings.length - 1];
+  const envelope = siblings.find((m) => m.envelopeSec)?.envelopeSec ?? null;
+  const impact = siblings.find((m) => m.impactSec !== null)?.impactSec ?? null;
+  const fraction = (t: number) =>
+    envelope && envelope[1] > envelope[0] ? (t - envelope[0]) / (envelope[1] - envelope[0]) : null;
+
+  return `**Fasen den bär, enligt källorna:**
+
+| Källa | Värde |
+|---|---|
+| Manifestets \`phase\` (\`batch.zip\` → \`manifest.json\`) | \`${row.manifestPhase}\` |
+| Annotatörens \`phase\` (CVAT-attribut) | ${row.annPhase ? `\`${row.annPhase}\`` : '**ingen användbar** — bildrutans export bär ett konstant förval, och fasen därifrån är kastad'} |
+| Klipp / sving | \`${row.clipName}\`, sving ${row.swingKey.replace(/^.*_s/, '')} |
+| Vy | \`${row.bucket}\` (unionerad över annotatörerna) |
+| Flagga | \`${row.frameLevel}\`${row.frameReasons.length ? ` (${row.frameReasons.join(', ')})` : ''} |
+| Skaftvinkel | ${fmt(row.deviationDeg)}° mot horisontalen |
+
+**Urvalsregeln som släppte in den:** *${row.selection}*. Bildrutan kom in därför att
+**manifestets** fas säger \`top\` och ingen annoterad fas fanns att ställa mot den. Det är inte
+bara kandidatlistans regel — raden är produktionsvägens val, alltså exakt den bildruta
+\`topFrameIndex\` i \`derived.ts\` hade valt för \`top-shaft-orientation\` på den här svingen.
+Regeln läser \`frame.phase === 'top'\` och har ingen aning om var den fasen kommer ifrån.
+
+**Och här kommer den ifrån en proportion.** Svingens envelope är
+\`[${envelope ? envelope.map((v) => fmt(v, 3)).join(', ') : '—'}]\` och \`impactSec\` är
+**${impact === null ? 'null' : fmt(impact, 3)}** — utan mätt nedslag faller \`derivePhase\` tillbaka
+på \`FALLBACK_BOUNDS\` i \`src/lib/dataset/datasetPhase.ts\`, som är *typsvingens* proportioner
+och ingenting annat. Klippets tre bildrutor i datasetet landar exakt där den tabellen säger:
+
+| frame-id | \`tSec\` | andel av envelopen | manifestets fas | \`FALLBACK_BOUNDS\`-fönster |
+|---|---:|---:|---|---|
+${siblings
+  .map((m) => {
+    const f = fraction(m.tSec);
+    const windows: Record<string, string> = {
+      address: '0,00–0,03 → `address`',
+      backswing: '0,03–0,45 → `backswing`',
+      top: '0,45–0,52 → `top`',
+      downswing: '0,52–0,68 → `downswing`',
+      impact: '0,68–0,73 → `impact`',
+      through: '0,73–0,90 → `through`',
+      finish: '0,90–1,00 → `finish`',
+    };
+    return `| \`${m.id}\`${m.id === row.frameId ? ' **← raden**' : ''} | ${fmt(m.tSec, 3)} | ${f === null ? '—' : fmt(f, 3)} | \`${m.phase}\` | ${windows[m.phase] ?? '—'} |`;
+  })
+  .join('\n')}
+
+Etiketten \`top\` på den här bildrutan betyder alltså **"48,4 % in i envelopen"**, inte "här
+vänder klubban". Ingen mätning i kedjan har tittat på klubban innan ordet \`top\` sattes.
+
+**Vad bildrutorna visar i stället.** I \`${first.id}\` (${fmt(first.tSec, 3)} s) ligger bollen
+kvar på peggen; i \`${last.id}\` (${fmt(last.tSec, 3)} s) är den borta. Nedslaget ligger alltså
+mellan dem, och raden själv (${self ? fmt(self.tSec, 3) : '—'} s) ligger i det intervallet —
+någonstans mellan sen baksving och strax efter nedslag. Ögats
+"genomsving" är förenlig med bilderna; \`top\` är det inte, och **ingenting mätt stöder den
+etiketten**.
+
+**Om att den ser vänsterhänt ut — och varför det inte går att avgöra här.** I \`${first.id}\` ligger
+bollen på bildens **vänstra** sida om spelaren. I varje högerhänt \`dtl\`-bildruta som granskats
+i det här arbetet ligger den till **höger**. Det är spegelbilden av mönstret, vilket betyder
+antingen en vänsterhänt spelare eller en spegelvänd inspelning — och till skillnad från
+\`093-2c11c3c0\`, där bakgrundsskyltarna läste \`TIH\`/\`ƎM\` och avgjorde saken, finns det
+**ingen läsbar text och ingen annan hållpunkt i det här klippet**. Frågan är öppen.
+*Rättelse till [across-sign-blind-key.md](across-sign-blind-key.md):* där står att varje
+insläppt bildruta är kontrollerad mot spegling och att bara klipp 093 var vänt. För den här
+bildrutan var kontrollen i själva verket **utan resultat**, och bollens sida pekar åt andra
+hållet. Den påstådda kontrollen var starkare än underlaget.
+
+**Följden för omgången:** ingen. Raden kallades \`kan inte avgöra\` och ligger utanför
+teckensiffran — både fasfelet och händighetsfrågan är alltså ofarliga *här*. Följden för
+mätvärdet är större: en felfasad bildruta ger \`top-shaft-orientation\` ett värde med
+\`${row.frameLevel}\`-flagga, räknat på ett skaft som inte står vid toppen. Kontrollen i
+\`plausibility.ts\` mäter punkternas rimlighet, inte fasens — den har inget test som kan
+upptäcka det här, och inget av detta är en bugg i \`derived.ts\`: regeln gör vad den säger,
+på en etikett som inte betyder vad den heter.`;
 }
 
 /** Blind frames keep their own plain names — no rank, no ordering, no hint. */

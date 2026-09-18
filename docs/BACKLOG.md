@@ -2266,6 +2266,36 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > omgången. Därav 5 höger + 7 vänster. Varje insläppt bildruta är kontrollerad mot spegling
 > på bakgrunden (text, bollens sida), inte på klubban; ingen annan var vänd.
 > Rapporten och dess 20 bildrutor är **oförändrade** — `--blind` skriver inte om dem.
+>
+> **Resultatet (2026-09-18):** [shaft/across-sign-result.md](shaft/across-sign-result.md),
+> skriven av `--result` som läser tillbaka den ifyllda blindfilen. **Tecknet står.** Av de
+> **6** kallade raderna (uppdraget sa 5 — filen bär 6) sammanfaller **5**; den sjätte är
+> ingen inversion, för en vänd konstant hade fällt alla sex, och de 5 rätta ligger på **båda**
+> sidor om lodrätt (3 negativa `laid-off`, 2 positiva `across`).
+> **Avvikelsen sitter vid horisontalen, inte vid vikningen:** `040-42b11ae6_s00_f03` har
+> skaftet 2,1° från horisontalen — klubban parallell med marken — där across/laid-off avgörs
+> av riktningen i horisontalplanet, som en 2D-projektion av skaftets lutning inte bär.
+> `ON_PLANE_BAND_DEG` svarar `on-plane` där och hindrar mätvärdet från att påstå något; det är
+> första mätta belägget för att bandet gör ett arbete. **Ingen tröskel rörd** (n = 1).
+> **Gränsen mot ögats stopp är inget rent snitt:** kallade 2,1°–79,1°, stoppade 73,9°–82,2°,
+> överlapp **73,9°–79,1°** (10,9°–16,1° från lodrätt) — 73,9° förekommer på båda sidor om
+> gränsen, samma vinkel med olika svar. Men zonen ligger **vid lodrätt**, precis där vikningen
+> gör tecknet ömtåligt: där mätvärdet är skörast vägrar ögat svara.
+> **Fasfyndet:** `img-3641-adde195e_s00_f02` bär `top` **enbart** ur manifestet, och den
+> etiketten är en *proportion* — envelope `[6,111, 8,170]`, `impactSec: null`, bildrutan 0,484
+> in i envelopen, alltså mitt i `FALLBACK_BOUNDS` `top`-fönster 0,45–0,52. Klippets tre
+> bildrutor ligger alla exakt i sina fallback-fönster. Bollen ligger kvar på peggen vid 6,576 s
+> och är borta vid 7,572 s, så raden (7,107 s) är inte en topp. **Samma fel kan sitta i 30 av
+> de 63 `dtl`-toppbildrutorna** (26 utan användbar annoterad fas, 4 där annotatören säger emot
+> manifestet), varav **22 är produktionsvägens val** — den bildruta `topFrameIndex` faktiskt
+> räknar på. `plausibility.ts` mäter punkternas rimlighet, inte fasens, och har inget test som
+> fångar det.
+> **Rättelse till facit:** påståendet att varje insläppt bildruta var kontrollerad mot spegling
+> var starkare än underlaget. För `img-3641` finns varken läsbar bakgrundstext eller synlig
+> boll i den bedömda bildrutan, och i klippets `_f01` ligger bollen på **vänster** sida —
+> spegelbilden av mönstret i varje granskad högerhänt `dtl`-bildruta. Vänsterhänt spelare eller
+> spegelvänd inspelning går inte att skilja åt där; frågan är öppen och står i rapporten.
+> `--blind` vägrar numera skriva över en ifylld blindfil utan `--force`.
 
 
 ---

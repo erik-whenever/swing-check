@@ -50,6 +50,25 @@
 > **hela klippet `093-2c11c3c0` är undantaget**, inte bara den namngivna bildrutan — `s01_f01`
 > är en annan sving ur samma spegelvända inspelning och bär samma inversion. Kvar: 5 höger +
 > 7 vänster. Kandidatrapporten och dess 20 bildrutor rörs inte av `--blind`.
+> **Omgången är bedömd och avstämd (2026-09-18):**
+> [shaft/across-sign-result.md](shaft/across-sign-result.md). **Tecknet står — 5 av 6 kallade
+> rader sammanfaller, på båda sidor om lodrätt.** Den sjätte är ingen inversion (en vänd
+> konstant hade fällt alla sex) utan sitter vid **horisontalen**: `040-42b11ae6_s00_f03` har
+> skaftet 2,1° från horisontalen, där across/laid-off avgörs i horisontalplanet och 2D-lutningen
+> inte bär svaret. `ON_PLANE_BAND_DEG` svarar `on-plane` där — första mätta belägget för att
+> bandet arbetar. Inga trösklar rörda.
+> **Ögats "för nära lodrätt" och mätvärdets vikning pekar på samma zon:** kallade 2,1°–79,1°,
+> stoppade 73,9°–82,2°, överlapp 73,9°–79,1° — inget rent snitt, samma vinkel (73,9°) på båda
+> sidor om gränsen.
+> **Fas-fyndet är det tyngsta:** `img-3641-adde195e_s00_f02` bär `top` bara ur manifestet, och
+> den etiketten är en proportion (`impactSec: null` → `FALLBACK_BOUNDS`, bildrutan 0,484 in i
+> envelopen). Bollen ligger kvar 6,576 s och är borta 7,572 s; raden vid 7,107 s är ingen topp.
+> **30 av 63 kandidater vilar på manifestfasen, 22 av dem är produktionsvägens val.**
+> `plausibility.ts` har inget test som fångar en felfasad bildruta.
+> **Rättelse:** facitets påstående att varje insläppt bildruta var speglingskontrollerad var
+> starkare än underlaget — `img-3641` saknar både text och synlig boll i den bedömda bildrutan,
+> och klippets `_f01` visar bollen på vänster sida. Vänsterhänt eller spegelvänt går inte att
+> skilja där. `--blind` vägrar numera skriva över en ifylld blindfil utan `--force`.
 > `npm run lint` baslinjen (2 fel i orörda `useHistory.ts`) · `npm test` **472/472**.
 >
 > **Dessförinnan (2026-09-17, stream-shaft):** S-21 — **teckenkonventionen för across-the-line är

@@ -13,11 +13,13 @@ Undantagna: `093-2c11c3c0_s00_f02`, `093-2c11c3c0_s01_f01` — hela klippet `093
 Alla är `dtl`, alla bär fasen `top` från minst en etikett, och alla är räknade med
 `handedness: 'right'` — det är antagandet i hela tabellen, inte ett påstående om spelaren.
 
-**Varje bildruta i omgången är kontrollerad mot spegling** (bakgrundstext och vilken sida
-bollen ligger på) innan den släpptes in, eftersom en spegelvänd bild vänder tecknet utan att
-något i datamodellen märker det. Bara klippet nedan var spegelvänt; ingen annan bildruta i
-listan bär vänsterhänt geometri. Kontrollen säger ingenting om *utfallet* — den är gjord på
-bakgrunden, inte på klubban.
+**Varje bildruta i omgången är granskad mot spegling** innan den släpptes in — på
+bakgrundstext och på vilken sida bollen ligger — eftersom en spegelvänd bild vänder tecknet
+utan att något i datamodellen märker det. Granskningen säger ingenting om *utfallet*; den är
+gjord på bakgrunden, inte på klubban. **Den är inte heller lika stark överallt:** klippet
+nedan avgjordes av läsbar text i bakgrunden, medan ett klipp utan text och utan synlig boll
+inte går att avgöra på en bildruta. Vad granskningen faktiskt gav per bildruta står i
+resultatrapporten, inte här.
 
 **Vad omgången kan visa.** Stämmer ögat och `ACROSS_THE_LINE_SIGN` överens på båda sidor om
 lodrätt, är tecknet prövat på mer än den enda bildruta S-21 vilade på. Går de isär
