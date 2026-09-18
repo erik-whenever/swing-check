@@ -9,6 +9,8 @@ import {
   MEASUREMENT_PHASES,
   SHAFT_KEYPOINT_NAMES,
   emptyBodyReference,
+  isPhaseObserved,
+  type PhaseSource,
 } from './shaftSeries';
 
 describe('MeasurementPhase', () => {
@@ -38,5 +40,23 @@ describe('emptyBodyReference', () => {
     expect(Object.values(a).every((v) => v === null)).toBe(true);
     a.leftHip = { x: 1, y: 2 };
     expect(b.leftHip).toBeNull();
+  });
+});
+
+describe('isPhaseObserved', () => {
+  it('admits only a phase somebody or something actually saw', () => {
+    expect(isPhaseObserved('observed')).toBe(true);
+    // Both derived sources are refused. They are kept apart in the type because their
+    // error profiles differ (see `PhaseSource`), not because one of them may be trusted.
+    expect(isPhaseObserved('envelope-impact')).toBe(false);
+    expect(isPhaseObserved('envelope-fallback')).toBe(false);
+  });
+
+  it('fails closed on a record that does not say', () => {
+    // A series written before the field existed parses with `phaseSource: undefined`.
+    // Reading that as observed would silently restore exactly the behaviour S-23 found
+    // wrong on 13 of 22 frames, so absence must mean unobserved.
+    expect(isPhaseObserved(undefined)).toBe(false);
+    expect(isPhaseObserved('' as unknown as PhaseSource)).toBe(false);
   });
 });

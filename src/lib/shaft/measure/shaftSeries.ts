@@ -62,6 +62,45 @@ export const MEASUREMENT_PHASES: readonly MeasurementPhase[] = [
   'finish',
 ] as const;
 
+/**
+ * WHERE A FRAME'S `phase` CAME FROM — and therefore whether it may be believed.
+ *
+ * A phase is a claim about WHEN in the swing a frame was taken, and the three ways that
+ * claim is arrived at are not equally good. Carrying only the phase makes them look
+ * alike, which is exactly the mistake S-23 measured: of the 22 frames the production
+ * path picked as `top`, 13 were not the top (docs/shaft/phase-audit/resultat.md). None
+ * of them was flagged, because nothing in the record said where the label came from.
+ *
+ *   `observed`          — somebody or something SAW this phase on this frame: a human
+ *                         annotation, or a detector that located the event itself. This
+ *                         is the only value that counts as evidence.
+ *   `envelope-impact`   — derived from the pose envelope with a confident impact, so the
+ *                         top is `impact.topSec` ± a tolerance. Anchored on a measured
+ *                         landmark, but the landmark is the impact and the top is placed
+ *                         relative to it. S-23: 7 of 8 wrong rows here were `backswing`,
+ *                         i.e. the label lands too EARLY.
+ *   `envelope-fallback` — derived from `FALLBACK_BOUNDS` in `dataset/datasetPhase.ts`,
+ *                         i.e. from the proportions of a TYPICAL swing. `top` then means
+ *                         "about 48 % into the envelope" and nothing else. S-23: 5 of 5
+ *                         wrong, every one of them at envelope fraction 0,484.
+ *
+ * THE TWO DERIVED VALUES ARE KEPT APART even though neither is observed, because their
+ * error profiles differ in DIRECTION as well as size — folding them into one
+ * `derived` would throw away the only thing measured about them.
+ */
+export type PhaseSource = 'observed' | 'envelope-impact' | 'envelope-fallback';
+
+/**
+ * Whether a frame's phase may be treated as evidence about the swing.
+ *
+ * Takes `undefined` on purpose: a series JSON-parsed from a file written before this
+ * field existed has no `phaseSource`, and the safe reading of "the record does not say"
+ * is "nobody saw it". Absence must never read as observed.
+ */
+export function isPhaseObserved(source: PhaseSource | undefined): boolean {
+  return source === 'observed';
+}
+
 /** A point in the SOURCE frame's own pixels — letterbox padding already removed. */
 export interface Point2D {
   x: number;
@@ -129,6 +168,12 @@ export interface ShaftFrameSample {
   /** Time within the CLIP, seconds — the same clock `FrameMetadata.tSec` uses. */
   tSec: number;
   phase: MeasurementPhase;
+  /**
+   * Where `phase` came from. Required, and not defaulted anywhere: a producer that has
+   * not thought about the provenance of its phases is the failure this field exists to
+   * make impossible, and the compiler naming every producer is the point.
+   */
+  phaseSource: PhaseSource;
   /** Grip end, or null when the model did not locate it. */
   butt: ShaftKeypoint | null;
   /** Where the straight part of the shaft ends, or null. */

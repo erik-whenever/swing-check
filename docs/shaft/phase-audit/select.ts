@@ -1,5 +1,13 @@
 // ONE-OFF, READ-ONLY — the blind review package for the phase `top`.
 //
+// CLOSED ROUND — THIS NO LONGER RUNS, BY DESIGN (S-30, 2026-09-18). The assertion below
+// says the three sets must still be the report's, and after S-30 they are not: the
+// production path refuses to anchor on a `top` nobody observed, so it now picks NONE of
+// the 22 frames this round was built from and the run stops with
+// `productionPath: väntat 22, fick 0`. That is the assertion doing its job on a round
+// that is finished — the package and its results stand as they were reviewed. See
+// docs/shaft/phase-trust.md.
+//
 // WHY THIS EXISTS. `topFrameIndex` in `src/lib/shaft/measure/derived.ts` reads
 // `frame.phase === 'top'` and cannot see where that label came from. When the manifest
 // carries no confident impact, `derivePhase` falls back to `FALLBACK_BOUNDS` in
@@ -364,6 +372,17 @@ function toSeries(
   const frames: ShaftFrameSample[] = list.map((r) => ({
     tSec: r.manifest.tSec,
     phase: r.phase,
+    // The provenance the phase already had, now said out loud (`PhaseSource`). The
+    // annotator SAW the frame, so an annotated phase is `observed`; the manifest's is
+    // `derivePhase` output, and which of its two branches ran is exactly whether the
+    // swing had a confident impact. Nothing is invented here — the same three cases this
+    // tool's own `phaseSource` column has always reported, in the type the measurement
+    // layer reads.
+    phaseSource: r.annPhase
+      ? ('observed' as const)
+      : r.manifest.impactSec !== null
+        ? ('envelope-impact' as const)
+        : ('envelope-fallback' as const),
     butt: { ...r.pred.butt, conf: PRELABEL_CONF_FLOOR },
     hosel: { ...r.pred.hosel, conf: PRELABEL_CONF_FLOOR },
     toe: null,

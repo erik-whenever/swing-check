@@ -54,7 +54,7 @@ import type {
   ShaftKeypointName,
   ShaftModelIdentity,
 } from './shaftSeries';
-import { MEASUREMENT_PHASES } from './shaftSeries';
+import { MEASUREMENT_PHASES, isPhaseObserved } from './shaftSeries';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 
@@ -182,6 +182,16 @@ export type DerivedReason =
   | 'handedness-unknown'
   /** No frame in the series carries the phase this measurement is defined at. */
   | 'phase-missing'
+  /**
+   * A frame carries `top`, but nothing OBSERVED the top — the label is derived from the
+   * swing envelope (`PhaseSource` in `shaftSeries.ts`), and S-23 measured that label
+   * wrong on 13 of the 22 frames the production path picked
+   * (docs/shaft/phase-audit/resultat.md). Distinct from `phase-missing`: the frame is
+   * there and the measurement could be computed on it — what is absent is any reason to
+   * believe it is the top. Until a reliable source exists, a number anchored at the top
+   * would be a number about an arbitrary frame, so none is returned.
+   */
+  | 'top-phase-not-observed'
   /** No frame the measurement could use carries the body landmarks it needs. */
   | 'body-reference-missing'
   /**
@@ -484,8 +494,21 @@ function shaftAngleByPhase(checked: CheckedShaftSwingSeries): Measurement<ShaftA
 
   const out: ShaftAngleByPhase = {};
   const used: number[] = [];
+  // THE `top` BUCKET IS GATED, AND ONLY THAT ONE. This measurement reads `frame.phase`
+  // directly and never goes through `topFrame`, so the rule S-23 forced on the
+  // top-anchored measurements has to be applied here too or it is trivially routed
+  // around: `shaftAngleByPhase(...).value.top.medianDeg` is the same number
+  // `top-shaft-orientation` refuses to give. Every other bucket is a SPAN the labelling
+  // gets roughly right over several frames, and none of them was measured in S-23 —
+  // gating them would be an untested guess dressed as caution.
+  let unobservedTops = false;
   for (const phase of MEASUREMENT_PHASES) {
-    const indices = usable.filter((i) => series.frames[i].phase === phase);
+    let indices = usable.filter((i) => series.frames[i].phase === phase);
+    if (phase === 'top') {
+      const observed = indices.filter((i) => isPhaseObserved(series.frames[i].phaseSource));
+      unobservedTops = observed.length < indices.length;
+      indices = observed;
+    }
     if (indices.length === 0) continue;
     const angles = indices
       .map((i) => series.frames[i].shaftAngleDeg)
@@ -497,11 +520,18 @@ function shaftAngleByPhase(checked: CheckedShaftSwingSeries): Measurement<ShaftA
     used.push(...indices);
   }
 
-  if (used.length === 0) return reject(id, 'deg', [...gate.reasons, 'no-usable-frames'], []);
+  if (used.length === 0) {
+    const why: MeasurementReason[] = [...gate.reasons, 'no-usable-frames'];
+    if (unobservedTops) why.push('top-phase-not-observed');
+    return reject(id, 'deg', why, []);
+  }
 
   const soft = Object.values(out).some((p) => p.level !== 'usable');
   const reasons = [...gate.reasons];
   if (soft) reasons.push('sparse-usable-frames');
+  // The bucket is absent rather than present-and-wrong, and the reason says which of the
+  // two absences this is: no `top` frame in the swing, or `top` frames nobody observed.
+  if (unobservedTops) reasons.push('top-phase-not-observed');
   return {
     id,
     value: out,
@@ -561,10 +591,14 @@ function shaftPositionAtP2(checked: CheckedShaftSwingSeries): Measurement<BodyRe
 /**
  * P4 — the top of the backswing.
  *
- * The LAST frame the phase labelling calls `top`, not the first and not the one with
- * the highest hands: the top is a turnaround the phase labelling already located from
- * the pose envelope, and picking the last of its frames puts the reading as close to
- * the transition as the labelling allows without re-deriving the event here.
+ * The last frame an OBSERVED phase labelling calls `top`, not the first and not the one
+ * with the highest hands: the top is a turnaround the labelling already located, and
+ * picking the last of its frames puts the reading as close to the transition as the
+ * labelling allows without re-deriving the event here.
+ *
+ * When no frame's `top` was observed the measurement returns nothing — see `topFrame`.
+ * P4 is defined AT an event, so a frame that is not that event does not give a rough P4;
+ * it gives a precise reading of some other moment.
  */
 function shaftPositionAtP4(checked: CheckedShaftSwingSeries): Measurement<BodyRelativeShaft> {
   const id: MeasurementId = 'shaft-position-p4';
@@ -572,11 +606,11 @@ function shaftPositionAtP4(checked: CheckedShaftSwingSeries): Measurement<BodyRe
   if (gate.level === 'rejected') {
     return reject(id, 'torso-lengths', gate.reasons, []);
   }
-  const index = topFrameIndex(checked);
-  if (index === null) {
-    return reject(id, 'torso-lengths', [...gate.reasons, 'phase-missing'], []);
+  const top = topFrame(checked);
+  if (top.index === null) {
+    return reject(id, 'torso-lengths', [...gate.reasons, top.why!], top.topIndices);
   }
-  return bodyRelativeMeasurement(id, checked, index, gate);
+  return bodyRelativeMeasurement(id, checked, top.index, gate);
 }
 
 function bodyRelativeMeasurement(
@@ -623,10 +657,11 @@ function topShaftOrientation(
     return reject(id, 'category', [...gate.reasons, 'handedness-unknown'], []);
   }
 
-  const index = topFrameIndex(checked);
-  if (index === null) {
-    return reject(id, 'category', [...gate.reasons, 'phase-missing'], []);
+  const top = topFrame(checked);
+  if (top.index === null) {
+    return reject(id, 'category', [...gate.reasons, top.why!], top.topIndices);
   }
+  const index = top.index;
   const orientation = shaftOrientation(checked.series.frames[index]);
   if (orientation === null) {
     return reject(id, 'category', [...gate.reasons, 'insufficient-frames'], [index]);
@@ -791,12 +826,47 @@ function cameraGate(id: MeasurementId, angle: CameraAngle | null): Gate {
   return { level: 'usable', reasons: [] };
 }
 
-/** The last frame the phase labelling calls `top`, among those the check admitted. */
-function topFrameIndex(checked: CheckedShaftSwingSeries): number | null {
+/**
+ * The frame a top-anchored measurement is allowed to read, and why there is none.
+ *
+ * TWO FILTERS, IN THIS ORDER. The frame must be labelled `top` among those the check
+ * admitted — and that label must be OBSERVED. A derived `top` is a proportion of the
+ * swing envelope wearing the name of an event: S-23 read 22 such frames by eye and 13 of
+ * them were not the top (docs/shaft/phase-audit/resultat.md), with the error changing
+ * direction depending on which of the two derived sources produced it. Three spikes
+ * (S-27, S-28, S-29) then failed to recover the top from the shaft signal, so there is at
+ * present no reliable derived source to fall back on.
+ *
+ * REFUSING IS THE POINT. Anchoring on the last derived `top` does not make the number
+ * approximately right, it makes it a number about an arbitrary frame — and it arrives
+ * flagged `usable`, because `plausibility.ts` checks the points and not the moment. A
+ * missing value is recoverable; a confident wrong one is not.
+ *
+ * The rejected frames travel back in `topIndices` so a caller can say WHICH frames it
+ * declined to read, rather than only that it declined.
+ */
+interface TopFrame {
+  /** The frame to read, or null when no frame may be read. */
+  index: number | null;
+  /** Why `index` is null. Null when it is not. */
+  why: DerivedReason | null;
+  /** Every admitted frame labelled `top`, observed or not — for traceability. */
+  topIndices: number[];
+}
+
+function topFrame(checked: CheckedShaftSwingSeries): TopFrame {
   const tops = usableFrameIndices(checked, 'shaft').filter(
     (i) => checked.series.frames[i].phase === 'top',
   );
-  return tops.length === 0 ? null : tops[tops.length - 1];
+  if (tops.length === 0) return { index: null, why: 'phase-missing', topIndices: [] };
+  const observed = tops.filter((i) => isPhaseObserved(checked.series.frames[i].phaseSource));
+  if (observed.length === 0) {
+    return { index: null, why: 'top-phase-not-observed', topIndices: tops };
+  }
+  // The LAST of them, for the reason `shaftPositionAtP4` gives: nearest the transition
+  // the labelling allows. Among the observed ones only — an unobserved frame later in the
+  // swing is not a better reading, it is an unverified one.
+  return { index: observed[observed.length - 1], why: null, topIndices: tops };
 }
 
 /** The shaft LINE's tilt on this frame, or null when the endpoints are unusable. */

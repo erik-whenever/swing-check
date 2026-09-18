@@ -614,6 +614,17 @@ function toSeries(swingKey: string, list: FrameRecord[], cameraAngle: CameraAngl
   const frames: ShaftFrameSample[] = list.map((r) => ({
     tSec: r.manifest.tSec,
     phase: r.phase,
+    // The provenance the phase already had, now said out loud (`PhaseSource`). The
+    // annotator SAW the frame, so an annotated phase is `observed`; the manifest's is
+    // `derivePhase` output, and which of its two branches ran is exactly whether the
+    // swing had a confident impact. Nothing is invented here — the same three cases this
+    // tool's own `phaseSource` column has always reported, in the type the measurement
+    // layer reads.
+    phaseSource: r.annPhase
+      ? ('observed' as const)
+      : r.manifest.impactSec !== null
+        ? ('envelope-impact' as const)
+        : ('envelope-fallback' as const),
     butt: { ...r.pred.butt, conf: PRELABEL_CONF_FLOOR },
     hosel: { ...r.pred.hosel, conf: PRELABEL_CONF_FLOOR },
     toe: null,

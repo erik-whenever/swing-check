@@ -18,6 +18,7 @@ import {
   emptyBodyReference,
   type BodyReference,
   type MeasurementPhase,
+  type PhaseSource,
   type Point2D,
   type ShaftFrameSample,
   type ShaftKeypoint,
@@ -53,6 +54,15 @@ export interface DetectedFrame {
   /** Time within the CLIP, seconds. */
   tSec: number;
   phase: MeasurementPhase;
+  /**
+   * Where `phase` came from. NOT defaulted here, and that is the whole design: this
+   * adapter cannot know whether its caller read the phase off an annotation or derived
+   * it from an envelope, and a default would answer the question on the caller's behalf
+   * in the direction that costs the most (see `PhaseSource`). The app's own path derives
+   * every phase, so it passes `envelope-impact` or `envelope-fallback` — never
+   * `observed`.
+   */
+  phaseSource: PhaseSource;
   detection: ShaftDetection;
   /**
    * The 33 MediaPipe landmarks for this frame in NORMALISED coordinates, or null/absent
@@ -134,6 +144,7 @@ function toSample(frame: DetectedFrame): ShaftFrameSample {
   return {
     tSec: frame.tSec,
     phase: frame.phase,
+    phaseSource: frame.phaseSource,
     butt,
     hosel,
     toe,

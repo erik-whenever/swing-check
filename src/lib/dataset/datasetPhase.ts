@@ -14,6 +14,7 @@
 //
 // Pure: an envelope and a time in, a phase out.
 
+import type { PhaseSource } from '../shaft/measure/shaftSeries';
 import type { SwingEnvelope } from '../poseEnvelope';
 import type { ShaftPhase } from './datasetTypes';
 
@@ -56,13 +57,37 @@ const FALLBACK_BOUNDS: { until: number; phase: ShaftPhase }[] = [
   { until: Infinity, phase: 'finish' },
 ];
 
+/** A derived phase and the branch that produced it. Never `observed` — see below. */
+export interface DerivedPhase {
+  phase: ShaftPhase;
+  source: PhaseSource;
+}
+
 /**
- * Phase of the frame grabbed at `tSec`, within `envelope`.
+ * Phase of the frame grabbed at `tSec`, within `envelope`, WITH its provenance.
+ *
+ * NOTHING THIS FUNCTION RETURNS IS OBSERVED, and the return type says so in every
+ * branch. With a confident impact the phase is placed relative to a measured landmark
+ * (`envelope-impact`); without one it is the proportions of a typical swing
+ * (`envelope-fallback`). Both are inferences about when a frame was taken, not readings
+ * of it — S-23 measured the first wrong 7 times in 8 and the second 5 times in 5 on the
+ * frames production picked as `top` (docs/shaft/phase-audit/resultat.md).
+ *
+ * THE SPLIT IS REPORTED HERE because this is the only place it is visible. A consumer
+ * holding a phase can re-derive it from `impactSec` — and every consumer re-deriving the
+ * same fact from a neighbouring field is how the two cases get conflated. The branch
+ * that knows says which branch it was.
  *
  * Times outside the envelope are clamped to its ends rather than rejected: a cluster
  * pick can land a few milliseconds past `finishSec`, and "just past the finish" is a
  * finish frame, not an error.
  */
+export function derivePhaseWithSource(tSec: number, envelope: SwingEnvelope): DerivedPhase {
+  const source: PhaseSource = envelope.impact ? 'envelope-impact' : 'envelope-fallback';
+  return { phase: derivePhase(tSec, envelope), source };
+}
+
+/** The phase alone, for callers that record the provenance some other way. */
 export function derivePhase(tSec: number, envelope: SwingEnvelope): ShaftPhase {
   const start = envelope.startSec;
   const finish = envelope.finishSec > start ? envelope.finishSec : start;

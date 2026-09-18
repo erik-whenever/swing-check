@@ -81,6 +81,9 @@ function frame(spec: FrameSpec): ShaftFrameSample {
   return {
     tSec: spec.tSec,
     phase: spec.phase ?? 'backswing',
+    // The check never reads this — it tests points, not moments. Fixed here so the
+    // fixtures say so rather than leaving a reader to wonder whether it matters.
+    phaseSource: 'observed',
     butt,
     hosel,
     toe,

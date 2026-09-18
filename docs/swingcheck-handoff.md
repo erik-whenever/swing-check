@@ -3,7 +3,31 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-29 — **spike: bortfallets läge bär inte toppen.**
+> **Senast (2026-09-18, stream-shaft):** S-30 — **fasens förtroende: toppankrade mätvärden
+> svarar inte längre utan observerad fas.** Första produktionsändringen i S-23-spåret.
+> Ny `PhaseSource` (`observed` / `envelope-impact` / `envelope-fallback`) på varje
+> `ShaftFrameSample`, obligatorisk och aldrig defaultad; `isPhaseObserved(undefined)` är
+> `false`, så en post som inte säger något läses som *ingen såg det*. De två härledda hålls
+> isär för att felen går åt olika håll (S-23). `derivePhaseWithSource()` rapporterar grenen
+> och kan aldrig returnera `observed`.
+> `topFrame` kräver observerad fas: **`shaft-position-p4`** och **`top-shaft-orientation`**
+> svarar med nytt skäl **`top-phase-not-observed`** (skilt från `phase-missing`), och
+> **`shaft-angle-by-phase`:s `top`-hink** omfattas — övriga hinkar orörda. Formen är den
+> befintliga `reject()`-formen, **inte** kategorin `cannot-determine`; vägvalet och vad som
+> krävs för att i stället bära kategorin står i rapporten.
+> **Kostnad mätt över alla 205 svingar: 43 (21 %) tystnar, 109 (53 %) svarar fortfarande, 53
+> var redan tysta.** Produktionsvägen på de 178 svingar som har skaftpredictions:
+> `top-shaft-orientation` 51 → 29 tal, `top`-hinken 55 → 32; `shaft-position-p4` 0 → 0
+> (inga pose-landmärken i `prelabel.xml`). **De 109 svarar bara för att datasetet är delvis
+> annoterat — i appen finns ingen annoterad fas, så där tystnar alla 205. Det är avsikten.**
+> `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG`, teckenkonventionen och `plausibility.ts` är
+> orörda. `docs/shaft/phase-audit/select.ts` svarar nu `productionPath: väntat 22, fick 0` —
+> **alla 22 granskade bildrutor är precis de som vägras**, vilket är den renaste
+> verifieringen; dess assertion beskriver en stängd omgång.
+> `npm run build` rent · `npm test` 499/499 (+16) · `npm run lint` 3 fel, inget i rörd kod.
+> Rapport: [shaft/phase-trust.md](shaft/phase-trust.md).
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-29 — **spike: bortfallets läge bär inte toppen.**
 > Analys av S-28:s banor, ingen ny detektion, ingen produktionskod rörd. Bortfallet är klumpigt men
 > glesast vid 30–60 % av envelopen (där topparna ligger) och lika förhöjt vid nedslaget; toppen ligger
 > i längsta luckan i 3 av 6 (2 av dem samma klipp), medianavstånd 16 bildrutor, och 3 av 6 rader

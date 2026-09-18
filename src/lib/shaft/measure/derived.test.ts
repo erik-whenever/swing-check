@@ -16,6 +16,7 @@ import { checkShaftSeries } from './plausibility';
 import {
   type BodyReference,
   type MeasurementPhase,
+  type PhaseSource,
   type ShaftFrameSample,
   type ShaftSwingSeries,
 } from './shaftSeries';
@@ -42,6 +43,14 @@ const HIP_MID = { x: 540, y: 1100 };
 interface Spec {
   tSec: number;
   phase: MeasurementPhase;
+  /**
+   * Defaults to `observed`, and that default is load-bearing for the rest of the file:
+   * a top-anchored measurement only answers with a number when the `top` was observed
+   * (`topFrame` in `derived.ts`), so every fixture that pins arithmetic has to say a
+   * human or a detector saw the phase. The cases where it did not are pinned in
+   * *Fasens förtroende* below, and they set this explicitly.
+   */
+  phaseSource?: PhaseSource;
   /** Shaft LINE tilt on screen, degrees, anticlockwise-up (the human convention). */
   tiltDeg: number;
   /** Where the butt sits, image px. The hosel follows from the tilt. */
@@ -62,6 +71,7 @@ function frame(spec: Spec): ShaftFrameSample {
   return {
     tSec: spec.tSec,
     phase: spec.phase,
+    phaseSource: spec.phaseSource ?? 'observed',
     butt,
     hosel,
     toe: null,
@@ -237,6 +247,106 @@ describe('shaft position at P4', () => {
   });
 });
 
+// ── Fasens förtroende ────────────────────────────────────────────────────────
+
+// WHAT THESE PIN, AND WHY THEY ARE WORTH A BLOCK OF THEIR OWN.
+//
+// S-23 took the 22 frames the production path picks as `top` and had them read by eye:
+// 13 of them were not the top (docs/shaft/phase-audit/resultat.md). None was flagged,
+// because `plausibility.ts` checks whether the POINTS are plausible and has nothing to
+// say about whether the MOMENT is. Three spikes (S-27, S-28, S-29) then failed to
+// recover the top from the shaft signal, so nothing derived can stand in for it.
+//
+// The rule these tests hold in place: a measurement anchored at the top answers with a
+// number when — and only when — the `top` was observed. Everything else comes back null
+// with `top-phase-not-observed`, which is a different absence from `phase-missing` and
+// says so.
+describe('a top nobody observed', () => {
+  /** The same swing, with the `top` frames' phase derived rather than seen. */
+  const derivedTop = (source: PhaseSource) =>
+    swing().map((f) => (f.phase === 'top' ? { ...f, phaseSource: source } : f));
+
+  describe.each([['envelope-fallback'], ['envelope-impact']] as const)(
+    'from %s',
+    (source: PhaseSource) => {
+      it('gives shaft-position-p4 no number at all', () => {
+        const m = build(derivedTop(source)).shaftPositionAtP4;
+        expect(m.value).toBeNull();
+        expect(m.quality.level).toBe('rejected');
+        expect(m.quality.reasons).toContain('top-phase-not-observed');
+        // Not the same absence as a swing with no top frame, and the flag says which.
+        expect(m.quality.reasons).not.toContain('phase-missing');
+        // The frames it declined to read are named, so a caller can say which.
+        expect(m.frameIndices).toEqual([4, 5]);
+      });
+
+      it('gives top-shaft-orientation no category and no deviation', () => {
+        const m = build(derivedTop(source)).topShaftOrientation;
+        expect(m.value).toBeNull();
+        expect(m.quality.reasons).toContain('top-phase-not-observed');
+        expect(m.frameIndices).toEqual([4, 5]);
+      });
+
+      it('drops the `top` bucket from shaft-angle-by-phase and keeps the rest', () => {
+        const m = build(derivedTop(source)).shaftAngleByPhase;
+        expect(Object.keys(m.value!).sort()).toEqual([
+          'address',
+          'backswing',
+          'downswing',
+          'impact',
+        ]);
+        expect(m.value!.top).toBeUndefined();
+        expect(m.quality.reasons).toContain('top-phase-not-observed');
+        // The other buckets are untouched, values and all — the rule is about the top.
+        expect(m.value!.backswing!.n).toBe(3);
+        expect(m.value!.backswing!.medianDeg).toBeCloseTo(3, 6);
+      });
+    },
+  );
+
+  it('is a different reason from a swing that has no top frame at all', () => {
+    const none = build(swing().filter((f) => f.phase !== 'top')).shaftPositionAtP4;
+    expect(none.quality.reasons).toContain('phase-missing');
+    expect(none.quality.reasons).not.toContain('top-phase-not-observed');
+    expect(none.frameIndices).toEqual([]);
+  });
+
+  it('reads the LAST observed top, not the last top', () => {
+    // t = 0.4 observed, t = 0.5 derived. The later frame is not a better reading of the
+    // top, it is an unverified one — so the earlier, observed frame is what is measured.
+    const frames = swing();
+    frames[5] = frame({ tSec: 0.5, phase: 'top', tiltDeg: 0, phaseSource: 'envelope-impact' });
+    const m = build(frames).shaftPositionAtP4;
+    expect(m.value!.tSec).toBe(0.4);
+    expect(m.frameIndices).toEqual([4]);
+  });
+
+  it('still answers with a number when the top WAS observed', () => {
+    // The control on every assertion above: the gate is the phase's provenance and
+    // nothing else. Same swing, same pixels, `observed` — and every top-anchored value
+    // is back.
+    const set = build(swing(ON_PLANE_BAND_DEG + 5));
+    expect(set.shaftPositionAtP4.value!.tSec).toBe(0.5);
+    expect(set.shaftPositionAtP4.quality.level).toBe('usable');
+    expect(set.topShaftOrientation.value!.category).toBe('across-the-line');
+    expect(set.topShaftOrientation.value!.deviationDeg).not.toBeNull();
+    expect(set.shaftAngleByPhase.value!.top!.n).toBe(2);
+    for (const m of [set.shaftPositionAtP4, set.topShaftOrientation, set.shaftAngleByPhase]) {
+      expect(m.quality.reasons).not.toContain('top-phase-not-observed');
+    }
+  });
+
+  it('treats a series with no phaseSource at all as unobserved, never as observed', () => {
+    // A series JSON-parsed from a file written before the field existed. `undefined` has
+    // to fail closed: the record does not say who saw the phase, so nobody did.
+    const frames = swing().map((f) =>
+      f.phase === 'top' ? ({ ...f, phaseSource: undefined } as unknown as ShaftFrameSample) : f,
+    );
+    expect(build(frames).topShaftOrientation.value).toBeNull();
+    expect(build(frames).topShaftOrientation.quality.reasons).toContain('top-phase-not-observed');
+  });
+});
+
 // ── Across-the-line vs laid-off ──────────────────────────────────────────────
 
 describe('top shaft orientation', () => {
@@ -290,6 +400,7 @@ describe('top shaft orientation', () => {
       const top: ShaftFrameSample = {
         tSec: 0.5,
         phase: 'top',
+        phaseSource: 'observed',
         butt: b,
         hosel: h,
         toe: null,
@@ -447,6 +558,7 @@ describe('top shaft orientation', () => {
       const top: ShaftFrameSample = {
         tSec: 0.5,
         phase: 'top',
+        phaseSource: 'observed',
         butt: b,
         hosel: h,
         toe: null,

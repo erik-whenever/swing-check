@@ -49,8 +49,8 @@ const IDENTITY = {
 
 function frames(): DetectedFrame[] {
   return [
-    { tSec: 0.2, phase: 'backswing', detection: detection(), landmarks: landmarks() },
-    { tSec: 0.0, phase: 'address', detection: detection(), landmarks: landmarks() },
+    { tSec: 0.2, phase: 'backswing', phaseSource: 'envelope-impact', detection: detection(), landmarks: landmarks() },
+    { tSec: 0.0, phase: 'address', phaseSource: 'envelope-impact', detection: detection(), landmarks: landmarks() },
   ];
 }
 
@@ -75,7 +75,7 @@ describe('buildShaftSwingSeries', () => {
       heel: { x: 700, y: 1400, conf: 0.3 },
       modelKeypoints: 4,
     });
-    const s = buildShaftSwingSeries([{ tSec: 0, phase: 'top', detection: four }], {
+    const s = buildShaftSwingSeries([{ tSec: 0, phase: 'top', phaseSource: 'envelope-impact', detection: four }], {
       ...IDENTITY,
       modelFile: 'shaft-v3.onnx',
     });
@@ -88,7 +88,7 @@ describe('buildShaftSwingSeries', () => {
   });
 
   it('leaves an angle null when the model did not locate both of its points', () => {
-    const s = buildShaftSwingSeries([{ tSec: 0, phase: 'top', detection: detection() }], IDENTITY);
+    const s = buildShaftSwingSeries([{ tSec: 0, phase: 'top', phaseSource: 'envelope-impact', detection: detection() }], IDENTITY);
     expect(s.frames[0].bladeAngleDeg).toBeNull();
     expect(s.frames[0].toe).toBeNull();
     expect(s.frames[0].shaftAngleDeg).not.toBeNull();
@@ -96,7 +96,7 @@ describe('buildShaftSwingSeries', () => {
 
   it('scales landmarks into the frame\'s own pixel space', () => {
     const s = buildShaftSwingSeries([
-      { tSec: 0, phase: 'top', detection: detection(), landmarks: landmarks() },
+      { tSec: 0, phase: 'top', phaseSource: 'envelope-impact', detection: detection(), landmarks: landmarks() },
     ], IDENTITY);
     // Landmark 11 is the left shoulder.
     expect(s.frames[0].body!.leftShoulder).toEqual({
@@ -110,6 +110,7 @@ describe('buildShaftSwingSeries', () => {
       {
         tSec: 0,
         phase: 'top',
+        phaseSource: 'envelope-impact',
         detection: detection(),
         landmarks: landmarks(MIN_LANDMARK_VISIBILITY - 0.01),
       },
@@ -119,7 +120,7 @@ describe('buildShaftSwingSeries', () => {
 
   it('distinguishes no pose from an unconfident one', () => {
     const s = buildShaftSwingSeries([
-      { tSec: 0, phase: 'top', detection: detection(), landmarks: null },
+      { tSec: 0, phase: 'top', phaseSource: 'envelope-impact', detection: detection(), landmarks: null },
     ], IDENTITY);
     expect(s.frames[0].body).toBeNull();
   });
@@ -140,8 +141,8 @@ describe('buildShaftSwingSeries', () => {
     expect(() =>
       buildShaftSwingSeries(
         [
-          { tSec: 0, phase: 'address', detection: detection() },
-          { tSec: 0.1, phase: 'top', detection: odd },
+          { tSec: 0, phase: 'address', phaseSource: 'envelope-impact', detection: detection() },
+          { tSec: 0.1, phase: 'top', phaseSource: 'envelope-impact', detection: odd },
         ],
         IDENTITY,
       ),

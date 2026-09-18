@@ -2501,6 +2501,51 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > pålitligt. Kamerabyte ej bedömt.
 
 
+### [x] S-30 — Fasens förtroende: toppankrade mätvärden svarar inte utan observerad fas
+
+> **Klart (2026-09-18). Första produktionsändringen i S-23-spåret.** Rapport:
+> [shaft/phase-trust.md](shaft/phase-trust.md); mätskriptet i `shaft/phase-trust/measure.ts`
+> (läser bara).
+>
+> **Ny `PhaseSource` på varje `ShaftFrameSample`** (`observed` / `envelope-impact` /
+> `envelope-fallback`), obligatorisk och aldrig defaultad — kompilatorn namngav varje
+> producent. `isPhaseObserved()` tar `undefined` med flit: en serie ur en fil skriven innan
+> fältet fanns läses som *ingen såg det*, aldrig som observerad. De två härledda hålls isär
+> för att felen går åt olika håll (S-23: fallback för sent, impact-ankrad för tidigt).
+> `derivePhaseWithSource()` i `datasetPhase.ts` rapporterar vilken gren som körde och kan per
+> konstruktion **aldrig** returnera `observed`.
+>
+> **`topFrame` (f.d. `topFrameIndex`) kräver observerad fas.** `shaft-position-p4` och
+> `top-shaft-orientation` svarar med nytt skäl **`top-phase-not-observed`**, skilt från
+> `phase-missing`, och bär de avstådda bildrutorna i `frameIndices`.
+> **`shaft-angle-by-phase`:s `top`-hink omfattas** — annars är regeln kringgången med ett
+> fältanrop. Övriga hinkar orörda (spann, inte mätta i S-23).
+>
+> **Formen är den befintliga `reject()`-formen, inte kategorin `cannot-determine`** — den
+> betyder *toppbildrutan mättes men riktningen går inte att läsa* (närlodrätt-spärren), och
+> utan observerad fas finns ingen toppbildruta att mäta. Vägvalet står utskrivet i rapporten,
+> inklusive vad som krävs för att i stället bära kategorin (`distanceToVerticalDeg` nullbar).
+>
+> **Kostnad, mätt över alla 205 svingar i `data/shaft/exports/`:** 43 (21 %) går från ett tal
+> till tomt, **109 (53 %) svarar fortfarande**, 53 var redan tysta. 2 av de 109 byter bildruta
+> (den sista *observerade* toppen, inte den sista). Produktionsvägen körd på de 178 svingar som
+> har skaftpredictions: `top-shaft-orientation` 51 → **29** tal, `top`-hinken 55 → **32**.
+> `shaft-position-p4` svarar 0 både före och efter — `prelabel.xml` bär inga pose-landmärken,
+> så dess fasspärr syns bara i folkräkningen (23 av 55 stoppas nu på fasen före kroppen).
+>
+> **De 109 svarar bara för att datasetet är delvis annoterat. I appen finns ingen annoterad
+> fas — där blir alla 205 tysta, och det är avsikten.**
+>
+> **Orört:** `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG`, teckenkonventionen,
+> `plausibility.ts`. **Följd, och den renaste verifieringen:**
+> `docs/shaft/phase-audit/select.ts` svarar nu `productionPath: väntat 22, fick 0` — alla 22
+> bildrutor S-23 granskade (de med 13 fel) är precis de som nu vägras. Rätt signal för en
+> stängd omgång, inte ett fel.
+>
+> `npm run build` rent · `npm test` **499/499** (+16) · `npm run lint` 3 fel: de 2 kända
+> (`useHistory.ts`, `FrameLightbox.tsx`) plus ett oanvänt `fmt` i `top-from-dropout/analyze_dropout.ts`
+> som kom in med S-29 — inget av dem i rörd kod.
+
 ---
 
 ## Avklarat

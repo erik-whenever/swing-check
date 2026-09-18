@@ -5,7 +5,8 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-18 (S-25: fasrevisionen i §3 är mätt — 13 av 22 fel).
+> Senast uppdaterad: 2026-09-18 (S-30: fasens förtroende i §3 — toppankrade mätvärden svarar
+> inte längre utan observerad fas).
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -86,8 +87,19 @@ gäller *bara* där: fallback-raderna ligger alla på 0,484 och är fel rakt ige
 Källklipp, klipplängd, fps och DTL/face-on säger ingenting i underlaget (n för litet,
 konfunderat, eller noll varians — alla rader är `dtl` per konstruktion).
 
-**Ingen fix är byggd och ingen föreslås här.** Vad som står fast är att ett värde med flaggan
-`usable` i dag kan vara räknat på fel ögonblick i ungefär tre fall av fem.
+**Fixad 2026-09-18 (S-30) — genom att sluta svara, inte genom att hitta toppen.** Fasen bär
+nu sin härkomst (`PhaseSource` på varje `ShaftFrameSample`: `observed`, `envelope-impact`,
+`envelope-fallback`), och `shaft-position-p4`, `top-shaft-orientation` samt `top`-hinken i
+`shaft-angle-by-phase` returnerar **inget tal** när toppen inte är observerad — nytt skäl
+`top-phase-not-observed`, skilt från `phase-missing`. Kostnaden är mätt över alla 205
+svingar: **43 (21 %) går från ett tal till tomt, 109 (53 %) svarar fortfarande, 53 var redan
+tysta.** Men de 109 svarar bara därför att en människa annoterat delar av datasetet — **i
+appen finns ingen annoterad fas, så där är alla 205 tysta**, vilket är avsikten.
+[phase-trust.md](phase-trust.md).
+
+**Problemet är alltså inneslutet, inte löst.** Ett värde med flaggan `usable` kan inte längre
+vara räknat på fel ögonblick vid toppen; priset är att det inte räknas alls. Spärren kan bara
+lyftas av en pålitlig toppkälla, inte av en tröskel.
 
 **Skaftsignalen löser det inte på envelope-rutorna (S-27).** Vändpunkten i skaftvinkeln ger
 noll kandidater i 31 av 66 hela banor och träffar 2 av 5 bedömda toppar (n för litet); toppen
