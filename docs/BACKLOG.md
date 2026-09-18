@@ -2544,7 +2544,33 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 >
 > `npm run build` rent · `npm test` **499/499** (+16) · `npm run lint` 3 fel: de 2 kända
 > (`useHistory.ts`, `FrameLightbox.tsx`) plus ett oanvänt `fmt` i `top-from-dropout/analyze_dropout.ts`
-> som kom in med S-29 — inget av dem i rörd kod.
+> som kom in med S-29 — inget av dem i rörd kod. **Rättat (2026-09-18): `fmt` borttagen ur
+> spike-skriptet, baslinjen är åter de 2 kända felen.**
+
+
+### [ ] S-31 — Spike: bär handens/handledspositionen toppen, där skaftsignalen inte gör det?
+
+**Fråga, inte fix.** S-27–S-29 visade att skaftvinkelns vändpunkt inte bär en läsbar topp i DTL:
+skaftet ligger nära horisontalen vid toppen (vinkelbrus, S-27/S-28) och är dessutom kortast just
+där (0,23–0,65 av det vanliga, S-29) — en **linje** förkortas i DTL-projektionen. En **punkt**
+(handled/handposition) gör inte det på samma sätt. Ström D:s `poseEnvelope.ts` spårar redan
+handledslandmärke 15/16 (MediaPipe, via `extractPoseTrajectory`) för envelope-detektering — bär
+den banans vändpunkt (y-extremum, eller samma tecken-i-vinkelsteg-metod som S-27 använde på
+skaftet) en topp som ligger närmare Eriks bedömda rader än skaftsignalen gjorde?
+
+**Att göra:** spike i samma anda som S-27–S-29 — läsande skript i `docs/shaft/top-from-hand-position/`,
+ingen ny detektion (återanvänd redan extraherade handledsbanor där de finns, annars körd
+`extractPoseTrajectory` på samma klipp som S-28/S-29), ingen produktionskod rörd. Mät mot samma
+facit ([phase-audit/facit.md](phase-audit/facit.md) + [phase-audit/review.md](phase-audit/review.md))
+och samma sex/22 rader som S-27–S-29, så resultaten är direkt jämförbara.
+
+**Om svaret är nej:** samma ärlighet som S-27–S-30 — dokumentera nollresultatet, bygg ingen fix.
+**Om svaret är ja:** ny uppgift specas (kräver observerad fas fortfarande enligt S-30, men ger en
+väg att *härleda* toppen utan annotering — vilket är den öppning som skulle lyfta S-30:s spärr).
+
+**Dokumentkrav:** ny rapport `docs/shaft/top-from-hand-position.md` (samma form som
+`top-from-signal.md`/`top-from-dense-signal.md`/`top-from-dropout.md`); bocka av här; uppdatera
+`swingcheck-handoff.md` (senast-raden) och `shaft/STATUS.md` §3 med utfallet.
 
 ---
 

@@ -132,7 +132,6 @@ for (const l of facit.split('\n')) {
   else if (w === 'downswing' || w === 'finish') side = 'before'; // top is earlier than the frame
   refs.push({ n, id, s, env, j, verdict: v.txt.slice(0, 28) + (v.star ? ' ★' : ''), topT, topLo, prevT: j > 0 ? env[j - 1].tSec : null, nextT: j < env.length - 1 ? env[j + 1].tSec : null, side });
 }
-const fmt = (x: number, d = 2) => (x >= 0 ? '+' : '') + x.toFixed(d);
 // Percentile of |mid - top| among uniformly random times over the envelope: share of the envelope that is
 // AT LEAST as close to the mid as the top is. Small = top is unusually near the mid.
 function closerShare(s: Swing, mid: number, top: number) {
