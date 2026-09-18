@@ -2484,6 +2484,23 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > tid, ej mätt här). **Det som begränsar nu är detektionstäckningen vid toppen, inte glesheten.**
 
 
+### [x] S-29 — Spike: bär bortfallets läge toppen?
+
+> **Klart (2026-09-18). Nej, inte på ett sätt som håller. Ingen produktionskod rörd, ingen ny
+> detektion, ingen fix föreslagen.** Rapport: [shaft/top-from-dropout.md](shaft/top-from-dropout.md);
+> skript i `shaft/top-from-dropout/` (läser S-28:s banor).
+>
+> Bortfallet är klumpigt (median 5 luckor per sving; längsta luckan har 44 % av bortfallet mot 20 %
+> vid slump) men **glesast vid 30–60 % av envelopen där topparna ligger** och tätast vid 70–90 %,
+> och lika förhöjt vid skattat nedslag som vid toppen. På de 6 utpekade topparna ligger toppen i
+> längsta luckan i 3, mittpunkten inom 3 bildrutor i 2 (samma klipp, `093`), medianavstånd 16
+> bildrutor; tröskelvalet var närmare i 2 av 5, luckan i 3 av 5 (n för litet, 5 oberoende).
+> **Rättar S-28:** "4 av 6 i en lucka" är 3 av 6 med sammanhängande luckor (rad 32 har en
+> godkänd ruta vid 1,600 s). 3 av 6 rader byter utfall om luckor bryggas över en godkänd ruta.
+> Skaftet är kort vid toppen (0,23–0,65 av det vanliga där det hittas) men försvinner inte
+> pålitligt. Kamerabyte ej bedömt.
+
+
 ---
 
 ## Avklarat

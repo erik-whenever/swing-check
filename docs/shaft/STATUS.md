@@ -94,6 +94,9 @@ noll kandidater i 31 av 66 hela banor och träffar 2 av 5 bedömda toppar (n fö
 ligger på en platå inom detektorbruset. Tät signal är oprövad. Se
 [top-from-signal.md](top-from-signal.md). **Tät signal (S-28)** tar bort glesheten men inte problemet: 0 av 6 bedömda toppar
 träffas, och 4 av 6 ligger i en detektionslucka. Se [top-from-dense-signal.md](top-from-dense-signal.md).
+**Bortfallets läge (S-29)** bär inte toppen: luckorna är glesast vid 30–60 % av envelopen och lika
+vanliga vid nedslaget; toppen ligger i längsta luckan i 3 av 6 (rättar S-28:s 4 av 6) och byter
+rad under en annan luckdefinition. Se [top-from-dropout.md](top-from-dropout.md).
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 
