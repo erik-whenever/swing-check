@@ -5,8 +5,8 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-18 (S-30: fasens förtroende i §3 — toppankrade mätvärden svarar
-> inte längre utan observerad fas).
+> Senast uppdaterad: 2026-09-18 (S-31: handledsspåret i §3 — handleden bär en observerad topp,
+> men n = 6 och spärren från S-30 står kvar).
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -109,6 +109,18 @@ träffas, och 4 av 6 ligger i en detektionslucka. Se [top-from-dense-signal.md](
 **Bortfallets läge (S-29)** bär inte toppen: luckorna är glesast vid 30–60 % av envelopen och lika
 vanliga vid nedslaget; toppen ligger i längsta luckan i 3 av 6 (rättar S-28:s 4 av 6) och byter
 rad under en annan luckdefinition. Se [top-from-dropout.md](top-from-dropout.md).
+
+**Handleden bär däremot en observerad topp (S-31) — men bär ingen tröskel.** Samma MediaPipe-modell
+som webben, körd per videobildruta på samma 103 svingar: **8 av 6 548** envelope-bildrutor saknar
+pose (0,12 %), `presence` median 0,998, och runt alla sex utpekade topparna finns pose i **7 av 7**
+bildrutor mot skaftets 0/1/7/7/1/4. Bortfallet är *minst* vid 40–60 % av envelopen, där topparna
+ligger. Bästa estimatorn (teckenväxling i handledernas vertikala hastighet med hysteres) ligger
+median **1,5 videobildrutor** från Eriks toppintervall och flyttar sig median **0** bildrutor över
+hela hysteressvepet — mot S-28:s 0 av 6 träffar och median 8 bildrutors drift. **Men n = 6 toppar
+i 5 oberoende klipp, den träffar *inne* i intervallet bara 1 gång av 6, och face-on samt verifierat
+vänsterhänt material är omätt.** Spärren i det här avsnittet står därför kvar oförändrad: det som
+skulle lyfta den är en kontrollrik toppomgång (S-32), inte det här underlaget. Se
+[top-from-pose.md](top-from-pose.md).
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 

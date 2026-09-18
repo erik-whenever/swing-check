@@ -2548,7 +2548,23 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > spike-skriptet, baslinjen är åter de 2 kända felen.**
 
 
-### [ ] S-31 — Spike: bär handens/handledspositionen toppen, där skaftsignalen inte gör det?
+### [x] S-31 — Spike: bär handens/handledspositionen toppen, där skaftsignalen inte gör det?
+
+**Svar: ja, med reservationer — dokumenterat, ingen fix byggd.** MediaPipe (samma `.task` som
+webben) körd per videobildruta på samma 103 svingar som S-28/S-29. **Grinden faller ut åt andra
+hållet än för skaftet:** 8 av 6 548 envelope-bildrutor saknar pose (0,12 %), `presence` median
+0,998, 100 av 103 svingar utan en enda bildruta under 0,5, och pose i **7 av 7** bildrutor runt
+alla sex utpekade topparna (skaftet: 0/1/7/7/1/4 i S-29). Tre estimatorer hållna åtskilda:
+**E1** (högsta händer) är fel konstruktion — finishen står högre än toppen, 42 av 103 val i sista
+tiondelen; **E2** (fartminimum) median 1,9 bildrutor från Eriks toppintervall men parameterkänslig;
+**E3** (teckenväxling i v_y med hysteres) median **1,5 bildrutor**, 0 av 6 val på en entydig
+icke-topp-rad, och **median 0 bildrutors drift** över hysteressvepet mot S-28:s 8. **n = 6 toppar
+i 5 oberoende klipp — ingen tröskel sätts, ingen extrapolering görs, S-30:s spärr ligger kvar.**
+Rapporten heter `docs/shaft/top-from-pose.md` (inte `top-from-hand-position.md`) och skripten
+ligger i `docs/shaft/top-from-pose/`, så namnet följer de övriga `top-from-*`-spikarna.
+
+<details><summary>Ursprunglig spec</summary>
+
 
 **Fråga, inte fix.** S-27–S-29 visade att skaftvinkelns vändpunkt inte bär en läsbar topp i DTL:
 skaftet ligger nära horisontalen vid toppen (vinkelbrus, S-27/S-28) och är dessutom kortast just
@@ -2571,6 +2587,35 @@ väg att *härleda* toppen utan annotering — vilket är den öppning som skull
 **Dokumentkrav:** ny rapport `docs/shaft/top-from-hand-position.md` (samma form som
 `top-from-signal.md`/`top-from-dense-signal.md`/`top-from-dropout.md`); bocka av här; uppdatera
 `swingcheck-handoff.md` (senast-raden) och `shaft/STATUS.md` §3 med utfallet.
+</details>
+
+### [ ] S-32 — Kontrollrik toppomgång: mät E3 mot ögat i stället för att skatta på sex rader
+
+**S-31 svarade ja, och det utlöser den här uppgiften** (se S-31: *"Om svaret är ja: ny uppgift
+specas"*). E3 — teckenväxling i handledernas vertikala hastighet med hysteres — ligger median
+1,5 videobildrutor från Eriks toppintervall och flyttar sig median 0 bildrutor när hysteresen
+sveps 20×. **Men underlaget är 6 toppar i 5 oberoende klipp, och en tröskel sätts inte på det.**
+
+**Vad som saknas, i ordning:**
+
+1. **Fler blint bedömda toppar.** Samma form som [phase-audit/](shaft/phase-audit/) (fast frö,
+   `före`/`bild`/`efter`, `osäker` som giltigt svar), men **kontrollrik** — S-31:s sex rader är
+   alla kandidater och fyra av dem är stjärnrader, så intervallet `[bedömd, nästa]` är brett.
+   Fråga efter **toppens bildruta**, inte fasetiketten: det är E3:s utdata.
+2. **Face-on.** Noll face-on-bildrutor är bedömda av någon, i någon omgång. E3 läser bara
+   handledshöjd och behöver inte DTL, men det är oprövat.
+3. **Verifierat vänsterhänt, ospeglat material.** Två av S-31:s sex rader kommer ur det
+   spegelvända `093.mp4`. Se [shaft/STATUS.md](shaft/STATUS.md) §4.
+4. **Slow-mo.** S-31:s enda slow-mo-rad (rad 12) är varje estimators sämsta. n = 1.
+
+**Först därefter** blir frågan om E3 kan lyfta S-30:s spärr — alltså om `PhaseSource` kan få ett
+fjärde värde (en *härledd men observationsgrundad* topp) i stället för att tystna. **Ingen
+produktionskod rörs i den här uppgiften heller**: den producerar ett facit, inte en detektor.
+Notera också att `poseEnvelope.ts` redan räknar `impact.topSec` ur samma handledsmittpunkt — men
+bara när nedslaget är säkert, alltså inte på de 32 `FALLBACK_BOUNDS`-svingar där felet är värst.
+
+**Dokumentkrav:** urvals- och bedömningsomgång under `docs/shaft/top-review/`; resultat i en egen
+rapport; bocka av här; uppdatera `swingcheck-handoff.md` och `shaft/STATUS.md` §3.
 
 ---
 

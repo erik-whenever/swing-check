@@ -3,7 +3,30 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-30 — **fasens förtroende: toppankrade mätvärden
+> **Senast (2026-09-18, stream-shaft):** S-31 — **spike: handleden bär en observerad topp där
+> skaftlinjen inte gör det.** Ingen produktionskod rörd, inget tröskelbeslut fattat. MediaPipe
+> (samma `.task` som webben, `runningMode: VIDEO`, klippets egen upplösning) körd **per
+> videobildruta** på samma 103 svingar som S-28/S-29. **Grinden går åt andra hållet än för
+> skaftet:** 8 av 6 548 envelope-bildrutor saknar pose (0,12 %), `presence` median 0,998, 100 av
+> 103 svingar utan en enda bildruta under 0,5, och pose i **7 av 7** bildrutor runt alla sex
+> utpekade topparna — mot skaftets 0/1/7/7/1/4 i S-29. Bortfallet är dessutom *minst* vid 40–60 %
+> av envelopen, där topparna ligger. Tre estimatorer, hållna åtskilda: **E1** (högsta händer) är
+> fel konstruktion — finishen står högre än toppen, 42 av 103 val i sista tiondelen; **E2**
+> (fartminimum mellan bak- och nedsving) median 1,9 bildrutor från Eriks toppintervall men
+> parameterkänslig (28 av 103 svingar flyttar sig > 10 rutor); **E3** (teckenväxling i v_y med
+> hysteres) median **1,5 bildrutor**, 0 av 6 val på en entydig icke-topp-rad, och **median 0
+> bildrutors drift** när hysteresen sveps 20× — S-28 föll på exakt det måttet med median 8.
+> **Reservationerna bär lika mycket som resultatet:** n = 6 toppar i **5 oberoende klipp**, varav
+> det spegelvända `093.mp4` bidrar med två och den enda slow-mo-raden står för hela den dåliga
+> svansen; E3 träffar *inne* i Eriks intervall bara 1 gång av 6 och ligger annars 1–2 rutor före;
+> 97 av de 103 körda svingarna har inget facit alls. Face-on är **omätt**, inte "samma".
+> Noterat på vägen: `poseEnvelope.ts` räknar redan `impact.topSec` ur samma handledsmittpunkt och
+> träffar ±2 rutor på alla fem rader som har ett nedslag — men kräver just det nedslag som saknas
+> på `FALLBACK_BOUNDS`-svingarna, där felet är värst. **S-30:s spärr ligger kvar; nästa steg är
+> S-32 (kontrollrik toppomgång), inte en tröskel.** Rapport:
+> [shaft/top-from-pose.md](shaft/top-from-pose.md), skript i `docs/shaft/top-from-pose/`.
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-30 — **fasens förtroende: toppankrade mätvärden
 > svarar inte längre utan observerad fas.** Första produktionsändringen i S-23-spåret.
 > Ny `PhaseSource` (`observed` / `envelope-impact` / `envelope-fallback`) på varje
 > `ShaftFrameSample`, obligatorisk och aldrig defaultad; `isPhaseObserved(undefined)` är
