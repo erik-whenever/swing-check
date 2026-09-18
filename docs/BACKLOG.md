@@ -2398,6 +2398,59 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > tredje kategori, sist om felen klustrar på källklipp, saknad `impactSec`, klipplängd eller
 > envelope-proportion.
 
+
+### [x] S-25 — Fasgranskningen utvärderad: 13 av 22 toppetiketter är fel
+
+> **Klart (2026-09-18). Ingen fix byggd och ingen föreslagen** — det var uppdraget.
+> Eriks 32 bedömningar inskrivna ordagrant i [shaft/phase-audit/review.md](shaft/phase-audit/review.md)
+> (fritext och stjärnor bevarade, stjärnan som **eget filtrerbart fält**), utvärderade i
+> [shaft/phase-audit/resultat.md](shaft/phase-audit/resultat.md).
+>
+> **Kontrollerna först, för de är mätfelet i allt annat: 7 träff, 0 missar, 3 `osäker`.**
+> Samma bild i båda delmängderna (4/0/2 på de sex dubbelannoterade och eniga, 3/0/1 på de fyra
+> enpass), så resultatet hänger inte på vilken man väljer. **Den avfärdar den naturliga
+> invändningen** att Erik bara är obenägen att säga `top`: fyra kontroller bär annoterad `top`,
+> på dem svarade han `top` två gånger och `osäker` två gånger — **aldrig något annat**.
+>
+> **De 22 kandidaterna, tre hinkar som inte slås ihop:** **6 rätt fas** (27 %), **13 fel fas**
+> (**59 %**), **2 rätt fas men oklar bildruta** (9 % — `osäker` där fritexten säger att
+> bildrutan *och* grannen båda visar toppen; det är ingen feletikett). Rad 2 är `osäker` utan
+> motivering och redovisas som **rest utanför alla tre hinkarna** i stället för att pressas in i
+> en den inte tillhör.
+>
+> **Felet är systematiskt, och har två ansikten ur två kodvägar.** Utan `impactSec`: **5 av 5
+> fel**, alla på exakt envelope-andel **0,484** — rena `FALLBACK_BOUNDS`-rader där `top`
+> ordagrant betyder "48,4 % in i envelopen" (C(13,5)/C(22,5) = 0,049). Med `impactSec`: **7 av
+> 8 fel är `backswing`**, alltså etiketten för tidigt (ensidigt p ≈ 0,032). Riktningen vänder
+> alltså med `impactSec`. Envelope-andelen är monoton: **ingen** rad över 0,46 är fel, **ingen**
+> under 0,335 är rätt.
+>
+> **Vad underlaget inte bär, utskrivet i stället för hypotiserat:** källklipp (20 distinkta
+> klipp på 22 rader — inget att korstabulera), klipplängd (mätbar för 11 av 22, och de 11 är
+> exakt `web`-halvan, alltså konfunderad med källan), fps (två värden, de två avvikande raderna
+> går åt var sitt håll), **DTL/face-on (noll varians — alla 32 rader är `dtl` per
+> konstruktion)**, web/eget (73 % mot 45 % fel, men 4 av 5 rader utan `impactSec` är `web`, och
+> variablerna går inte att separera på 11 + 11 rader).
+>
+> **Stjärnraderna (6 st) kan inte prövas i den här omgången, och det står rakt ut.** Alla sex är
+> kandidater, och facit för en kandidatrad **är** den etikett omgången prövar — att stämma
+> stjärnorna mot facit vore att stämma dem mot det som misstänks vara fel. Ingen stjärnrad är en
+> kontroll. Vad som ändå syns: fem av sex ligger på envelope-andel ≤ 0,444, alltså i det spann
+> där ingen rad med `impactSec` bedömdes som rätt — avläsningen pekar åt samma håll som
+> envelope-analysen, men det är en hypotes för en framtida kontrollrik omgång, inte ett fynd.
+>
+> **Två avvikelser noterade, inget ändrat.** Rad 26: Erik menar `through` snarare än `finish`
+> (bildrutorna ligger efter nedslaget); svarslistan erbjöd ingetdera. Påståendet att "schemats
+> enum har `follow`" stämmer inte mot koden — `MeasurementPhase`/`ShaftPhase` har `through` och
+> `finish` som **skilda** värden, appens `SwingPhase` har `follow-through` som **ett**, och
+> ordet `follow` finns inte i någon av dem. **Inget enum är rört**, och raden är fel fas oavsett
+> vilket ord som avses. Rad 6 bär stjärnornas observation i fritext utan stjärna och är
+> **inte** medräknad bland de sex — stjärnan är Eriks markering, inte min tolkning.
+>
+> **Orört:** `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG`, teckenkonventionen,
+> `plausibility.ts`, `derived.ts`. `git diff` rör bara paketet och tre dokument.
+> `npm run lint` baslinjen (2 fel i orörda `useHistory.ts`).
+
 ---
 
 ## Avklarat

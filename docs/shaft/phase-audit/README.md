@@ -5,6 +5,10 @@
 > `NEAR_VERTICAL_GATE_DEG` / `ON_PLANE_BAND_DEG` är oförändrade, och ingen fix är byggd.
 > **Frö: `0xfa5ec0de`.**
 
+> **Omgången är körd.** [review.md](review.md) är ifylld (Erik, 2026-09-18) och utvärderad i
+> **[resultat.md](resultat.md)**. Den här raden är tillagd för hand efter körningen och står
+> inte i `select.ts`:s mall — en omgenerering tar bort den, vilket är väntat och inte ett fel.
+>
 > **Läs den här filen efter [review.md](review.md), inte före.** Den bär inte svaren, men den
 > bär rundans sammansättning: hur många rader som är kandidater, hur många som är kontroller
 > och vilka faser kontrollerna har. Vet man det, vet man ungefär hur många `top` man ska

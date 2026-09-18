@@ -3,7 +3,30 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-24 — **blint granskningspaket för fasen `top`.**
+> **Senast (2026-09-18, stream-shaft):** S-25 — **fasgranskningen är utvärderad, och den är
+> illa: 13 av 22 toppetiketter visar inte toppen (59 %).** Ingen produktionskod rörd, **ingen fix
+> byggd och ingen föreslagen** — det var uppdraget. Eriks 32 svar står ordagrant i
+> [shaft/phase-audit/review.md](shaft/phase-audit/review.md) (fritext och stjärnor bevarade,
+> stjärnan som eget filtrerbart fält); utvärderingen i
+> [shaft/phase-audit/resultat.md](shaft/phase-audit/resultat.md).
+> **Kontrollerna bär siffran: 7 träff, 0 missar, 3 `osäker`** — och på de fyra kontroller som
+> bär annoterad `top` svarade han `top` två gånger och `osäker` två gånger, aldrig något annat.
+> Han är alltså inte obenägen att säga `top`; det är etiketten som mäts, inte ögat.
+> **De 22 i tre hinkar som inte slås ihop:** 6 rätt fas (27 %), **13 fel fas (59 %)**, 2 rätt fas
+> men oklar bildruta (9 %), plus 1 `osäker` utan motivering som redovisas som rest.
+> **Felet är systematiskt och byter riktning med `impactSec`:** utan den är 5 av 5 fel, alla på
+> exakt envelope-andel **0,484** (rena `FALLBACK_BOUNDS`-rader); med den är 7 av 8 fel
+> `backswing`, alltså etiketten för tidigt. Ingen rad över envelope-andel 0,46 är fel, ingen
+> under 0,335 är rätt.
+> **Källklipp, klipplängd, fps och DTL/face-on säger ingenting** — n för litet, konfunderat med
+> källan, eller noll varians (alla rader är `dtl` per konstruktion). Det står som "n för litet" i
+> rapporten, inte som en hypotes.
+> **Stjärnraderna kan inte prövas här:** alla sex är kandidater, och facit för en kandidatrad är
+> just den etikett omgången prövar. Klubbhuvudsavläsningen förblir en hypotes för en framtida
+> kontrollrik omgång.
+> Fyndet är inskrivet i [shaft/STATUS.md](shaft/STATUS.md) §3. `npm run lint` baslinjen.
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-24 — **blint granskningspaket för fasen `top`.**
 > Ingen produktionskod rörd och **ingen fix byggd** — det var uppdraget: felfrekvensen ska mätas
 > innan något byggs på den. Paketet: [shaft/phase-audit/](shaft/phase-audit/) med `select.ts`,
 > `review.md`, `facit.md`, `README.md` och `frames/` (**gitignorerad**, samma identifierbara

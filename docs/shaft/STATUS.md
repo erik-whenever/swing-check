@@ -5,7 +5,7 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-18 (S-24: fasrevisionen i §3 har ett mätpaket).
+> Senast uppdaterad: 2026-09-18 (S-25: fasrevisionen i §3 är mätt — 13 av 22 fel).
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -69,12 +69,23 @@ ligger kvar på peggen 6,576 s och är borta 7,572 s; bildrutan är tagen 7,107 
 det här**. Ett värde med flaggan `usable` kan alltså vara räknat på fel ögonblick.
 **Egen uppgift — fasderiveringen är inte rörd av spärrarbetet ovan.**
 
-**Hur ofta det händer är fortfarande okänt, men det mäts nu.** De 22 bildrutorna ligger i ett
-blint granskningspaket, [phase-audit/](phase-audit/) (frö `0xfa5ec0de`): 22 kandidater plus 10
-kontroller med annoterad fas, oidentifierade och blandade. **Ingen fix är byggd** — siffran ska
-finnas först. Så länge `phase-audit/review.md` är obesvarad är den enda mätta punkten
-fortfarande de 4 rader där en människa säger emot manifestet, plus det enda bevisade fallet
-ovan. Läs inte `phase-audit/facit.md` innan review är ifylld.
+**Hur ofta det händer är nu mätt: 13 av 22 — 59 %.** Den blinda omgången i
+[phase-audit/](phase-audit/) (frö `0xfa5ec0de`, 22 kandidater + 10 kontroller) är körd och
+utvärderad i [phase-audit/resultat.md](phase-audit/resultat.md). Av de 22 bildrutor
+`topFrameIndex` faktiskt räknar på visar **13 inte toppen**; 6 (27 %) är bekräftat rätt och 2
+(9 %) är rätt men går inte att skilja från grannbildrutan. Siffran bär: granskaren gick **7
+rätt och 0 fel** på de tio kontrollerna och kallade `top` korrekt när en annoterad topp låg
+framför honom, så talet mäter etiketten och inte ögat.
+
+**Felet är systematiskt och har två ansikten.** Utan `impactSec` landar etiketten **för sent**
+— 5 av 5 fel, alla på exakt envelope-andel **0,484**, alltså rena `FALLBACK_BOUNDS`-rader där
+`top` ordagrant betyder "48,4 % in i envelopen". Med `impactSec` landar den **för tidigt**: 7
+av 8 fel är `backswing`. Ingen rad över envelope-andel 0,46 är fel, ingen under 0,335 är rätt.
+Källklipp, klipplängd, fps och DTL/face-on säger ingenting i underlaget (n för litet,
+konfunderat, eller noll varians — alla rader är `dtl` per konstruktion).
+
+**Ingen fix är byggd och ingen föreslås här.** Vad som står fast är att ett värde med flaggan
+`usable` i dag kan vara räknat på fel ögonblick i ungefär tre fall av fem.
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 
