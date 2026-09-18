@@ -2451,6 +2451,23 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > `plausibility.ts`, `derived.ts`. `git diff` rör bara paketet och tre dokument.
 > `npm run lint` baslinjen (2 fel i orörda `useHistory.ts`).
 
+### [x] S-27 — Spike: bär skaftsignalen en observerad topp?
+
+> **Klart (2026-09-18). Svaret är nej, på envelope-rutorna. Ingen produktionskod rörd, ingen fix
+> byggd.** Rapport: [shaft/top-from-signal.md](shaft/top-from-signal.md); skripten bredvid i
+> `shaft/top-from-signal/` (läser bara; koordinaterna skrivs till temp, aldrig till repot).
+>
+> Signalen fanns inte som bana — `prelabel.xml` täcker 1–2 rutor per sving — så den skeppade
+> detektorn (`shaft-v2`, produktionens trösklar) kördes på alla **1 435** envelope-rutor i
+> exporterna. **66 av 205 svingar** har en hel bana (alla `dtl`; 0 av 24 `face_on`).
+> Vändpunktsmetoden (teckenbyte i vinkelsteget; steg > 90° oläsbara, < 5° vila) ger **noll
+> kandidater i 31 av 66**, en i 31, flera i 4. 44 % av stegen är > 90° och toppen ligger på en
+> platå inom detektorbruset, så vald ruta följer vilotröskeln. Mot Eriks bedömningar: **2 av 5
+> exakt, n för litet**, och ingen träff håller över ε 2/5/10°. På de 22 kandidaterna har metoden
+> en åsikt om 4. Kräver inte `impactSec` som indata, men ingen av de 5 fallback-raderna har en
+> bana — den är inte visad att lösa någon halva. **Tät signal (varje videobildruta) är oprövad.**
+
+
 ---
 
 ## Avklarat

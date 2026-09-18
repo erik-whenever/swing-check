@@ -3,7 +3,16 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
 >
-> **Senast (2026-09-18, stream-shaft):** S-25 — **fasgranskningen är utvärderad, och den är
+> **Senast (2026-09-18, stream-shaft):** S-27 — **spike: skaftsignalen på envelope-rutorna bär
+> ingen observerad topp.** Ingen produktionskod rörd. Detektorn (`shaft-v2`, produktionens
+> trösklar) körd på alla 1 435 exportrutor; 66 av 205 svingar har hel bana, vändpunktsmetoden ger
+> noll kandidater i 31 av dem, och mot Eriks bedömningar 2 av 5 exakt (n för litet). Toppen ligger
+> på en platå inom detektorbruset; 44 % av stegen är > 90°. Kräver inte `impactSec`, men är inte
+> visad att fungera med eller utan. **Tät signal (varje videobildruta, `trace_swing.py`) är
+> oprövad** — det är nästa fråga om `derivePhase` ska byggas på skaftet.
+> Rapport: [shaft/top-from-signal.md](shaft/top-from-signal.md).
+>
+> **Dessförinnan (2026-09-18, stream-shaft):** S-25 — **fasgranskningen är utvärderad, och den är
 > illa: 13 av 22 toppetiketter visar inte toppen (59 %).** Ingen produktionskod rörd, **ingen fix
 > byggd och ingen föreslagen** — det var uppdraget. Eriks 32 svar står ordagrant i
 > [shaft/phase-audit/review.md](shaft/phase-audit/review.md) (fritext och stjärnor bevarade,

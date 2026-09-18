@@ -89,6 +89,11 @@ konfunderat, eller noll varians — alla rader är `dtl` per konstruktion).
 **Ingen fix är byggd och ingen föreslås här.** Vad som står fast är att ett värde med flaggan
 `usable` i dag kan vara räknat på fel ögonblick i ungefär tre fall av fem.
 
+**Skaftsignalen löser det inte på envelope-rutorna (S-27).** Vändpunkten i skaftvinkeln ger
+noll kandidater i 31 av 66 hela banor och träffar 2 av 5 bedömda toppar (n för litet); toppen
+ligger på en platå inom detektorbruset. Tät signal är oprövad. Se
+[top-from-signal.md](top-from-signal.md).
+
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 
 `handedness` måste anges av anroparen; varken manifestet eller CVAT-attributen bär den.
