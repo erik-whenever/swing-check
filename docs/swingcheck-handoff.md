@@ -3,7 +3,45 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-35 (klar, `[x]`) — **diagnos: flera svingar i en
+> **Senast (2026-09-19, stream-shaft):** S-36 (klar, `[x]`) — **diagnos: såg människorna och
+> estimatorn samma bildrutor, och vad är egentligen de 16 klippen?** Read-only, ingen ny estimator,
+> ingen tröskel, ingen kalibrering, ingen produktionskod ändrad, ingen ändring i envelopelogiken,
+> S-30:s spärr kvar. Rapport: [shaft/top-review/envelope-audit.md](shaft/top-review/envelope-audit.md),
+> skript [envelope_audit.py](shaft/top-review/envelope_audit.py). `poseEnvelope.ts` och
+> `poseSegments.ts` är **lästa** för att namnge regeln som avslutar ett fönster — inte
+> reimplementerade, inte ändrade, inte poängsatta.
+> **Fönstren är identiska.** Bedömarvyn söker till envelopens start, estimatorn till start−0,6 s,
+> men antal, första och sista ruta är lika på **103 av 103** och största tidsskillnad på någon ruta
+> är **0,000e+00 s** (rutsteg 0,0333 s). 6 548 rutor i vyn, registret, på disk och i posebanan.
+> **Hela E3-mätningen är jämförd mot rätt underlag.** Kvar som oprövat: bedömaren såg en nedskalad
+> JPEG på 75 av 103 svingar, estimatorn den råa rutan.
+> **De 16 klippen är inte 16 missade svingar:** 7 missad sving (1 marginell), **4 finishtopp utanför
+> envelopen** (finishen, inte en missad sving), **2 kapad kant på själva toppen** (`001`, `011`),
+> 2 rörelse efter/utanför (1 marginell), 1 ej avgörbar (pose 7 %). Klassen står på banans **form** —
+> nedgången mot klippets egen svagaste registrerade nedsving — inte på amplitud, och delningen
+> kapad topp / finishtopp är den som hindrar att `kapad kant` sväljer E1:s gamla fel. Slow-mo 4 av
+> 16 (25 %) mot 13 av 81 (16 %); n = 4 klipp, bär ingenting.
+> **B:s slutsats håller.** 10 av E4:s 49 utanför-rader (25 %) ligger i ett av de 16 mot 19 %
+> basnivå, och av de 22 utan någon växling alls ligger **bara 3 (18 %)** där — lägst i tabellen,
+> varav två i `finishtopp`-klipp. **Noll rader ligger i ett klipp med olika fönster.**
+> **`001.mp4`:** pose på 986 av 986 rutor; handhöjden stiger monotont genom hela envelopen
+> (4,07–8,33 s) till klippets högsta vändning vid **9,37 s**, utan återvändning till adresshöjd
+> däremellan. Manifestet bär redan `clippedTail: true` och `suspectMultiSwing: true`. n = 1.
+> **Fönstret slutar inte mitt i rörelsen:** farten vid envelopens sista ruta är median 0,055 ×
+> toppfarten (finishregeln kräver under 0,20) och fördelningarna överlappar. **Det enda som skiljer
+> är riktningen — banan stiger fortfarande vid slutet på 48 % av de 16 mot 26 % i de övriga, och på
+> 4 av 5 av de 16:s slow-mo-svingar.** `001.mp4`:s slut ligger i en 1,90 s tyst ö.
+> **Nytt fynd:** produktionen bär egna flaggor som ingen omgång läst — `clippedTail` 7 av 103 och
+> **`suspectMultiSwing` 15 av 103** (multiswing.md §A:s egen flagga tänder på 7; överlapp 3).
+> **VIKTIGAST — golvet.** En varm spårare i stället för kall, samma modell och samma rutor, flyttar
+> E3:s ruta på **36 av 102** svingar (lika på 66, inom 1 på 88, max 19) och rubriken från **30 till
+> 27 av 91**: netto −3, men **7 in→ut, 4 ut→in, 23 rader byter avstånd**. E4 RND 42 → 44.
+> **E3:s hela fel mot människorna är |median| 1 ruta — och 1 ruta är vad en störning som inte borde
+> betyda något flyttar.** Överlever: riktningen (−1 i båda), LOCO +23 rader, interpolationens +12.
+> **Ligger i bruset: E4/E5/E6:s inbördes 3 rader, S-34:s 1 rad av 49, och S-33:s restförskjutning
+> −0,24 subrutor.** Läs varje tidigare siffra med det golvet.
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-35 (klar, `[x]`) — **diagnos: flera svingar i en
 > envelope, armningen, och svingar utan envelope.** Read-only, ingen ny estimator, ingen tröskel,
 > ingen kalibrering, ingen produktionskod rörd, S-30:s spärr kvar. Rapport:
 > [shaft/top-review/multiswing.md](shaft/top-review/multiswing.md), skript

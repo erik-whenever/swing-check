@@ -377,6 +377,17 @@ Det är inte en ny gissning om varför:
 **Fyra oberoende ting pekar åt samma håll på samma sving, och det tredje är nytt här.** n = 1
 klipp. **Ingen ändring i segmenteringen föreslås**, och ingen har tittat på klippet.
 
+> **Tillagt 2026-09-19 (S-36), inget tal här ändrat.** De 41 vändningarna i 16 klipp är nu
+> **klassade** i [envelope-audit.md](envelope-audit.md) §2, på banans form i stället för dess
+> amplitud: **7 klipp missad sving** (1 marginell), **4 finishtopp utanför envelopen** — alltså
+> finishen, som står högre än toppen, inte en missad sving — **2 kapad kant på själva toppen**
+> (`001.mp4`, `011.mp4`), 2 rörelse utanför svingen (1 marginell) och 1 ej avgörbar. **Kolumnen
+> `kand` för `001.mp4` (23) är en följd av dess degenererade referens 0,0017**, precis som texten
+> ovan säger; 22 av de 23 är klassade `ej avgörbar` av det skälet. Samma omgång visar att
+> bedömarvyn och estimatorn fick **samma bildrutor på 103 av 103 svingar**, och att produktionen
+> redan bär egna flaggor för det här: `clippedTail` 7 av 103 och **`suspectMultiSwing` 15 av 103**
+> — den senare tänder på tre av del A:s sju.
+
 ### Vad som talar emot att läsa tabellen som 16 missade svingar
 
 - **`056.mp4`:s kandidat har pose på 7 % av ±0,5 s runt sig** — en ensam bildruta mellan luckor

@@ -5,8 +5,9 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-18 (S-32: toppomgången i §3 är byggd men inte körd — inga svar
-> finns än, ingen siffra är mätt, spärren från S-30 står kvar).
+> Senast uppdaterad: 2026-09-19 (S-36: fönstren är verifierat identiska, de 16 klippen från S-35
+> är klassade, och körningsbruset är mätt — se §3. Spärren från S-30 står kvar oförändrad och
+> ingen tröskel är satt.)
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -191,6 +192,28 @@ verkliga:** 16 av 81 klipp har en vändning utanför varenda envelope som når k
 12 av dem minst lika stor som klippets största registrerade sving. `054.mp4`:s missade sving ligger
 vid 10,9 s; **värre är `001.mp4`, vars enda envelope slutar en sekund innan toppen** — samma sving
 där båda bedömarna satte osäker och E3 inte gav något svar alls.
+
+**Och människorna och estimatorn såg samma bildrutor — men talen har ett golv (S-36).**
+[top-review/envelope-audit.md](top-review/envelope-audit.md) kör om båda avkodningarna ruta för
+ruta: bedömarvyn och estimatorn får **samma rutor på 103 av 103 svingar**, största tidsskillnad
+**0,000e+00 s**, samma 6 548 rutor i registret, på disk och i posebanan. **Hela E3-mätningen är
+alltså jämförd mot rätt underlag.** Samma omgång klassar S-35:s 16 klipp: **7 missad sving** (1
+marginell), **4 finishtopp utanför envelopen** — finishen, som står högre än toppen, inte en missad
+sving — **2 kapad kant på själva toppen** (`001.mp4`, `011.mp4`), 2 rörelse utanför svingen och 1 ej
+avgörbar. Nedströmsfelen sitter inte där: av de 22 rader utan någon växling alls ligger **3 (18 %)**
+i ett av de 16, lägst i tabellen. Fönstren slutar inte mitt i rörelsen — farten vid envelopens sista
+ruta är median 0,055 × toppfarten mot finishregelns 0,20 — **men banan stiger fortfarande där på
+48 % av de 16 mot 26 % i de övriga**, och på 4 av 5 av deras slow-mo-svingar. Produktionen bär
+dessutom egna flaggor som ingen omgång läst: `clippedTail` 7 av 103 och `suspectMultiSwing` 15 av
+103.
+
+**Det viktigaste ur S-36 är ett golv under varje siffra ovan.** En varm spårare i stället för en
+kall — samma modell, samma vikter, samma bildrutor — flyttar E3:s ruta på **36 av 102 svingar**
+(lika på 66, inom 1 ruta på 88, max 19) och rubriksiffran från **30 till 27 av 91**, med **7 rader
+in→ut och 4 ut→in**. **E3:s hela uppmätta fel mot människorna är |median| 1 bildruta, och 1 bildruta
+är precis vad den meningslösa störningen flyttar.** Riktningen (−1), LOCO:s +23 rader och
+interpolationens +12 rader överlever. **Ligger i bruset: E4/E5/E6:s inbördes 3 rader, S-34:s "1 rad
+av 49" och S-33:s restförskjutning på −0,24 subrutor.**
 
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära
