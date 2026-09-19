@@ -3,7 +3,46 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-36 (klar, `[x]`) — **diagnos: såg människorna och
+> **Senast (2026-09-19, stream-shaft):** S-37 (klar, `[x]`) — **E2, ankaret, mätgolvet och frågan
+> vilken konfiguration produktionen faktiskt kör.** Read-only, ingen ny estimator, ingen tröskel,
+> ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar. Rapport:
+> [shaft/top-review/e2-and-floor.md](shaft/top-review/e2-and-floor.md), skript
+> [e2_and_floor.py](shaft/top-review/e2_and_floor.py). Sju produktionsfiler är **lästa och citerade
+> rad för rad**; skriptet stannar om någon citerad rad flyttat.
+> **VIKTIGAST — produktionen kör den VARMA spåraren.** `runningMode: 'VIDEO'` är ett spårningsläge
+> och instansen återanvänds mellan rutor: `extractPoseTrajectory` bygger en kall spårare **en gång
+> per klipp** (`resetPoseLandmarker()`, rad 69) och kör `detectForVideo` på samma instans över hela
+> klippet vid 15 fps. Det är `run_pose_clip.py`:s konfiguration. `run_pose.py` — kall per **sving**,
+> start envelope−0,6 s — motsvarar ingenting i produktionen, **och samtliga tal i S-31 till S-35 är
+> mätta på den.** Även envelopesen i registret kommer ur den varma vägen (`extractDataset.ts:201`).
+> Kvar oprövat även varmt: 15 fps mot 30, delegat, avkodare. Den levererande vägen *strömmar* inte
+> kameran utan söker i det inspelade klippet; livevägen är varmare men parallell och når inte
+> analysen.
+> **E2 mot E3:** 45 av 91 mot 30 inne i spannet (mot Erik 36/94 mot 23/93, mot Lisa 42/95 mot
+> 27/95), \|median\| 1,0 för båda men p90 26 mot 3 och max 205 mot 26; på klippnivå E2 \|median\|
+> **0,0**. E2 har **ingen konstant att kalibrera** (median +0, LOCO 45 → 45) — felet är en ensidig
+> svans *efter* spannet (72 %) mot E3:s mittförskjutning (89 % *före*). **Försprånget överlever
+> golvet** (+15 kallt, +13 varmt; parvis 27 bara-E2 mot 12 bara-E3). **Mot E4 finns det inte:** +3
+> kallt, −4 varmt — stryk "E2 är oftare inne än E4".
+> **Ankaret, mätt utan att föreslås:** på **19 av 91 rader (21 %)** finns ingen ruta alls som E2:s
+> bakåtsökning kan starta i och landa i spannet — 41 % bland missarna och 4 av 10 i svansen. Där
+> mängden finns är den ett **sammanhängande** stycke (72 av 72) på median 6 rutor mitt i envelopen
+> (0,43–0,55), som slutar 0–7 rutor efter spannet och 4–12 rutor före nedslaget. **Fart duger inte
+> som kännetecken** (träffar når 1,00 × toppfarten, missar 0,31), och där den snabbaste rutan inte
+> duger ligger det som skulle fungerat **före** den på 26 av 27 rader.
+> **Golvet, alla fyra:** ruta lika 64–73 av ~103, omsättning **6–11 rader**, netto ±5. Rubrikmåtten
+> är stabilare än raderna (E3/E4: \|median\| 1,0 / p90 3,0 / max 26,0 i båda körningarna), svansen
+> som klass håller (9–10 av 10 samma rader). **Sex slutsatser stryks; två som såg små ut håller** —
+> S-32 §5:s \|E3−E2\| 9,5 (median 9,5 i *båda* körningarna, n=4) och S-33 §5:s spridningsvinst, som
+> ligger på subrutesskalan och inte är prövad här.
+> **Flaggorna bär ingenting nytt, och det är kod:** `suspectMultiSwing` = `envelopeDuration > 3,0 s`
+> (`datasetGate.ts:143`) och `slowmo` auto = `envelopeDuration > 3,0 s` (`slowmo.ts:28`) — **samma
+> storhet, samma konstant, identiska mängder på alla 103 svingar.** `clippedTail` nollställer
+> nedslaget (`poseEnvelope.ts:445`) och är 7 av 7 en delmängd av *utan säkert nedslag*. Nytt i
+> korsningen: de flaggade raderna ÄR E2:s svans (6 av 10 mot 12 %) medan **E3 går bättre** där (inne
+> 6 av 11, \|median\| 0,0, mot E2:s 1 av 11 och 36,0).
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-36 (klar, `[x]`) — **diagnos: såg människorna och
 > estimatorn samma bildrutor, och vad är egentligen de 16 klippen?** Read-only, ingen ny estimator,
 > ingen tröskel, ingen kalibrering, ingen produktionskod ändrad, ingen ändring i envelopelogiken,
 > S-30:s spärr kvar. Rapport: [shaft/top-review/envelope-audit.md](shaft/top-review/envelope-audit.md),

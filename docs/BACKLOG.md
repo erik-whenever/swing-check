@@ -2858,6 +2858,60 @@ ruta är vad en meningslös störning flyttar.** Överlever: riktningen (−1 i 
 interpolationens +12 rader. Ligger i bruset: **E4/E5/E6:s inbördes 3 rader, S-34:s 1 rad av 49, och
 S-33:s restförskjutning −0,24 subrutor.**
 
+### [x] S-37 — Diagnos: E2, ankaret, mätgolvet och produktionens konfiguration
+
+**Produktionen kör den varma spåraren — S-31 till S-35 är mätta på den kalla.** Read-only diagnos
+([shaft/top-review/e2-and-floor.md](shaft/top-review/e2-and-floor.md), skript
+[e2_and_floor.py](shaft/top-review/e2_and_floor.py)); ingen ny estimator, ingen tröskel, ingen
+kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar. Sju produktionsfiler är
+**lästa och citerade rad för rad** och skriptet stannar om någon citerad rad flyttat. **Facit var
+sett**, så ingen parameter är svept eller justerad; svanssnittet 26 rutor är subframe.md §7:s egen
+p90 och de 16 klippen är S-35 del D:s egen lista.
+
+**1 — konfigurationen.** `runningMode: 'VIDEO'` är ett *spårningsläge*, och landmarker-instansen
+återanvänds mellan rutor: `extractPoseTrajectory` bygger en **kall** spårare **en gång per klipp**
+(`resetPoseLandmarker()`, rad 69) och kör `detectForVideo` på samma instans över hela klippet vid
+15 fps. Det är `run_pose_clip.py`:s konfiguration — den **varma**. `run_pose.py` (kall per *sving*,
+start envelope−0,6 s) motsvarar ingenting i produktionen, **och varenda siffra i S-31 till S-35 står
+på den.** Även envelopesen i registret är producerade varmt (`extractDataset.ts:201`, en
+`extractPoseTrajectory` per klipp). Kvar som oprövat även varmt: 15 fps mot 30, delegat, avkodare.
+Precisering: den levererande vägen strömmar inte kameran utan söker i det inspelade klippet;
+livevägen är varmare men parallell och når inte analysen.
+
+**2 — E2 i E3:s detalj.** Mot spannet 45 av 91 mot E3:s 30; mot Erik 36/94 mot 23/93, mot Lisa 42/95
+mot 27/95. \|median\| 1,0 för båda, men p90 26 mot 3 och max 205 mot 26; på klippnivå är E2:s
+\|median\| **0,0** mot E3:s 1,0. **E2 har ingen konstant att kalibrera:** median +0,
+klippmedianernas median 0, LOCO 45 → 45 (E3: 30 → 53). Felet är en **ensidig svans efter** spannet
+(72 % efter) mot E3:s mittförskjutning (89 % före). **Försprånget mot E3 överlever golvet** (+15
+kallt, +13 varmt; parvis 27 rader bara E2 mot 12 bara E3). **Mot E4 finns det inte** — +3 kallt,
+−4 varmt.
+
+**3 — ankaret, mätt utan att föreslå ett.** E2:s bakåtsökning hålls oförändrad och bara startrutan
+varieras. **På 19 av 91 rader (21 %) finns ingen tillåten ankarruta alls** — 41 % bland missarna,
+4 av 10 i svansen (de fyra största). Där mängden finns är den **ett sammanhängande stycke** (72 av
+72) på median 6 rutor, i envelopens mitt (0,43–0,55), som börjar vid spannets slut och slutar 0–7
+rutor efter det, och ligger 4–12 rutor **före** nedslaget. **Fart duger inte som kännetecken:** i
+träffarna når mängden 1,00 × toppfarten, i missarna 0,31. Där den snabbaste rutan inte duger ligger
+den tillåtna mängden **före** den på 26 av 27 rader (median 11 rutor, i svansen 46).
+
+**4 — golvet, för alla fyra.** Varm mot kall: ruta lika på 64–73 av ~103, omsättning **6–11 rader**,
+netto ±5. Rubrikmåtten rör sig mindre än raderna (E3/E4 \|median\| 1,0 / p90 3,0 / max 26,0 i båda
+körningarna; E2:s p90 26 → 30). Svansen som klass håller: 9–10 av 10 rader är samma. **Sex
+slutsatser stryks** (S-33:s 3-radersjämförelse och −0,24 subrutor, S-34:s 1 rad av 49, **nytt:** "E2
+oftare inne än E4", S-32:s kovariatceller på ≤1 ruta, beloppet i "E3 är 1 ruta för tidig"). **Två
+som såg små ut håller:** S-32 §5:s tystnadstal \|E3−E2\| median **9,5 i båda körningarna** (n=4),
+och S-33 §5:s spridningsvinst, som lever på subrutesskalan och inte är prövad här.
+
+**5 — flaggorna bär ingenting nytt, och det är kod.** `suspectMultiSwing` är
+`envelopeDuration > 3,0 s` (`datasetGate.ts:143`) och `slowmo` i auto-läge är
+`envelopeDuration > 3,0 s` (`slowmo.ts:28`) — samma storhet, samma konstant, och **mängderna är
+identiska på alla 103 svingar**. `clippedTail` nollställer nedslaget i produktionen
+(`poseEnvelope.ts:445`) och är **7 av 7 en delmängd** av *utan säkert nedslag*. Båda är alltså
+kovariater rundan splittat på sedan S-32. Korsningen visar däremot något nytt: de flaggade raderna
+är E2:s svans (6 av 10 mot 12 % basnivå) medan **E3 går bättre** där — inne på 6 av 11 med
+\|median\| 0,0 mot E2:s 1 av 11 med 36,0. På de 22 utan växling säger flaggorna ingenting (0 resp.
+1 rad).
+
 ---
 
 ## Avklarat
