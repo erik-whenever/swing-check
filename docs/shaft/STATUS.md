@@ -177,6 +177,21 @@ lutning och 2–8 gånger mindre amplitud efter sig — **3 rader i 3 klipp, ing
 klämning är inte heller en felkonstruerad bracket: den klämda handleden har alltid en egen växling,
 i median **1 ruta** från bracketen. Diagnos, ingen ny estimator, ingen tröskel.
 
+**Och det är inte flera svingar i samma envelope heller — men segmenteringen tappar svingar (S-35).**
+[top-review/multiswing.md](top-review/multiswing.md) lägger en flersvingsflagga på handledsbanan i
+alla 103 envelopes (utflykter över adresshöjd, återvändningar till den, prominens — räkningar, inte
+trösklar). Den tänder på **7 av 103**, och bara **en** (`S32-092`, `005.mp4`) tänder på mer än ett
+kriterium — samma sving som har rundans största rutsteg i banan, så *två svingar* och *ett spår som
+hoppar* går inte att skilja åt. **Bland de 23 rader som saknar armad växling är flaggandelen lägst i
+hela tabellen (4 %)**: svansen är inte flersvingsklipp. Vad som däremot skiljer E2:s svans är
+**banans stabilitet** — dess p90 för största rutsteget är 0,197 mot rundans 0,092. **Armningen
+filtrerade ingenting:** på 22 av de 23 finns ingen teckenväxling alls i v_y inne i människornas
+intervall, och den närmaste är E3:s egen, 2 rutor (median) bort. **Det motsatta felet är det
+verkliga:** 16 av 81 klipp har en vändning utanför varenda envelope som når klippets egen referens,
+12 av dem minst lika stor som klippets största registrerade sving. `054.mp4`:s missade sving ligger
+vid 10,9 s; **värre är `001.mp4`, vars enda envelope slutar en sekund innan toppen** — samma sving
+där båda bedömarna satte osäker och E3 inte gav något svar alls.
+
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära
 nog är fortfarande obestämt. **Punkt 3 i S-32:s spec — verifierat vänsterhänt, ospeglat material —

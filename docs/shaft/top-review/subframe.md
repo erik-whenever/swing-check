@@ -350,19 +350,69 @@ Två av dem (040 och 062, båda slow-mo) ligger 10–12 videorutor fel. Det är 
 avrundningsfel på rutnätet, men fortfarande en enda exportruta, och slow-mo är just där det
 mänskliga spannet är bredast (resultat.md §2: union median 3, max 12).
 
-### Den åttonde är något annat
+### Den åttonde är något annat — och den är fortfarande OHANTERAD
 
-**S32-084 (`054.mp4`) är inte samma sorts miss.** Båda bedömarna sätter toppen vid **3,07–3,10 s**,
-medan facit ligger på **4,282 s** — **36 videorutor, 1,2 sekunder** isär, och två exportrutor bort.
-Och här motsäger de **en andra, oberoende CVAT-etikett**: exportruta f00 vid **3,33 s är märkt
-`backswing`**, alltså *efter* det intervall båda bedömarna satte. **De två placerar toppen före en
-bildruta som CVAT säger fortfarande är baksving.** Klippet bidrar dessutom med två svingar till
-rundan.
+> **Rättad 2026-09-19 (S-35).** Den ursprungliga texten stod kvar oförändrad nedan så långt den
+> håller; talen är desamma och ingenting är raderat. Det som ändrats är att **en av de tre
+> gissningarna är utesluten**: `054.mp4` är 23 s och innehåller **tre** svingar (~2 s, ~9 s,
+> ~19 s), och rundans två envelopesegment — `S32-084` 2,531–5,395 s och `S32-099`
+> 19,783–21,715 s — fångar **en sving var, korrekt**. *Två svingar i samma envelope* förklarar
+> alltså ingenting här. **Slutsatsen att det är ett genuint annat ögonblick står kvar, och
+> orsaken är okänd.** Ingen kontroll stryks, inget kontrollmått räknas om, och
+> [resultat.md](resultat.md) §1 och §7 står orörda.
+
+**S32-084 (`054.mp4`) är inte samma sorts miss.** Båda bedömarna sätter toppen vid **3,07–3,10 s**
+(**rutor 17–18**), och **Eriks pass 2 gör det också** — tre oberoende svar, alla identiska. Facit
+ligger på **4,282 s**, alltså vid **ruta 53,5** i samma numrering — **36 videorutor, 1,2 sekunder**
+isär, och två exportrutor bort. Och här motsäger de **en andra, oberoende CVAT-etikett**:
+exportruta f00 vid **3,33 s är märkt `backswing`**, alltså *efter* det intervall båda bedömarna
+satte. **De två placerar toppen före en bildruta som CVAT säger fortfarande är baksving.**
 
 **Det är den enda av de åtta som ser ut som ett genuint annat ögonblick** — två personer som läser
-en annan händelse i samma envelope, inte en ruta fel på ett glest rutnät. Vad det beror på
-(inövningssving, två svingar i samma envelope, en felplacerad envelopegräns) **är inte utrett här:
-ingen har tittat på klippet.**
+en annan händelse i samma envelope, inte en ruta fel på ett glest rutnät. **Vad det beror på är
+inte utrett, och ingen har tittat på klippet.** Av de tre gissningar som stod här ursprungligen
+(inövningssving, två svingar i samma envelope, en felplacerad envelopegräns) är den mittersta
+utesluten; de två andra är fortfarande gissningar.
+
+#### Vad handledsbanan visar inuti `S32-084` (S-35, mätning, ingen bedömning)
+
+Mätt på samma posebana som resten av rundan, med `multiswing.py --section c054`. **Envelopen är
+2,531–5,395 s, 86 rutor, nedslag 4,996 s, normal takt, dtl.**
+
+**Banan gör två fullständiga utflykter över adresshöjd inne i envelopen:**
+
+| utflykt | rutor | tid | högst i | höjd över adress |
+|---|---|---|---:|---:|
+| **första** | 2–26 | 2,567–3,367 s | **ruta 16** | +0,112 |
+| **andra** | 30–86 | 3,500–5,367 s | **ruta 47** | **+0,143** |
+
+Mellan dem sjunker banan till **−0,015 under adresshöjd** (ruta 28, 3,433 s). De två
+prominentaste vändningarna är **ruta 47 (98 % av lyftet)** och **ruta 16 (78 %)**; nästa ligger
+på 14 %.
+
+- **Bedömarnas rutor 17–18 ligger på toppen av den första utflykten.** De pekar alltså på en
+  verklig vändning i banan, inte på brus — men inte på banans högsta punkt.
+- **Facit 53,5 är varken en andra rörelse, ett återtag eller en paus.** Vid ruta 53–54 är
+  händerna redan **0,031–0,041 under** den högsta punkten och faller: v_y går +0,356 → +0,393 och
+  farten är 0,42–0,47 mot envelopens fartmedian 0,305. Den enda lokala toppen inom ±4 rutor är
+  ruta 51, med **9 % av lyftets prominens**. **53,5 ligger 2–6 rutor in i nedgången från den
+  andra utflyktens topp.**
+- **Appens egen exportfas pekar åt facits håll, inte åt bedömarnas.** Exportrutnätets `phase`
+  (appens fas vid exporttillfället, inte CVAT) kallar **f01 @ 4,122 s — ruta 49 — `top`**, alltså
+  två rutor från banans högsta punkt och fyra rutor från CVAT-facit. **Tre oberoende källor
+  (CVAT-facit, appens fas, banans högsta punkt) ligger inom 4,07–4,28 s; bedömarna ligger vid
+  3,07–3,10 s.**
+- **CVAT-etiketten `f00 @ 3,327 s backswing` är oförenlig med en topp vid 17–18, och förenlig med
+  toppen vid 47.** Vid f00 (ruta 25) ligger händerna **lägre** än vid ruta 17 och faller snabbt
+  (v_y **+0,493**); bara 2 av de 9 rutorna mellan 17 och f00 ligger högre än ruta 17. Etiketten
+  sitter alltså i svackan **mellan** de två utflykterna — precis där en baksving som toppar vid
+  ruta 47 skulle börja.
+
+**Flersvingsflaggan i [multiswing.md](multiswing.md) §A tänder inte på `S32-084`** (K1 = 2, K2 = 1,
+K3 = 2 — samma tal som en enda sving med hög finish ger). **Det bekräftar att envelopen bär en
+sving och lämnar frågan var den står: varför tre oberoende mänskliga läsningar sätter toppen på
+den första utflykten är inte besvarat här.** Ingen har öppnat en enda av de 86 bildrutorna, som
+sedan S-34 ligger utrullade under `data/shaft/top-round/054-inspekt/`.
 
 ### Vad det sätter för tak
 
@@ -393,7 +443,8 @@ kontrollfacit. **Ingen kontroll märks om, och ingen siffra i resultat.md räkna
   alltid nedsvingen"; ingen ersättare prövas, och det vore en ny estimator.
 - **De åtta kontrollerna, på bild.** Diagnosen står helt på registret och svarsfilerna. **Ingen
   har öppnat ett enda av de åtta klippen.** Att `054.mp4` ser ut som en annan händelse är en
-  slutsats av etiketter, inte av att någon sett svingen.
+  slutsats av etiketter och — sedan S-35 — av handledsbanan, inte av att någon sett svingen.
+  **Vad de två utflykterna i `S32-084` faktiskt visar är fortfarande okänt** (§8).
 - **Fler än två par ögon.** Samma begränsning som S-32: ett annotatörspar, ett upprepat pass av
   den ena. Erik pass 2 används inte alls här.
 - **Face-on, spegelvändning, eget material, fps.** Oförändrat sedan S-32: 102 av 103 svingar är

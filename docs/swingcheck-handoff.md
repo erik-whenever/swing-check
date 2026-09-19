@@ -3,7 +3,43 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-34 (klar, `[x]`) — **diagnos: är E3/E4:s svans en
+> **Senast (2026-09-19, stream-shaft):** S-35 (klar, `[x]`) — **diagnos: flera svingar i en
+> envelope, armningen, och svingar utan envelope.** Read-only, ingen ny estimator, ingen tröskel,
+> ingen kalibrering, ingen produktionskod rörd, S-30:s spärr kvar. Rapport:
+> [shaft/top-review/multiswing.md](shaft/top-review/multiswing.md), skript
+> [multiswing.py](shaft/top-review/multiswing.py), [clip_swings.py](shaft/top-review/clip_swings.py)
+> och [run_pose_clip.py](shaft/top-review/run_pose_clip.py). **Facit var sett**, så flaggan är
+> **räkningar** (utflykter över adresshöjd, återvändningar till den, topografisk prominens) med
+> varje nivå redovisad vid tre värden bredvid varandra — **ingen sving utesluten, ingen siffra i
+> resultat.md / subframe.md / crossing-selection.md omräknad.**
+> **Flersvingsflaggan tänder på 7 av 103**, och bara `S32-092` (`005.mp4`, 8,5 s slow-mo) tänder på
+> mer än ett kriterium — samma sving som har rundans största rutsteg i banan, så *två svingar* och
+> *ett spår som hoppar* går inte att skilja åt. De sex övriga har extrautflykter 0,000–0,059 höga
+> mot toppens 0,124–0,305.
+> **Svansen är inte flersvingsklipp:** E2:s svans 2 av 10, E4:s utanför-rader 4 av 49 (8 %), och
+> **de 23 utan armad kandidat 1 av 23 (4 %) — lägst i tabellen**. Det som skiljer E2:s svans är
+> **banans stabilitet**: p90 för största rutsteget 0,197 mot rundans 0,092, och fyra av rundans fem
+> största rutsteg ligger i svansen.
+> **Armningen filtrerade ingenting:** på **22 av de 23** finns ingen teckenväxling alls i v_y inne i
+> människornas intervall, och den närmaste är på alla 22 **E3:s egen**, median 2 rutor bort. Enda
+> undantaget är `S32-038` (`064.mp4`): negativa löpan nådde −0,002 mot grinden −0,10, på en ruta.
+> Kontroll: där E4 ligger inne finns en växling inom en ruta på 42 av 42. **Ingen ny tröskel.**
+> **`054.mp4` rättad i [subframe.md §8](shaft/top-review/subframe.md)** — flera svingar per envelope
+> är uteslutet, **slutsatsen står kvar som OHANTERAD och orsaken är okänd**. Nytt: banan gör **två
+> fullständiga utflykter** inom `S32-084`; bedömarnas 17–18 ligger på toppen av den första (78 % av
+> lyftet), facit 53,5 ligger 2–6 rutor in i nedgången från den andra (högsta, ruta 47), appens egen
+> exportfas kallar ruta 49 `top`, och CVAT:s `f00 @ 3,327 s backswing` sitter i svackan mellan dem
+> med händerna på väg ned (v_y +0,493).
+> **Det motsatta felet är det verkliga:** helklippsposen (81 klipp, 28 800 rutor) visar att **16 av
+> 81 klipp** har en vändning utanför varenda envelope som når klippets egen referens, **12 av dem
+> minst lika stor som klippets största registrerade sving**. `054.mp4`:s missade sving ligger vid
+> 10,9 s; **värst är `001.mp4`, vars enda envelope slutar ~1 s innan klippets topp** — samma sving
+> (`S32-074`) där båda bedömarna satte osäker och E3 inte gav något svar alls.
+> **Avvikelse redovisad:** helklippskörningen har en varm spårare (`run_pose.py` är orörd), så E3:s
+> ruta är lika på 67 av 103 och inom 1 ruta på 89 av 103; del A/A2/B/C ligger helt på
+> envelopekörningen.
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-34 (klar, `[x]`) — **diagnos: är E3/E4:s svans en
 > felvald teckenväxling? Nej för huvuddelen, ja för de tre yttersta raderna.** Read-only, ingen ny
 > estimator, ingen tröskel, ingen kalibrering, ingen produktionskod rörd, S-30:s spärr kvar. Rapport:
 > [shaft/top-review/crossing-selection.md](shaft/top-review/crossing-selection.md), skript
