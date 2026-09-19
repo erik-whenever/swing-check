@@ -2720,6 +2720,45 @@ resultat.md räknas om.**
 Att det blev samma banor är kontrollerat: 6 548 envelope-rutor och en kontrollrad som återger
 resultat.md:s E2/E3-tal exakt.
 
+### [x] S-34 — Diagnos: är E3/E4:s svans en felvald teckenväxling?
+
+**Nej för huvuddelen, ja för de tre yttersta raderna.** Read-only diagnos
+([shaft/top-review/crossing-selection.md](shaft/top-review/crossing-selection.md), skript
+[crossing_selection.py](shaft/top-review/crossing_selection.py) och
+[render_envelope.py](shaft/top-review/render_envelope.py)); ingen ny estimator, ingen tröskel, ingen
+kalibrering, ingen produktionskod rörd, S-30:s spärr kvar. **Facit var sett**, så risken var
+anpassning: **ingen parameter svept eller justerad** — hysteresen 0,10 och fönstret 3 är E3:s egna.
+
+Kandidatmängden är **E3:s egen sökning med stoppet borttaget** (varje armad −→+-växling i stället för
+bara den första); skriptet stannar om kandidat nr 1 inte är `e3_signflip`:s svar.
+
+**Hypotesen faller.** Av de **49 rader i 40 klipp** där E4 ligger utanför spannet finns en **annan**
+växling som hade landat inne på **1 rad av 49 (2 %)** — mot Erik ensam 0 av 60, mot Lisa 1 av 55 —
+och den valda är **redan den närmaste på 46 av 49 (94 %)**. **23 av 49 (47 %) har bara en enda
+kandidat i hela envelopen**, och 56 av 101 svingar har det. Det är inte ett val, det är avsaknad av
+alternativ.
+
+**Undantaget är svansen själv:** de tre rader som ligger längst bort (`S32-013` −26, `S32-080` −16,
+`S32-090` −9) är exakt de tre där en annan växling ligger närmare — 16–25 rutor närmare. De valda
+ligger **tidigt i envelopen** (0,03–0,25), har **brantare lutning** i bracketen i alla tre och
+**2–8 gånger mindre amplitud efter** sig. **n = 3 rader i 3 klipp; ingen regel dras.**
+
+**Klasserna:** de två missgrupperna lutar åt olika håll — slow-mo samlas i *ingen kandidat träffar*
+(20 % mot 4 %), svingar **utan säkert nedslag** (`FALLBACK_BOUNDS`) i *ingen kandidat alls* (26 % mot
+12 %), och **alla 9 svingar Erik satte breda** ligger i den senare eller inne. Båda de bekräftat
+spegelvända ligger i *ingen kandidat träffar* — 2 rader i 1 klipp.
+
+**E6:s klämning är inte en felkonstruerad bracket:** varje klämd handled (33 resp. 45 av 101) har en
+egen armad växling, i median **+1 ruta** från E3:s bracket, utanför den på 18–21 %. Att byta till
+handledens egen växling flyttar träffen 11→13 och 15→16 — alltså knappt alls.
+
+**`054.mp4`:** envelopens 86 bildrutor är utrullade i klippets egen upplösning under
+`data/shaft/top-round/054-inspekt/` (gitignorerat) med `RUTOR.txt` bredvid. **Inget är markerat i
+bild, ingen har tittat, ingen bedömning görs här.**
+
+**Sidonot:** posebanorna fanns inte kvar och kördes om igen (`mediapipe` 1.0.1, samma modellfil).
+Kontrollraden återger resultat.md:s E3-tal och subframe.md:s E4-tal exakt.
+
 ---
 
 ## Avklarat

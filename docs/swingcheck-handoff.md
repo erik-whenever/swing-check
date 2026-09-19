@@ -3,7 +3,37 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-33 (klar, `[x]`) — **mätspik: var E3:s
+> **Senast (2026-09-19, stream-shaft):** S-34 (klar, `[x]`) — **diagnos: är E3/E4:s svans en
+> felvald teckenväxling? Nej för huvuddelen, ja för de tre yttersta raderna.** Read-only, ingen ny
+> estimator, ingen tröskel, ingen kalibrering, ingen produktionskod rörd, S-30:s spärr kvar. Rapport:
+> [shaft/top-review/crossing-selection.md](shaft/top-review/crossing-selection.md), skript
+> [crossing_selection.py](shaft/top-review/crossing_selection.py) och
+> [render_envelope.py](shaft/top-review/render_envelope.py). **Facit var sett**, så risken var
+> anpassning: **ingen parameter svept eller justerad** — hysteresen 0,10 och fönstret 3 är E3:s egna,
+> och kandidatmängden är **E3:s egen sökning med stoppet borttaget** (skriptet stannar om kandidat
+> nr 1 inte är `e3_signflip`:s svar).
+> **Hypotesen faller:** av de **49 rader i 40 klipp** där E4 ligger utanför spannet finns en **annan**
+> växling som hade landat inne på **1 rad (2 %)** — mot Erik ensam **0 av 60** — och den valda är
+> **redan den närmaste på 46 av 49 (94 %)**. **23 av 49 svingar har bara en enda kandidat i hela
+> envelopen**, och 56 av 101 har det: E3 väljer inte, den tar det som finns.
+> **Undantaget är svansen själv** — de tre rader som ligger längst bort (`S32-013` −26, `S32-080`
+> −16, `S32-090` −9) är exakt de tre där en annan växling ligger 16–25 rutor närmare. De valda ligger
+> **tidigt i envelopen** (0,03–0,25), har **brantare lutning** i alla tre och **2–8 gånger mindre
+> amplitud efter** sig. **n = 3 rader i 3 klipp, ingen regel dras.**
+> **Klasserna lutar åt olika håll:** slow-mo samlas i *ingen kandidat träffar* (20 % mot 4 %),
+> svingar **utan säkert nedslag** (`FALLBACK_BOUNDS`) i *ingen kandidat alls* (26 % mot 12 %), och
+> **alla 9 svingar Erik satte breda** ligger i den senare eller inne. Båda de bekräftat spegelvända
+> ligger i *ingen kandidat träffar* — 2 rader i 1 klipp.
+> **E6:s klämning är inte en felkonstruerad bracket:** varje klämd handled har en egen armad växling,
+> i median **+1 ruta** från bracketen; att byta till den flyttar träffen 11→13 och 15→16.
+> **`054.mp4`:** envelopens 86 bildrutor är utrullade i klippets egen upplösning under
+> `data/shaft/top-round/054-inspekt/` (gitignorerat) med `RUTOR.txt` bredvid — båda bedömarna och
+> Eriks pass 2 satte **rutor 17–18 (3,067–3,100 s)**, facit ligger vid ruta 53,5. **Inget är markerat
+> i bild, ingen har tittat, ingen bedömning görs.**
+> **Sidonot:** posebanorna fanns inte kvar och kördes om igen (`mediapipe` 1.0.1, samma modellfil);
+> kontrollraden återger resultat.md:s E3-tal och subframe.md:s E4-tal exakt.
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-33 (klar, `[x]`) — **mätspik: var E3:s
 > enrutasförskjutning kvantisering? Ungefär hälften.** Read-only, ingen produktionskod rörd, ingen
 > tröskel satt, ingen kalibrering applicerad, S-30:s spärr kvar. Rapport:
 > [shaft/top-review/subframe.md](shaft/top-review/subframe.md), skript

@@ -166,6 +166,17 @@ ligger i tiondel 8–9, median +59 rutor efter spannet, i 10 rader varav 6 slow-
 gemensamt missade kontrollerna är fall där bedömarna är eniga med varandra men inte med CVAT-facit**
 — sju ser ut som ett för grovt exportrutnät, en (`054.mp4`) som en annan händelse.
 
+**Och svansen är inte en felvald teckenväxling (S-34).**
+[top-review/crossing-selection.md](top-review/crossing-selection.md) räknar varje växling E3:s egen
+sökning kunnat returnera, inte bara den första. Av de **49 rader (40 klipp)** där E4 ligger utanför
+spannet finns en **annan** växling som hade landat inne på **1 rad (2 %)**, och den valda är redan den
+närmaste på **46 av 49 (94 %)**. **23 av 49 svingar har bara en enda kandidat i hela envelopen** —
+E3 väljer inte, den tar det som finns. **Undantaget är de tre yttersta raderna** (−26, −16, −9
+rutor), där en annan växling ligger 16–25 rutor närmare; de ligger tidigt i envelopen, har brantare
+lutning och 2–8 gånger mindre amplitud efter sig — **3 rader i 3 klipp, ingen regel dras**. E6:s
+klämning är inte heller en felkonstruerad bracket: den klämda handleden har alltid en egen växling,
+i median **1 ruta** från bracketen. Diagnos, ingen ny estimator, ingen tröskel.
+
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära
 nog är fortfarande obestämt. **Punkt 3 i S-32:s spec — verifierat vänsterhänt, ospeglat material —
