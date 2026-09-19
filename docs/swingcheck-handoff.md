@@ -3,7 +3,53 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-37 (klar, `[x]`) — **E2, ankaret, mätgolvet och frågan
+> **Senast (2026-09-19, stream-shaft):** S-38 (klar, `[x]`) — **den varma baslinjen, den hårda
+> kärnan, taket och flaggbuggen.** Read-only, ingen ny estimator, ingen tröskel, ingen
+> klassificerare, ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar.
+> Rapport: [shaft/top-review/hard-core.md](shaft/top-review/hard-core.md), skript
+> [hard_core.py](shaft/top-review/hard_core.py). **Allt mäts VARMT** (`run_pose_clip.py`, S-37:s
+> slutsats om produktionens konfiguration); den kalla körningen används bara till kontrollraden,
+> som reproducerar S-32 till S-37 exakt.
+> **NY BASLINJE, mot spannet (n=91 rader / 73 klipp): E4 44, E2 40, E3 27, E1 6.** Mot Erik
+> (n=94/94/93/93) 5 / 32 / 23 / **37**, mot Lisa (n=95) 5 / 36 / 24 / **40**. Netto mot den kalla:
+> E1 −4, E2 −5, E3 −3, **E4 +2**. **E4 är rundans bästa estimator, inte E2**, och det gäller mot
+> alla tre målen. E2:s svans är värre varmt (p90 mot Erik 30 → 47, max 205 oförändrad); E3/E4:s
+> spridningsmått rör sig inte alls. **Detta ersätter** `inne`-talen i resultat.md §3, subframe.md
+> §3 och kontrollraderna i crossing-selection.md, multiswing.md, envelope-audit.md och
+> e2-and-floor.md §0/§2, plus §3:s "19 av 91 utan ankarruta" → **23 av 91 (25 %)**. **Resten av
+> det kalla biblioteket är INTE omräknat** (LOCO, interpolationens +12 rader, kandidatanalysen,
+> svansraderna, tystnadstalet) — de står kvar på en konfiguration produktionen inte kör.
+> **KÄRNAN (ingen av E1–E4 inne i spannet): 31 av 91 rader (34 %) i 25 av 73 klipp — men den är
+> inte hård.** Bästa estimatorn ligger **1 ruta** fel på 19 av 31 (61 %), inom 3 på 94 %, max 11,
+> bara 1 rad ≥10 — mot ett golv på 1 ruta och ett spann på median 2 rutor. Som *radmängd* är den
+> inte reproducerbar: kall mot varm delar 23 av 31 (74 %), omsättning 15 rader. Storleken är
+> stabil (30 kall, 31 varm), medlemskapet är det inte. E1 är ensam inne på 0 rader, så kärnan
+> hänger inte på den.
+> **Samma svingar som tidigare grupper? Till stor del ja.** 25 av 31 (81 %) saknar en växling som
+> **överlappar** spannet, 19 av 31 (61 %) saknar tillåten ankarruta, och bara **4 rader** har
+> ingen av de två förklaringarna. Obs: S-34/S-35:s test `lo ≤ j+1 ≤ hi` missar varje växling vars
+> interpolerade svar rundar till `j+2` — därför 63 av 91 med det strikta testet mot **32 av 91**
+> med överlappstestet, som är den avsedda frågan.
+> **GÅR KÄRNAN ATT FÖRUTSÄGA UTAN FACIT? NEJ.** Tolv storheter, var för sig, ingen tröskel satt:
+> **alla AUC 0,43–0,60.** Bäst: största rutsteget och \|E2−E4\|, båda 0,60. Pose-presence är 1,000
+> i båda grupperna (0,51); antal armade växlingar exakt 0,50. **Estimatorernas egen oenighet är
+> den sämsta kandidaten:** \|E3−E4\| pekar åt fel håll (0,43) och är per konstruktion kapad vid
+> 1 ruta — E4 är E3:s egen bracket, så de kan bara vara oense om avrundningen — och \|E2−E4\| har
+> 74 % av kärnans rader inne i restens IQR. **Det finns ingen grind att bygga.**
+> **TAKET: E4 73 % (44 av 60), E2 67 % (40 av 60)** mot människornas 67–80 %. Men täljaren är
+> oförändrad (44 är 44), taket förutsätter en perfekt grind som inte går att bygga, och den skulle
+> kasta bort 19 svingar som ligger **en bildruta** fel.
+> **FLAGGBUGGEN: tre konstanter, två begrepp, ett värde.** `MAX_ENVELOPE_SEC = 3.0`
+> (`poseSegments.ts:54`, 2026-08-06) = produktionens **avvisningsgräns**;
+> `SLOWMO_ENVELOPE_THRESHOLD_SEC = 3.0` (`slowmo.ts:28`, 2026-08-13) valdes **oberoende** för
+> filmhastighet; `MULTI_SWING_SUSPECT_SEC = 3.0` (`datasetGate.ts:56`, 2026-09-03) är en uttalad
+> **spegling** av den första. Ingen commit nämner den andra. Följder: `suspectMultiSwing` tänder
+> aldrig på en production-grindad sving (**0 av 81**); 15 %-kvoten för slow-mo mäter i praktiken
+> segmenteringsfel; `slowmoMode` flyttar `slowmo` men inte `suspectMultiSwing`; och varje analys
+> som delat på "slow-mo" har delat på "lång envelope" — riktningen håller, orsaksnamnet inte.
+> **Diagnos, ingen fix.**
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-37 (klar, `[x]`) — **E2, ankaret, mätgolvet och frågan
 > vilken konfiguration produktionen faktiskt kör.** Read-only, ingen ny estimator, ingen tröskel,
 > ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar. Rapport:
 > [shaft/top-review/e2-and-floor.md](shaft/top-review/e2-and-floor.md), skript

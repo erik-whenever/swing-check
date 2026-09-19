@@ -5,9 +5,9 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-19 (S-36: fönstren är verifierat identiska, de 16 klippen från S-35
-> är klassade, och körningsbruset är mätt — se §3. Spärren från S-30 står kvar oförändrad och
-> ingen tröskel är satt.)
+> Senast uppdaterad: 2026-09-19 (S-38: den varma baslinjen ersätter S-32/S-33:s tal, "kärnan" är
+> ±1-rutesbandet och går inte att förutsäga vid körtid, och de två flaggorna är samma flagga —
+> se §3. Spärren från S-30 står kvar oförändrad och ingen tröskel är satt.)
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -214,6 +214,33 @@ in→ut och 4 ut→in**. **E3:s hela uppmätta fel mot människorna är |median|
 är precis vad den meningslösa störningen flyttar.** Riktningen (−1), LOCO:s +23 rader och
 interpolationens +12 rader överlever. **Ligger i bruset: E4/E5/E6:s inbördes 3 rader, S-34:s "1 rad
 av 49" och S-33:s restförskjutning på −0,24 subrutor.**
+
+**Och samtliga siffror ovan är mätta på fel spårare (S-37) — här är de rätta (S-38).**
+`runningMode: 'VIDEO'` är ett spårningsläge och `extractPoseTrajectory` bygger en kall spårare
+**en gång per klipp**, inte per sving: **produktionen kör den varma**
+([top-review/e2-and-floor.md](top-review/e2-and-floor.md) §1). Den varma baslinjen mot spannet
+(n = 91 rader i 73 klipp) är **E4 44, E2 40, E3 27, E1 6** — mot Erik 37 / 32 / 23 / 5 och mot
+Lisa 40 / 36 / 24 / 5 ([top-review/hard-core.md](top-review/hard-core.md) §1). **Den ersätter
+E3:s 30 av 91 och E2:s 45 ovan, och E4 är rundans bästa estimator, inte E2.** Resten av kedjan
+(LOCO, interpolationens +12 rader, kandidatanalysen, svansraderna) är **inte** omräknad varmt
+och står kvar på en konfiguration produktionen inte kör. Kvar oprövat även varmt: 15 fps mot
+30, delegat, avkodare.
+
+**Vad som är kvar när alla fyra missar: 31 av 91 rader (34 %) i 25 klipp — men det är
+±1-rutesbandet, inte en klass svåra svingar.** På 19 av 31 ligger bästa estimatorn **en
+bildruta** fel, 94 % inom 3, max 11; som radmängd delar kall och varm bara 23 av 31 (74 %).
+**Den går inte att peka ut vid körtid:** tolv storheter mätta var för sig — pose-presence,
+rutsteg, envelopelängd, monotoni vid slutet, amplitud, antal växlingar och estimatorernas egen
+oenighet — ger **AUC 0,43–0,60**, och \|E3−E4\| pekar åt fel håll eftersom E4 är E3:s egen
+bracket. **Taket för en perfekt grindad lösning är E4 73 % / E2 67 %** mot människornas
+67–80 %, men täljaren är oförändrad och grinden går inte att bygga.
+
+**Flaggorna är dessutom samma flagga (S-38 §5):** `MAX_ENVELOPE_SEC` (produktionens
+avvisningsgräns, 2026-08-06), `SLOWMO_ENVELOPE_THRESHOLD_SEC` (2026-08-13) och
+`MULTI_SWING_SUSPECT_SEC` (2026-09-03) är alla **3,0 s på envelopens varaktighet**, så
+`slowmo` och `suspectMultiSwing` är identiska mängder på alla 103 svingar. **Varje tal ovan
+som delats på "slow-mo" är delat på "lång envelope"** — riktningen håller, orsaksnamnet inte —
+och `suspectMultiSwing` tänder aldrig på en production-grindad sving (0 av 81).
 
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära

@@ -2912,6 +2912,55 @@ kovariater rundan splittat på sedan S-32. Korsningen visar däremot något nytt
 \|median\| 0,0 mot E2:s 1 av 11 med 36,0. På de 22 utan växling säger flaggorna ingenting (0 resp.
 1 rad).
 
+### [x] S-38 — Diagnos: den varma baslinjen, den hårda kärnan, taket och flaggbuggen
+
+**Ny baslinje mätt VARMT — E4 är bäst, inte E2 — och "kärnan" visar sig vara ±1-rutesbandet.**
+Read-only diagnos ([shaft/top-review/hard-core.md](shaft/top-review/hard-core.md), skript
+[hard_core.py](shaft/top-review/hard_core.py)); ingen ny estimator, ingen tröskel, ingen
+klassificerare, ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar.
+Fyra produktionsfiler är **lästa och citerade rad för rad** och skriptet stannar om någon citerad
+rad flyttat. **Facit var sett**, så ingen parameter är svept eller justerad. Allt mäts på
+`run_pose_clip.py` (varm); den kalla körningen används bara till kontrollraden, som reproducerar
+S-32 till S-37 exakt.
+
+**1 — den varma baslinjen, mot spannet (n=91 rader / 73 klipp): E4 44, E2 40, E3 27, E1 6.**
+Mot Erik (n=94/94/93/93): 5 / 32 / 23 / **37**. Mot Lisa (n=95): 5 / 36 / 24 / **40**. Bytet från
+kall kostar E1 −4, E2 −5, E3 −3 och ger E4 +2. **E4 är rundans bästa estimator, inte E2** — samma
+tecken mot alla tre målen. E2:s svans är värre varmt (p90 mot Erik 30 → 47); E3/E4:s
+spridningsmått rör sig inte alls. **Ersätter** `inne`-talen i resultat.md §3, subframe.md §3 och
+kontrollraderna i crossing-selection.md, multiswing.md, envelope-audit.md och e2-and-floor.md §0/§2,
+plus e2-and-floor.md §3:s "19 av 91 utan ankarruta" → **23 av 91 (25 %)**. Resten av det kalla
+biblioteket (LOCO, interpolationens +12, kandidatanalysen, svansraderna) är **inte** omräknat.
+
+**2 — kärnan är 31 av 91 rader (34 %) i 25 av 73 klipp, och den är inte hård.** På **19 av 31
+(61 %)** ligger bästa estimatorn **1 bildruta** fel, 94 % inom 3, max 11, och bara 1 rad ≥10 — mot
+ett golv på 1 ruta och ett spann som är median 2 rutor brett. Som radmängd är den **inte
+reproducerbar**: kall mot varm delar 23 av 31 (74 %), omsättning 15. Kärnan hänger inte på E1 (E1
+ensam inne på 0 rader). **Ja, det är till stor del samma svingar:** 25 av 31 (81 %) saknar en
+växling som överlappar spannet, 19 av 31 (61 %) saknar tillåten ankarruta, bara **4 rader** har
+ingen av förklaringarna. S-34/S-35:s strikta test (`lo ≤ j+1 ≤ hi`) missar växlingar vars
+interpolerade svar rundar till `j+2` — därav 63 av 91 mot 32 med överlappstestet.
+
+**3 — nej, kärnan går inte att förutsäga utan facit.** Tolv storheter, var för sig, ingen tröskel:
+**alla AUC 0,43–0,60**. Bäst är största rutsteget och \|E2−E4\|, båda 0,60. Pose-presence är 1,000
+i båda grupperna (AUC 0,51) och antalet armade växlingar exakt 0,50. **Oenighet mellan
+estimatorerna duger sämst:** \|E3−E4\| pekar åt fel håll (0,43) och är per konstruktion kapad vid
+1 ruta eftersom E4 är E3:s egen bracket; \|E2−E4\| har 74 % av kärnans rader inne i restens IQR.
+
+**4 — taket: E4 73 % (44 av 60), E2 67 % (40 av 60)** mot människornas 67–80 %. Men täljaren är
+oförändrad — en grind krymper bara nämnaren — taket förutsätter en perfekt grind som fråga 3 visar
+inte går att bygga, och den skulle kasta bort 19 svingar som ligger en bildruta fel.
+
+**5 — buggen: tre konstanter, två begrepp, ett värde.** `MAX_ENVELOPE_SEC = 3.0`
+(`poseSegments.ts:54`, 2026-08-06) är produktionens **avvisningsgräns**;
+`SLOWMO_ENVELOPE_THRESHOLD_SEC = 3.0` (`slowmo.ts:28`, 2026-08-13) valdes **oberoende** för
+filmhastighet; `MULTI_SWING_SUSPECT_SEC = 3.0` (`datasetGate.ts:56`, 2026-09-03) är en uttalad
+**spegling** av den första. Ingen commit nämner den andra. Följder: `suspectMultiSwing` kan aldrig
+tända på en production-grindad sving (**0 av 81**); slow-mo-kvoten på 15 % mäter i praktiken
+segmenteringsfel; den enda spaken (`slowmoMode`) flyttar `slowmo` men inte `suspectMultiSwing`;
+och varje analys som delat på "slow-mo" har delat på "lång envelope" — riktningen håller, namnet
+på orsaken gör det inte. **Diagnos, ingen fix.**
+
 ---
 
 ## Avklarat
