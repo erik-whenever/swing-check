@@ -152,6 +152,20 @@ heller nedslaget**: E3 mäter lika bra på de 20 svingar utan säkert nedslag so
 alltså även på `FALLBACK_BOUNDS`-fallen där den fasderiverade vägen är som sämst. Sämsta cellen är
 bekräftad spegelvändning (3,5–4,0 rutor) — **2 svingar i ett enda klipp**.
 
+**Ungefär hälften av E3:s enrutasförskjutning var rutnätet (S-33).**
+[top-review/subframe.md](top-review/subframe.md) interpolerar fram nollgenomgången i v_y i stället
+för att välja en bildruta. Den ligger median **0,43 rutor** efter E3:s val, och mot spannet stiger
+träffen från 30 av 91 till **42–45 av 91** — utan att något anpassas, men fortfarande långt under
+människornas 67–80 %. De tre varianterna (E4/E5/E6) ligger inom 3 rader av varandra och **ingen av
+dem väljs**. **Efter interpolationen finns ingen konstant helrutesförskjutning kvar att kalibrera
+bort**, men mot vardera bedömaren för sig ligger restskiftet precis på halvrutan — det är mellan 0
+och −1, inte robust noll. **Spridningen är orörd**: p90 går 3,0 → 2,1–2,8 och max 26,0 → 25,1, det
+vill säga precis den halvruta en interpolation kan flytta. Kvantiseringen satt i mitten, aldrig i
+svansen. Samma omgång visar att **E2:s svans är ett trasigt ankare** (envelopens snabbaste bildruta
+ligger i tiondel 8–9, median +59 rutor efter spannet, i 10 rader varav 6 slow-mo) och att **de åtta
+gemensamt missade kontrollerna är fall där bedömarna är eniga med varandra men inte med CVAT-facit**
+— sju ser ut som ett för grovt exportrutnät, en (`054.mp4`) som en annan händelse.
+
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära
 nog är fortfarande obestämt. **Punkt 3 i S-32:s spec — verifierat vänsterhänt, ospeglat material —

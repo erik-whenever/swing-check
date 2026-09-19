@@ -3,7 +3,36 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-32 (klar, `[x]`) — **den kontrollrika toppomgången är
+> **Senast (2026-09-19, stream-shaft):** S-33 (klar, `[x]`) — **mätspik: var E3:s
+> enrutasförskjutning kvantisering? Ungefär hälften.** Read-only, ingen produktionskod rörd, ingen
+> tröskel satt, ingen kalibrering applicerad, S-30:s spärr kvar. Rapport:
+> [shaft/top-review/subframe.md](shaft/top-review/subframe.md), skript
+> [subframe.py](shaft/top-review/subframe.py). **Facit var sett**, så risken var anpassning: exakt
+> de tre beställda varianterna, ingen fjärde, **ingen parameter svept eller justerad mot utfallet**,
+> allt anpassat leave-one-clip-out.
+> **E4** (interpolerad nollgenomgång i v_y, rå serie), **E5** (samma på E3:s egen fönster-3-serie),
+> **E6** (E4 på en enskild handled — E3 läser i dag *mittpunkten*, så bytet går den vägen; båda
+> handlederna redovisas och **ingen väljs**, händighet är `unknown`). Nollgenomgången ligger median
+> **0,43 rutor efter E3:s val** (n=91/73). Mot spannet: E3 30 av 91 → **E4 42, E5 43, E6 44–45** —
+> inom 3 rader av varandra, alltså oskiljbara, och alla långt under människornas 67–80 %.
+> **Ingen konstant helrutesförskjutning kvar efter interpolationen** (LOCO-skift 0, träffen rör sig
+> inte), men mot vardera bedömaren för sig ligger skiftet **precis på halvrutan** — resten är mellan
+> 0 och −1, inte robust noll. **Spridningen orörd:** p90 3,0 → 2,1–2,8, max 26,0 → 25,1.
+> Kvantiseringen satt i mitten, aldrig i svansen. E6 ska dessutom läsas med att den är klämd mot
+> bracketen på 33 respektive 45 av 101 svingar.
+> **E2:s svans är en klass:** alla 10 rader (9 klipp) ligger efter spannet, 7 i åttonde tiondelen,
+> **6 av 10 slow-mo mot 6 % i resten**. Bakåtgåendet är lika långt som i resten — **ankaret är
+> trasigt**: envelopens snabbaste ruta ligger i tiondel 8–9, median +59 rutor efter spannet, mot +5
+> i resten. Bara 3 av 10 ligger efter nedslaget.
+> **De åtta gemensamt missade kontrollerna: bedömarna är eniga i 8 av 8** och pekar på samma andra
+> exportruta — oenigheten går mellan människoparet och CVAT-facit. **Sju ser ut som ett för grovt
+> exportrutnät**; den åttonde, **`054.mp4`**, sätter toppen 36 rutor (1,2 s) före facit och *före*
+> en ruta CVAT märkt `backswing` — en annan händelse. **Ingen kontroll märks om, inget klipp har
+> öppnats, ingen siffra i resultat.md räknas om.**
+> **Sidonot:** S-31:s posebanor fanns inte kvar och kördes om (`mediapipe` 1.0.1, samma modellfil);
+> 6 548 envelope-rutor och en kontrollrad som återger resultat.md:s E2/E3-tal exakt.
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-32 (klar, `[x]`) — **den kontrollrika toppomgången är
 > körd och utvärderad.** Ingen produktionskod rörd, ingen tröskel satt, inget skift applicerat:
 > `src/lib/shaft/measure/`, `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG`, `PhaseSource` och
 > teckenkonventionen är orörda, och **S-30:s spärr ligger kvar**. Erik och Lisa bedömde **alla 103

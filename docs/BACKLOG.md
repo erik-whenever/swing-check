@@ -2683,6 +2683,45 @@ rapport; bocka av här; uppdatera `swingcheck-handoff.md` och `shaft/STATUS.md` 
 
 ---
 
+### [x] S-33 — Mätspik: var E3:s enrutasförskjutning kvantisering?
+
+**Svaret är ungefär hälften.** Read-only mätspik ([shaft/top-review/subframe.md](shaft/top-review/subframe.md),
+[subframe.py](shaft/top-review/subframe.py)); ingen produktionskod rörd, ingen tröskel satt, ingen
+kalibrering applicerad, S-30:s spärr ligger kvar. **Facit var sett**, så risken var anpassning:
+exakt de tre beställda varianterna kördes, ingen fjärde, **ingen parameter sveptes eller
+justerades mot utfallet**, och varje anpassad storhet är leave-one-clip-out.
+
+**E4** (interpolerad nollgenomgång i v_y, rå serie), **E5** (samma på E3:s egen fönster-3-serie)
+och **E6** (E4 på en enskild handled — E3 läser i dag *mittpunkten*, så bytet går den vägen; båda
+handlederna redovisas och **ingen väljs**, eftersom händighet är `unknown`). Nollgenomgången ligger
+median **0,43 rutor** efter E3:s val (n=91/73). Mot det mänskliga spannet: E3 30 av 91 → **E4 42,
+E5 43, E6 44–45** — alla inom 3 rader av varandra, alltså oskiljbara vid n=91, och alla långt under
+människornas 67–80 %. **Efter interpolationen finns ingen konstant helrutesförskjutning kvar**
+(LOCO-skiftet blir 0, träffen rör sig inte), men mot vardera bedömaren för sig ligger skiftet
+precis på halvrutan — **restförskjutningen är mellan 0 och −1, inte robust noll.**
+**Spridningen är orörd:** p90 3,0 → 2,1–2,8 och max 26,0 → 25,1, alltså exakt den halvruta en
+interpolation kan flytta. Kvantiseringen satt i mitten, aldrig i svansen.
+
+**E2:s svans är en klass, och felet sitter i ankaret.** Alla 10 svansrader (p90-kvantil, 9 klipp)
+ligger *efter* spannet, 7 i envelopens åttonde tiondel, **6 av 10 slow-mo mot 6 % i resten**.
+Bakåtgåendet är lika långt som i resten (4 steg mot 5) — det som skiljer är att **envelopens
+snabbaste bildruta ligger i tiondel 8–9, median +59 rutor efter spannet**, mot +5 i resten. E2:s
+antagande "snabbaste rutan är nedsvingen" håller inte där. Bara 3 av 10 ligger efter nedslaget.
+
+**De åtta gemensamt missade kontrollerna: bedömarna är eniga med varandra i 8 av 8** och pekar på
+samma andra exportruta. Oenigheten går mellan människoparet och CVAT-facit, inte mellan
+människorna. **Sju ser ut som ett för grovt exportrutnät** (2–17 videorutor mellan grannar; tre av
+dem 2–7 rutor från facit). **Den åttonde, `054.mp4`, är något annat:** båda sätter toppen 36
+videorutor (1,2 s) före facit och därmed *före* en bildruta CVAT märkt `backswing` — en annan
+händelse, inte en ruta fel. **Ingen kontroll märks om, inget klipp har öppnats, ingen siffra i
+resultat.md räknas om.**
+
+**Sidonot:** S-31:s posebanor fanns inte kvar och kördes om (`mediapipe` 1.0.1, samma modellfil).
+Att det blev samma banor är kontrollerat: 6 548 envelope-rutor och en kontrollrad som återger
+resultat.md:s E2/E3-tal exakt.
+
+---
+
 ## Avklarat
 
 _(CC flyttar avbockade uppgifter hit med datum och en mening om vad som gjordes, så listan ovan hålls fokuserad på återstående arbete.)_
