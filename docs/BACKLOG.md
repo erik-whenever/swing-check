@@ -2589,9 +2589,9 @@ väg att *härleda* toppen utan annotering — vilket är den öppning som skull
 `swingcheck-handoff.md` (senast-raden) och `shaft/STATUS.md` §3 med utfallet.
 </details>
 
-### [~] S-32 — Kontrollrik toppomgång: mät E3 mot ögat i stället för att skatta på sex rader
+### [x] S-32 — Kontrollrik toppomgång: mät E3 mot ögat i stället för att skatta på sex rader
 
-**Paketet är byggt, omgången är inte körd.** `docs/shaft/top-review/build_round.py` (endast
+**Paketet, för protokollet.** `docs/shaft/top-review/build_round.py` (endast
 läsande, ingen produktionskod rörd, ingen tröskel satt) har byggt den blinda omgången: **alla
 103 svingar med lokal källvideo, 81 oberoende klipp, 6 548 envelope-videobildrutor** — samma
 6 548 som S-28/S-31, vilket är en kontroll på att fönstret är detsamma. Svaret som efterfrågas
@@ -2605,16 +2605,52 @@ rundan, liksom **S-31:s sex tidigare bedömda svingar**. Kovariater registreras 
 kameravinkel (**93 `dtl` / 8 `face_on` / 2 blandade — face-on går alltså att bryta ut**), fps,
 slow-mo (15), källa (102 `web` / 1 `own`), bekräftad spegelvändning (2 svingar) och nedslag.
 Händighet står `unknown` på varje sving: den finns inte i datamodellen och gissas inte här.
-Poängsättningsskriptet `score_round.py` är **skrivet men inte kört** (det finns inga svar än);
-det mäter åtskilt (a) Erik mot Lisa, (b) varje estimator mot vardera annotatören, (c) E3:s
-förskjutning — konstant eller spridd, avgjort med leave-one-clip-out — och räknar **oberoende
-klipp, inte rader**. Bildmaterialet ligger under `data/shaft/top-round/` (gitignorerat).
+Poängsättningsskriptet `score_round.py` mäter åtskilt (a) Erik mot Lisa, (b) varje estimator mot
+vardera annotatören, (c) E3:s förskjutning — konstant eller spridd, avgjord med
+leave-one-clip-out — (d) `silence`: ligger E3 sämst där människorna teg — och räknar **oberoende
+klipp, inte rader**. `--restrict` lägger två pass på samma underlag utan att slå ihop dem. Bildmaterialet ligger under `data/shaft/top-round/` (gitignorerat).
 
-**Återstår:** (1) Erik och Lisa bedömer oberoende enligt
-[shaft/top-review/KOR-OMGANGEN.md](shaft/top-review/KOR-OMGANGEN.md); (2) kör `score_round.py`;
-(3) skriv resultatrapporten; (4) uppdatera `shaft/STATUS.md` §3 med utfallet och bocka av här.
+**Klart (2026-09-19) — omgången är körd, rapporten skriven:**
+[shaft/top-review/resultat.md](shaft/top-review/resultat.md). Erik (alla 103) och Lisa (alla 103)
+bedömde oberoende; Eriks pass 2 (35 svingar) redovisas **separat**, aldrig hopslaget med pass 1.
+
+**Kontrollerna bär rundan.** Erik 31 rätt / 10 fel / 4 osäker, Lisa **36 / 9 / 0** av 45, båda med
+median 0 exportrutors avvikelse (p90 1, max 2). **Åtta kontroller missas av båda** (015, 032, 040,
+054, 062, 063, 073, 089) — det är omgångens egentliga felmått. Eriks två pass missar **samma fem**
+svingar (046, 062, 015, 054, 063), **ingen ny miss, ingen rättad**: sista tredjedelens fall är
+**materialet, inte trötthet**. Lisa träffar fyra av de fem; 046 är Erik ensam om, och det är också
+rundans enda sving där de två intervallen inte överlappar.
+
+**Det mänskliga spannet finns nu.** Av 91 svingar i 73 klipp där båda svarade **överlappar 90 (99
+%)**, mittpunktsskillnaden är median 0 (|median| 0,5, max 4,5) utan systematisk riktning, och
+unionen — spannet — är **2 bildrutor** i median. Eriks mittpunkt ligger inne hos Lisa i 80 %, Lisas
+hos Erik i 67 %. Slow-mo vidgar spannet (union median 3, max 12) utan att minska enigheten;
+face-on är tätast av allt (n=7, mittpunkterna identiska i median) men bär ingen slutsats.
+
+**E3 mot spannet: inne i 30 av 91 (33 %)**, inne hos båda samtidigt i 19 (21 %), |median| 1 ruta
+mot vardera bedömaren (p90 3–4). E1 är bekräftat fel konstruktion nu på n=94 (median +18 rutor);
+E2 träffar oftare (45 av 91) men har p90 28–30 och max 205. **E3:s förskjutning är
+riktningskonstant** — 89 % (Erik) / 88 % (Lisa) av missarna ligger före — och **överlever
+leave-one-clip-out**: ett skift på −1 lyfter träffen 23→44 respektive 27→53. **Men MAD står kvar på
+1,0 och även skiftad ligger E3 inne i under hälften.** Förskjutningen är en konstant *ovanpå* en
+spridning. **Inget skift applicerat, ingen tröskel satt.** S-31:s sex rader omräknade: −2,0 / −3,5
+— rätt riktning, överdriven storlek.
+
+**Tystnad, det nya:** oenighet och breda intervall förutsäger ingenting om E3 (|median| 1 ruta i
+varje grupp). Men på de **5 svingar där båda teg** ligger E3 och E2 **9,5 rutor isär** mot 1,0 i
+resten, och E3 gav inget val alls på 2 av 103 svingar — båda sådana där minst en människa också
+teg. **n = 5. Det säger att en tystnadsregel skulle ha något att stå på, inte var den går.**
+
+**Kovariater:** vinkeln säger ingenting (face-on = dtl), nedslaget säger ingenting (20 svingar utan
+säkert nedslag mäter lika bra som de 83 med) — värt att notera eftersom det är just
+`FALLBACK_BOUNDS`-svingarna. Sämsta cellen är **bekräftad spegelvändning, 3,5–4,0 rutor — men 2
+svingar i ett enda klipp** (`093.mp4`).
+
 **Punkt 3 i specen nedan — verifierat vänsterhänt, ospeglat material — är fortfarande obesvarad:**
 paketet gör luckan synlig men fyller den inte, eftersom sådant material inte finns i datasetet.
+Händighet står `unknown` på alla 103. **Nästa steg är inte en tröskel** — S-30:s spärr
+ligger kvar tills någon bestämmer vad "nära nog" betyder, och det beslutet tas inte av den
+här mätningen.
 
 <details><summary>Ursprunglig spec</summary>
 

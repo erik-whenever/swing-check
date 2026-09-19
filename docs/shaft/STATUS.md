@@ -122,16 +122,40 @@ vänsterhänt material är omätt.** Spärren i det här avsnittet står därfö
 skulle lyfta den är en kontrollrik toppomgång (S-32), inte det här underlaget. Se
 [top-from-pose.md](top-from-pose.md).
 
-**Den omgången är byggd men inte körd (S-32).** [top-review/](top-review/) bär ett blint
-bedömningspaket över **alla 103 svingar med lokal källvideo i 81 oberoende klipp, 6 548
-envelope-videobildrutor** — samma fönster som S-28/S-31. Svaret som efterfrågas är ett
-**intervall** (första och sista rimliga toppruta), inte en fasetikett, och omgången bär **45
-kontrollsvingar i 39 klipp** plus S-31:s sex tidigare bedömda svingar, alla omarkerade. Två av
-dem är både kontroll och tidigare facit, och de två källorna pekar **inte** på samma bildruta
-(0,20 s respektive 0,93 s isär) — noterat, inte avgjort. **93 `dtl` / 8 `face_on` / 2 blandade**
-är registrerade men aldrig visade, så face-on går att bryta ut i efterhand. **Ingenting i
-paragrafen ovan ändras av det här:** inga svar finns än, ingen siffra är mätt, och spärren står
-kvar tills omgången är bedömd och poängsatt. Metod: [top-review/README.md](top-review/README.md).
+**Den omgången är nu körd och utvärderad (S-32) — och spärren står ändå kvar.**
+[top-review/resultat.md](top-review/resultat.md). Erik och Lisa bedömde **alla 103 svingar i 81
+oberoende klipp** var för sig, blint, med intervall som svar; Eriks andra pass på 35 svingar
+redovisas separat och slås aldrig ihop med det första. **Kontrollerna bär rundan:** Erik 31 rätt /
+10 fel / 4 osäker, Lisa **36 / 9 / 0** av 45, båda med median 0 exportrutors avvikelse — men
+**åtta kontroller missas av båda**, vilket är omgångens egentliga felmått. Eriks två pass missar
+**samma fem svingar och inga nya**: det är materialet, inte trötthet.
+
+**Det mänskliga golvet finns nu, och det är smalt.** Av 91 svingar i 73 klipp där båda svarade
+**överlappar 90 (99 %)**, mittpunkterna ligger median **0** bildrutor isär utan systematisk
+riktning, och spannet (unionen av de två intervallen) är **2 bildrutor**. Det är golvet S-31
+saknade när den kallade resten av avståndet fel.
+
+**E3 mot det golvet: inne i spannet i 30 av 91 (33 %)**, inne hos båda bedömarna samtidigt i 19
+(21 %), med **|median| 1 bildruta** mot vardera. E1 är bekräftat fel konstruktion (median +18
+rutor, n=94); E2 träffar oftare (45 av 91) men bär p90 28–30 och max 205. **E3:s förskjutning är
+riktningskonstant** — 89 % respektive 88 % av missarna ligger *före* — och **överlever
+leave-one-clip-out**: ett skift på −1 ruta anpassat utan det egna klippet lyfter träffen 23→44 och
+27→53. **Men MAD står kvar på 1,0, och även skiftad ligger E3 inne i under hälften av raderna.**
+Förskjutningen är en konstant *ovanpå* en spridning, inte i stället för den — **och inget skift är
+applicerat, ingen tröskel satt.**
+
+**Mätt men inte avgjort:** oenighet och breda intervall förutsäger ingenting om E3, men på de **5
+svingar där båda bedömarna teg** ligger E3 och E2 **9,5 bildrutor isär** mot 1,0 i resten, och E3
+gav inget val alls på 2 av 103 svingar — båda sådana där minst en människa också teg. n = 5.
+Kameravinkeln säger ingenting (face-on = dtl, men bara 7 svingar med svar från båda) och **inte
+heller nedslaget**: E3 mäter lika bra på de 20 svingar utan säkert nedslag som på de 83 med,
+alltså även på `FALLBACK_BOUNDS`-fallen där den fasderiverade vägen är som sämst. Sämsta cellen är
+bekräftad spegelvändning (3,5–4,0 rutor) — **2 svingar i ett enda klipp**.
+
+**Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
+E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära
+nog är fortfarande obestämt. **Punkt 3 i S-32:s spec — verifierat vänsterhänt, ospeglat material —
+är fortfarande obesvarad**, och händighet står `unknown` på alla 103 svingar (§4 nedan).
 
 ## 4. Händighet finns inte i datamodellen, och spegelvända klipp går inte att skilja från vänsterhänt spel
 

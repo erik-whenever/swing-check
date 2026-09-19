@@ -1,38 +1,43 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-18.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-18, stream-shaft):** S-32 (halvgjord, `[~]`) — **det blinda
-> bedömningspaketet är byggt; omgången är inte körd.** Ingen analys, ingen produktionskod, ingen
-> tröskel: `src/lib/shaft/measure/`, `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG` och
-> teckenkonventionen är orörda. `docs/shaft/top-review/build_round.py` (endast läsande) har
-> extraherat **alla 103 svingar med lokal källvideo, 81 oberoende klipp, 6 548
-> envelope-videobildrutor** — samma 6 548 som S-28/S-31, alltså samma fönster. Per sving en
-> bedömarvy (`viewer.html`) där man stegar bildruta för bildruta genom hela envelopen och läser
-> av bildruteindex; svaret är ett **intervall** (första och sista rimliga toppruta), inte en
-> enskild ruta och inte en fasetikett — det är E3:s utdata. **Blindningen är själva poängen:**
-> E1/E2/E3 beräknas aldrig av byggskriptet (de räknas först vid poängsättningen), svingnycklarna
-> är utbytta mot ogenomskinliga id eftersom `045-224bdedb_s00` står som committad text bredvid
-> Eriks svar i `phase-audit/review.md`, och tre skilda frön styr id-tilldelning (`0x70bc0de5`),
-> Eriks ordning (`0xe71c0de5`) och Lisas (`0x715a0de5`) — noll svingar hamnar på samma plats hos
-> de två. **45 kontrollsvingar i 39 klipp** (exakt en annoterad, enigt bedömd `top`) och **S-31:s
-> sex tidigare bedömda svingar** ligger omarkerade i rundan; två av dem är både kontroll och
-> tidigare facit och källorna **pekar inte på samma bildruta** (`S32-034` 0,20 s isär, `S32-023`
-> 0,93 s) — noterat i registret, inte avgjort. Registrerat men aldrig visat: kameravinkel
-> (**93 `dtl` / 8 `face_on` / 2 blandade — face-on går alltså att bryta ut i efterhand**), fps,
-> slow-mo (15), källa (102 `web` / 1 `own`), bekräftad spegelvändning (2 svingar, båda ur
-> `093.mp4`) och nedslag. Händighet står `unknown` på varje sving: den finns inte i datamodellen
-> och gissas inte ur bilden. `score_round.py` är **skrivet men inte kört** — det finns inga svar
-> än — och mäter åtskilt (a) Erik mot Lisa, (b) varje estimator mot vardera annotatören, (c) E3:s
-> förskjutning, konstant eller spridd, avgjord med **leave-one-clip-out**; det **räknar oberoende
-> klipp, inte rader**, och `osäker` är en tredje kategori överallt. Bildmaterialet ligger under
-> `data/shaft/top-round/` (gitignorerat via `data/shaft/*`); bara skript och rapport i `docs/`.
-> **Kvar:** Erik och Lisa bedömer oberoende enligt
-> [shaft/top-review/KOR-OMGANGEN.md](shaft/top-review/KOR-OMGANGEN.md), kör poängsättningen,
-> skriv rapporten, uppdatera `shaft/STATUS.md` §3. Metod och sammansättning:
-> [shaft/top-review/README.md](shaft/top-review/README.md) — **läses efter bedömningen, inte
-> före.**
+> **Senast (2026-09-19, stream-shaft):** S-32 (klar, `[x]`) — **den kontrollrika toppomgången är
+> körd och utvärderad.** Ingen produktionskod rörd, ingen tröskel satt, inget skift applicerat:
+> `src/lib/shaft/measure/`, `NEAR_VERTICAL_GATE_DEG`, `ON_PLANE_BAND_DEG`, `PhaseSource` och
+> teckenkonventionen är orörda, och **S-30:s spärr ligger kvar**. Erik och Lisa bedömde **alla 103
+> svingar var för sig** (olika frön, olika ordning, ingen sving på samma plats); Eriks **pass 2** på
+> 35 svingar redovisas **separat som känslighetskontroll och slås aldrig ihop med pass 1**. Rapport:
+> [shaft/top-review/resultat.md](shaft/top-review/resultat.md).
+> **Kontrollerna bär rundan:** Erik 31/10/4, Lisa **36/9/0** av 45, båda med median 0 exportrutors
+> avvikelse. **Åtta kontroller missas av båda** — det är omgångens egentliga felmått, och facit är
+> alltså inte perfekt heller. Eriks två pass missar **samma fem svingar, inga nya**: sista
+> tredjedelens fall är **materialet, inte trötthet** (Lisas kontrollträff *stiger* dessutom över
+> hennes egen ordning, medan osäker-andelen stiger hos båda).
+> **Det mänskliga golvet S-31 saknade finns nu:** av 91 svingar i 73 klipp där båda svarade
+> **överlappar 90 (99 %)**, mittpunkterna ligger median 0 rutor isär utan systematisk riktning, och
+> spannet (unionen) är **2 bildrutor**. Enda icke-överlappet är `046` — samma sving Erik är ensam om
+> att missa som kontroll. Eriks intra-spann (0 i median, 100 % överlapp) ligger bredvid som referens
+> **men passen låg ~14 h isär på samma bilder, så igenkänning kan ha bidragit — det är inte ett golv**.
+> **E3 ligger inne i det mänskliga spannet i 30 av 91 (33 %)** och inne hos båda samtidigt i 19
+> (21 %), \|median\| 1 ruta mot vardera bedömaren. E1 är bekräftat fel konstruktion på n=94
+> (median +18); E2 träffar oftare (45 av 91) men bär p90 28–30 och max 205. **E3:s förskjutning är
+> riktningskonstant** (89 %/88 % av missarna ligger *före*) och **överlever leave-one-clip-out** —
+> ett skift på −1 lyfter träffen 23→44 respektive 27→53 — **men MAD står kvar på 1,0 och även
+> skiftad ligger E3 inne i under hälften.** Förskjutningen är en konstant *ovanpå* en spridning, och
+> **ingen kalibrering görs på det**. S-31:s sex rader omräknade: −2,0/−3,5 — rätt riktning, för stort
+> belopp.
+> **Nytt: tystnaden.** Oenighet och breda intervall förutsäger ingenting om E3. Men på de **5 svingar
+> där båda teg** ligger E3 och E2 **9,5 rutor isär** mot 1,0 i resten, och E3 gav inget val alls på 2
+> av 103 svingar — båda sådana där minst en människa också teg. **n = 5: en tystnadsregel skulle ha
+> något att stå på, men var den går sägs inte här.**
+> **Kovariater:** vinkeln säger ingenting (face-on = dtl, första underlaget alls på face-on men n=7),
+> nedslaget säger ingenting — även på de 20 svingar utan säkert nedslag, alltså
+> `FALLBACK_BOUNDS`-fallet där felet är värst. Sämsta cellen är bekräftad spegelvändning (3,5–4,0
+> rutor) men den vilar på **2 svingar i ett enda klipp** (`093.mp4`).
+> **Fortfarande obesvarat:** verifierat vänsterhänt, ospeglat material (spec punkt 3) finns inte i
+> datasetet, och händighet står `unknown` på alla 103. **Nästa steg är inte en tröskel.**
 >
 > **Dessförinnan (2026-09-18, stream-shaft):** S-31 — **spike: handleden bär en observerad topp där
 > skaftlinjen inte gör det.** Ingen produktionskod rörd, inget tröskelbeslut fattat. MediaPipe

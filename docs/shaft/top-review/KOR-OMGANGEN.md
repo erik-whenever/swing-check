@@ -72,7 +72,37 @@ training/.venv/Scripts/python.exe docs/shaft/top-review/score_round.py <poseDir>
 bara till stdout och rör ingen produktionskod. Läs **kontrollavsnittet först**: missar
 bedömarna kontrollerna mäter resten bedömaren och inte estimatorn.
 
-`--section` tar `controls`, `a`, `b`, `c`, `covariates` eller `all`.
+`--section` tar `controls`, `a`, `b`, `c`, `silence`, `covariates` eller `all`.
+
+`--restrict <svarsfil>` poängsätter bara de svingar som finns i den filen — används för att
+lägga pass 1 och pass 2 på exakt samma underlag (se punkt 5). Den delar upp omgången; den slår
+aldrig ihop två pass och ändrar aldrig ett svar.
+
+## 5. Pass 2 (bara om sista tredjedelen ser trött ut, inte rutin)
+
+Ser Eriks kontrollträff ut att falla mot slutet av rundan (sista tredjedeln i hans egen
+ordning) skiljer ett andra pass på **samma 35 svingar, ny ordning** trötthet från material:
+missar pass 2 samma svingar är det materialet, missar det andra är det trötthet.
+
+```sh
+training/.venv/Scripts/python.exe docs/shaft/top-review/build_pass2.py
+```
+
+Bygger `data/shaft/top-round/erik-pass2/index.html` av de 35 svingar som låg på plats 69–103
+i Eriks första ordning, i ett nytt, oigenkännligt skift (eget frö, tryckt när skriptet körs).
+Rör aldrig `svar-erik.json` och läser inga tidigare svar in i vyn — bara läsande läs för att
+hitta rätt 35, samma bilder som pass 1, ingen ny nedladdning. Bedöm exakt som i steg 2 (samma
+vy, samma tangenter), exportera; filen heter automatiskt `svar-erik-pass2.json`.
+
+Poängsätt separat från steg 4, med båda Eriks filer och ett eget avsnitt:
+
+```sh
+training/.venv/Scripts/python.exe docs/shaft/top-review/score_round.py <poseDir> \
+    --answers data/shaft/top-round/svar-erik.json data/shaft/top-round/svar-erik-pass2.json \
+    --section pass2
+```
+
+`pass2` ingår inte i `all` och räknar inget estimatorval — Erik mot Erik, ingenting annat.
 
 ## Öppna inte förrän du är klar
 
