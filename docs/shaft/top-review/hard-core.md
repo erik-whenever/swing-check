@@ -28,6 +28,16 @@
 > helklippskörning av samma posemodell över alla 81 klipp. **Klippet är den oberoende
 > enheten** och n står som rader *och* klipp.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> (§5 nedan). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **1. Den varma baslinjen: E4 44 av 91, E2 40, E3 27, E1 6.** Mot spannet, n = 91 rader i 73
@@ -299,19 +309,19 @@ någon växling som överlappar spannet.
 | S32-009 | 082.mp4 | −1 | +1 | −1 | −1 | 15–16 | ja | ja | – |
 | S32-013 | 057.mp4 | −1 | +28 | **−26** | **−26** | 29–30 | ja | ja | utan nedslag |
 | S32-017 | 093.mp4 | +22 | +3 | −3 | −3 | 20–21 | ja | nej | – |
-| S32-023 | 073.mp4 | −2 | +20 | −1 | −1 | 78–85 | ja | ja | slow-mo, utan nedslag |
+| S32-023 | 073.mp4 | −2 | +20 | −1 | −1 | 78–85 | ja | ja | lång env, utan nedslag |
 | S32-028 | 046.mp4 | −2 | −2 | −2 | −2 | 34–37 | nej | nej | – |
 | S32-029 | 095.mp4 | +20 | +1 | +1 | +2 | 33–35 | ja | nej | utan nedslag |
 | S32-030 | 008.mp4 | +18 | +4 | −2 | −1 | 18–19 | ja | nej | utan nedslag |
 | S32-039 | 017.mp4 | −1 | +1 | −2 | −1 | 26–27 | ja | nej | – |
-| S32-041 | 040.mp4 | +67 | +35 | +3 | +3 | 41–43 | nej | nej | slow-mo |
+| S32-041 | 040.mp4 | +67 | +35 | +3 | +3 | 41–43 | nej | nej | lång env |
 | S32-042 | 032.mp4 | +21 | −4 | −3 | −3 | 30–31 | nej | nej | – |
 | S32-044 | 092.mp4 | +18 | −2 | −3 | −3 | 19–21 | nej | nej | – |
 | S32-047 | 015.mp4 | +21 | −2 | −5 | −5 | 28–29 | nej | nej | – |
 | S32-048 | 027.mp4 | +22 | −2 | −2 | −1 | 24–25 | nej | nej | – |
 | S32-057 | 010.mp4 | +19 | −1 | −2 | −1 | 18–19 | nej | nej | – |
 | S32-060 | 090.mp4 | +18 | −1 | −2 | −2 | 18–19 | nej | nej | – |
-| S32-062 | 095.mp4 | +18 | +56 | +1 | +1 | 24–25 | nej | nej | slow-mo, utan nedslag |
+| S32-062 | 095.mp4 | +18 | +56 | +1 | +1 | 24–25 | nej | nej | lång env, utan nedslag |
 | S32-063 | 090.mp4 | +19 | +1 | −2 | −2 | 15–16 | nej | nej | – |
 | S32-068 | 091.mp4 | +16 | +6 | −2 | −1 | 17–18 | nej | nej | – |
 | S32-069 | 085.mp4 | −2 | −1 | −2 | −1 | 20–22 | nej | nej | – |
@@ -320,11 +330,11 @@ någon växling som överlappar spannet.
 | S32-080 | 080.mp4 | +15 | −11 | **−17** | **−16** | 31–33 | ja | ja | – |
 | S32-086 | 088.mp4 | +21 | −2 | −4 | −3 | 23–23 | nej | nej | – |
 | S32-090 | 024.mp4 | +5 | +6 | **−10** | −9 | 24–25 | ja | nej | – |
-| S32-092 | 005.mp4 | +169 | **+205** | −4 | −3 | 19–20 | nej | nej | slow-mo |
+| S32-092 | 005.mp4 | +169 | **+205** | −4 | −3 | 19–20 | nej | nej | lång env |
 | S32-095 | 039.mp4 | +20 | −1 | −1 | −1 | 20–22 | nej | ja | utan nedslag |
 | S32-096 | 090.mp4 | +21 | −2 | −2 | −2 | 17–18 | nej | nej | – |
 | S32-100 | 088.mp4 | +21 | −1 | −3 | −2 | 22–23 | nej | nej | – |
-| S32-103 | 089.mp4 | +20 | +82 | −1 | −1 | 17–17 | nej | ja | slow-mo |
+| S32-103 | 089.mp4 | +20 | +82 | −1 | −1 | 17–17 | nej | ja | lång env |
 
 **Tabellen säger samma sak som kvantilerna.** Tre rader bär hela avståndet — S32-013, S32-080,
 S32-090, och det är [crossing-selection.md](crossing-selection.md) §2:s tre yttersta rader,
@@ -367,7 +377,7 @@ De binära storheterna, som andelar:
 | | kärnan | resten |
 |---|---:|---:|
 | banan stiger vid envelopens sista ruta | 14 av 31 (45 %) | 20 av 60 (33 %) |
-| slow-mo (produktionens egen flagga) | 5 av 31 (16 %) | 6 av 60 (10 %) |
+| lång envelope > 3,0 s (produktionens `slowmo`-flagga) | 5 av 31 (16 %) | 6 av 60 (10 %) |
 | utan säkert nedslag | 8 av 31 (26 %) | 8 av 60 (13 %) |
 
 **Svaret är nej, och det är inte nära.** Den högsta separationen i hela tabellen är **0,60** —
@@ -376,7 +386,8 @@ grupperna. **Pose-presence säger ingenting alls:** medianen är 1,000 med IQR 1
 grupperna — modellen returnerar en pose på varenda ruta, i kärnan lika mycket som i resten, så
 den förklaring som låg närmast till hands är utesluten. **Antalet armade växlingar ligger på
 exakt 0,50.** De tre kovariaterna med störst *relativ* skillnad — utan säkert nedslag 26 % mot
-13 % (8 rader mot 8), slow-mo 16 % mot 10 % (5 mot 6), stigande slut 45 % mot 33 % (14 mot 20)
+13 % (8 rader mot 8), lång envelope 16 % mot 10 % (5 mot 6), stigande slut 45 % mot 33 %
+(14 mot 20)
 — vilar alla på skillnader om **2–6 rader**, mot en omsättning på 6–11 rader i
 [e2-and-floor.md](e2-and-floor.md) §4:s golv. Ingen av dem är skild från körningsbruset.
 

@@ -2961,6 +2961,66 @@ segmenteringsfel; den enda spaken (`slowmoMode`) flyttar `slowmo` men inte `susp
 och varje analys som delat på "slow-mo" har delat på "lång envelope" — riktningen håller, namnet
 på orsaken gör det inte. **Diagnos, ingen fix.**
 
+### [x] S-39 — Diagnos: från bildrutefel till utfallsfel, och 3,0-buggens spridning
+
+**En bildrutas fel byter `top-shaft-orientation`:s utfall på 22 % av raderna — men samma utfall
+byter på 9 % när ingenting alls ändras.** Read-only diagnos
+([shaft/top-review/verdict-sensitivity.md](shaft/top-review/verdict-sensitivity.md), skript
+[verdict_sensitivity.py](shaft/top-review/verdict_sensitivity.py) +
+[verdict_outcomes.ts](shaft/top-review/verdict_outcomes.ts)); ingen ny estimator, ingen tröskel,
+ingen klassificerare, ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr
+kvar. `src/lib/shaft/measure/` är **importerat och anropat**, aldrig återimplementerat — ett utfall
+är vad produktionskoden säger att det är. Allt mäts varmt; kontrollraden reproducerar S-32 till
+S-38 exakt. Nytt underlag: `run_dense.py` (S-28, oförändrad) kör `shaft-v2.onnx` på **alla 6 548
+envelope-bildrutor**, kontrollerat ruta för ruta mot registrets `frameTimes`.
+
+**0 — invändningen mot frågans form.** Bara **ett** av de tre toppankrade mätvärdena har ett
+pass/fail-liknande utfall i koden: `top-shaft-orientation`:s `category`. `shaft-position-p4` och
+`top`-hinken returnerar tal som **ingen regel i `src/` läser**, så deras enda kodade utfall är
+svar↔tystnad. Ingen tröskel uppfanns för att skapa ett tredje.
+
+**1 — bildrutefel → utfallsfel (n = 101 rader / 79 klipp).** Vid **±1 ruta** byter
+`top-shaft-orientation` på **23 (−1) / 22 (+1) av 101**; minst ett av dem på **37 av 101 (37 %)**.
+Vid ±2/±3/±5 kumulativt 50 / 59 / 68 av 101. `shaft-position-p4` **20 av 101** och `top`-hinken
+**23 av 101** vid ±1. **57 % av bytena vid −1 är kategori mot kategori**, inte tystnad; rena
+teckenbyten (across ↔ laid-off) 0 vid −1 och 3 vid +1, 9 vid −5. **KONTROLLEN är avsnittets
+viktigaste tal:** kall mot varm spårare — samma modell, samma vikter, samma rutor — byter utfall
+på **9 av 100 (9 %)**, och E3 mot E4 (≤ 1 ruta isär per konstruktion) på **13 av 101 (13 %)**.
+Kurvan börjar inte vid noll.
+
+**2 — människornas eget spann räcker.** Topp på intervallets första mot sista ruta:
+`top-shaft-orientation` byter på **11 av 93 (Erik)**, **11 av 95 (Lisa)**, **12 av 91 (unionen)** —
+16–18 % bland de svarande, vid median **2 rutors** intervallbredd. Av unionens 12: 5 korsar
+`NEAR_VERTICAL_GATE_DEG`, 2 korsar `ON_PLANE_BAND_DEG`, 5 är svar↔tystnad. **Inget teckenbyte.**
+De två tysta mätvärdena byter på 3–6 rader, alla svar↔tystnad. Nämnaren har ett hål: 24 av Eriks
+93 rader har ett **enrutersintervall** och kan inte byta något, så talet är en underskattning.
+
+**3 — E4 mot en topp mitt i spannet (n = 91 / 73 klipp): samma utfall 65 av 91 (71 %)** för
+`top-shaft-orientation`, **79 av 91 (87 %)** för de två andra. Uppdelat: E4 inne i spannet 38 av 44
+(86 %), utanför **27 av 47 (57 %)**. Av de 26 skiljande raderna är 14 kallat-mot-kallat, 12
+svar↔tystnad och **4 rena teckenbyten** (`S32-009`, `S32-012`, `S32-063`, `S32-100`) — 4 av 91 är
+det tal ett nedströmsråd skulle bära. För de två tysta mätvärdena är **varenda** skiljande rad
+svar↔tystnad, så 87 % betyder "lika ofta tyst".
+
+**4 — de 4 oförklarade kärnraderna: `S32-009`, `S32-013`, `S32-023`, `S32-080`** (4 klipp), och de
+är två mönster som är varandras motsatser. `S32-013` och `S32-080` har den rätta växlingen inne i
+spannet men E3 armar och löser ut 17–26 rutor tidigare — `e3_signflip` tar den **första** armade,
+inte den närmaste. `S32-009` och `S32-023` har rätt växling **och** rätt ankare och missar ändå:
+den ena på avrundningen kring ett tvårutersspann, den andra på att handleden rör sig **0,005
+bildhöjder** över 17 rutor (S-31:s platå, sedd i tal). Beskrivning, ingen regel dragen, ingen
+bildruta öppnad.
+
+**5 — 3,0-buggens spridning: 8 rapporter (S-31…S-38) + STATUS.md, samtliga rättade.** Varje
+uppdelning märkt "slow-mo" är en uppdelning på `envelopeDuration > 3,0 s`; identiteten
+reproducerades först (`slowmo` == `suspectMultiSwing` == envelope > 3,0 s, 15 av 103, noll
+undantag) och skriptet stannar annars. Etiketterna är utbytta i texten, **inga siffror ändrade**,
+och varje dokument bär ett rättelseblock som pekar på originalordalydelsen i git-historiken.
+Kodnamn (`slowmo`, `SLOWMO_*`, `slowmoMode`, `force-slowmo`) och hard-core.md §5:s egen diagnos
+står orörda. Två slutsatser läser annorlunda efteråt: subframe.md §7:s "svansens starkaste signal"
+är ett påstående om **envelopelängd** (och nästan mekaniskt när etiketten är rätt), och
+envelope-audit.md §5:s "ligger också alla över `MAX_ENVELOPE_SEC`" följer av definitionen.
+**Ingen fix föreslås.**
+
 ---
 
 ## Avklarat

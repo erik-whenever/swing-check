@@ -11,6 +11,16 @@
 > gör inte det på samma sätt. Facit är detsamma som i S-27–S-29:
 > [phase-audit/review.md](phase-audit/review.md) och dess 32 bedömda rader.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([top-review/hard-core.md](top-review/hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [top-review/verdict-sensitivity.md](top-review/verdict-sensitivity.md) §5.
+
 ## Svaret
 
 **Ja — handleden bär en observerad topp där skaftlinjen inte gjorde det, men underlaget är
@@ -34,7 +44,7 @@ det gör inte det här.**
 
 **Men:** E3 träffar inte *inne* i Eriks intervall mer än 1 gång av 6 — den ligger typiskt 1–2
 bildrutor före. Två av de sex raderna är samma klipp (`093.mp4`), en (rad 12) är den enda
-slow-mo-svingen bland de sex och är varje estimators sämsta rad, och 97 av de 103 körda
+med **lång envelope (> 3,0 s)** bland de sex och är varje estimators sämsta rad, och 97 av de 103 körda
 svingarna har inget facit alls. **Inget tal här bär en tröskel, och ingen extrapolering görs.**
 
 ## STEG 0 — inventering
@@ -45,7 +55,7 @@ svingarna har inget facit alls. **Inget tal här bär en tröskel, och ingen ext
 [review.md](phase-audit/review.md):s **32 bedömda rader** har **15** en lokal källvideo — exakt
 samma 15 som S-28 arbetade på, så resultaten är direkt jämförbara.
 
-| # | frame-id | klipp | sving | Eriks svar | `impactSec` | slow-mo |
+| # | frame-id | klipp | sving | Eriks svar | `impactSec` | lång envelope |
 |---:|---|---|---|---|---|:-:|
 | 1 | `057-1d1b5748_s00_f02` | `057.mp4` | `057…_s00` | downswing | — | nej |
 | 2 | `047-4d3e3909_s00_f01` | `047.mp4` | `047…_s00` | osäker | 2,524 | nej |
@@ -265,10 +275,10 @@ median **1,5 videobildrutor** från Eriks intervall och aldrig mer än 0,386 s f
 rutor men med en rad 19× värre än medianen.
 
 **Rad 12 är varje estimators sämsta rad, och den är särskild på två sätt.** Den är den **enda
-slow-mo-svingen bland de sex**, och dess handhöjdsplatå är 0,8 s bred: y rör sig bara mellan
+med lång envelope (> 3,0 s) bland de sex**, och dess handhöjdsplatå är 0,8 s bred: y rör sig bara mellan
 0,4861 och 0,4917 från 9,90 till 10,73 s, med sitt minimum vid 10,43. Erik läser toppen på
 klubbhuvudet vid 9,71–9,98 s; händerna fortsätter stiga omärkligt en halv sekund till. **Det är inte ett detektionsfel utan två olika
-definitioner av topp** — och med n = 1 slow-mo bland sex går det inte att säga vilket av de två
+definitioner av topp** — och med n = 1 lång envelope bland sex går det inte att säga vilket av de två
 som förklarar raden.
 
 **Hur brett är det val estimatorn gör?** Bredden på platån varje estimator måste plocka en enda
@@ -358,8 +368,9 @@ alltså inte där problemet är störst.** E3 kräver inget nedslag.
   `093.mp4` är det **spegelvända** klippet och bidrar med **två av de sex** raderna med utpekad
   topp (16 och 31). Ingen av de tre estimatorerna läser händighet — händerna stiger i baksvingen
   oavsett — men ingen verifierat vänsterhänt, ospeglad sving är bedömd, så påståendet är oprövat.
-- **Slow-mo.** 15 av de 103 svingarna är `slowmo: true`. **En av de sex** raderna med utpekad
-  topp är slow-mo (rad 12), och den är varje estimators sämsta rad. Med n = 1 är det en
+- **Lång envelope (> 3,0 s).** 15 av de 103 svingarna är `slowmo: true` — vilket är
+  `envelopeDuration > 3,0 s` och inte en mätning av filmhastighet. **En av de sex** raderna
+  med utpekad topp bär flaggan (rad 12), och den är varje estimators sämsta rad. Med n = 1 är det en
   observation, inte ett samband.
 - **Eget material.** 102 av 103 svingar är `web`. Samma konfundering som S-28; ingenting här
   säger något om egna klipp.
@@ -390,7 +401,7 @@ drift i S-28. E2 träffar nästan lika bra men är klart mer parameterkänslig.
 
 **Det här är en öppning, inte ett svar.** E3 träffar inte *inne* i Eriks intervall mer än 1 gång
 av 6 — den ligger typiskt 1–2 bildrutor före — och de sex raderna är fem klipp, varav ett
-spegelvänt bidrar med två och ett slow-mo står för hela den dåliga svansen. Ingen tröskel sätts
+spegelvänt bidrar med två och en lång envelope står för hela den dåliga svansen. Ingen tröskel sätts
 här, ingen produktionskod rörs, och S-30:s spärr ligger kvar: **ett mätvärde svarar fortfarande
 inte utan observerad fas.** Vad som skulle krävas för att lyfta den är en kontrollrik omgång i
 [phase-audit/](phase-audit/):s anda — blint bedömda toppar i tillräckligt många oberoende klipp,

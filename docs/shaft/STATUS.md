@@ -5,9 +5,10 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-19 (S-38: den varma baslinjen ersätter S-32/S-33:s tal, "kärnan" är
-> ±1-rutesbandet och går inte att förutsäga vid körtid, och de två flaggorna är samma flagga —
-> se §3. Spärren från S-30 står kvar oförändrad och ingen tröskel är satt.)
+> Senast uppdaterad: 2026-09-19 (S-39: **en bildrutas fel byter `top-shaft-orientation`:s utfall
+> på 22 % av raderna — men samma utfall byter på 9 % när ingenting alls ändras**, och etiketten
+> "slow-mo" är rättad till "lång envelope" i S-31…S-38 — se §1, §2 och §3. Spärren från S-30 står
+> kvar oförändrad och ingen tröskel är satt.)
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -40,6 +41,11 @@ horisontalen, spridda över båda riktningarna. Går ögat och mätvärdet isär
 
 **Läs därför `on-plane` som "ingen riktning uttalad", aldrig som "skaftet låg på planet".**
 
+**Bandets kant är mätt som rörlig (S-39).** Sätts toppen på första mot sista rutan i en bedömares
+*eget* intervall byter **2 av 91 rader** mellan `across-the-line` och `on-plane` (`S32-027`,
+`S32-060`) — alltså utan att någon estimator är inblandad. n = 2 rader i 2 klipp, och **bandet är
+oförändrat**. [top-review/verdict-sensitivity.md](top-review/verdict-sensitivity.md) §2.
+
 ## 2. Nära lodrätt svarar mätvärdet inte alls (avsiktligt)
 
 `NEAR_VERTICAL_GATE_DEG = 16`: inom 16° från lodrätt blir utfallet `cannot-determine` med
@@ -52,6 +58,14 @@ den mätta gränsen för vad som går att läsa — se [datamodell.md](datamodel
 Begränsningen att vara medveten om är **gränsens skärpa, inte dess läge**: ögats egen gräns
 överlappar (10,9°–16,1°), och tre bildrutor ligger 0,08–0,26° utanför spärren. Vid den
 lutningen är ett kallat utfall alltså inte fel, men det är inte heller reproducerbart.
+
+**Hur ofta det slår igenom är nu mätt (S-39).** Inom ett enda mänskligt intervall — första mot
+sista ruta, median 2 rutor brett — korsar **5 av 91 rader** spärren i någon riktning, alltså
+mellan `cannot-determine` och en kallad riktning (`S32-031`, `S32-034`, `S32-040`, `S32-045`,
+`S32-084`). Flyttas toppen en bildruta från E4:s val är 13 av 23 byten kategori mot kategori.
+**Spärren är oförändrad**; det som är mätt är att dess kant ligger inne i den upplösning både ögat
+och estimatorn arbetar med. [top-review/verdict-sensitivity.md](top-review/verdict-sensitivity.md)
+§1 och §2.
 
 ## 3. Fasen `top` är ofta en proportion, inte en mätning
 
@@ -163,7 +177,7 @@ bort**, men mot vardera bedömaren för sig ligger restskiftet precis på halvru
 och −1, inte robust noll. **Spridningen är orörd**: p90 går 3,0 → 2,1–2,8 och max 26,0 → 25,1, det
 vill säga precis den halvruta en interpolation kan flytta. Kvantiseringen satt i mitten, aldrig i
 svansen. Samma omgång visar att **E2:s svans är ett trasigt ankare** (envelopens snabbaste bildruta
-ligger i tiondel 8–9, median +59 rutor efter spannet, i 10 rader varav 6 slow-mo) och att **de åtta
+ligger i tiondel 8–9, median +59 rutor efter spannet, i 10 rader varav 6 med lång envelope) och att **de åtta
 gemensamt missade kontrollerna är fall där bedömarna är eniga med varandra men inte med CVAT-facit**
 — sju ser ut som ett för grovt exportrutnät, en (`054.mp4`) som en annan händelse.
 
@@ -203,7 +217,7 @@ sving — **2 kapad kant på själva toppen** (`001.mp4`, `011.mp4`), 2 rörelse
 avgörbar. Nedströmsfelen sitter inte där: av de 22 rader utan någon växling alls ligger **3 (18 %)**
 i ett av de 16, lägst i tabellen. Fönstren slutar inte mitt i rörelsen — farten vid envelopens sista
 ruta är median 0,055 × toppfarten mot finishregelns 0,20 — **men banan stiger fortfarande där på
-48 % av de 16 mot 26 % i de övriga**, och på 4 av 5 av deras slow-mo-svingar. Produktionen bär
+48 % av de 16 mot 26 % i de övriga**, och på 4 av 5 av deras svingar med lång envelope. Produktionen bär
 dessutom egna flaggor som ingen omgång läst: `clippedTail` 7 av 103 och `suspectMultiSwing` 15 av
 103.
 
@@ -241,6 +255,30 @@ avvisningsgräns, 2026-08-06), `SLOWMO_ENVELOPE_THRESHOLD_SEC` (2026-08-13) och
 `slowmo` och `suspectMultiSwing` är identiska mängder på alla 103 svingar. **Varje tal ovan
 som delats på "slow-mo" är delat på "lång envelope"** — riktningen håller, orsaksnamnet inte —
 och `suspectMultiSwing` tänder aldrig på en production-grindad sving (0 av 81).
+
+**Och nu är kostnaden mätt i UTFALL och inte i bildrutor (S-39).**
+[top-review/verdict-sensitivity.md](top-review/verdict-sensitivity.md) flyttar toppen ±1/2/3/5
+bildrutor från E4:s varma val och läser vad **produktionskoden** svarar — `src/lib/shaft/measure/`
+importerat och anropat, aldrig kopierat, med `shaft-v2.onnx` körd på alla 6 548 envelope-bildrutor.
+**Vid ±1 ruta byter `top-shaft-orientation` utfall på 37 av 101 rader (37 %)** i 79 klipp; 57 % av
+bytena vid −1 är kategori mot kategori och inte tystnad. `shaft-position-p4` och `top`-hinken byter
+på 20 respektive 23 av 101 — men för dem kan bytet bara vara **svar↔tystnad**, eftersom ingen regel
+i `src/` läser deras tal och det alltså inte finns något pass/fail att byta. **Men talet som
+avgör läsningen är kontrollen:** byts bara spårartillståndet — kall mot varm, samma modell, samma
+vikter, samma bildrutor — byter `top-shaft-orientation` utfall på **9 av 100**, och E3 mot E4, som
+per konstruktion aldrig ligger mer än en ruta isär, på **13 av 101**. **Mätvärdet har alltså inte
+en reproducerbar utgångspunkt att vara bra mot**, och frågan "duger estimatorn" är felställd innan
+det är åtgärdat.
+
+**Människornas eget spann räcker också för att vända utfallet.** Sätts toppen på bedömarens
+**första** mot **sista** ruta byter `top-shaft-orientation` på **11 av 93 (Erik)**, **11 av 95
+(Lisa)** och **12 av 91 (unionen)** — 16–18 % bland de rader där mätvärdet svarar, vid median
+**2 rutors** intervallbredd. Fem av unionens tolv korsar `NEAR_VERTICAL_GATE_DEG` (§2), två korsar
+`ON_PLANE_BAND_DEG` (§1), fem går mellan svar och tystnad, och **ingen byter tecken**. Mot en topp
+satt mitt i spannet ger E4 samma utfall på **65 av 91 (71 %)**, men bara **27 av 47 (57 %)** på de
+rader där den låg utanför spannet; **4 av 91 är rena teckenbyten**. **Ingen tröskel är satt och
+ingen produktionskod är rörd** — och 22 %-talet är ett mått på mätvärdet, inte på produkten, för
+ingen regel läser något av de tre värdena ännu.
 
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära

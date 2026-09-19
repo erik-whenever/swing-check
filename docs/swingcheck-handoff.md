@@ -3,7 +3,62 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
 >
-> **Senast (2026-09-19, stream-shaft):** S-38 (klar, `[x]`) — **den varma baslinjen, den hårda
+> **Senast (2026-09-19, stream-shaft):** S-39 (klar, `[x]`) — **från bildrutefel till
+> utfallsfel, och 3,0-buggens spridning.** Read-only, ingen ny estimator, ingen tröskel, ingen
+> klassificerare, ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar.
+> Rapport: [shaft/top-review/verdict-sensitivity.md](shaft/top-review/verdict-sensitivity.md),
+> skript [verdict_sensitivity.py](shaft/top-review/verdict_sensitivity.py) +
+> [verdict_outcomes.ts](shaft/top-review/verdict_outcomes.ts). **`src/lib/shaft/measure/` är
+> importerat och anropat, aldrig återimplementerat** — ett utfall är vad produktionskoden säger att
+> det är. Allt mäts VARMT; kontrollraden reproducerar S-32 till S-38 exakt. **Nytt underlag:**
+> `run_dense.py` (S-28, oförändrad) kör `shaft-v2.onnx` på **alla 6 548 envelope-bildrutor**,
+> kontrollerat mot registrets `frameTimes`.
+> **INVÄNDNINGEN FÖRST: bara ETT av de tre toppankrade mätvärdena har ett pass/fail i koden.**
+> `top-shaft-orientation`:s `category`. `shaft-position-p4` och `top`-hinken returnerar tal som
+> **ingen regel i `src/` läser**, så deras enda kodade utfall är svar↔tystnad. Ingen tröskel
+> uppfanns för att tillverka ett tredje.
+> **1 — ETT BILDRUTEFEL ÄR ETT UTFALLSFEL (n = 101 rader / 79 klipp).** Vid ±1 ruta byter
+> `top-shaft-orientation` på **23 (−1) / 22 (+1) av 101**, minst ett av dem på **37 av 101 (37 %)**;
+> kumulativt ±2/±3/±5: 50 / 59 / 68. `shaft-position-p4` 20 av 101 och `top`-hinken 23 av 101 vid
+> ±1. **57 % av bytena vid −1 är kategori mot kategori**, inte tystnad. Rena teckenbyten
+> (across ↔ laid-off): 0 vid −1, 3 vid +1, 9 vid −5.
+> **KONTROLLEN ÄR DET VIKTIGASTE TALET:** kall mot varm spårare — samma modell, samma vikter, samma
+> bildrutor — byter utfall på **9 av 100 (9 %)**, och E3 mot E4 (≤ 1 ruta isär per konstruktion) på
+> **13 av 101 (13 %)**. **Utfallet är alltså inte reproducerbart ens vid noll bildrutors fel**, så
+> frågan "duger E4" är felställd: en estimator på den här posebanan ärver ett utfallsgolv på 9 %
+> från spårartillståndet ensamt.
+> **2 — MÄNNISKORNAS EGET SPANN RÄCKER OCKSÅ.** Topp på intervallets första mot sista ruta byter
+> `top-shaft-orientation` på **11 av 93 (Erik)**, **11 av 95 (Lisa)**, **12 av 91 (unionen)** —
+> 16–18 % bland de svarande, vid median **2 rutors** bredd. Av unionens 12: 5 korsar
+> `NEAR_VERTICAL_GATE_DEG`, 2 korsar `ON_PLANE_BAND_DEG`, 5 är svar↔tystnad, **0 byter tecken**.
+> De två tysta mätvärdena byter på 3–6 rader, alla svar↔tystnad. Underskattning: 24 av Eriks 93
+> rader har ett enrutersintervall och kan per konstruktion inte byta något.
+> **3 — E4 MOT EN TOPP MITT I SPANNET (n = 91 / 73 klipp): samma utfall 65 av 91 (71 %)** för
+> `top-shaft-orientation`, **79 av 91 (87 %)** för de två andra. E4 inne i spannet: 38 av 44 (86 %);
+> **utanför: 27 av 47 (57 %)**. Av de 26 skiljande raderna är 14 kallat-mot-kallat, 12 svar↔tystnad
+> och **4 rena teckenbyten** (`S32-009`, `S32-012`, `S32-063`, `S32-100`). För de två tysta
+> mätvärdena är varenda skiljande rad svar↔tystnad — 87 % betyder "lika ofta tyst", inte "lika ofta
+> rätt".
+> **4 — DE 4 OFÖRKLARADE KÄRNRADERNA: `S32-009`, `S32-013`, `S32-023`, `S32-080`** (4 klipp), två
+> mönster som är varandras motsatser. `S32-013`/`S32-080`: den rätta växlingen finns inne i spannet,
+> men E3 armar och löser ut 17–26 rutor tidigare — `e3_signflip` tar den **första** armade, inte den
+> närmaste. `S32-009`/`S32-023`: rätt växling **och** rätt ankare, och missar ändå — den ena på
+> avrundningen kring ett tvårutersspann, den andra på att handleden rör sig **0,005 bildhöjder** över
+> 17 rutor (S-31:s platå, i tal). Beskrivning, ingen regel, ingen bildruta öppnad.
+> **5 — 3,0-BUGGENS SPRIDNING: 8 rapporter (S-31…S-38) + STATUS.md, samtliga rättade.**
+> Identiteten reproducerades först (`slowmo` == `suspectMultiSwing` == envelope > 3,0 s, 15 av 103,
+> noll undantag) — skriptet stannar annars. Etiketterna är utbytta i texten, **inga siffror ändrade**,
+> och varje dokument bär ett rättelseblock som pekar på originalordalydelsen i git-historiken.
+> Kodnamn och hard-core.md §5:s egen diagnos är orörda. Två slutsatser läser annorlunda efteråt:
+> subframe.md §7:s "svansens starkaste signal" är ett påstående om **envelopelängd**, och
+> envelope-audit.md §5:s "ligger också alla över `MAX_ENVELOPE_SEC`" följer av definitionen.
+> **ÖPPET EFTER S-39:** produktionsvägen kör inte detektorn tätt (~20 valda rutor), så ett
+> ±1-rutors skift är inte ens representerbart där — den här omgången kör `run_dense.py`:s
+> konfiguration. Händighet (`right`) och kameravinkel (registrets `viewBucket`) är antaganden.
+> Ingen regel läser något av de tre mätvärdena, så 22 % är ett mått på mätvärdet och inte på
+> produkten.
+>
+> **Dessförinnan (2026-09-19, stream-shaft):** S-38 (klar, `[x]`) — **den varma baslinjen, den hårda
 > kärnan, taket och flaggbuggen.** Read-only, ingen ny estimator, ingen tröskel, ingen
 > klassificerare, ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar.
 > Rapport: [shaft/top-review/hard-core.md](shaft/top-review/hard-core.md), skript

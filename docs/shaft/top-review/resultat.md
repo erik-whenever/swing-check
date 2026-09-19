@@ -24,6 +24,16 @@ python docs/shaft/top-review/score_round.py <poseDir> --section b \
     --restrict data/shaft/top-round/svar-erik-pass2.json
 ```
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([hard-core.md](hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **Det mänskliga spannet är smalt: två personer som aldrig sett varandras svar överlappar i 90 av
@@ -132,14 +142,14 @@ träffa mitten av.
 | delmängd | n (svingar/klipp) | överlapp | \|mittpunktsdiff\| median | union median | p90 | max |
 |---|---|---:|---:|---:|---:|---:|
 | alla | 91 / 73 | 99 % | 0,5 | 2 | 4 | 12 |
-| **slow-mo** | 11 / 9 | 100 % | 0,5 (p90 **3,0**, max 4,5) | **3** | **10** | **12** |
+| **lång envelope** | 11 / 9 | 100 % | 0,5 (p90 **3,0**, max 4,5) | **3** | **10** | **12** |
 | normal takt | 80 / 68 | 99 % | 0,5 | 2 | 3 | 8 |
 | **face-on** | 7 / 6 | **100 %** | **0,0** (max 0,5) | 2 | 4 | 4 |
 | dtl | 84 / 67 | 99 % | 0,5 | 2 | 4 | 12 |
 | **Erik bred i pass 1** (≥4 rutor) | **9** / 8 | 100 % | **1,0** (p90 4,5) | **6** | **12** | 12 |
 | Erik smal (<4 rutor) | 82 / 67 | 99 % | 0,5 | 2 | 3 | 4 |
 
-**Slow-mo vidgar spannet, det försämrar inte enigheten.** Överlappet är 100 %, men unionen är 3
+**Lång envelope vidgar spannet, det försämrar inte enigheten.** Överlappet är 100 %, men unionen är 3
 rutor i median mot 2 och har p90 10. Fler rutor visar samma ögonblick, så platån blir bredare —
 det är materialet, inte oenighet.
 
@@ -264,7 +274,7 @@ brett intervall är lättare att landa i. **Oenighet och bredd förutsäger allt
 **9,5 bildrutor isär** mot 1,0 i resten — två estimatorer byggda på olika storheter som slutar vara
 överens precis där ögat slutar svara. Den breda gruppen ligger på 3,0, mittemellan.
 
-**E3 tiger själv på 2 av 103 svingar** — `S32-074` (`001.mp4`, slow-mo, **båda osäkra**) och
+**E3 tiger själv på 2 av 103 svingar** — `S32-074` (`001.mp4`, lång envelope, **båda osäkra**) och
 `S32-053` (`033.mp4`, **Lisa osäker**). Båda är svingar där minst en människa också teg. n = 2.
 
 **Detta sätter ingen tröskel och föreslår ingen regel.** Det säger att en tystnadsregel skulle ha
@@ -281,7 +291,7 @@ tillräckligt för att motivera att mäta det igen.
 |---|---|---|---|
 | **kameravinkel** dtl | 93 / 73 | 1,0 (n=86) | 1,0 (n=88) |
 | **kameravinkel** face_on | 10 / 9 | 1,0 (n=7) | 1,0 (n=7) |
-| **slow-mo** | 15 / 13 | 1,0 (n=13) | **0,0** (n=11) |
+| **lång envelope** | 15 / 13 | 1,0 (n=13) | **0,0** (n=11) |
 | normal takt | 88 / 72 | 1,0 (n=80) | 1,0 (n=84) |
 | **spegelvänd, bekräftad** | **2 / 1** | **3,5** (n=2) | **4,0** (n=2) |
 | spegelvändning okänd | 101 / 80 | 1,0 (n=91) | 1,0 (n=93) |
@@ -293,7 +303,7 @@ tillräckligt för att motivera att mäta det igen.
 **Vinkeln säger ingenting:** face-on ger samma \|E3\| som dtl. Det är första gången face-on ens
 kan jämföras (S-31 hade noll), men n=7 svarade per bedömare.
 
-**Slow-mo ser bättre ut än det är:** Lisas 0,0 kommer av att det mänskliga spannet är bredast just
+**Lång envelope ser bättre ut än det är:** Lisas 0,0 kommer av att det mänskliga spannet är bredast just
 där (union median 3, max 12, avsnitt 2). E3 har inte blivit noggrannare, målet har blivit större.
 
 **Spegelvändning är rundans sämsta cell** — 3,5–4,0 rutor mot 1,0 — men det är **2 svingar i ett
@@ -312,12 +322,12 @@ Grupperna är små och konfunderade med källan — **102 av 103 svingar är `we
 ## 7. Pass 2 — känslighetskontroll, separat redovisad
 
 Erik bedömde om **de 35 svingar som låg på plats 69–103 i hans egen ordning**, i en ny blandning
-med eget frö (`build_pass2.py`); `svar-erik.json` rördes aldrig. 18 av de 35 är kontroller, 6 är
-slow-mo, 2 är av S-31:s sex. **Passen slås inte ihop någonstans i den här rapporten.**
+med eget frö (`build_pass2.py`); `svar-erik.json` rördes aldrig. 18 av de 35 är kontroller, 6 har
+lång envelope, 2 är av S-31:s sex. **Passen slås inte ihop någonstans i den här rapporten.**
 
 **Erik mot Erik** (29 svingar med intervall båda gångerna, 27 klipp): överlapp **29 av 29**, glapp
 max 0, mittpunktsskillnad median 0,0 / \|median\| 0,0 / max 2,5. Bredd median 2 i båda passen;
-breddförändringen är 0 i median (slow-mo +1, n=5).
+breddförändringen är 0 i median (lång envelope +1, n=5).
 
 **Kontrollerna:** pass 1 gav 9 rätt / 5 fel / 4 osäkra av de 18; pass 2 gav 10 / 5 / 3.
 

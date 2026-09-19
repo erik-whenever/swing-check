@@ -20,10 +20,20 @@
 > S-32:s runda: **103 svingar i 81 oberoende klipp, 6 548 envelope-bildrutor**, Erik pass 1 och
 > Lisa bedömda oberoende. **Klippet är den oberoende enheten** och n står som rader *och* klipp.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([hard-core.md](hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **A. Flersvingsflaggan tänder på 7 av 103 envelopes, och bara en av dem tänder på mer än ett
-kriterium.** Den är `S32-092` (`005.mp4`, 8,5 s envelope, slow-mo): fem separata utflykter över
+kriterium.** Den är `S32-092` (`005.mp4`, 8,5 s envelope, lång envelope): fem separata utflykter över
 adresshöjd, fem återvändningar till adresshöjd, sex vändningar med halva toppens prominens. **Fem
 av de sex övriga** tänder bara på återvändningskriteriet, med extrautflykter 0,000–0,059 höga mot
 toppens 0,124–0,305 — kanter, inte svingar. **Den sjätte (`S32-074`, `001.mp4`) har en enda utflykt
@@ -159,11 +169,11 @@ Hela rundans jämförelsetal, per sving: rutsteget i h har median **0,0068** (p9
 
 | id | klipp | K1 (.3/.5/.7) | K2 | K3 (.3/.5/.7) | längd | största rutsteg | utflykternas höjd över adress | kriterium |
 |---|---|---|---:|---|---:|---:|---|---|
-| **S32-092** | 005.mp4 *(slow-mo)* | **5/5/5** | **5** | **6/6/4** | 8,5 s | **0,197** | 0,216 · 0,225 · 0,004 · 0,192 · 0,253 · 0,188 | **K1+K2+K3** |
+| **S32-092** | 005.mp4 *(lång env)* | **5/5/5** | **5** | **6/6/4** | 8,5 s | **0,197** | 0,216 · 0,225 · 0,004 · 0,192 · 0,253 · 0,188 | **K1+K2+K3** |
 | S32-005 | 048.mp4 | 2/2/1 | 2 | 2/2/1 | 1,8 s | 0,084 | **0,000** · 0,136 · 0,238 | K2 |
 | S32-030 | 008.mp4 | 2/2/1 | 2 | 1/1/1 | 1,7 s | 0,052 | 0,085 · **0,008** · 0,124 | K2 |
-| S32-041 | 040.mp4 *(slow-mo)* | 2/2/2 | 2 | 1/1/1 | 3,9 s | 0,035 | 0,106 · **0,018** · 0,114 | K2 |
-| S32-074 | 001.mp4 *(slow-mo)* | 1/1/1 | 0 | 4/4/3 | 4,3 s | 0,003 | 0,115 | K3 |
+| S32-041 | 040.mp4 *(lång env)* | 2/2/2 | 2 | 1/1/1 | 3,9 s | 0,035 | 0,106 · **0,018** · 0,114 | K2 |
+| S32-074 | 001.mp4 *(lång env)* | 1/1/1 | 0 | 4/4/3 | 4,3 s | 0,003 | 0,115 | K3 |
 | S32-058 | 022.mp4 | 2/1/1 | 4 | 2/1/1 | 1,6 s | 0,058 | **0,000** · 0,178 · **0,003** · 0,055 | K2 |
 | S32-080 | 080.mp4 | 1/1/1 | 3 | 2/1/1 | 1,9 s | 0,092 | 0,045 · 0,059 · **0,007** · 0,305 | K2 |
 
@@ -184,7 +194,7 @@ båda bedömarna satte osäker.
 
 **`S32-092` ska läsas med en varning.** Den har rundans **största enskilda rutsteg** (0,197 mot
 median 0,048) och en `visibility` på 0,32, i understa tiondelen. Fem utflykter i en 8,5 s
-slow-mo-envelope kan vara fem vändningar eller ett spår som tappar handlederna och hittar dem
+lång envelope kan vara fem vändningar eller ett spår som tappar handlederna och hittar dem
 igen. **Räkningen kan inte skilja dem åt, och ingen har öppnat klippet.** `S32-092` är dessutom
 E2:s värsta rad i hela rundan (+205 rutor, subframe.md §7).
 
@@ -218,7 +228,8 @@ vändning** (K3 = 1).
 för det största rutsteget är **0,197 mot rundans 0,092**, och **fyra av rundans fem största
 rutsteg ligger i svansen** (`S32-092` 0,197, `S32-037` 0,170, `S32-013` 0,168, `S32-062` 0,152).
 Det är en ny observation och den är inte mätt mot något: **n = 10 rader i 9 klipp, och att den
-stämmer med att svansen är slow-mo-tung är inte en förklaring utan en andra observation.**
+stämmer med att svansen är tung på långa envelopes är inte en förklaring utan en andra
+observation.**
 
 ### E2:s svans, rad för rad
 
@@ -362,7 +373,7 @@ start. Det är ett klipp, och ingen har öppnat det.
 
 ### Det värsta fallet är inte `054`
 
-**`001.mp4` är kvalitativt annorlunda.** Dess enda envelope (`S32-074`, 4,067–8,333 s, slow-mo)
+**`001.mp4` är kvalitativt annorlunda.** Dess enda envelope (`S32-074`, 4,067–8,333 s, lång envelope)
 täcker en sträcka där handhöjden stiger monotont hela vägen till envelopens slut: den
 prominentaste vändningen *inne* i envelopen har prominens **0,0017**, medan klippets riktiga
 vändningar ligger vid **9,4 s (0,131)** och **14,9 s (0,104)** — ungefär **en sekund efter** att
@@ -372,7 +383,8 @@ Det är inte en ny gissning om varför:
 
 - `S32-074` är en av de **två svingar där E3 inte gav något svar alls** (resultat.md §5);
 - den är en av de **fem där båda bedömarna satte osäker** (resultat.md §5);
-- den är slow-mo, den saknar säkert nedslag (`impact: None`), och den är inte en kontroll.
+- den har lång envelope (> 3,0 s), den saknar säkert nedslag (`impact: None`), och den är
+  inte en kontroll.
 
 **Fyra oberoende ting pekar åt samma håll på samma sving, och det tredje är nytt här.** n = 1
 klipp. **Ingen ändring i segmenteringen föreslås**, och ingen har tittat på klippet.

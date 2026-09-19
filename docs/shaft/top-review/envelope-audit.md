@@ -21,6 +21,16 @@
 > helklippskörning av samma posemodell över alla 81 klipp. **Klippet är den oberoende enheten**
 > och n står som rader *och* klipp.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([hard-core.md](hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **1. Ja — bedömarvyn och estimatorn fick exakt samma bildrutor, ruta för ruta, på alla 103
@@ -55,8 +65,8 @@ envelopens sista ruta är median **0,055 × klippets toppfart** i hela rundan oc
 finishregelns villkor (under 0,20) är uppfyllt i princip överallt, och fördelningarna överlappar.
 **Det enda som skiljer är riktningen:** banan **stiger fortfarande** vid envelopens sista ruta på
 **48 % av de 16:s envelopes mot 26 % i de övriga**, och på **80 % (4 av 5) av de 16:s
-slow-mo-svingar**. `001.mp4`:s envelopeslut ligger inne i en **1,90 s lång tyst ö** — i slow-mo
-är "stillhet" och "toppen av en långsam sving" samma avläsning.
+svingar med lång envelope**. `001.mp4`:s envelopeslut ligger inne i en **1,90 s lång tyst ö** —
+i en lång envelope är "stillhet" och "toppen av en långsam sving" samma avläsning.
 
 **6. Instabiliteten mellan två körningar är av samma storlek som E3:s uppmätta fel, och det ska
 stå i klartext.** En störning som inte borde betyda något — varm i stället för kall spårare,
@@ -178,7 +188,7 @@ går in i klassningen.
 ### Klipp för klipp
 
 `kvot` = nedgången efter vändningen delat med nedgången efter klippets svagaste registrerade
-topp. `sm` = slow-mo.
+topp. `sm` = lång envelope (> 3,0 s).
 
 | klipp | sm | kand | ref | största vändning | prominens | avstånd till kant | kvot | pose | **klass** |
 |---|:-:|---:|---:|---:|---:|---|---:|---:|---|
@@ -241,9 +251,9 @@ Fördelningen av kvoten: median 2,90, p10 0,58, p90 7,81, min 0,45, max 9,23 (n 
 De är utmärkta som marginella på varje rad de står på. Ingenting annat flyttar sig mellan 0,75
 och 1,25.
 
-### Slow-mo, utbrutet
+### Lång envelope, utbrutet
 
-| | n klipp | slow-mo | andel |
+| | n klipp | lång envelope | andel |
 |---|---:|---:|---:|
 | de 16 med en vändning utanför | 16 | **4** | **25 %** |
 | rundan i stort (klipp med helklippsbana) | 81 | 13 | 16 % |
@@ -253,10 +263,10 @@ och 1,25.
 
 | | n | klasser |
 |---|---:|---|
-| slow-mo | 4 | finishtopp 2, kapad kant (toppen) 1, missad sving 1 |
+| lång envelope | 4 | finishtopp 2, kapad kant (toppen) 1, missad sving 1 |
 | normal takt | 12 | missad sving 6, finishtopp 2, rörelse 2, kapad kant (toppen) 1, ej avgörbar 1 |
 
-**Slow-mo lutar åt kantfallen** (3 av 4 är kapad topp eller finishtopp) och normal takt åt
+**Lång envelope lutar åt kantfallen** (3 av 4 är kapad topp eller finishtopp) och kort envelope åt
 missade svingar (6 av 12). **n = 4 klipp. Det är en observation, inte ett mönster.**
 
 ---
@@ -348,7 +358,7 @@ vändningen *inne* i envelopen har prominens **0,0017**.
 | handhöjd där | −0,255; adresshöjd (envelopens första ruta) −0,371 |
 | **stiger banan fortfarande där?** | **ja** |
 
-**Beskrivningen, utan slutsats:** en slow-mo-inspelning där händerna lyfts under fyra sekunder,
+**Beskrivningen, utan slutsats:** en fyra sekunder lång envelope där händerna lyfts hela tiden,
 når sitt högsta läge en sekund efter att fönstret tagit slut, och där fönstrets slutpunkt ligger
 mitt i en nästan två sekunder lång sträcka som mäts som stillhet. Klassningen i avsnitt 2 kallar
 den **kapad kant (toppen)**: det finns ingen återvändning till adresshöjd mellan envelopens slut
@@ -398,25 +408,26 @@ sitt slut än resten.
 ruta på **48 % av de 16:s envelopes mot 26 % i de övriga**, och på **100 % av de två kapade
 topparna**. En envelope som slutar medan händerna går upp har per definition inte sett toppen.
 
-### Slow-mo, utbrutet
+### Lång envelope, utbrutet
 
 | grupp | n (rader/klipp) | fart / toppfart | fart / p95 | tyst ö | **stiger där** | envelopelängd | över `MAX_ENVELOPE_SEC` |
 |---|---|---:|---:|---:|---:|---:|---:|
-| **slow-mo, i de 16** | **5 / 4** | 0,033 | **0,081** | **0,27 s** | **80 %** | **4,13 s** | **5 av 5** |
-| slow-mo, i de övriga | 10 / 9 | 0,064 | 0,127 | 0,10 s | 30 % | 4,59 s | 10 av 10 |
+| **lång envelope, i de 16** | **5 / 4** | 0,033 | **0,081** | **0,27 s** | **80 %** | **4,13 s** | **5 av 5** |
+| lång envelope, i de övriga | 10 / 9 | 0,064 | 0,127 | 0,10 s | 30 % | 4,59 s | 10 av 10 |
 | normal takt, i de 16 | 22 / 15 | 0,049 | 0,134 | 0,05 s | 41 % | 1,57 s | 0 |
 | normal takt, i de övriga | 66 / 57 | 0,058 | 0,126 | 0,12 s | 26 % | 1,53 s | 0 |
 
-**I slow-mo är mekanismen läsbar, i normal takt är den det inte.** De fem slow-mo-svingarna i de
+**I en lång envelope är mekanismen läsbar, i en kort är den det inte.** De fem svingarna med
+lång envelope i de
 16 klippen slutar sitt fönster medan händerna går **upp** i 4 av 5 fall, vid en fart på 0,081 ×
 p95 — **under segmenterarens QUIET-gräns 0,15** — och med en tyst ö på median 0,27 s, alltså vid
-gränsen 0,3 s som bryter en burst. **En slow-mo-baksving rör sig långsammare än 0,15 × p95, och
+gränsen 0,3 s som bryter en burst. **En baksving i en lång envelope rör sig långsammare än 0,15 × p95, och
 då är "stillhet" och "toppen av en långsam sving" samma avläsning.** `001.mp4` är extremfallet:
 tyst ö **1,90 s**, fart 0,131 × p95, banan stiger.
 
-**Men slow-mo är inte i sig felet:** slow-mo-svingarna i de *övriga* 65 klippen har samma
-envelopelängd (4,59 s), ligger också alla över `MAX_ENVELOPE_SEC`, och stiger vid sitt slut i
-bara 30 %. **n = 5 rader i 4 klipp mot 10 i 9. Det är för lite för att bygga något på.**
+**Men lång envelope är inte i sig felet:** de långa envelopesen i de *övriga* 65 klippen har
+samma envelopelängd (4,59 s), ligger också alla över `MAX_ENVELOPE_SEC` — vilket de måste,
+eftersom flaggan **är** den gränsen — och stiger vid sitt slut i bara 30 %. **n = 5 rader i 4 klipp mot 10 i 9. Det är för lite för att bygga något på.**
 
 ### Produktionens egna flaggor, som ingen tidigare omgång har läst
 

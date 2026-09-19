@@ -23,6 +23,16 @@
 > helklippskörning av samma posemodell över alla 81 klipp. **Klippet är den oberoende
 > enheten** och n står som rader *och* klipp.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([hard-core.md](hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **1. Produktionen kör den VARMA konfigurationen, och det betyder att samtliga tal i S-31 till
@@ -64,7 +74,7 @@ rader, E2:s försprång mot E3, och svansen som klass (9 av 10 rader är samma i
 Mätt: **identiska mängder på alla 103 svingar**, noll undantag. `clippedTail` sätter i sin tur
 `impact = null` i produktionen (`poseEnvelope.ts:445`), så den är en **delmängd** av *utan säkert
 nedslag* — mätt 7 av 7. Båda är alltså kovariater rundan splittat på sedan S-32. Det korsningen
-*visar* är nytt: slow-mo-raderna är E2:s svans (6 av 10 mot 12 % i rundan) men **E3 går bättre
+*visar* är nytt: raderna med lång envelope är E2:s svans (6 av 10 mot 12 % i rundan) men **E3 går bättre
 där** — inne på 6 av 11 med \|median\| 0, mot E2:s 1 av 11 med \|median\| 36.
 
 ---
@@ -404,8 +414,8 @@ Svansens stabilitet, per estimator, med varderas egen kalla p90 som snitt:
 4. **Nytt: "E2 är oftare inne än E4" (45 mot 42 av 91).** +3 kallt, **−4 varmt** — tecknet byter.
    Skillnaden finns inte. **Stryk**, och stryk med den varje formulering som ställer E2:s
    träffandel mot den interpolerade E3:s.
-5. **S-32 §6: kovariatcellerna som skiljer sig med ≤ 1 ruta** — face-on 1,0 mot dtl 1,0, slow-mo
-   0,0 mot 1,0, med/utan säkert nedslag 1,0 mot 1,0. Ingen av dem är skild från golvet.
+5. **S-32 §6: kovariatcellerna som skiljer sig med ≤ 1 ruta** — face-on 1,0 mot dtl 1,0, lång
+   envelope 0,0 mot 1,0, med/utan säkert nedslag 1,0 mot 1,0. Ingen av dem är skild från golvet.
    **Stryk som skillnader**; de står kvar som redovisade celler.
 6. **S-32 §4 / S-33 §6: beloppet i "E3 är 1 ruta för tidig" och MAD 1,0.** Riktningen överlever,
    **beloppet gör det inte med bättre upplösning än en ruta**. *Redan flaggat i S-36 §6.*
@@ -457,8 +467,8 @@ exportmanifestet. Frågan är om de bär information rundorna räknat fram på a
 | utan säkert nedslag | 20 svingar |
 | `clippedTail` | 7, varav **7** ligger i den mängden — **delmängd: JA** |
 
-**`suspectMultiSwing` ÄR slow-mo-flaggan**, ruta för ruta, av konstruktion (de kan bara skilja
-sig om ett klipp körts med `force-normal`/`force-slowmo`, och inget har det). Slow-mo har
+**`suspectMultiSwing` ÄR `slowmo`-flaggan**, ruta för ruta, av konstruktion (de kan bara skilja
+sig om ett klipp körts med `force-normal`/`force-slowmo`, och inget har det). Lång envelope har
 rundan splittat på sedan [resultat.md](resultat.md) §2 och §6, och [subframe.md](subframe.md) §7
 namngav den redan som svansens starkaste signal. **`clippedTail` är en delmängd av *utan säkert
 nedslag*** — 7 av de 20 — också en kovariat rundan redan splittat på ([resultat.md](resultat.md)
@@ -493,12 +503,12 @@ Och från andra hållet:
 **Tre avläsningar, i ordning:**
 
 - **Flaggan pekar på E2:s svans och bara den.** 6 av 10 svansrader är flaggade mot 12 % i
-  rundan, och 10 av E2:s 46 missar mot 1 av 45 träffar. Men det är **samma 6 rader som slow-mo
-  fångar** — korsat: slow-mo tar 6 av 10, `suspectMultiSwing` 6 av 10, båda tillsammans 6, och
+  rundan, och 10 av E2:s 46 missar mot 1 av 45 träffar. Men det är **samma 6 rader som `slowmo`
+  fångar** — korsat: `slowmo` tar 6 av 10, `suspectMultiSwing` 6 av 10, båda tillsammans 6, och
   utanför svansen tänder vardera på 5 av 81. **Identiska, för att mängderna är identiska.**
 - **För E3 går flaggan åt fel håll.** 20 % av E3:s träffar är flaggade mot 8 % av dess missar,
   och på de flaggade raderna ligger E3 inne på 6 av 11 med \|median\| **0,0** — bättre än sitt
-  eget snitt. Det är samma aritmetik [resultat.md](resultat.md) §6 redan skrev om slow-mo:
+  eget snitt. Det är samma aritmetik [resultat.md](resultat.md) §6 redan skrev om lång envelope:
   spannet är bredast just där (union median 3, max 12), så målet är större. **E3 har inte blivit
   noggrannare.**
 - **På de 22 utan någon växling alls säger flaggorna ingenting.** 0 `clippedTail` och 1
@@ -536,7 +546,7 @@ samma 103 svingar ger, och vilken som är den riktiga flersvingsflaggan är fort
 
 **Sju av de tolv har E3 inne i spannet medan E2 ligger +8 till +205 rutor bort.** Det är den
 tydligaste bilden i hela omgången av att E2 och E3 felar på olika svingar — men det är **12
-rader i 11 klipp**, och de är alla slow-mo eller kapad svans. **Ingen slutsats dras av dem.**
+rader i 11 klipp**, och de är alla lång envelope eller kapad svans. **Ingen slutsats dras av dem.**
 
 ---
 

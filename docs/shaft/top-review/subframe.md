@@ -14,6 +14,16 @@
 > **103 svingar i 81 oberoende klipp, 6 548 envelope-bildrutor**, Erik pass 1 och Lisa bedömda
 > oberoende. **Klippet är den oberoende enheten** och n står som rader *och* klipp.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([hard-core.md](hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **Ja, delvis — ungefär hälften.** Nollgenomgången i v_y ligger i median **0,43 bildrutor** efter
@@ -273,7 +283,7 @@ inte en vald gräns, och den flyttas inte. **Svansen är 10 rader i 9 klipp.**
 
 **Alla 10 ligger *efter* spannet. Inte en enda tidig vändning.**
 
-| id | klipp | avstånd | tiondel | slow-mo | vy | nedslag | steg bakåt |
+| id | klipp | avstånd | tiondel | lång env | vy | nedslag | steg bakåt |
 |---|---|---:|---:|:-:|---|:-:|---:|
 | S32-092 | 005.mp4 | +205 | 8 | **ja** | dtl | ja | 10 |
 | S32-078 | 095.mp4 | +112 | 9 | **ja** | dtl | nej | 3 |
@@ -286,8 +296,8 @@ inte en vald gräns, och den flyttas inte. **Svansen är 10 rader i 9 klipp.**
 | S32-013 | 057.mp4 | +28 | 8 | – | dtl | nej | 4 |
 | S32-055 | 022.mp4 | +26 | 5 | – | dtl | ja | 6 |
 
-**7 av 10 landar i envelopens åttonde tiondel**, mot resten som samlas i tiondel 3–5. **6 av 10 är
-slow-mo — mot 5 av 81 (6 %) i resten.** Ett klipp (`095.mp4`) bidrar med två av raderna.
+**7 av 10 landar i envelopens åttonde tiondel**, mot resten som samlas i tiondel 3–5. **6 av 10 har
+lång envelope (> 3,0 s) — mot 5 av 81 (6 %) i resten.** Ett klipp (`095.mp4`) bidrar med två av raderna.
 
 ### Felet sitter i ankaret, inte i sökningen
 
@@ -312,7 +322,7 @@ genomsvinget landar första lokala minimum bakåt därifrån där också.
 **3 efter det detekterade nedslaget** (S32-010, S32-041, S32-055); 4 ligger före det och 3 har
 inget säkert nedslag alls. Valet ligger sent **i envelopen**, inte nödvändigtvis efter bollen.
 
-**n = 10 rader i 9 klipp.** Att slow-mo dominerar (6 av 10 mot 6 % i resten) är den starkaste
+**n = 10 rader i 9 klipp.** Att lång envelope dominerar (6 av 10 mot 6 % i resten) är den starkaste
 signalen i tabellen, men det är sex svingar. **Ingen ny estimator föreslås och ingen regel sätts.**
 
 ---
@@ -331,10 +341,10 @@ och CVAT-facit — inte mellan människorna.** Det är inte vad "tvetydig sving"
 | S32-091 | 063.mp4 | f02 @ 6,455 s | rutor 16–17 (6,367–6,400) | 16–17 | exportruta **1** | **−2** videorutor |
 | S32-018 | 089.mp4 | f03 @ 13,863 s | 18–19 (13,733–13,767) | 18–19 | **2** | **−3** |
 | S32-047 | 015.mp4 | f02 @ 1,741 s | 28–29 (1,900–1,933) | 28–29 | **3** | **+5** |
-| S32-023 | 073.mp4 *(slow-mo)* | f05 @ 10,646 s | 82–85 (10,433–10,533) | 78–85 | **4** (Lisa 3–4) | −5 / −7 |
+| S32-023 | 073.mp4 *(lång env)* | f05 @ 10,646 s | 82–85 (10,433–10,533) | 78–85 | **4** (Lisa 3–4) | −5 / −7 |
 | S32-042 | 032.mp4 | f02 @ 4,915 s | 30–31 (5,100–5,133) | 31 | **3** | +6 / +7 |
-| S32-041 | 040.mp4 *(slow-mo)* | f03 @ 5,702 s | 41–43 (5,300–5,367) | 43 | **2** | −11 / −10 |
-| S32-031 | 062.mp4 *(slow-mo)* | f02 @ 3,719 s | 65–70 (3,267–3,433) | 67 | **1** | −11 / −12 |
+| S32-041 | 040.mp4 *(lång env)* | f03 @ 5,702 s | 41–43 (5,300–5,367) | 43 | **2** | −11 / −10 |
+| S32-031 | 062.mp4 *(lång env)* | f02 @ 3,719 s | 65–70 (3,267–3,433) | 67 | **1** | −11 / −12 |
 | **S32-084** | **054.mp4** | f02 @ 4,282 s | 17–18 (3,067–3,100) | 17–18 | **0** | **−36** |
 
 ### Sju av åtta ser ut som ett för grovt rutnät
@@ -346,8 +356,8 @@ videorutor, och runt facitrutan ligger de på 2–17 rutor. Tre av de sju (063, 
 fördel bara för att rutnätet är glest. **Där är det rimligaste att facit ligger en exportruta fel,
 inte att svingen är tvetydig** — men ingen kontroll märks om här, och ingen har öppnat klippen.
 
-Två av dem (040 och 062, båda slow-mo) ligger 10–12 videorutor fel. Det är mer än ett
-avrundningsfel på rutnätet, men fortfarande en enda exportruta, och slow-mo är just där det
+Två av dem (040 och 062, båda med lång envelope) ligger 10–12 videorutor fel. Det är mer än ett
+avrundningsfel på rutnätet, men fortfarande en enda exportruta, och lång envelope är just där det
 mänskliga spannet är bredast (resultat.md §2: union median 3, max 12).
 
 ### Den åttonde är något annat — och den är fortfarande OHANTERAD

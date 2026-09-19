@@ -13,6 +13,16 @@
 > S-32:s runda — **103 svingar i 81 oberoende klipp, 6 548 envelope-bildrutor**, Erik pass 1 och
 > Lisa bedömda oberoende. **Klippet är den oberoende enheten** och n står som rader *och* klipp.
 
+> **RÄTTELSE 2026-09-19 (S-39) — etiketten `slow-mo` i den här rapporten betyder
+> `lång envelope (> 3,0 s)`.** Manifestets `slowmo` är `deriveSlowmo(envelopeDurationSec,
+> 'auto')`, alltså **`envelopeDuration > 3,0 s`** och ingen mätning av filmhastighet — samma
+> predikat som `suspectMultiSwing`, mätt identiskt på alla 103 svingar
+> ([hard-core.md](hard-core.md) §5). **Varje siffra nedan står oförändrad; bara etiketten på uppdelningen
+> ändras, och riktningen i varje slutsats håller.** Ordet är utbytt i texten nedan där det
+> namnger en uppdelning; fältnamnet `slowmo`, konstanten `SLOWMO_ENVELOPE_THRESHOLD_SEC` och
+> lägena `force-slowmo`/`force-normal` är kodnamn och står kvar som de är. Originalordalydelsen
+> ligger i git-historiken före den här rättelsen. Inventering: [verdict-sensitivity.md](verdict-sensitivity.md) §5.
+
 ## Kort svar
 
 **Nej. Hypotesen håller inte för huvuddelen, och den håller för de tre yttersta raderna.**
@@ -185,7 +195,7 @@ uppdelningen nedan är därför gjord på de två grupper som faktiskt bär svan
 på **svaret** (E4 inne/utanför) och på kovariater registret redan bär; ingen grupp är skuren på
 något som mättes efteråt.
 
-| | n (rader/klipp) | slow-mo | utan säkert nedslag | face-on | spegelvänd | kontroll | Erik bred (≥4) |
+| | n (rader/klipp) | lång envelope | utan säkert nedslag | face-on | spegelvänd | kontroll | Erik bred (≥4) |
 |---|---|---:|---:|---:|---:|---:|---:|
 | **E4 inne** | 42 / 36 | 12 % | 17 % | 10 % | 0 | 45 % | 12 % |
 | fel växling vald | **1** / 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -196,7 +206,7 @@ något som mättes efteråt.
 
 **De två missgrupperna lutar åt olika håll, och det är den enda strukturen i tabellen.**
 
-- **Slow-mo samlas i "ingen kandidat träffar"** (20 % mot 4 % i "ingen kandidat alls"). Det är
+- **Lång envelope samlas i "ingen kandidat träffar"** (20 % mot 4 % i "ingen kandidat alls"). Det är
   väntat aritmetiskt: fler bildrutor per rörelse ger fler dippar under −0,10 och därmed fler
   kandidater. n = 5 rader i 4 klipp.
 - **Svingar utan säkert nedslag samlas i "ingen kandidat alls"** (26 % mot 12 %) — alltså just de
@@ -219,13 +229,13 @@ svarade; de där båda teg poängsätts inte alls.
 | | id | klipp | E4 | kandidater | träffar |
 |---|---|---|---:|---:|---|
 | **exakt en osäker** (6 svingar i 6 klipp) | S32-070 | 029.mp4 | −3 | 1 | – |
-| | S32-076 | 031.mp4 *(slow-mo)* | **−29** | 1 | – |
+| | S32-076 | 031.mp4 *(lång env)* | **−29** | 1 | – |
 | | S32-020 | 044.mp4 | −1 | 2 | – |
 | | S32-026 | 064.mp4 | −5 | 1 | – |
-| | S32-093 | 070.mp4 *(slow-mo)* | 0 | 1 | nr 1 |
+| | S32-093 | 070.mp4 *(lång env)* | 0 | 1 | nr 1 |
 | | S32-003 | 077.mp4 | −2 | 1 | – |
 | **båda osäkra** (4 svingar i 4 klipp) | S32-058 | 022.mp4 | — | 2 | — |
-| | S32-072 | 052.mp4 *(slow-mo)* | — | 4 | — |
+| | S32-072 | 052.mp4 *(lång env)* | — | 4 | — |
 | | S32-035 | 072.mp4 | — | 1 | — |
 | | S32-032 | IMG_5427.MP4 | — | 1 | — |
 
