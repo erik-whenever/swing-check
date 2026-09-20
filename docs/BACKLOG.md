@@ -3021,6 +3021,73 @@ står orörda. Två slutsatser läser annorlunda efteråt: subframe.md §7:s "sv
 envelope-audit.md §5:s "ligger också alla över `MAX_ENVELOPE_SEC`" följer av definitionen.
 **Ingen fix föreslås.**
 
+### [x] S-40 — Diagnos: fönsterläsning av toppen — vad aggregering köper och vad den betalar
+
+**Fönstret stabiliserar utfallet, men betalar 11 rätta rader för 1.** Read-only diagnos
+([shaft/top-review/windowed-tso.md](shaft/top-review/windowed-tso.md), skript
+[windowed_tso.py](shaft/top-review/windowed_tso.py) +
+[windowed_outcomes.ts](shaft/top-review/windowed_outcomes.ts)); ingen ny estimator, ingen tröskel,
+ingen klassificerare, ingen kalibrering, inget skift, **ingen bredd vald**, ingen produktionskod
+skriven, S-30:s spärr kvar. `verdict_outcomes.ts`/`verdict_sensitivity.py` är **orörda** — S-40 har
+en egen brygga. `src/lib/shaft/measure/`, `frameExtractor.ts` och `poseEnvelopeSelection.ts` är
+**importerade och anropade**, aldrig återimplementerade. Allt mäts varmt; **bredd 1 reproducerar
+S-39 värde för värde** (9/100, 13/101, 11/93, 11/95, 12/91, 65/91) och kontrollraden reproducerar
+S-32 till S-39.
+
+**Konstruktionen är produktionens egen.** `shaftAngleByPhase` aggregerar redan `top`-hinken med
+`circularMedianDeg`; märks ett fönster som `top`/`observed` räknar produktionen fram medianen
+själv. Medoiden **pekar ut en bildruta**, som lämnas tillbaka som enda observerad topp — så
+närlodrätt-spärren, on-plane-bandet, kameragrinden och S-30:s regel körs oförändrade.
+
+**1 — ja, fönstret stabiliserar, monotont med bredden (bredd 1/3/5/7).**
+`top-shaft-orientation` byter mellan **kall och varm spårare** på 9 → 7 → 2 → 2 av 100, mellan
+**E3 och E4** på 13 → 10 → 5 → 2 av 101, och mellan **spannets ändar** på 12 → 10 → 10 → 5 av 91
+(bland de svarande 18,2 % → 6,1 %). **Men mekanismen är överlapp, inte omröstning:** vid bredd 7
+läser spannets två ändar samma bildruta på **46 av 91** mot 3 av 91 vid bredd 1, och medianen
+röstade bort en riktad avvikare på bara 0/0/6/9 av 101 fönster. Nämnaren växer också (66 → 82
+svarande). Majoritetsröst som kontrollaggregator rör sig åt samma håll: sämre vid bredd 7
+(kall/varm 9 → 3 mot medianens 9 → 2; E3/E4 13 → 4 mot 13 → 2), bättre i mitten på spannet
+(7 och 6 mot medianens 10 och 10), lika vid bredd 7 (5). **Riktningen hänger alltså inte på
+aggregatorn.** Raderna är inte heller en delmängd:
+av spannets 12 bytare vid bredd 1 är bara **2** kvar bland de 5 vid bredd 7 — **3 av 5 är rader
+fönstret själv brutit**. 4 av de 5 korsar `NEAR_VERTICAL_GATE_DEG`.
+
+**2 — kostnaden är entydig och enkelriktad.** Mot S-39:s egen referens (enrutan vid människornas
+mittruta) faller E4:s överensstämmelse från **65 av 91** till 60 / 59 / **55**. Bokfört: fönstret
+**tappar 6 / 7 / 11** rätta rader och **rättar 1** — netto −5 / −6 / −10, och den tappade mängden
+är **nästlad**. Fönstret flyttar dessutom referensen själv: vid människornas mittruta ger bredd 7
+ett annat utfall än enrutan på **35 av 91 (38 %)**. Läst mot en referens av *samma* bredd stiger
+talet till 82 av 91 — men det är cirkulärt (6 av 7 rutor delade) och står med bara för att inte
+utelämnas. **Stabiliteten är konvergens mot samma ruta, inte mot rätt ruta.**
+
+**3 — fönstret finns inte i produktionens rutnät, och "~20 rutor" är inaktuellt.**
+`ANALYSIS_FRAME_COUNT` är **32** sedan 2026-08-11 (10 → 20 → 32); det blir median 27 picks och
+**26 distinkta bildrutor**. Klippvägen skickar inga `clusterPhases`, så klustret ligger på
+**nedslaget** och toppen får bara den uniforma baslinjen: steget kring E4 är median **3
+bildrutor** (p90 6, max 16), och E4:s egen ruta är en vald ruta på bara 39 av 101. **Rutnätet
+rymmer hela fönstret på 2 av 101 vid bredd 3 och på 0 av 101 vid bredd 5 och 7.** Nya rutor som
+skulle behöva detekteras: median **2 / 3 / 4** per sving (p90 2 / 4 / 6), 6 / 9 / 12 % av
+budgeten, 183 / 298 / 409 totalt — och budgeten är inte fri (`fittable()` kapar redan). Djupare
+gräns: produktionen lokaliserar envelopen och varje fas på en **15 fps**-bana (`SAMPLE_FPS`), så
+ett fönster centrerat på en 30 fps-bildruta är finare än den upplösning toppen hittas i.
+**Och mätlagret körs inte alls i produktion:** `buildShaftMeasurements`, `buildShaftSwingSeries`
+och `checkShaftSeries` har noll anrop utanför `src/lib/shaft/measure/`; `detectShaft` körs bara i
+den dev-only förhandsvisningen.
+
+**4 — de två tysta mätvärdena är inte stabilare, de har mindre att säga.** På svar/tystnad — den
+enda axel alla tre har — ligger de på samma tal som `top-shaft-orientation`: 2 av 100, 5 av 91,
+6 av 101 vid bredd 1 (`top`-hinken 7 vid E3/E4; dess svarsmängd är inte riktigt de andras) och
+0–1 vid bredd 7. **Hela `top-shaft-orientation`:s överskott ligger i kategorin** (9 / 13 / 12 mot
+2 / 6 / 5), och kategorin är det en regel skulle läsa. **Att koppla dem kräver fyra saker, och
+händighet är inte den bindande:** (i) en konsument finns inte alls; (ii) en **observerad** topp —
+`fromDetection.ts` skriver själv att appens väg *"never `observed`"*, så S-30:s spärr tystar dem
+på varje sving i appen; (iii) `shaft-position-p4` kräver dessutom `cameraAngle: 'dtl'` + fyra
+landmärken, och i appen är vinkeln ofta `null` → `uncertain` i stället för `rejected`; (iv) **ett
+band** — båda returnerar tal utan kalibrerad gräns någonstans i repot. Fönstrets enda oomstridda
+vinst är täckning: `shaft-position-p4` svarar 73 → 86 av 101 och `top`-hinken 78 → 92, med
+`phase-missing` 18 → 5. **Men §2 mäter vad det svarar.**
+
+
 ---
 
 ## Avklarat

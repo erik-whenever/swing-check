@@ -5,10 +5,12 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-19 (S-39: **en bildrutas fel byter `top-shaft-orientation`:s utfall
-> på 22 % av raderna — men samma utfall byter på 9 % när ingenting alls ändras**, och etiketten
-> "slow-mo" är rättad till "lång envelope" i S-31…S-38 — se §1, §2 och §3. Spärren från S-30 står
-> kvar oförändrad och ingen tröskel är satt.)
+> Senast uppdaterad: 2026-09-20 (S-40: **att läsa toppen över ett fönster stabiliserar utfallet —
+> men betalar 11 rätta rader för 1, och fönstret finns inte i produktionens rutnät.** Se §1, §2, §3
+> och det nya §6. Spärren från S-30 står kvar oförändrad och ingen tröskel är satt, ingen bredd är vald.
+> Föregående: S-39, en bildrutas fel byter `top-shaft-orientation`:s utfall på 22 % av raderna —
+> men samma utfall byter på 9 % när ingenting alls ändras; och etiketten "slow-mo" rättad till
+> "lång envelope" i S-31…S-38.)
 
 ## 1. Den blinda fläcken vid horisontalen (`top-shaft-orientation`)
 
@@ -46,6 +48,12 @@ horisontalen, spridda över båda riktningarna. Går ögat och mätvärdet isär
 `S32-060`) — alltså utan att någon estimator är inblandad. n = 2 rader i 2 klipp, och **bandet är
 oförändrat**. [top-review/verdict-sensitivity.md](top-review/verdict-sensitivity.md) §2.
 
+**Och kanten flyttar sig inte bort av att läsas över ett fönster (S-40).** Läses utfallet som
+produktionens egen median över 3, 5 eller 7 bildrutor faller spannets byten från 12 av 91 till
+10 / 10 / **5** — men av de fem som återstår vid bredd 7 är **fyra** `cannot-determine`↔`laid-off`,
+alltså §2:s spärrkant och inte den här. **Bandet är fortfarande oförändrat**, och ingen bredd är
+vald. [top-review/windowed-tso.md](top-review/windowed-tso.md) §1.
+
 ## 2. Nära lodrätt svarar mätvärdet inte alls (avsiktligt)
 
 `NEAR_VERTICAL_GATE_DEG = 16`: inom 16° från lodrätt blir utfallet `cannot-determine` med
@@ -66,6 +74,13 @@ mellan `cannot-determine` och en kallad riktning (`S32-031`, `S32-034`, `S32-040
 **Spärren är oförändrad**; det som är mätt är att dess kant ligger inne i den upplösning både ögat
 och estimatorn arbetar med. [top-review/verdict-sensitivity.md](top-review/verdict-sensitivity.md)
 §1 och §2.
+
+**Ett fönster tar inte bort kanten, det flyttar bara vilka rader som ligger på den (S-40).**
+Med produktionens egen median över sju bildrutor byter spannets ändar utfall på 5 av 91 i stället
+för 12 — men **bara 2 av de 5 är rader som bytte vid enrutsavläsning**; tre är rader fönstret
+självt har brutit, och fyra av fem korsar den här spärren. På de raderna hamnade de två
+medianerna dessutom **5–8 bildrutor isär**, alltså längre isär än de två mittrutor de utgick
+från. [top-review/windowed-tso.md](top-review/windowed-tso.md) §1.
 
 ## 3. Fasen `top` är ofta en proportion, inte en mätning
 
@@ -280,6 +295,28 @@ rader där den låg utanför spannet; **4 av 91 är rena teckenbyten**. **Ingen 
 ingen produktionskod är rörd** — och 22 %-talet är ett mått på mätvärdet, inte på produkten, för
 ingen regel läser något av de tre värdena ännu.
 
+**Och fönsterläsning löser det inte — den byter ett problem mot ett annat (S-40).**
+[top-review/windowed-tso.md](top-review/windowed-tso.md) läser de tre mätvärdena över 1 (kontroll),
+3, 5 och 7 bildrutor med **produktionens egen** `circularMedianDeg`, körd av `shaftAngleByPhase`
+själv; medoiden pekar ut en ruta som lämnas tillbaka som enda observerade topp, så varje spärr
+körs oförändrad. **Utfallet blir stadigare** — kall mot varm spårare 9 → 2 av 100, E3 mot E4
+13 → 2 av 101, spannets ändar 12 → 5 av 91 — **men det är fönsteröverlapp, inte omröstning:** vid
+bredd 7 läser spannets två ändar samma bildruta på 46 av 91 mot 3 av 91, och medianen röstade bort
+en riktad avvikare på bara 9 av 101 fönster. **Och priset är enkelriktat:** mot en topp satt mitt
+i spannet faller E4:s överensstämmelse från 65 av 91 till 60 / 59 / **55**, med **11 tappade rätta
+rader mot 1 rättad** vid bredd 7. Fönstret ger däremot mer **täckning**: `shaft-position-p4`
+svarar 73 → 86 av 101 och `top`-hinken 78 → 92, med `phase-missing` 18 → 5. **Ingen bredd är vald
+och ingen spärr rörd.**
+
+**Och fönstret finns inte i produktionen (S-40 §3).** `ANALYSIS_FRAME_COUNT` är **32** (inte ~20,
+höjd 10 → 20 → 32 den 2026-08-11), klustret ligger på **nedslaget** eftersom klippvägen inte
+skickar `clusterPhases`, och steget mellan de två valda rutorna kring toppen är median **3
+bildrutor**. **Rutnätet rymmer hela fönstret på 2 av 101 svingar vid bredd 3 och på 0 av 101 vid
+bredd 5 och 7**; E4:s egen ruta är en vald ruta på bara 39 av 101. Kostnaden är median 2 / 3 / 4
+nya bildrutor per sving. Under allt det ligger en hårdare gräns: **envelopen och varje fas
+lokaliseras på en 15 fps-bana** (`SAMPLE_FPS`), så ett fönster centrerat på en 30 fps-bildruta är
+finare än den upplösning toppen hittas i.
+
 **Spärren i det här avsnittet står kvar oförändrad.** Vad rundan gav är ett mått, inte ett beslut:
 E3:s avstånd till ögat är nu mätt mot 91 svingar i stället för skattat på sex, och vad som är nära
 nog är fortfarande obestämt. **Punkt 3 i S-32:s spec — verifierat vänsterhänt, ospeglat material —
@@ -307,3 +344,38 @@ mätvärde läser den**. Skälet är mätt och står i [datamodell.md](datamodel
 [../../training/blade-usability.md](../../training/blade-usability.md): `toe`/`heel` har
 median 0,26 i konfidens mot skaftets 0,99, och bladvinkeln bär ett brusgolv som ingen tröskel
 tar bort.
+
+## 6. Inget läser mätvärdena, och mätlagret körs inte i produktion
+
+**`buildShaftMeasurements` anropas ingenstans i `src/`.** Inte heller `buildShaftSwingSeries`
+eller `checkShaftSeries`. `detectShaft` körs på ett enda ställe utanför sin egen modul —
+`src/lib/shaft/shaftPreview.ts`, som är **dev-only** (`VITE_DEV_PREVIEW`). Mätt, inte antaget:
+[top-review/windowed-tso.md](top-review/windowed-tso.md) §3 och §4 skriver ut sökningen.
+
+**Det betyder att varje siffra i §1–§3 är ett mått på mätvärdet, inte på produkten.** När S-39
+skriver att en bildrutas fel byter utfall på 22 % av raderna är det 22 % av något ingen användare
+ser. Det gör inte siffran mindre viktig — den är villkoret för att koppla in mätvärdet — men den
+får inte läsas som en felfrekvens i appen.
+
+**Fyra saker måste falla innan ett tal når en regel**, i ordning, och händighet är inte den
+bindande (den gäller bara `top-shaft-orientation`):
+
+1. **En konsument måste skrivas.** Det finns ingen regel att laga; det finns ingen regel.
+2. **En OBSERVERAD topp.** `fromDetection.ts` skriver det själv: *"The app's own path derives
+   every phase, so it passes `envelope-impact` or `envelope-fallback` — never `observed`."*
+   S-30:s `top-phase-not-observed` tystar därför `shaft-position-p4`, `top-shaft-orientation`
+   och `top`-hinken på **varje** sving i appen ([phase-trust.md](phase-trust.md): alla 205).
+   **Det här är den bindande spärren, och den lyfts bara av en pålitlig toppkälla.**
+3. **För `shaft-position-p4` dessutom kameravinkel och kroppsreferens** (`cameraAngle: 'dtl'`
+   plus axlar och höfter). I appen är `cameraAngle` ofta `null`, och då blir grinden `uncertain`
+   i stället för `rejected` — ett **flaggat tal** där en bedömningsrunda har tystnad.
+4. **Ett band.** `shaft-position-p4` returnerar torso-längder, `top`-hinken grader. **Ingen av
+   dem har en kalibrerad gräns någonstans i repot**, och ingen omgång har mätt en. Det tredje
+   mätvärdet *har* band (`ON_PLANE_BAND_DEG`, `NEAR_VERTICAL_GATE_DEG`) — och §1 och §2 visar att
+   båda kanterna ligger inne i mätbruset. **Att ge de två tysta ett band är alltså inte en mindre
+   uppgift än den som redan är olöst för det tredje.**
+
+**Och de två tysta är inte robustare än det tredje — de har mindre att säga.** På svar/tystnad,
+den enda axel alla tre har, byter de på samma tal (2 av 100 vid kall mot varm spårare, 5 av 91
+mellan spannets ändar). Hela `top-shaft-orientation`:s överskott ligger i **kategorin** (9 av 100
+respektive 12 av 91), och det är kategorin en regel skulle läsa.

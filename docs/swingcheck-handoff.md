@@ -1,7 +1,73 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-19.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-20.
+>
+> **Senast (2026-09-20, stream-shaft):** S-40 (klar, `[x]`) — **fönsterläsning av toppen: vad
+> aggregering köper och vad den betalar.** Read-only, ingen ny estimator, ingen tröskel, ingen
+> klassificerare, ingen kalibrering, inget skift, **ingen bredd vald**, ingen produktionskod
+> skriven, S-30:s spärr kvar. Rapport:
+> [shaft/top-review/windowed-tso.md](shaft/top-review/windowed-tso.md), skript
+> [windowed_tso.py](shaft/top-review/windowed_tso.py) +
+> [windowed_outcomes.ts](shaft/top-review/windowed_outcomes.ts). **S-39:s brygga är orörd** —
+> den här omgången har en egen, så `verdict_sensitivity.py` kör vidare på exakt sin egen kod.
+> `src/lib/shaft/measure/`, `frameExtractor.ts` och `poseEnvelopeSelection.ts` är **importerade
+> och anropade**, aldrig återimplementerade. Allt mäts VARMT. **Bredd 1 är kontrollen och
+> reproducerar S-39 värde för värde** (9/100, 13/101, 11/93, 11/95, 12/91, 65/91, och samma
+> fördelning på E4:s ruta); kontrollraden reproducerar S-32…S-39.
+> **KONSTRUKTIONEN ÄR PRODUKTIONENS EGEN.** `shaftAngleByPhase` aggregerar redan `top`-hinken med
+> `circularMedianDeg`; märks ett fönster som `top`/`observed` räknar produktionen fram medianen
+> själv. Medoiden **pekar ut en bildruta**, som lämnas tillbaka som enda observerad topp — så
+> närlodrätt-spärren, on-plane-bandet, kameragrinden och S-30:s regel körs oförändrade.
+> **1 — JA, FÖNSTRET STABILISERAR, MONOTONT MED BREDDEN (1/3/5/7).** `top-shaft-orientation`
+> byter mellan **kall och varm spårare** på **9 → 7 → 2 → 2 av 100**, mellan **E3 och E4** på
+> **13 → 10 → 5 → 2 av 101**, och mellan **spannets ändar** på **12 → 10 → 10 → 5 av 91** (bland
+> de svarande 18,2 % → 6,1 %). **MEN MEKANISMEN ÄR ÖVERLAPP, INTE OMRÖSTNING:** vid bredd 7 läser
+> spannets två ändar **samma bildruta på 46 av 91** mot 3 av 91 vid bredd 1, och medianen röstade
+> bort en riktad avvikare på bara **0/0/6/9** av 101 fönster. Nämnaren växer dessutom (66 → 82
+> svarande). Majoritetsröst som kontrollaggregator rör sig åt samma håll — **riktningen hänger
+> inte på aggregatorn.** Och raderna är ingen delmängd: av spannets 12 bytare vid bredd 1 är bara
+> **2** kvar bland de 5 vid bredd 7; **3 av 5 är rader fönstret självt brutit**, och 4 av 5 korsar
+> `NEAR_VERTICAL_GATE_DEG`.
+> **2 — KOSTNADEN ÄR ENTYDIG OCH ENKELRIKTAD.** Mot S-39:s egen referens (enrutan vid
+> människornas mittruta) faller E4:s överensstämmelse från **65 av 91** till 60 / 59 / **55**.
+> Bokfört: fönstret **tappar 6 / 7 / 11** rätta rader och **rättar 1** — netto −5 / −6 / **−10**,
+> och den tappade mängden är **nästlad**. Fönstret flyttar också referensen själv: vid
+> människornas mittruta ger bredd 7 ett annat utfall än enrutan på **35 av 91 (38 %)**. Läst mot
+> en referens av *samma* bredd blir talet 82 av 91 — **cirkulärt**, 6 av 7 rutor delade, och står
+> med bara för att inte utelämnas. **Stabiliteten är konvergens mot samma ruta, inte mot rätt.**
+> **3 — FÖNSTRET FINNS INTE I PRODUKTIONENS RUTNÄT, och "~20 rutor" är inaktuellt.**
+> `ANALYSIS_FRAME_COUNT` är **32** sedan 2026-08-11 (10 → 20 → 32) → median 27 picks och **26
+> distinkta bildrutor**. Klippvägen skickar **inga** `clusterPhases`, så klustret ligger på
+> **nedslaget** och toppen får bara den uniforma baslinjen: steget kring E4 är median **3
+> bildrutor** (p90 6, max 16), och E4:s egen ruta är en vald ruta på bara **39 av 101**.
+> **Rutnätet rymmer hela fönstret på 2 av 101 vid bredd 3 och 0 av 101 vid bredd 5 och 7.**
+> Nya rutor att detektera: median **2 / 3 / 4** per sving (p90 2 / 4 / 6), 6 / 9 / 12 % av
+> budgeten, 183 / 298 / 409 totalt — och budgeten är inte fri (`fittable()` kapar redan).
+> **Djupare gräns:** envelopen och varje fas lokaliseras på en **15 fps**-bana (`SAMPLE_FPS`), så
+> ett fönster centrerat på en 30 fps-bildruta är finare än den upplösning toppen hittas i.
+> **Och mätlagret körs inte alls i produktion:** `buildShaftMeasurements`, `buildShaftSwingSeries`
+> och `checkShaftSeries` har **noll anrop** utanför `src/lib/shaft/measure/`; `detectShaft` körs
+> bara i den dev-only förhandsvisningen. Nytt §6 i [shaft/STATUS.md](shaft/STATUS.md).
+> **4 — DE TVÅ TYSTA MÄTVÄRDENA ÄR INTE STABILARE, DE HAR MINDRE ATT SÄGA.** På svar/tystnad —
+> den enda axel alla tre har — ligger de på samma tal som `top-shaft-orientation`: 2 av 100,
+> 5 av 91, 6 av 101 vid bredd 1 (`top`-hinken 7 vid E3/E4; dess svarsmängd är inte riktigt de
+> andras) och 0–1 vid bredd 7. **Hela `top-shaft-orientation`:s överskott ligger i KATEGORIN**
+> (9 / 13 / 12 mot 2 / 6 / 5), och kategorin är det en regel skulle läsa. **Att koppla dem kräver
+> fyra saker, och händighet är inte den bindande:** (i) en konsument finns inte alls; (ii) en
+> **observerad** topp — `fromDetection.ts` skriver själv att appens väg *"never `observed`"*, så
+> S-30:s spärr tystar dem på varje sving i appen; (iii) `shaft-position-p4` kräver dessutom
+> `cameraAngle: 'dtl'` + fyra landmärken (i appen ofta `null` → `uncertain`, inte `rejected`);
+> (iv) **ett band** — båda returnerar tal utan kalibrerad gräns någonstans i repot. Fönstrets enda
+> oomstridda vinst är **täckning**: `shaft-position-p4` svarar 73 → 86 av 101, `top`-hinken
+> 78 → 92, `phase-missing` 18 → 5. **Men §2 mäter vad det svarar.**
+> **ÖPPET EFTER S-40:** ingen bredd vald och ingen föreslagen — netto −10 rader vid bredd 7 är
+> priset, och ingen har avgjort om det är värt täckningen. Jämna bredder och bredder > 7 är
+> omätta. **Det finns fortfarande inget facit för kategorin** (bedömarna ritade toppens bildruta,
+> inte dess `across`/`laid-off`), så "rätt" i §2 betyder bara "vad enrutan vid människornas
+> mittruta sade". Face-on är tyst rakt igenom (10 rader, kameragrinden). Händighet antagen
+> `right`. Produktionens rutnät är **återspelat** ur registret, inte observerat. Kvar oprövat även
+> varmt: 15 fps mot 30, delegat, avkodare, och livevägen.
 >
 > **Senast (2026-09-19, stream-shaft):** S-39 (klar, `[x]`) — **från bildrutefel till
 > utfallsfel, och 3,0-buggens spridning.** Read-only, ingen ny estimator, ingen tröskel, ingen
