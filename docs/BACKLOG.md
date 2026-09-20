@@ -3087,6 +3087,77 @@ band** — båda returnerar tal utan kalibrerad gräns någonstans i repot. Fön
 vinst är täckning: `shaft-position-p4` svarar 73 → 86 av 101 och `top`-hinken 78 → 92, med
 `phase-missing` 18 → 5. **Men §2 mäter vad det svarar.**
 
+### [x] S-41 — Diagnos: grov läsning av toppens skaftriktning — stabiliserar den, och vad kostar den?
+
+**Nej — grovheten köper 0–2 rader och gör grinden dubbelt så instabil.** Read-only diagnos
+([shaft/top-review/coarse-tso.md](shaft/top-review/coarse-tso.md), skript
+[coarse_tso.py](shaft/top-review/coarse_tso.py)); ingen ny estimator, ingen tröskel, ingen
+klassificerare, ingen kalibrering, inget skift, ingen produktionskod skriven, S-30:s spärr kvar.
+`ON_PLANE_BAND_DEG` och `NEAR_VERTICAL_GATE_DEG` är **lästa, aldrig ändrade**. S-39:s brygga
+(`verdict_outcomes.ts`) och `verdict_sensitivity.py` är **orörda och återanvända** — den här
+omgången importerar deras `payload_for`, `load_dense`, `clip_landmarks`, `build_bridge`,
+`run_bridge` och `verdict`. Grovheten är en **ometikettering av produktionens egna svar**, så den
+kan per konstruktion bara ta bort byten; skriptet **stannar** om en grov läsning byter där den fina
+inte gör det. Allt mäts varmt; **den fina läsningen reproducerar S-39 värde för värde**
+(9/100, 11/93, 11/95, 12/91, 13/101, 65/91, 38/44, 27/47, svar/tystnad 2/100, 5/91, 6/101, 3/93,
+6/95) och kontrollraden reproducerar S-32…S-40. Underlaget kördes om från noll och ligger nu under
+**`data/shaft/top-review/`** (gitignorerat) i stället för i `<tmp>` — 103 kalla posebanor, 81 varma
+helklippsbanor, 103 detektorbanor med **6 548 rutor**, plus ett venv med samma pinnar.
+
+**1 — grovheten stabiliserar knappt.** `top-shaft-orientation` byter mellan **kall och varm
+spårare** på **9 → 9 av 100**, mellan **spannets ändar** på **12 → 11 av 91**, mellan **E3 och E4**
+på **13 → 11 av 101**, Erik **11 → 11 av 93**, Lisa **11 → 10 av 95**. **Tvåvägs ger exakt samma
+täljare som trevägs i alla fem raderna.** *Bland de svarande*, med läsningens egen nämnare, blir
+grovheten **sämre**: spannet 18,2 % (12/66) → **20,4 %** (11/54) trevägs och **20,8 %** (11/53)
+tvåvägs — nämnaren faller snabbare än täljaren. **En kontrolläsning som slår ihop bara
+tystnadsskälen och behåller `cannot-determine` ger identiskt samma tal som den fina i varenda
+cell**, så den sammanslagningen tar bort **noll** byten; hela vinsten är `cannot-determine`.
+**Rena teckenbyten across ↔ laid-off är 0 under samtliga fem störningar** (n = 100, 93, 95, 91,
+101) — uppgiftens iakttagelse vid −1 ruta håller mycket bredare. Men av spannets elva kvarvarande
+byten går **nio mellan tystnad och en kallad riktning** och två över `ON_PLANE_BAND_DEG`:s kant.
+**Det instabila är tystnadskanten, inte kategoriupplösningen.**
+
+**2 — priset är 40 av 91 rader i 33 av 73 klipp (44 %).** På E4:s ruta förlorar de en distinktion
+den fina kategorin bar: **`cannot-determine` 20** rader (17 klipp), **`phase-missing` 13** (12),
+**`camera-angle-mismatch` 7** (6). I coachingtermer tre olika besked med tre olika åtgärder —
+*"din topp är för upprätt för att ha en sida"* (som `derived.ts` uttryckligen kallar ett **resultat
+om svingen**, inte ett fel i inspelningen), *"filma om"* och *"filma bakifrån"* — som blir ett enda
+blankt. **Trevägs och tvåvägs kostar exakt lika mycket**, eftersom `on-plane` inträffar på **0 av
+91** rader på E4:s ruta och på **20 av 1 756** besvarade kandidatrutor i hela rundan (1,1 %).
+**Mellankategorin är i praktiken tom**, så uppgiftens två grova läsningar är samma läsning här.
+
+**3 — E4 grovt mot facit: 65 → 68 av 91 (71,4 % → 74,7 %), tvåvägs 69 (75,8 %).** n = 91 rader i 73
+klipp. E4 **inne** i spannet: 38 → 40 av 44 (86,4 % → 90,9 %); **utanför**: 27 → 28 av 47
+(57,4 % → 59,6 %), tvåvägs 29 (61,7 %). `cd`-kontrollen ger oförändrat 65. Av de 23 kvarvarande
+skillnaderna går **18 mellan tystnad och ett svar** och **4 är riktiga teckenoenigheter**
+(`S32-009`, `S32-012`, `S32-063`, `S32-100`) — samma fyra som S-39 fann, och grovheten kan per
+konstruktion inte laga dem.
+
+**4 — grinden håller INTE lika bra grovt.** Svar/tystnad går från S-40:s **2/100 → 9/100**,
+**5/91 → 9/91** (tvåvägs 11), **6/101 → 11/101**, Erik 3/93 → 9/93, Lisa 6/95 → 8/95. Täckningen
+halveras: den grova läsningen svarar på **52 av 101** mot den finas **73** (51,5 % mot 72,3 %).
+Mekanismen är `cannot-determine`, som ligger på tystnadssidan av den grova grinden: de två ändarna
+skiljer sig fint *och* en av dem är `cannot-determine` på 7/100, 6/91, 9/101, 6/93, 4/95.
+`NEAR_VERTICAL_GATE_DEG` är satt medvetet brett för att **hellre** svara `cannot-determine`, så den
+grova grinden ärver spärrens egen kantkänslighet. **Kollapsen i sig kräver ingen tröskeländring**
+(den är en ometikettering i konsumenten), men att skeppa den vore att skeppa en grind som flippar
+på var tionde sving under störningar som inte betyder någonting och tiger på 48 %.
+
+**5 — appen kan inte leverera en observerad topp alls, och det saknas inte en flagga utan en
+kedja.** `phaseSource`, `'observed'`, `DetectedFrame`, `buildShaftSwingSeries` och
+`buildShaftMeasurements` har **noll träffar i `src/`** utanför `src/lib/shaft/measure/` och dess
+tester — adaptern har ingen producent. De två faslägg­arna (`labelPhase()`, `derivePhase()`) är båda
+tidsjämförelser mot `envelope.impact.topSec`, och `derivePhaseWithSource()` returnerar per
+konstruktion `envelope-impact`/`envelope-fallback`. **`topSec` finns bara i grenen med säkert
+nedslag** (`topIdx` = minsta y före `impactIdx`): **83 av 103 svingar (80,6 %)** i rundan; på de
+övriga **20** finns ingen `top`-etikett alls och mätvärdet faller på `phase-missing` innan S-30:s
+spärr ens läses. Toleransen är `max(POINT_TOL_SEC 0,06, sampleDt)` med `sampleDt` från en **15
+fps**-bana, alltså ~2 videobildrutor vid 30 fps. Rutan måste dessutom ha avkodats — S-40 §3 mätte
+E4:s ruta bland produktionens 32 på **39 av 101**. Plus `handedness` (`unknown` på 103 av 103,
+avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `uncertain`, alltså
+**mildare** än rundans grind). Nytt i [shaft/STATUS.md](shaft/STATUS.md) §6.
+
+
 
 ---
 

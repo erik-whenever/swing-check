@@ -379,3 +379,38 @@ bindande (den gäller bara `top-shaft-orientation`):
 den enda axel alla tre har, byter de på samma tal (2 av 100 vid kall mot varm spårare, 5 av 91
 mellan spannets ändar). Hela `top-shaft-orientation`:s överskott ligger i **kategorin** (9 av 100
 respektive 12 av 91), och det är kategorin en regel skulle läsa.
+
+### Punkt 2, skärpt (S-41): det saknas inte en flagga — det saknas en producent
+
+**`phaseSource`, `'observed'`, `DetectedFrame`, `buildShaftSwingSeries` och
+`buildShaftMeasurements` har noll träffar i `src/`** utanför `src/lib/shaft/measure/` och dess egna
+tester. Appen bygger alltså aldrig en `DetectedFrame[]` över huvud taget, så frågan "hur sätter
+appen `phaseSource: 'observed'`?" har ett led före sig. Fältet har medvetet ingen default —
+`fromDetection.ts` skriver att en default *"would answer the question on the caller's behalf in the
+direction that costs the most"* — så den som skriver producenten **måste** ta ställning.
+
+**Och under det ligger en hårdare gräns: `topSec` finns bara när envelopen har ett säkert
+nedslag.** I `poseEnvelope.ts` sätts `impact = { topSec, … }` enbart i den grenen, och `topIdx` är
+minsta `y` **före** `impactIdx`. I S-32:s runda har **83 av 103 svingar (80,6 %)** ett säkert
+nedslag; på de övriga **20 finns ingen `top`-etikett alls**, och mätvärdet faller på
+`phase-missing` innan S-30:s spärr ens läses. Toleransen som avgör vilka rutor som får heta `top`
+är `max(POINT_TOL_SEC = 0,06 s, sampleDt)`, och `sampleDt` kommer från en **15 fps**-bana
+(`SAMPLE_FPS` i `poseTrajectory.ts`) — alltså ~2 videobildrutor vid 30 fps. Mätt, inte antaget:
+[top-review/coarse-tso.md](top-review/coarse-tso.md) §5.
+
+**Att `observed` skulle kunna sättas av en estimator är en omdefinition, inte en tröskeländring.**
+I dag betyder flaggan att en människa har sett rutan ([phase-trust.md](phase-trust.md)); ingen
+kodväg kan skapa den. Det är hela S-30:s öppna fråga, och den kan inte smygas in som en
+konsumentändring.
+
+### Och grovare kategorier löser det inte (S-41)
+
+Att läsa `top-shaft-orientation` **grovt** — across / on-plane / laid-off plus tystnad, med
+befintligt `ON_PLANE_BAND_DEG` — tar bort 0–2 byten av 9–13 under de störningar S-39 mätte, och
+gör **svar/tystnad-grinden ungefär dubbelt så instabil** (2 → 9 av 100, 5 → 9 av 91, 6 → 11 av 101)
+samtidigt som täckningen faller från 73 till 52 av 101. Orsaken är att `cannot-determine` hamnar på
+tystnadssidan, och `NEAR_VERTICAL_GATE_DEG` är satt medvetet brett för att hellre svara just det.
+**Rena teckenbyten across ↔ laid-off är däremot 0 under samtliga fem störningar** — riktningen är
+det stabila; det är tystnadskanten som rör sig. Och `on-plane` inträffar på **20 av 1 756**
+besvarade kandidatrutor (1,1 %), så mellankategorin är i praktiken tom.
+[top-review/coarse-tso.md](top-review/coarse-tso.md).
