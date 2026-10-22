@@ -19,8 +19,8 @@
 // ── Defaults (every one overridable via env; see worker/wrangler.toml) ────────────
 /** Must match the model src/lib/api.ts is written and priced against. */
 const DEFAULT_MODEL_ID = 'claude-sonnet-4-5';
-/** Ceiling, not a fixed value — see pinRequestBody(). Matches MAX_TOKENS_DETAILED in api.ts. */
-const DEFAULT_MAX_TOKENS = 2000;
+/** Ceiling, not a fixed value — see pinRequestBody(). Matches MAX_TOKENS_CAP in api.ts. */
+const DEFAULT_MAX_TOKENS = 4096;
 /** ~20 frames of base64 JPEG plus prompt; a real analysis lands far below this. */
 const DEFAULT_BODY_MAX_BYTES = 30 * 1024 * 1024;
 const DEFAULT_DAILY_CALL_CAP = 300;
@@ -200,8 +200,8 @@ async function handleProxy(
  * turn every analysis into a cache write (see api.ts → cache_read_input_tokens).
  *
  * `max_tokens` is clamped rather than overwritten — a deviation from the W-1 spec, and a
- * deliberate one. api.ts sends 600 in quick mode and 2000 in detailed mode; overwriting
- * both with one value would erase quick mode's ceiling, i.e. change app behaviour in the
+ * deliberate one. api.ts scales its ceiling with mode and rule count (maxTokensFor); overwriting
+ * it with one value would erase quick mode's lower ceiling, i.e. change app behaviour in the
  * name of hardening. MAX_TOKENS is therefore the ceiling nobody can exceed, and a client
  * asking for less still gets less. An absent or nonsensical value gets the ceiling.
  */

@@ -1,7 +1,7 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-08-11.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 
 ## Tech stack
 - **Frontend:** React 19 + TypeScript + Vite 8, Tailwind v4, Zustand (vissa stores `persist`:ade).
@@ -211,6 +211,13 @@ sessionsläge + `swingStartTimestamp`). Detaljer: [voice-start.md](voice-start.m
 
 ## Öppna trådar
 
+- **S-48: Workern måste deployas för att taket 4096 ska gälla (2026-10-23).** `api.ts` skalar nu
+  `max_tokens` med antalet regler (`maxTokensFor`: quick `200+120·n`, detaljerat `400+250·n`, tak 4096).
+  Detaljerat läge har en gräns för prosan per regel. Klippning kastar `TruncatedResponseError`, inte
+  "Invalid JSON". Workerns `MAX_TOKENS` är höjd till 4096 i `wrangler.toml`, men produktionens Worker
+  klampar till 2000 tills `wrangler deploy` körs. 7 regler i detaljerat läge ryms ändå (som mest 1817),
+  ~8+ gör det inte. Fältsignal: `analyzeSwing hit max_tokens` (ERROR). Underlag:
+  [vision-max-tokens/README.md](vision-max-tokens/README.md).
 - **Beskärningen är ej fältverifierad efter borttaget aspektlås (2026-08-11).** Första
   fältdatan fällde själva geometrin, inte grinden — se *Fungerar* ovan. Läs `cropReason` i
   sessionsloggen: allt annat än `ok` betyder att hela bilden skickades, och `gateDetail`
