@@ -3,7 +3,14 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-42 (`[~]`) — telefontest bekräftade att iOS-väljaren
+> **Senast (2026-10-22, stream-shaft):** S-43 (klar) — **intervall + faktor finns INTE som uppgift i
+> filen.** Bara implicit, i tidtagningen hos telemetrispåret `scene-illuminance` (exakt 4×-platå + ramper
+> i 3 av 11 egna klipp), och det spåret saknas i telefonens väljar-fil `IMG_3584` och i 8 av 11 lokala.
+> Ljudets tonhöjdsfall är näst bästa signal men för brusigt som detektor. Panelen visar nu sträcknings-
+> profil, mebx-värden och ljudprofil. Detektor att bygga på: `full-frame-rate-playback-intent` (S-42).
+>
+> **Före det (2026-10-22, stream-shaft):** S-42 (klar — nyckeln överlever väljaren; iOS kodar om
+> `hvc1`→`avc1`) — telefontest bekräftade att iOS-väljaren
 > lämnar ut den tidssträckta Slo-mo-filen (burst 6,85 s > `MAX_BURST_SEC`, 0 svingar). Ny dev-panel
 > **Container metadata** i Frame Preview (`mp4Probe.ts` + `Mp4MetaPanel.tsx`, bakom
 > `VITE_DEV_PREVIEW`) visar `mvhd` vs `video.duration`, spår/stts-fps och alla

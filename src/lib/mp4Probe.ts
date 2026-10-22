@@ -57,7 +57,29 @@ export interface TrackInfo {
   edits: EditEntry[];
   /** Key names declared by a `mebx` sample entry's `keys` table. */
   mebxKeys: string[];
+  /** The same table with local ids and declared value types (`dtyp`). */
+  mebxKeyTable: MebxKey[];
+  /** Decoded timed-metadata samples (mebx tracks only), capped at MEBX_SAMPLE_LIMIT. */
+  mebxSamples: MebxSample[];
+  /** True when the track holds more samples than were decoded. */
+  mebxTruncated: boolean;
 }
+
+export interface MebxKey {
+  localId: number;
+  key: string;
+  /** QuickTime well-known type (namespace 0), or null if undeclared/non-standard. */
+  dataType: number | null;
+}
+
+export interface MebxSample {
+  /** Presentation start / duration in the track's own timeline, seconds. */
+  timeSec: number;
+  durSec: number;
+  items: { key: string; value: MebxValue }[];
+}
+
+export type MebxValue = string | number | number[] | null;
 
 export interface MetaItem {
   key: string;
@@ -195,26 +217,180 @@ const utf8 = new TextDecoder();
 const text = (v: DataView, start: number, end: number) =>
   utf8.decode(new Uint8Array(v.buffer, v.byteOffset + start, Math.max(0, end - start)));
 
-/** First stsd entry: codec fourcc + (for mebx) the declared key names. */
-function readStsd(v: DataView, b: Box): { codec: string; mebxKeys: string[] } {
+/** First stsd entry: codec fourcc + (for mebx) the declared key table. */
+function readStsd(
+  v: DataView,
+  b: Box,
+): { codec: string; mebxKeys: string[]; mebxKeyTable: MebxKey[] } {
   // fullbox(4) + entry_count(4), then sample-entry boxes.
   const entries = [...children(v, b.start + 8, b.end)];
-  if (entries.length === 0) return { codec: '', mebxKeys: [] };
+  if (entries.length === 0) return { codec: '', mebxKeys: [], mebxKeyTable: [] };
   const first = entries[0];
-  const mebxKeys: string[] = [];
+  const table: MebxKey[] = [];
   for (const e of entries) {
     if (e.type !== 'mebx') continue;
     // SampleEntry header: 6 reserved + 2 data_reference_index.
     const keys = [...children(v, e.start + 8, e.end)].find((c) => c.type === 'keys');
     if (!keys) continue;
-    // Each entry is a box named by its local key id, holding a `keyd`
-    // (namespace fourcc + key value).
+    // Each entry is a box named by its local key id (u32), holding a `keyd`
+    // (namespace fourcc + key value) and optionally a `dtyp` (namespace + type).
     for (const k of children(v, keys.start, keys.end)) {
       const keyd = child(v, k, 'keyd');
-      if (keyd && keyd.end - keyd.start > 4) mebxKeys.push(text(v, keyd.start + 4, keyd.end));
+      if (!keyd || keyd.end - keyd.start <= 4) continue;
+      const dtyp = child(v, k, 'dtyp');
+      table.push({
+        localId: v.getUint32(k.start - 4),
+        key: text(v, keyd.start + 4, keyd.end),
+        dataType:
+          dtyp && dtyp.end - dtyp.start >= 8 && v.getUint32(dtyp.start) === 0
+            ? v.getUint32(dtyp.start + 4)
+            : null,
+      });
     }
   }
-  return { codec: first.type, mebxKeys };
+  return { codec: first.type, mebxKeys: table.map((k) => k.key), mebxKeyTable: table };
+}
+
+/** Byte offset + size of every sample, from stsz/stsc/stco|co64. */
+function readSampleTable(v: DataView, stbl: Box): { offset: number; size: number }[] {
+  const stsz = child(v, stbl, 'stsz');
+  const stsc = child(v, stbl, 'stsc');
+  const stco = child(v, stbl, 'stco');
+  const co64 = child(v, stbl, 'co64');
+  if (!stsz || !stsc || (!stco && !co64)) return [];
+  const fixed = v.getUint32(stsz.start + 4);
+  const count = v.getUint32(stsz.start + 8);
+  const sizes = Array.from({ length: count }, (_, i) =>
+    fixed !== 0 ? fixed : v.getUint32(stsz.start + 12 + i * 4),
+  );
+  const chunks: number[] = [];
+  if (stco) {
+    const n = v.getUint32(stco.start + 4);
+    for (let i = 0; i < n; i++) chunks.push(v.getUint32(stco.start + 8 + i * 4));
+  } else if (co64) {
+    const n = v.getUint32(co64.start + 4);
+    for (let i = 0; i < n; i++) chunks.push(u64(v, co64.start + 8 + i * 8));
+  }
+  const runs: [number, number][] = []; // first_chunk (1-based), samples_per_chunk
+  const n = v.getUint32(stsc.start + 4);
+  for (let i = 0; i < n; i++) {
+    const o = stsc.start + 8 + i * 12;
+    runs.push([v.getUint32(o), v.getUint32(o + 4)]);
+  }
+  const out: { offset: number; size: number }[] = [];
+  for (let r = 0; r < runs.length; r++) {
+    const last = r + 1 < runs.length ? runs[r + 1][0] - 1 : chunks.length;
+    for (let c = runs[r][0]; c <= last; c++) {
+      let off = chunks[c - 1];
+      for (let k = 0; k < runs[r][1] && out.length < count; k++) {
+        const size = sizes[out.length];
+        out.push({ offset: off, size });
+        off += size;
+      }
+    }
+  }
+  return out;
+}
+
+/** Expanded stts: start time and duration (timescale units) of every sample. */
+function sampleTimes(v: DataView, stts: Box): { t: number; d: number }[] {
+  const out: { t: number; d: number }[] = [];
+  const n = v.getUint32(stts.start + 4);
+  let t = 0;
+  for (let i = 0; i < n; i++) {
+    const count = v.getUint32(stts.start + 8 + i * 8);
+    const delta = v.getUint32(stts.start + 12 + i * 8);
+    for (let k = 0; k < count; k++, t += delta) out.push({ t, d: delta });
+  }
+  return out;
+}
+
+const hex = (v: DataView, p: number, len: number) => {
+  const bytes = new Uint8Array(v.buffer, v.byteOffset + p, Math.min(len, 24));
+  const h = [...bytes].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `0x${h}${len > 24 ? '…' : ''} (${len} B)`;
+};
+
+function intValue(v: DataView, p: number, len: number, signed: boolean): number | null {
+  if (len === 1) return signed ? v.getInt8(p) : v.getUint8(p);
+  if (len === 2) return signed ? v.getInt16(p) : v.getUint16(p);
+  if (len === 4) return signed ? v.getInt32(p) : v.getUint32(p);
+  if (len === 8) return signed ? Number(v.getBigInt64(p)) : u64(v, p);
+  return null;
+}
+
+/** One mebx value by its QuickTime well-known type; unknown types come back as hex. */
+function readTypedValue(v: DataView, p: number, len: number, type: number | null): MebxValue {
+  const floats = (n: number, w: 4 | 8) =>
+    len >= n * w
+      ? Array.from({ length: n }, (_, i) => (w === 4 ? v.getFloat32(p + i * 4) : v.getFloat64(p + i * 8)))
+      : null;
+  switch (type) {
+    case 1:
+      return text(v, p, p + len);
+    case 23:
+      return len === 4 ? v.getFloat32(p) : null;
+    case 24:
+      return len === 8 ? v.getFloat64(p) : null;
+    case 21:
+    case 65:
+    case 66:
+    case 67:
+    case 74:
+      return intValue(v, p, len, true);
+    case 22:
+    case 75:
+    case 76:
+    case 77:
+    case 78:
+      return intValue(v, p, len, false);
+    case 70: // PointF32
+    case 71: // DimensionsF32
+      return floats(2, 4);
+    case 72: // RectF32
+      return floats(4, 4);
+    case 79: // AffineTransformF64
+      return floats(9, 8);
+    default: {
+      // Undeclared types: printable ASCII (e.g. segment-identifier's UUID) as text.
+      const bytes = new Uint8Array(v.buffer, v.byteOffset + p, len);
+      if (len > 0 && len <= 256 && bytes.every((b) => b >= 0x20 && b < 0x7f)) return text(v, p, p + len);
+      return hex(v, p, len);
+    }
+  }
+}
+
+/** Cap per track — the 120 Hz telemetry tracks run to thousands of samples. */
+export const MEBX_SAMPLE_LIMIT = 4000;
+
+async function readMebxSamples(src: ByteSource, v: DataView, stbl: Box, t: TrackInfo) {
+  const stts = child(v, stbl, 'stts');
+  if (!stts) return;
+  const table = readSampleTable(v, stbl);
+  const times = sampleTimes(v, stts);
+  const byId = new Map(t.mebxKeyTable.map((k) => [k.localId, k]));
+  const n = Math.min(table.length, times.length, MEBX_SAMPLE_LIMIT);
+  t.mebxTruncated = table.length > n;
+  for (let i = 0; i < n; i++) {
+    const s = table[i];
+    // Each sample is its own small read: they are interleaved with video in mdat.
+    const d = new DataView(await src.slice(s.offset, s.offset + s.size));
+    const items: MebxSample['items'] = [];
+    // A sample is a run of [size u32][local key id u32][value] boxes.
+    let o = 0;
+    while (o + 8 <= d.byteLength) {
+      const size = d.getUint32(o);
+      if (size < 8 || o + size > d.byteLength) break;
+      const id = d.getUint32(o + 4);
+      const key = byId.get(id);
+      items.push({
+        key: key?.key ?? `#${id}`,
+        value: readTypedValue(d, o + 8, size - 8, key?.dataType ?? null),
+      });
+      o += size;
+    }
+    t.mebxSamples.push({ timeSec: times[i].t / t.timescale, durSec: times[i].d / t.timescale, items });
+  }
 }
 
 function readDataValue(v: DataView, d: Box): string | number | null {
@@ -354,6 +530,9 @@ export async function probeMp4(src: ByteSource): Promise<Mp4Probe> {
         stts: null,
         edits: [],
         mebxKeys: [],
+        mebxKeyTable: [],
+        mebxSamples: [],
+        mebxTruncated: false,
       };
       const tkhd = child(v, b, 'tkhd');
       if (tkhd) t.trackId = v.getUint32(tkhd.start + (v.getUint8(tkhd.start) === 1 ? 20 : 12));
@@ -382,10 +561,77 @@ export async function probeMp4(src: ByteSource): Promise<Mp4Probe> {
           if (stsd) Object.assign(t, readStsd(v, stsd));
           const stts = child(v, stbl, 'stts');
           if (stts) t.stts = readStts(v, stts, t.timescale);
+          if (t.codec === 'mebx') await readMebxSamples(src, v, stbl, t);
         }
       }
       result.tracks.push(t);
     }
   }
   return result;
+}
+
+/** One stretch of the file's timeline: a steady playback factor, or a ramp between two. */
+export interface StretchSegment {
+  startSec: number;
+  endSec: number;
+  /** Steady factor (file time / capture time), or null for a ramp. */
+  factor: number | null;
+  /** Capture (wall-clock) time the segment covers, seconds. */
+  captureSec: number;
+}
+
+/** Shortest run of samples that counts as a steady plateau rather than ramp noise. */
+const PLATEAU_MIN_SAMPLES = 5;
+/** How close (in factor units) a sample must be to an integer factor to be "steady". */
+const PLATEAU_TOLERANCE = 0.15;
+
+/**
+ * Read the slow-mo stretch out of a constant-rate telemetry track.
+ *
+ * iPhone camera telemetry (`scene-illuminance`) is written at a fixed capture rate
+ * (120 Hz). When iOS renders a Slo-Mo export it stretches the slowed interval on the
+ * file's timeline — and the telemetry samples with it — so each sample's duration
+ * divided by the base (unstretched) duration IS the local playback factor. Returns
+ * [] when the track has too few samples to say anything.
+ */
+export function stretchProfile(samples: MebxSample[]): StretchSegment[] {
+  // The last sample is truncated at the track end; leave it out of the base estimate.
+  const durs = samples.slice(0, -1).map((s) => s.durSec);
+  if (durs.length < PLATEAU_MIN_SAMPLES) return [];
+  const min = Math.min(...durs);
+  // Base = median of the deltas near the minimum (the unstretched capture rate).
+  const near = durs.filter((d) => d <= min * 1.3).sort((a, b) => a - b);
+  const base = near[Math.floor(near.length / 2)];
+  // OSÄKER: assumes the file starts or ends at 1× — if the WHOLE clip is slowed the
+  // base is already the stretched delta and every factor reads 1×. Not seen in the
+  // 11 own Slo-Mo clips (all three with telemetry start and end at 1×).
+
+  const steady = (d: number) => {
+    const r = d / base;
+    return Math.abs(r - Math.round(r)) <= PLATEAU_TOLERANCE ? Math.round(r) : null;
+  };
+  // Group consecutive samples by steady factor; short or non-integer runs are ramp.
+  const runs: { from: number; to: number; factor: number | null }[] = [];
+  samples.forEach((s, i) => {
+    const f = i === samples.length - 1 ? (runs.at(-1)?.factor ?? null) : steady(s.durSec);
+    const last = runs.at(-1);
+    if (last && last.factor === f) last.to = i;
+    else runs.push({ from: i, to: i, factor: f });
+  });
+  for (const r of runs) if (r.factor !== null && r.to - r.from + 1 < PLATEAU_MIN_SAMPLES) r.factor = null;
+
+  const out: StretchSegment[] = [];
+  for (const r of runs) {
+    const startSec = samples[r.from].timeSec;
+    const endSec = samples[r.to].timeSec + samples[r.to].durSec;
+    const captureSec = (r.to - r.from + 1) * base;
+    const last = out.at(-1);
+    if (last && last.factor === r.factor) {
+      last.endSec = endSec;
+      last.captureSec += captureSec;
+    } else {
+      out.push({ startSec, endSec, factor: r.factor, captureSec });
+    }
+  }
+  return out;
 }

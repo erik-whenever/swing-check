@@ -8,7 +8,13 @@
 // Read-only: nothing here feeds extraction, the store, or the Vision call.
 
 import { useEffect, useState } from 'react';
-import { blobSource, probeMp4, type Mp4Probe } from '../../lib/mp4Probe';
+import { blobSource, probeMp4, stretchProfile, type Mp4Probe } from '../../lib/mp4Probe';
+import {
+  decodeMono,
+  lowPitchRun,
+  zeroCrossingProfile,
+  type AudioBin,
+} from '../../lib/audioProfile';
 
 const SLOMO_KEY = 'com.apple.quicktime.full-frame-rate-playback-intent';
 
@@ -30,6 +36,64 @@ function useVideoDuration(blob: Blob): number | null {
 }
 
 const sec = (s: number) => `${s.toFixed(3)} s`;
+
+/** Telemetry track whose sample timing carries the stretch (S-43). */
+const TIMING_KEY = 'com.apple.quicktime.scene-illuminance';
+
+/** Audio is decoded on demand only — it reads the whole file into memory. */
+function AudioSection({ blob }: { blob: Blob }) {
+  const [state, setState] = useState<
+    | { status: 'idle' }
+    | { status: 'running' }
+    | { status: 'done'; bins: AudioBin[] }
+    | { status: 'error'; msg: string }
+  >({ status: 'idle' });
+  const run = async () => {
+    setState({ status: 'running' });
+    try {
+      const { x, sampleRate } = await decodeMono(blob);
+      setState({ status: 'done', bins: zeroCrossingProfile(x, sampleRate) });
+    } catch (e) {
+      setState({ status: 'error', msg: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  if (state.status === 'idle' || state.status === 'running')
+    return (
+      <button
+        onClick={run}
+        disabled={state.status === 'running'}
+        className="w-full py-1.5 bg-raised rounded text-fg-dim disabled:opacity-50"
+      >
+        {state.status === 'running' ? 'decoding audio…' : 'Analyze audio pitch (zero-crossings)'}
+      </button>
+    );
+  if (state.status === 'error') return <div className="text-red-400">audio decode failed: {state.msg}</div>;
+  const lowRun = lowPitchRun(state.bins);
+  return (
+    <div className="space-y-1">
+      <div className="text-faint">audio pitch proxy, 0.25 s bins (heuristic)</div>
+      <div>
+        {lowRun
+          ? `low-pitch run ${lowRun.startSec.toFixed(2)}–${lowRun.endSec.toFixed(2)} s · ends ${Math.round(lowRun.refHz)} Hz / inside ${Math.round(lowRun.insideHz)} Hz = ×${lowRun.ratio.toFixed(2)}`
+          : 'no low-pitch run'}
+      </div>
+      <div className="flex flex-wrap gap-x-2">
+        {state.bins.map((b) => (
+          <span
+            key={b.timeSec}
+            className={
+              lowRun && b.timeSec >= lowRun.startSec && b.timeSec < lowRun.endSec
+                ? 'text-amber-400'
+                : undefined
+            }
+          >
+            {b.timeSec.toFixed(2)}:{Math.round(b.hz)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function Mp4MetaPanel({ blob }: { blob: Blob }) {
   // Result is keyed by the blob it was read from, so a new clip shows "reading…"
@@ -146,6 +210,45 @@ export function Mp4MetaPanel({ blob }: { blob: Blob }) {
                 );
               })}
             </div>
+            <div className="space-y-0.5">
+              <div className="text-faint">slow interval from telemetry timing ({TIMING_KEY.slice(20)})</div>
+              {(() => {
+                const timing = probe.tracks.filter((t) => t.mebxKeys.includes(TIMING_KEY));
+                if (timing.length === 0)
+                  return <div>no telemetry track — interval + factor NOT in this file</div>;
+                return timing.map((t) => (
+                  <div key={t.trackId}>
+                    #{t.trackId} ({t.mebxSamples.length} samples{t.mebxTruncated ? ', truncated' : ''}):{' '}
+                    {stretchProfile(t.mebxSamples).map((s, i) => (
+                      <span key={i} className={s.factor && s.factor > 1 ? 'text-amber-400' : undefined}>
+                        {i > 0 && ' · '}
+                        {s.startSec.toFixed(2)}–{s.endSec.toFixed(2)} {s.factor ? `${s.factor}×` : 'ramp'} (
+                        {s.captureSec.toFixed(2)} s real)
+                      </span>
+                    ))}
+                  </div>
+                ));
+              })()}
+            </div>
+            <div className="space-y-0.5">
+              <div className="text-faint">mebx single-sample values</div>
+              {probe.tracks
+                .filter((t) => t.codec === 'mebx' && t.mebxSamples.length > 0 && t.mebxSamples.length <= 3)
+                .flatMap((t) =>
+                  t.mebxSamples.flatMap((s, i) =>
+                    s.items.map((it, j) => (
+                      <div key={`${t.trackId}-${i}-${j}`}>
+                        #{t.trackId} {it.key.replace('com.apple.quicktime.', '')} ={' '}
+                        {Array.isArray(it.value) ? it.value.map((n) => n.toFixed(3)).join(',') : String(it.value)}{' '}
+                        <span className="text-faint">
+                          @{s.timeSec.toFixed(2)}+{s.durSec.toFixed(2)} s
+                        </span>
+                      </div>
+                    )),
+                  ),
+                )}
+            </div>
+            <AudioSection key={probe.fileSize} blob={blob} />
           </>
         )}
       </div>

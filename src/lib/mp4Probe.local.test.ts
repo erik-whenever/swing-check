@@ -3,7 +3,7 @@
 // Skips itself when the clips are absent, so CI and other machines are unaffected.
 import { existsSync, openAsBlob } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { blobSource, probeMp4 } from './mp4Probe';
+import { blobSource, probeMp4, stretchProfile } from './mp4Probe';
 
 const DIR = 'data/shaft/clips/own';
 const has = (f: string) => existsSync(`${DIR}/${f}`);
@@ -36,5 +36,29 @@ describe('mp4Probe vs slowmo-diagnosis.md', () => {
     expect(video(p).codec).toBe('avc1');
     expect(video(p).stts!.fps).toBeCloseTo(30, 1);
     expect(p.appleKeysRaw).not.toContain('com.apple.quicktime.full-frame-rate-playback-intent');
+  });
+
+  // S-43: the stretch read from scene-illuminance timing (see slowmo-diagnosis.md §5).
+  it.skipIf(!has('IMG_3550.MOV'))('IMG_3550.MOV — 4× plateau 0.93–5.43 s from telemetry timing', async () => {
+    const p = await probe('IMG_3550.MOV');
+    const t = p.tracks.find((t) => t.mebxKeys.includes('com.apple.quicktime.scene-illuminance'))!;
+    const plateau = stretchProfile(t.mebxSamples).find((s) => s.factor === 4)!;
+    expect(plateau.startSec).toBeCloseTo(0.929, 2);
+    expect(plateau.endSec).toBeCloseTo(5.427, 2);
+    expect(plateau.captureSec).toBeCloseTo(135 / 120, 2);
+  });
+
+  it.skipIf(!has('IMG_3655.MOV'))('IMG_3655.MOV — real high-speed: telemetry is 1× throughout', async () => {
+    const p = await probe('IMG_3655.MOV');
+    const t = p.tracks.find((t) => t.mebxKeys.includes('com.apple.quicktime.scene-illuminance'))!;
+    expect(stretchProfile(t.mebxSamples).map((s) => s.factor)).toEqual([1]);
+  });
+
+  it.skipIf(!has('IMG_3557.MOV'))('IMG_3557.MOV — no telemetry track, segment-identifier is a bare UUID', async () => {
+    const p = await probe('IMG_3557.MOV');
+    expect(p.tracks.some((t) => t.mebxKeys.includes('com.apple.quicktime.scene-illuminance'))).toBe(false);
+    const seg = p.tracks.find((t) => t.mebxKeys.includes('com.apple.quicktime.segment-identifier'))!;
+    expect(seg.mebxSamples).toHaveLength(1);
+    expect(String(seg.mebxSamples[0].items[0].value)).toMatch(/^[0-9A-F]{8}-[0-9A-F]{4}-/);
   });
 });

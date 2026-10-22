@@ -3158,9 +3158,14 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 **mildare** än rundans grind). Nytt i [shaft/STATUS.md](shaft/STATUS.md) §6.
 
 
-### [~] S-42 — Diagnos: bär den File iOS-väljaren lämnar ut kvar Apples Slo-Mo-spår?
+### [x] S-42 — Diagnos: bär den File iOS-väljaren lämnar ut kvar Apples Slo-Mo-spår?
 
-> **Panelen klar (2026-10-22), telefonsvaret återstår.** Bakgrund: telefontest 2026-10-22 på prod
+> **Klart (2026-10-22): ja, nyckeln överlever väljaren.** Eriks telefontest (preview-bygget,
+> `IMG_3584.mov`, iPhone 16 Pro, iOS 18.1.1, valt ur Bilder): *Slo-Mo key present*
+> (`full-frame-rate-playback-intent = 0` i `moov/meta`), `mvhd` 19,300 s = `video.duration`, video
+> **`avc1`** 30,000 fps Δ 80/80/80 (iOS **kodade om** från `hvc1` på vägen), ljud `mp4a` + `apac`, ett
+> enda `mebx`-spår (19,27 s, ett sampel, Δ 46256) med `segment-identifier`. Slutsats: nyckeln kan
+> användas som detektor; `hvc1` kan det **inte** (väljaren byter codec). Ursprunglig notering: Bakgrund: telefontest 2026-10-22 på prod
 > (Slo-mo-klipp ur iOS Bilder via appens väljare) gav span 0–19,23 s, en burst på 6,85 s fälld av
 > `MAX_BURST_SEC` och 0 svingar — väljaren lämnar alltså ut den **tidssträckta** filen
 > ([shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §2). Ny dev-panel **Container metadata**
@@ -3177,6 +3182,30 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 > diagnosen:** `full-frame-rate-playback-intent` ligger strukturerat i `moov/meta` (värde `0`),
 > inte bara som rå sträng. **Återstår:** Erik kör panelen på iPhone (preview-deploy av
 > `stream-shaft`) med samma Slo-mo-klipp och läser av om nyckeln/`hvc1`/`mebx` överlevde väljaren.
+> *(Gjort, se ovan.)*
+
+### [x] S-43 — Diagnos: bär filen VILKET intervall som är slowat, och med vilken faktor?
+
+> **Klart (2026-10-22). Svar: nej — inte som uppgift i filen, och inte alls i den fil iOS-väljaren
+> lämnade ut.** Ingen fix, ingen tröskel, ingen pipelinekod. Parsern (`mp4Probe.ts`) avkodar nu
+> `mebx`-spårens nyckeltabell (`keys`/`keyd`/`dtyp` i `stsd`) och sampeldata (`stsz`/`stsc`/`stco`/
+> `co64` → läs varje sampel ur `mdat`), och panelen visar (a) sträckningsprofil ur telemetrins
+> tidtagning, (b) enkelsampel-värden, (c) en ljudprofil på begäran (`audioProfile.ts`). **Belägg,
+> alla 11 egna Slo-Mo-klipp:** `elst` = en post, `media_rate` 1 överallt; `moov/meta` bär bara
+> flaggan `full-frame-rate-playback-intent` (0 för de 10 renderade, **1** för äkta-höghastighets-
+> `3655`) plus plats/modell/datum; `segment-identifier` är **bara ett UUID** (36 B ASCII); inga andra
+> Apple-nycklar med intervall/takt. **Men implicit och exakt:** i de 3 klipp som bär
+> `scene-illuminance` (120 Hz kameratelemetri — `3550`, `3587`, `3597`) sträcks telemetrins sampel med
+> bilden, så sampel-Δ / bas-Δ = lokal faktor: `3550` 1× → ramp → **4× 0,93–5,43 s** (1,12 s verklig
+> tid) → ramp → 1× från 5,70 s; `3587` 4× 1,75–21,16 s; `3597` 4× 3,12–48,60 s; `3655` 1× hela vägen.
+> **De andra 8 lokala och telefonens `IMG_3584` saknar det spåret** (bara `segment-identifier`) — där
+> finns intervall + faktor inte i filen. **Näst bästa observerbara: ljudet**, som renderas med sänkt
+> tonhöjd i det slowade partiet (nollgenomgångsfrekvens innanför/utanför telemetri-facit 3,0/4,35/
+> 4,74). Som detektor duger det **inte**: missar halva `3587` (bollträffens transient bryter körningen
+> vid 16,0 s mot facit 21,16), ger falsk körning på `3655` (×2,81), faktorskattning 3,1–8,4 mot facit
+> 4×. `mp4Probe.test.ts` (syntetiskt, körs överallt) + `mp4Probe.local.test.ts` (3550-platån, 3655
+> 1×, 3557 utan telemetri). Rapport: [shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §5.
+> Ej gjort: jämförelse mot Bilder-appens slow-reglage (kan inte läsas härifrån).
 
 
 ---

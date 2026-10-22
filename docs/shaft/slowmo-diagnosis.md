@@ -189,7 +189,11 @@ precis det tal en sträckt fil ljuger med.
 **Uppdatering 2026-10-22 (S-42):** telefontest på prod bekräftar att väljaren lämnar ut den
 **tidssträckta** filen — ett Slo-mo-klipp ur iOS Bilder gav span 0–19,23 s, en burst på 6,85 s fälld
 av `MAX_BURST_SEC` (5,5 s) och 0 svingar. Om Apples spår (nyckeln nedan, `hvc1`, `mebx`) överlever
-väljaren läses av med dev-panelen *Container metadata* i Frame Preview — svar ej inkommet än.
+väljaren läses av med dev-panelen *Container metadata* i Frame Preview. **Svar (Eriks telefontest
+2026-10-22, `IMG_3584.mov`):** nyckeln finns kvar (`full-frame-rate-playback-intent = 0`), `mvhd`
+19,300 s = `video.duration`, men videon är **omkodad till `avc1`** (från `hvc1`) och bara ett
+`mebx`-spår (`segment-identifier`) återstår. Nyckeln duger alltså som detektor; codec gör det inte.
+Se §5 för om intervallet/faktorn följer med.
 
 **Vad som INTE går att verifiera härifrån:** exakt vad iOS Bilder-väljaren
 (`<input type=file>` i Safari/PWA-kontext) lämnar ut när användaren väljer
@@ -262,6 +266,46 @@ tidsgräns, aldrig en undre.
   §7 redan gav) — inget sagt om hur vanligt Slo-Mo-inspelade svingar är
   bland riktiga användare.
 - **Ingen fix föreslås.** Uppgiften bad uttryckligen om diagnos, inte åtgärd.
+
+## 5. S-43 — bär filen VILKET intervall som är slowat, och med vilken faktor?
+
+**Nej, inte som uppgift i filen.** Allt som avkodats, alla 11 egna Slo-Mo-klipp (TS-parsern
+`src/lib/mp4Probe.ts`, ingen pipelinekod rörd):
+
+- **`elst`:** en enda post per spår, `media_rate` = 1 överallt. Ingen avspelningstakt.
+- **`moov/meta`:** `full-frame-rate-playback-intent` (0 för de 10 renderade, **1** för äkta
+  höghastighet `3655`) + plats, modell, mjukvara, datum, (3555/3655) lins. Inget intervall, ingen takt.
+- **`mebx`-nyckeltabeller (`stsd` → `keys`/`keyd`/`dtyp`) och sampeldata (`stsz`/`stsc`/`stco`):**
+  `segment-identifier` är ett enda sampel över hela klippet med ett **UUID** (36 B ASCII,
+  t.ex. `59AFE015-530E-444F-8515-F01A123FF489` för 3550) — en identitet, inte ett intervall.
+  `3655` bär dessutom `video-orientation` (6) och `detected-face`; inget av det är tid.
+
+**Implicit och exakt — men bara när telemetrispåret finns.** `scene-illuminance` skrivs i fast
+fångsttakt (120 Hz). När iOS renderar Slo-Mo-exporten sträcks telemetrins sampel med bilden, så varje
+sampels Δ / bas-Δ (1/120 s) **är** den lokala uppspelningsfaktorn (`stretchProfile` i parsern):
+
+| klipp | 1× | ramp upp | **platå** | ramp ner | 1× | verklig tid i platån |
+|---|---|---|---|---|---|---:|
+| `IMG_3550` | 0–0,48 s | 0,48–0,93 (via 2×) | **4× 0,93–5,43 s** | 5,43–5,70 | 5,70–6,15 | 1,12 s |
+| `IMG_3587` | 0–1,28 | 1,28–1,75 | **4× 1,75–21,16** | 21,16–21,44 | 21,44–22,70 | 4,83 s |
+| `IMG_3597` | 0–2,67 | 2,67–3,12 | **4× 3,12–48,60** | 48,60–48,86 | 48,87–51,50 | 11,32 s |
+| `IMG_3655` (äkta 120 fps) | 0–6,18 | — | — | — | — | — |
+
+Det rättar §1.4: spårets "oregelbundna takt" (38 distinkta Δ i 3550) är inte sensorbrus — den är
+själva sträckningen. 4× = 120 → 30 fps. **Men 8 av 11 lokala klipp och telefonens väljar-fil
+`IMG_3584` saknar spåret helt** (bara `segment-identifier`). Där finns intervall + faktor inte i filen
+— och det är precis den fil appen får.
+
+**Näst bästa observerbara: ljudet.** Det slowade partiet renderas med sänkt tonhöjd (omsampling, inte
+tystnad). Nollgenomgångsfrekvens per 0,25 s (`audioProfile.ts`, avkodat i webbläsaren) utanför/innanför
+telemetri-facit: 3550 ×3,0, 3587 ×4,35, 3597 ×4,74, och stegen ligger vid telemetrins ramper. Som
+detektor duger det **inte**: den automatiska "low-pitch run" bryts av bollträffens transient (3587:
+slutar 16,0 s mot facit 21,16), ger en falsk körning på icke-sträckta `3655` (×2,81), och
+faktorskattningen spretar 3,1–8,4 mot sanna 4×. Panelen visar det som rådata + heuristik, inte som svar.
+
+**Inte gjort:** jämförelse mot Bilder-appens slow-reglage (går inte att läsa härifrån); avkodning av
+`detected-face`/`live-photo-info` (ej tidsrelevanta). Om originalet av 3584 hade telemetrispåret och
+väljarens omkodning tog bort det, eller om det aldrig fanns, går inte att avgöra från filen.
 
 ## Kör om
 
