@@ -2,7 +2,7 @@
 //
 //   npm run dev -- --port 5199 --strictPort      (in another terminal)
 //   node docs/shaft/practice-review/vision_ball.cjs frames <clipDir> <outDir> [baseUrl]
-//   node docs/shaft/practice-review/vision_ball.cjs call   <outDir> <variant> <ids|all> [baseUrl]
+//   node docs/shaft/practice-review/vision_ball.cjs call   <outDir> <variant> <quick|detailed> <ids|all> [baseUrl]
 //
 // `frames` costs nothing: per clip, production's chain in the dev app (extractPoseTrajectory →
 // readTimeStretch → detectSessionSwings), then for each accepted swing exactly what the session
@@ -24,13 +24,19 @@ const path = require('path');
 const BUDGET = 90; // approved by Erik for all of S-45 steg 3, reruns included
 const ORIGIN = 'http://localhost:5173';
 const TAG = 's45-vision-ball';
-// Production defaults (settings.ts): cameraAngle 'dtl', ttsEnabled true + ttsMode 'quick',
-// focusRuleId null. Rules: every library rule that matches DTL (Erik's choice, 2026-10-22).
+// Production defaults (settings.ts): cameraAngle 'dtl', focusRuleId null. Schema mode is an
+// argument: 'quick' (default ttsEnabled + ttsMode 'quick') or 'detailed' (TTS off or 'detailed').
+// The run was planned in quick mode; quick + 7 rules hit max_tokens 600 before the question,
+// so Erik moved it to detailed (vision-ball.md, "Avvikelse").
+// Rules: every library rule that matches DTL (Erik's choice, 2026-10-22).
 const ANGLE = 'dtl';
-const QUICK = true;
 
 // ── The locked question (vision-ball.md, "Frågan, låst före körning") ─────────────
-const SCHEMA_ANCHOR = '\n  "overall_assessment": "max one sentence",';
+// The schema line the fields go in front of, per mode (prompt.ts).
+const SCHEMA_ANCHORS = {
+  quick: '\n  "overall_assessment": "max one sentence",',
+  detailed: '\n  "overall_assessment": "2-3 sentence summary",',
+};
 const SCHEMA_INSERT =
   '\n  "ball_struck": "yes" | "no" | "unclear",' +
   '\n  "ball_struck_reason": "max one short phrase",';
@@ -43,10 +49,10 @@ const INSTRUCTION_INSERT =
   '\n- "unclear": the frames do not show the ball area clearly enough at address and after impact to tell. Do not guess.' +
   '\nball_struck_reason is written in Swedish, like every other free-text field.';
 
-function addBallQuestion(body) {
+function addBallQuestion(body, mode) {
   const block = body.messages[0].content[0];
   let text = block.text;
-  for (const [anchor, insert] of [[SCHEMA_ANCHOR, SCHEMA_INSERT], [INSTRUCTION_ANCHOR, INSTRUCTION_INSERT]]) {
+  for (const [anchor, insert] of [[SCHEMA_ANCHORS[mode], SCHEMA_INSERT], [INSTRUCTION_ANCHOR, INSTRUCTION_INSERT]]) {
     if (text.split(anchor).length !== 2) throw new Error(`anchor not found exactly once: ${JSON.stringify(anchor)}`);
     text = text.replace(anchor, insert + anchor);
   }
@@ -133,10 +139,12 @@ async function framesMode(clipDir, outDir, baseUrl = 'http://localhost:5199/') {
   await browser.close();
 }
 
-async function callMode(outDir, variant, which, baseUrl = 'http://localhost:5199/') {
+async function callMode(outDir, variant, mode, which, baseUrl = 'http://localhost:5199/') {
   if (!['ball', 'base'].includes(variant)) throw new Error('variant must be ball or base');
+  if (!['quick', 'detailed'].includes(mode)) throw new Error('mode must be quick or detailed');
+  const QUICK = mode === 'quick';
   const callsFile = path.join(outDir, 'calls.jsonl');
-  const resultFile = path.join(outDir, `results-${variant}.jsonl`);
+  const resultFile = path.join(outDir, `results-${variant}-${mode}.jsonl`);
   const sent = () => (fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').filter(Boolean).length : 0);
   const done = new Set(
     fs.existsSync(resultFile)
@@ -154,17 +162,17 @@ async function callMode(outDir, variant, which, baseUrl = 'http://localhost:5199
   await page.exposeFunction('__s45post', async (url, bodyText) => {
     if (sent() >= BUDGET) throw new Error(`budget: ${BUDGET} calls already sent — stopping`);
     const body = JSON.parse(bodyText);
-    if (variant === 'ball') addBallQuestion(body);
-    body.metadata = { user_id: `${TAG}-${variant}-${current}` };
+    if (variant === 'ball') addBallQuestion(body, mode);
+    body.metadata = { user_id: `${TAG}-${variant}-${mode}-${current}` };
     const sentAt = new Date().toISOString();
-    fs.appendFileSync(callsFile, JSON.stringify({ sentAt, job: current, variant, url }) + '\n');
+    fs.appendFileSync(callsFile, JSON.stringify({ sentAt, job: current, variant, mode, url }) + '\n');
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
       body: JSON.stringify(body),
     });
     const text = await res.text();
-    fs.writeFileSync(path.join(outDir, 'raw', `${variant}-${current.replace('#', '_')}.json`), JSON.stringify({ sentAt, status: res.status, prompt: body.messages[0].content[0].text, response: text }));
+    fs.writeFileSync(path.join(outDir, 'raw', `${variant}-${mode}-${current.replace('#', '_')}.json`), JSON.stringify({ sentAt, status: res.status, prompt: body.messages[0].content[0].text, response: text }));
     return { status: res.status, text };
   });
   fs.mkdirSync(path.join(outDir, 'raw'), { recursive: true });
@@ -207,9 +215,9 @@ async function callMode(outDir, variant, which, baseUrl = 'http://localhost:5199
         return { error: String(e?.message ?? e), usage };
       }
     }, f.frames, ANGLE, QUICK);
-    fs.appendFileSync(resultFile, JSON.stringify({ id, rep: Number(rep), variant, ms: Date.now() - t0, ...r }) + '\n');
+    fs.appendFileSync(resultFile, JSON.stringify({ id, rep: Number(rep), variant, mode, ms: Date.now() - t0, ...r }) + '\n');
     const b = r.analysis?.ball_struck ?? (r.error ? 'ERROR' : '—');
-    console.log(`${job} ${variant}: ${b} | in ${r.usage?.inputTokens} out ${r.usage?.outputTokens} cr ${r.usage?.cacheReadTokens} cw ${r.usage?.cacheCreationTokens} | sent ${sent()}/${BUDGET}${r.error ? ' | ' + r.error.slice(0, 120) : ''}`);
+    console.log(`${job} ${variant}/${mode}: ${b} | in ${r.usage?.inputTokens} out ${r.usage?.outputTokens} cr ${r.usage?.cacheReadTokens} cw ${r.usage?.cacheCreationTokens} | sent ${sent()}/${BUDGET}${r.error ? ' | ' + r.error.slice(0, 120) : ''}`);
   }
   await browser.close();
 }

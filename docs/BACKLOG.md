@@ -3272,6 +3272,17 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 
 ### [~] S-45 — Provsvingar accepteras som svingar (generellt, inte slow-mo)
 
+> **Steg 3 avbrutet (2026-10-22) efter 4 av 90 godkända Vision-anrop. Bollfrågan är obesvarad.**
+> Produktionens sessionsväg (E-2-beskärning, 7 DTL-regler, Sonnet 4.5 via Workern) plus en låst
+> fråga `ball_struck` (förregistrerad i commit `4535a91`). Svaret klipps vid `max_tokens` **även
+> utan frågan**, i quick-läge (600) och i detaljerat läge (2000), och produktionen kastar på ogiltig
+> JSON (se **S-48**). Det enda svar som hann fram (P45-001, slag) var `yes` och rätt. Det är n = 1,
+> inget resultat. Vad det betyder för produkten: **Vision kan inte prövas som bollsignal förrän S-48
+> är löst.** Frågan kostar 164 cachade prompt-tokens (en ny cachepost), inga nya bildrutor, och
+> några output-tokens ur ett tak som redan inte räcker. Beskärningen kan dessutom skära bort bollen
+> bakifrån (sett på P45-012). Kvar: S-48, sedan nytt godkännande för körningen (86 anrop återstår
+> av det gamla). Inget beslut. [shaft/practice-review/vision-ball.md](shaft/practice-review/vision-ball.md).
+>
 > **Steg 2 klart (2026-10-22): poängsatt. Återstår: ditt beslut om rekommendationen.** Eriks blinda
 > svar: **10 av 81 accepterade är falska (9 provsving, 1 ingen sving) = 12 % (Wilson 95 %: 7–21 %)**,
 > alla först i sitt klipp. **Ingen körtidssignal i grinden skiljer dem:** exkursion, toppfart,
@@ -3329,6 +3340,19 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 > upp den lokala disken (därav den nya rotankrade `.vercelignore`). Innan skaftdetektorn når
 > produktion måste det bestämmas var `shaft-v2.onnx` (~26 MB) bor och hur den versioneras —
 > inte avgjort här.
+
+### [ ] S-48 — Visions svar klipps vid max_tokens med 7 regler (båda lägena)
+
+> **Öppen, inget beslut (upptäckt 2026-10-22 under S-45 steg 3).** Produktionens anrop, utan
+> tillägg (sessionsvägen, E-2-beskärning, 28 bildrutor, de 7 DTL-reglerna ur biblioteket):
+> **quick-läge (appens standard: TTS på + `ttsMode 'quick'`, `MAX_TOKENS_QUICK` 600) klipps med
+> `stop_reason: max_tokens`** mitt i den sjunde regeln. Detaljerat läge (2000) klipps också. Svaret
+> var 6 000 tecken svensk `visual_evidence`/`observation`, och det anropet hade bollfrågan tillagd,
+> ett par dussin tokens. `parseAndValidate` kastar då "Invalid JSON". Användaren får ett misslyckat
+> anrop som redan är betalt (~$0,04 quick, ~$0,06 detaljerat). Bara n = 1 (P45-001, en sträckt sving),
+> så frekvensen är okänd, och antalet regler i fält är okänt (rules-storen är användarens egen).
+> Kommentaren i `api.ts` räknar med "~15 rules × a short_verdict" inom 600. Det stämmer inte här.
+> Underlag: [shaft/practice-review/vision-ball.md](shaft/practice-review/vision-ball.md).
 
 ---
 

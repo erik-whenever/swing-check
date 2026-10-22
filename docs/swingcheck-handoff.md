@@ -3,7 +3,13 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-45 steg 2 (`[~]`, väntar på beslut) — poängsatt. 10 av 81
+> **Senast (2026-10-22, stream-shaft):** S-45 steg 3 avbrutet efter 4 av 90 Vision-anrop. Bollfrågan är
+> obesvarad (n = 1, rätt). Fynd → **S-48:** produktionens anrop med 7 DTL-regler klipps vid
+> `max_tokens` i quick-läge (600) **utan** tillägg, och i detaljerat läge (2000). Ogiltig JSON blir
+> ett betalt, misslyckat anrop. Bildrutor för alla 81 finns i `data/shaft/practice-review/vision/frames/`.
+> 86 anrop återstår av godkännandet men kräver nytt ja. [shaft/practice-review/vision-ball.md](shaft/practice-review/vision-ball.md).
+>
+> **Före det (2026-10-22, stream-shaft):** S-45 steg 2 (`[~]`, väntar på beslut) — poängsatt. 10 av 81
 > accepterade svingar är falska (9 provsving, 1 ingen sving, 12 %). Ingen körtidssignal i grinden
 > skiljer dem (bästa kandidat: 5/10 mot 6/71 slag, klippsammanblandad). Ingen tröskel vald.
 > Rekommendation: ingen grind nu. Vid behov: be Vision om boll vid adress/finish.
