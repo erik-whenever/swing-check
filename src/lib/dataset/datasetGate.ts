@@ -34,7 +34,12 @@
 // Pure: a session result in, a swing list out. No video, no React, no I/O.
 
 import type { SwingEnvelope } from '../poseEnvelope';
-import type { SessionSwings, SwingCandidate } from '../poseSegments';
+import {
+  STRETCH_MAX_FACTOR,
+  type SegmentOptions,
+  type SessionSwings,
+  type SwingCandidate,
+} from '../poseSegments';
 
 /** Which acceptance gate let a swing into the dataset. Written per frame. */
 export type DatasetGate = 'production' | 'dataset-relaxed';
@@ -70,6 +75,16 @@ export const DATASET_MIN_ENVELOPE_SEC = 0.6;
  */
 export const DATASET_MAX_ENVELOPE_SEC = 12.0;
 
+/**
+ * S-46: a time-stretched Slo-Mo render (mp4Probe.readTimeStretch) gets the same treatment
+ * as in production's segmenter (S-44): the UPPER time bounds — the relaxed window's cap and
+ * the multi-swing suspicion line that mirrors `MAX_ENVELOPE_SEC` — scale by
+ * `STRETCH_MAX_FACTOR`. Lower bounds stay. Unflagged clips get exactly the old values.
+ */
+function upperScale(opts: SegmentOptions): number {
+  return opts.timeStretched ? STRETCH_MAX_FACTOR : 1;
+}
+
 /** Verdict of the relaxed gate for one envelope. */
 export interface DatasetGateResult {
   accepted: boolean;
@@ -102,7 +117,12 @@ export interface DatasetSwingSet {
  *
  * @param refSpeed the session's p95 wrist speed, from `segmentSwingCandidates`.
  */
-export function passesDatasetGate(envelope: SwingEnvelope, refSpeed: number): DatasetGateResult {
+export function passesDatasetGate(
+  envelope: SwingEnvelope,
+  refSpeed: number,
+  opts: SegmentOptions = {},
+): DatasetGateResult {
+  const maxEnvelopeSec = DATASET_MAX_ENVELOPE_SEC * upperScale(opts);
   const no = (reason: string): DatasetGateResult => ({ accepted: false, reason });
 
   if (!envelope.valid) return no(`envelope invalid (${envelope.reason ?? 'unknown'})`);
@@ -111,8 +131,8 @@ export function passesDatasetGate(envelope: SwingEnvelope, refSpeed: number): Da
   if (envSec < DATASET_MIN_ENVELOPE_SEC) {
     return no(`envelope ${envSec.toFixed(2)}s < ${DATASET_MIN_ENVELOPE_SEC}s (waggle?)`);
   }
-  if (envSec > DATASET_MAX_ENVELOPE_SEC) {
-    return no(`envelope ${envSec.toFixed(2)}s > ${DATASET_MAX_ENVELOPE_SEC}s (segmentation failure)`);
+  if (envSec > maxEnvelopeSec) {
+    return no(`envelope ${envSec.toFixed(2)}s > ${maxEnvelopeSec}s (segmentation failure)`);
   }
 
   if (envelope.peakSpeed < refSpeed * MIN_PEAK_SPEED_FRAC) {
@@ -139,8 +159,8 @@ export function passesDatasetGate(envelope: SwingEnvelope, refSpeed: number): Da
 }
 
 /** True when an envelope is long enough to possibly span more than one swing. */
-export function isSuspectMultiSwing(envelope: SwingEnvelope): boolean {
-  return envelope.finishSec - envelope.startSec > MULTI_SWING_SUSPECT_SEC;
+export function isSuspectMultiSwing(envelope: SwingEnvelope, opts: SegmentOptions = {}): boolean {
+  return envelope.finishSec - envelope.startSec > MULTI_SWING_SUSPECT_SEC * upperScale(opts);
 }
 
 /**
@@ -149,13 +169,16 @@ export function isSuspectMultiSwing(envelope: SwingEnvelope): boolean {
  * Output is sorted by envelope start, so `swingIndex` stays time-ordered within the
  * clip — frame ids are built from it and must not depend on which gate ran first.
  */
-export function collectDatasetSwings(session: SessionSwings): DatasetSwingSet {
+export function collectDatasetSwings(
+  session: SessionSwings,
+  opts: SegmentOptions = {},
+): DatasetSwingSet {
   const swings: DatasetSwing[] = session.swings.map((s) => ({
     candidate: s.candidate,
     envelope: s.envelope,
     impactSec: s.impactSec,
     gate: 'production' as const,
-    suspectMultiSwing: isSuspectMultiSwing(s.envelope),
+    suspectMultiSwing: isSuspectMultiSwing(s.envelope, opts),
   }));
   const rejected: DatasetSwingSet['rejected'] = [];
 
@@ -165,7 +188,7 @@ export function collectDatasetSwings(session: SessionSwings): DatasetSwingSet {
       rejected.push({ candidate: r.candidate, reason: r.reason });
       continue;
     }
-    const verdict = passesDatasetGate(r.envelope, session.refSpeed);
+    const verdict = passesDatasetGate(r.envelope, session.refSpeed, opts);
     if (!verdict.accepted) {
       rejected.push({ candidate: r.candidate, reason: verdict.reason });
       continue;
@@ -175,7 +198,7 @@ export function collectDatasetSwings(session: SessionSwings): DatasetSwingSet {
       envelope: r.envelope,
       impactSec: r.envelope.impact?.timeSec ?? null,
       gate: 'dataset-relaxed',
-      suspectMultiSwing: isSuspectMultiSwing(r.envelope),
+      suspectMultiSwing: isSuspectMultiSwing(r.envelope, opts),
     });
   }
 

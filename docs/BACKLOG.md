@@ -3259,6 +3259,28 @@ steg när posten tas: mät hur ofta det händer på de egna klippen (kräver fac
 provsving), och om en provsving som skickas till Vision alls är ett problem för användaren (ADR-003
 Risker §4: ett falskt positiv kostar ett Vision-anrop).
 
+### [x] S-46 — Slo-Mo-flaggan i dataset-extraktionen, bara för framtida klipp
+
+> **Klart (2026-10-22).** `extractDataset` läser `readTimeStretch(file)` och kör `detectSessionSwings`
+> och `collectDatasetSwings` med `{ timeStretched }` — samma detektor och samma skalning som S-44.
+> Datasetgrindens övre gränser skalas likadant (`DATASET_MAX_ENVELOPE_SEC` 12 → 96 s,
+> `MULTI_SWING_SUSPECT_SEC` 3 → 24 s, som speglar `MAX_ENVELOPE_SEC`); undre orörda. Nytt per-frame-fält
+> `timeStretched?: true`, satt **bara** när det är sant. **Skydd för annoterad data:** frame-id =
+> `frameId(clipName, swingIndex, frameIndex)`, och en ny svinguppsättning flyttar `swingIndex`. Därför
+> `src/lib/dataset/frozenClips.ts`: alla **152** `clipName` ur de fyra exporterna
+> (`data/shaft/exports/*.zip`) är frysta — för dem ignoreras flaggan och extraktionen blir exakt som
+> före. Kontrollerat: alla 650 id i batch-01…03 finns i de exporterna; evalset dras ur samma exporter.
+> Fyra exporterade klipp är kända Slo-Mo-renderingar (3569, 3583, 3587, 3597); tio exporterade klipp
+> finns inte lokalt och kunde inte kontrolleras — därav hela listan, inte bara de flaggade. Inga
+> befintliga filer ändrade, ingen omextraktion. **Verifiering, riktig extraktion i dev-appen (puppeteer,
+> `npm run dev`):** två före-körningar identiska (deterministiskt: manifest + JPEG-bytes); efter mot
+> före på 001, 002, IMG_4571, IMG_4617 (oflaggade) och IMG_5245 (0 svingar i båda): **varje
+> frame-post och varje JPEG byte-identisk**, alla toppnivåfält lika utom `extractedAt` (tidsstämpeln).
+> IMG_3569 (flaggad, fryst): identisk. IMG_3557 (flaggad, aldrig exporterad): envelope 3,0–5,2 utan
+> impact (slutade vid toppen) → **3,0–7,8, impact 6,6** (bilden ~6,8), `slowmo: true`,
+> `timeStretched: true`, samma id. Tester: `datasetGate.test.ts` (skalning + frysning). Lägg till nya
+> exporters klipp i `frozenClips.ts` när de annoteras.
+
 
 ---
 

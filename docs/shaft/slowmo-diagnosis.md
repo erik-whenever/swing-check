@@ -368,7 +368,8 @@ det slowade intervallet; inte observerat på något av de 61 oflaggade klippen. 
 och har inga övre tidstak — en uppladdande användare fick aldrig "0 svingar" av den här orsaken
 (däremot en envelope över sträckt tid, vilket S-44 märker med `SessionSwing.timeStretched`).
 Segmenteraren (`detectSessionSwings`) körs av: dataset-extraktionen (`extractDataset`, dev — **här
-slog felet**, och den läser ännu inte flaggan), dev-vyerna Segmentation View (där telefontestet såg 0
+slog felet**; läser flaggan sedan S-46, men bara för klipp som aldrig exporterats — de 152 redan
+exporterade är frysta i `frozenClips.ts` så att annoterade id inte flyttas), dev-vyerna Segmentation View (där telefontestet såg 0
 svingar; läser flaggan sedan S-44) och Shaft preview, samt live-sessionens detektor
 (`liveSwingDetector`). Live-sessionen analyserar kamerabilder i realtid, som aldrig är en
 Slo-Mo-rendering — den kan inte ha träffats.

@@ -3,7 +3,12 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-44 (klar, `[x]`) — Eriks beslut: 3550/3575 rätt avvisade
+> **Senast (2026-10-22, stream-shaft):** S-46 (klar) — Slo-Mo-flaggan i `extractDataset`, bara för
+> klipp som aldrig exporterats: `frozenClips.ts` fryser alla 152 exporterade klipp (batch-01…03 och
+> evalset kan inte byta id). Oflaggade klipp: manifest-poster och JPEG byte-identiska före/efter.
+> **När en ny export annoteras: lägg dess klipp i `frozenClips.ts`.**
+>
+> **Före det (2026-10-22, stream-shaft):** S-44 (klar, `[x]`) — Eriks beslut: 3550/3575 rätt avvisade
 > (saknar adress) → 5 av 5 räddningsbara med rätt antal; 3587 topp-som-finish = känd begränsning
 > (shaft/STATUS.md §7); provsvingar → S-45 (öppen, ingen kod). Produktionens uppladdning kör inte
 > segmenteraren — felet slog mot dataset-extraktionen och dev-vyerna, inte uppladdande användare.

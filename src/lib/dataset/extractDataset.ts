@@ -32,11 +32,13 @@
 
 import { ANALYSIS_FRAME_COUNT } from '../frameExtractor';
 import { createLogger } from '../logger';
+import { readTimeStretch } from '../mp4Probe';
 import { grabFramesAtTimes } from '../poseFrameGrab';
 import { selectEnvelopeFrames } from '../poseEnvelopeSelection';
 import { detectSessionSwings } from '../poseSegments';
 import { extractPoseTrajectory } from '../poseTrajectory';
 import { derivePhase } from './datasetPhase';
+import { FROZEN_CLIP_NAMES } from './frozenClips';
 import {
   DATASET_MAX_ENVELOPE_SEC,
   DATASET_MIN_ENVELOPE_SEC,
@@ -203,11 +205,18 @@ export async function extractDataset(
       });
       if (signal?.aborted) break;
 
-      const session = detectSessionSwings(samples);
+      // S-46: a Slo-Mo render gets production's widened upper time limits (S-44) — but
+      // only if its frames were never exported. An already-exported clip is FROZEN to the
+      // old rule, because a different swing set would shift `swingIndex` and hand an
+      // annotated id to a different frame (see frozenClips.ts).
+      const stretch = await readTimeStretch(clip.file);
+      const frozen = FROZEN_CLIP_NAMES.has(clipName);
+      const timeStretched = stretch.timeStretched && !frozen;
+      const session = detectSessionSwings(samples, { timeStretched });
       // Production's verdict first, then the dev gate over what it rejected. Ordered by
       // envelope start, so `swingIndex` — and therefore every frame id — is time-ordered
       // regardless of which gate found the swing.
-      const detected = collectDatasetSwings(session);
+      const detected = collectDatasetSwings(session, { timeStretched });
       report('grabbing', 0);
 
       const swings: SwingResult[] = [];
@@ -264,6 +273,8 @@ export async function extractDataset(
             hasConfidentImpact: swing.impactSec !== null,
             suspectMultiSwing: swing.suspectMultiSwing,
             notes: clip.notes,
+            // Only when set, so an unflagged clip's record is byte-identical to before.
+            ...(timeStretched ? { timeStretched: true as const } : {}),
           },
         }));
 
@@ -303,6 +314,8 @@ export async function extractDataset(
         suspectMultiSwing: counts.suspectMultiSwing,
         rejected: detected.rejected.length,
         frames: swings.reduce((sum, s) => sum + s.frames.length, 0),
+        timeStretched,
+        ...(stretch.timeStretched && frozen ? { stretchIgnored: 'frozen (already exported)' } : {}),
         segmentationReason: session.segmentation.reason ?? null,
       });
     } catch (err) {

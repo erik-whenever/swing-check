@@ -108,6 +108,13 @@ export interface FrameMetadata {
   suspectMultiSwing: boolean;
   /** Free-text note set per clip in the UI. Empty string when none. */
   notes: string;
+  /**
+   * Present (always `true`) only when the clip is an iOS Slo-Mo render extracted under the
+   * S-46 rule: its timeline is stretched, so `tSec`/`envelopeSec` are file-time positions
+   * and `envelopeDurationSec` is NOT a real-time duration. Absent on every other frame —
+   * including frozen, already-exported clips — so their records are unchanged.
+   */
+  timeStretched?: true;
 }
 
 /** Top level of `manifest.json`. */

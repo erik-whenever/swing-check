@@ -24,7 +24,8 @@ import {
   passesDatasetGate,
 } from './datasetGate';
 import type { SwingEnvelope } from '../poseEnvelope';
-import { isSwing, type SessionSwings, type SwingCandidate } from '../poseSegments';
+import { STRETCH_MAX_FACTOR, isSwing, type SessionSwings, type SwingCandidate } from '../poseSegments';
+import { FROZEN_CLIP_NAMES } from './frozenClips';
 
 /** Session refSpeed used throughout — 1.0 makes the peak-speed fraction read directly. */
 const REF_SPEED = 1;
@@ -263,5 +264,41 @@ describe('mirrored production thresholds still match isSwing', () => {
     expect(isSwing(lasting(MULTI_SWING_SUSPECT_SEC + 0.01), REF_SPEED).reason).toContain(
       'not one swing',
     );
+  });
+});
+
+// ── S-46: time-stretched Slo-Mo renders ──────────────────────────────────────
+describe('time-stretched clips (S-46)', () => {
+  const k = STRETCH_MAX_FACTOR;
+
+  it('unflagged: every bound exactly as before', () => {
+    expect(passesDatasetGate(lasting(DATASET_MAX_ENVELOPE_SEC + 0.1), REF_SPEED).accepted).toBe(false);
+    expect(passesDatasetGate(lasting(DATASET_MAX_ENVELOPE_SEC + 0.1), REF_SPEED, { timeStretched: false }).accepted).toBe(false);
+    expect(isSuspectMultiSwing(lasting(MULTI_SWING_SUSPECT_SEC + 0.1))).toBe(true);
+  });
+
+  it('flagged: the upper bounds scale by STRETCH_MAX_FACTOR, the lower one does not', () => {
+    const opts = { timeStretched: true };
+    expect(passesDatasetGate(lasting(DATASET_MAX_ENVELOPE_SEC + 0.1), REF_SPEED, opts).accepted).toBe(true);
+    expect(passesDatasetGate(lasting(DATASET_MAX_ENVELOPE_SEC * k + 0.1), REF_SPEED, opts).accepted).toBe(false);
+    expect(isSuspectMultiSwing(lasting(MULTI_SWING_SUSPECT_SEC + 0.1), opts)).toBe(false);
+    expect(isSuspectMultiSwing(lasting(MULTI_SWING_SUSPECT_SEC * k + 0.1), opts)).toBe(true);
+    expect(passesDatasetGate(lasting(DATASET_MIN_ENVELOPE_SEC - 0.05), REF_SPEED, opts).accepted).toBe(false);
+  });
+});
+
+describe('frozen clips (S-46)', () => {
+  it('holds the four exported Slo-Mo renders, so their ids can never shift', () => {
+    for (const c of ['IMG_3569.MOV', 'IMG_3583.MOV', 'IMG_3587.MOV', 'IMG_3597.MOV']) {
+      expect(FROZEN_CLIP_NAMES.has(c), c).toBe(true);
+    }
+  });
+  it('does not hold never-exported Slo-Mo renders, which get the new rule', () => {
+    for (const c of ['IMG_3550.MOV', 'IMG_3557.MOV', 'IMG_3558.MOV']) {
+      expect(FROZEN_CLIP_NAMES.has(c), c).toBe(false);
+    }
+  });
+  it('lists every clip of the four exports (152)', () => {
+    expect(FROZEN_CLIP_NAMES.size).toBe(152);
   });
 });
