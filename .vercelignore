@@ -1,0 +1,15 @@
+# Lokala deploys med `vercel deploy` laddar upp disken, inte git — håll ute allt stort/privat.
+/data/
+/training/
+/docs/
+/dist/
+/dev-dist/
+/node_modules/
+/.wrangler/
+/.claude/
+/.env
+/.env.local
+/yt-dlp.exe
+/test.json
+/swingcheck-issues.json
+/swingcheck-issues-readme.md

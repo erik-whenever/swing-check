@@ -70,3 +70,5 @@ training/trace-*.csv
 docs/shaft/across-sign-candidates/
 docs/shaft/across-sign-blind/
 docs/shaft/phase-audit/frames/
+.vercel
+.env*
