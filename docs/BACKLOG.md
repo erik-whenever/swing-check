@@ -3207,8 +3207,14 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 > 1×, 3557 utan telemetri). Rapport: [shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §5.
 > Ej gjort: jämförelse mot Bilder-appens slow-reglage (kan inte läsas härifrån).
 
-### [~] S-44 — Fix: tidssträckta Slo-Mo-klipp i segmenteraren
+### [x] S-44 — Fix: tidssträckta Slo-Mo-klipp i segmenteraren
 
+> **Klart (2026-10-22). Eriks beslut:** 3550 och 3575 räknas som **rätt avvisade** (saknar adress —
+> samma regel som 3555/3556/5074), så facit blir **5 av 5 räddningsbara klipp med rätt antal**
+> (3557, 3558, 3569, 3583, 3587). 3587:s topp-läst-som-finish är en **känd begränsning**, ingen
+> ändring i `poseEnvelope.ts` (slowmo-diagnosis.md §6, shaft/STATUS.md §7). Provsvingar → egen post
+> S-45. Ursprunglig notering:
+>
 > **Kod klar, verifierad (2026-10-22) — 5 av 7 missade räddas, 2 kan inte räddas utan att röra undre
 > gränser; beslut ditt.** `mp4Probe.ts` är nu produktionsmodul (ingen dev-import; `mebx`-avkodning
 > opt-in för panelen) med `readTimeStretch(blob)`: **sträckt = intent 0 OCH videospår < 90 fps**.
@@ -3240,7 +3246,18 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 > listorna) får en **provsving** utan boll. Faktor 8 vs 4 identiskt på alla egna klipp. Tabell:
 > [shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §6. **Återstår (beslut):** (a) 3587:s
 > topp-som-finish (`FINISH_MIN_HOLD_FRAMES` är sampelbaserad i låsta `poseEnvelope.ts`),
-> (b) provsvingar generellt, (c) om 3550/3575 alls ska räknas som missade.
+> (b) provsvingar generellt, (c) om 3550/3575 alls ska räknas som missade. *(Avgjort, se ovan.)*
+
+### [ ] S-45 — Provsvingar accepteras som svingar (generellt, inte slow-mo)
+
+`detectSessionSwings` har ingen signal som skiljer en provsving (ingen boll) från ett slag: grinden
+mäter struktur (adress → händerna upp → hållen finish, varaktighet, exkursion), och en provsving har
+samma struktur. Upptäckt i S-44 på `IMG_3597` (provsving 22–26 s, fälld förut bara av
+`MAX_ENVELOPE_SEC` för att klippet var sträckt), men samma provsving i ett realtidsklipp hade
+accepterats redan före S-44 — problemet är inte slow-mo-specifikt. **Ingen kod beslutad.** Första
+steg när posten tas: mät hur ofta det händer på de egna klippen (kräver facit per sving: slag eller
+provsving), och om en provsving som skickas till Vision alls är ett problem för användaren (ADR-003
+Risker §4: ett falskt positiv kostar ett Vision-anrop).
 
 
 ---

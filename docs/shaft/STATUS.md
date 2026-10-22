@@ -5,7 +5,8 @@
 > och kvar står i [../BACKLOG.md](../BACKLOG.md). Den här filen är för det som är känt fel
 > eller känt osäkert och som en läsare av ett värde behöver veta **innan** hen litar på det.
 >
-> Senast uppdaterad: 2026-09-20 (S-40: **att läsa toppen över ett fönster stabiliserar utfallet —
+> Senast uppdaterad: 2026-10-22 (S-44: ny §7 — i ett sträckt Slo-Mo-klipp kan envelopen sluta vid
+> toppen i stället för efter finishen; känd begränsning, ingen ändring.) Föregående: 2026-09-20 (S-40: **att läsa toppen över ett fönster stabiliserar utfallet —
 > men betalar 11 rätta rader för 1, och fönstret finns inte i produktionens rutnät.** Se §1, §2, §3
 > och det nya §6. Spärren från S-30 står kvar oförändrad och ingen tröskel är satt, ingen bredd är vald.
 > Föregående: S-39, en bildrutas fel byter `top-shaft-orientation`:s utfall på 22 % av raderna —
@@ -414,3 +415,15 @@ tystnadssidan, och `NEAR_VERTICAL_GATE_DEG` är satt medvetet brett för att hel
 det stabila; det är tystnadskanten som rör sig. Och `on-plane` inträffar på **20 av 1 756**
 besvarade kandidatrutor (1,1 %), så mellankategorin är i praktiken tom.
 [top-review/coarse-tso.md](top-review/coarse-tso.md).
+
+## 7. Sträckta Slo-Mo-klipp: envelopen kan sluta vid toppen (S-44, känd begränsning)
+
+I en iOS Slo-Mo-rendering är det slowade intervallet sträckt 4× (8× vid 240 fps) på filens tidslinje.
+`detectSwingEnvelope` kräver en hållen finish på `FINISH_MIN_HOLD_FRAMES` = 3 **sampel**, inte
+sekunder, så en sträckt vila i backswingens topp kan klara kravet och läsas som finish. Uppmätt på
+`IMG_3587`: envelope 12,13–15,47 s, slutar vid toppen; träffen ligger ~15,8 s och finishen till
+~19,6 s; ingen impact. **Följd för mätlagret:** varje bildruta efter toppen saknas i envelopen —
+`impact`, och därmed `topSec` ur den säkra grenen, finns inte, så `top-shaft-orientation` faller på
+`phase-missing` (§3) i stället för att mäta fel. Antalet svingar är rätt. **Beslut (Erik,
+2026-10-22): ingen ändring i `poseEnvelope.ts`.** Märkning: svingen bär `timeStretched: true`, och dess
+durationer ska inte läsas som tempo. Underlag: [slowmo-diagnosis.md](slowmo-diagnosis.md) §6.

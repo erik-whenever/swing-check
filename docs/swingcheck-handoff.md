@@ -3,7 +3,11 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-44 (`[~]`) — sträckta Slo-Mo-klipp i segmenteraren.
+> **Senast (2026-10-22, stream-shaft):** S-44 (klar, `[x]`) — Eriks beslut: 3550/3575 rätt avvisade
+> (saknar adress) → 5 av 5 räddningsbara med rätt antal; 3587 topp-som-finish = känd begränsning
+> (shaft/STATUS.md §7); provsvingar → S-45 (öppen, ingen kod). Produktionens uppladdning kör inte
+> segmenteraren — felet slog mot dataset-extraktionen och dev-vyerna, inte uppladdande användare.
+> Ingen merge till main. Tidigare text: sträckta Slo-Mo-klipp i segmenteraren.
 > `readTimeStretch` (intent 0 + < 90 fps) → `STRETCH_MAX_FACTOR = 8` på `MAX_ENVELOPE_SEC`,
 > `MAX_BURST_SEC`, `MAX_DOWNSWING_SEC`. Egna klipp: 78 → 84 svingar, 61 oflaggade byte-identiska;
 > 4 av 7 missade räddas rent, 3587 med fel gränser (envelope slutar vid toppen), 3550/3575 kan inte

@@ -350,9 +350,31 @@ svingar, samma 14 nollklipp). Facit = antal svingar sett i kontaktark (0,4 s ste
 och 3597:s provsving försvinner. 8 släpper alltså inte in något som 4 inte också släpper in på det här
 urvalet — de två tveksamma acceptanserna (3587, 3597) kommer av sträckningen som sådan, inte av taket.
 
+**Facit, beslutat (Erik, 2026-10-22):** 3550 och 3575 räknas som **rätt avvisade** — båda saknar
+adress, samma regel som 3555/3556/5074. Räddningsbara klipp: 3557, 3558, 3569, 3583, 3587 → **5 av 5
+med rätt antal** efter S-44.
+
+**Känd begränsning — 3587, topp läst som finish (beslut: ingen ändring i `poseEnvelope.ts`).**
+Envelopen slutar vid toppen (15,47 s) i stället för efter finishen (~19,6 s); ingen impact hittas.
+Orsak: `FINISH_MIN_HOLD_FRAMES` (3) räknas i sampel, inte sekunder, och en 4× sträckt vila i
+backswingens topp är tillräckligt många sampel för att klara kravet. Följd om svingen skulle skickas
+vidare: bildrutor från adress→topp, utan träff och finish. Gäller sträckta klipp där toppen ligger i
+det slowade intervallet; inte observerat på något av de 61 oflaggade klippen. Antalet är rätt.
+
+**Provsvingar** (3597) är ett generellt problem, inte ett slow-mo-problem — egen post S-45.
+
+**Vilka flöden slow-mo-felet faktiskt träffade.** Produktionens uppladdning (`CameraView` →
+`frameExtractor.extractFrames` → `detectSwingEnvelope` över hela klippet) **kör inte segmenteraren**
+och har inga övre tidstak — en uppladdande användare fick aldrig "0 svingar" av den här orsaken
+(däremot en envelope över sträckt tid, vilket S-44 märker med `SessionSwing.timeStretched`).
+Segmenteraren (`detectSessionSwings`) körs av: dataset-extraktionen (`extractDataset`, dev — **här
+slog felet**, och den läser ännu inte flaggan), dev-vyerna Segmentation View (där telefontestet såg 0
+svingar; läser flaggan sedan S-44) och Shaft preview, samt live-sessionens detektor
+(`liveSwingDetector`). Live-sessionen analyserar kamerabilder i realtid, som aldrig är en
+Slo-Mo-rendering — den kan inte ha träffats.
+
 **Vad det INTE säger:** 9 klipp, en golfare per klipp, alla 4×. Inget 8×-klipp (240 fps) finns att
-testa mot. Produktionens uppladdning (`frameExtractor`) kör inte segmenteraren — fixen syns i
-Segmentation View och i livedetektorns kod (som aldrig får sträckta klipp), inte i Vision-flödet.
+testa mot.
 
 ## Kör om
 
