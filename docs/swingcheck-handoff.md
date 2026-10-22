@@ -3,7 +3,14 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-43 (klar) — **intervall + faktor finns INTE som uppgift i
+> **Senast (2026-10-22, stream-shaft):** S-44 (`[~]`) — sträckta Slo-Mo-klipp i segmenteraren.
+> `readTimeStretch` (intent 0 + < 90 fps) → `STRETCH_MAX_FACTOR = 8` på `MAX_ENVELOPE_SEC`,
+> `MAX_BURST_SEC`, `MAX_DOWNSWING_SEC`. Egna klipp: 78 → 84 svingar, 61 oflaggade byte-identiska;
+> 4 av 7 missade räddas rent, 3587 med fel gränser (envelope slutar vid toppen), 3550/3575 kan inte
+> räddas utan undre gränser, 3597 får en provsving. Produktionens uppladdning kör inte segmenteraren
+> (frameExtractor låst) — fixen syns i Segmentation View och märker `SessionSwing.timeStretched`.
+>
+> **Före det (2026-10-22, stream-shaft):** S-43 (klar) — **intervall + faktor finns INTE som uppgift i
 > filen.** Bara implicit, i tidtagningen hos telemetrispåret `scene-illuminance` (exakt 4×-platå + ramper
 > i 3 av 11 egna klipp), och det spåret saknas i telefonens väljar-fil `IMG_3584` och i 8 av 11 lokala.
 > Ljudets tonhöjdsfall är näst bästa signal men för brusigt som detektor. Panelen visar nu sträcknings-

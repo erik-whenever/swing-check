@@ -146,6 +146,53 @@ const MIN_PEAK_SPEED_FRAC = 0.4;
  */
 const COOLDOWN_SEC = 2.0;
 
+// ── Tidssträckta Slo-Mo-klipp (S-44) ─────────────────────────────────────────
+/**
+ * En iOS Slo-Mo-RENDERING sträcker det slowade intervallet på filens tidslinje
+ * (slowmo-diagnosis.md §1.4/§5) — 4× vid 120→30 fps, 8× vid 240→30. Filen säger
+ * ATT den är sträckt (`full-frame-rate-playback-intent`, se mp4Probe.readTimeStretch)
+ * men inte VAR eller HUR MYCKET, så de ÖVRE tidstaken skalas med den största faktorn
+ * iPhone kan producera. Undre gränser rörs inte: sträckning gör allt längre, så en
+ * undre gräns blir bara lättare att klara (diagnosen §3).
+ *
+ * Skalas (stretch-känsliga i FELANDE riktning):
+ *   MAX_ENVELOPE_SEC, MAX_BURST_SEC (= MAX_ENVELOPE_SEC + POST_FINISH_TAIL_SEC, båda
+ *   skalade), MAX_DOWNSWING_SEC.
+ * Skalas INTE: alla MIN_*, MIN_ADDRESS_SEC (och PAD_BEFORE_SEC som härleds ur den),
+ *   COOLDOWN_SEC (ett minsta avstånd), PAD_AFTER_SEC (se OSÄKER nedan), samt alla
+ *   hastighetsgränser — de är relativa refSpeed från samma klipp och därmed
+ *   sträckningsinvarianta.
+ * OSÄKER: 8 är taket, inte den uppmätta faktorn — de egna klippen är alla 4×. På de 9
+ *   flaggade egna klippen ger 8 och 4 IDENTISKT utfall, så 8 släpper inte in något extra
+ *   där. Men två av de nya acceptanserna är inte rena svingar (slowmo-diagnosis.md §6):
+ *   IMG_3597 får en PROVSVING utan boll (fälld förut bara av MAX_ENVELOPE_SEC; även
+ *   faktor 2 släpper in den), och IMG_3587:s envelope slutar vid TOPPEN, inte efter
+ *   finishen — den sträckta toppvilan klarar `FINISH_MIN_HOLD_FRAMES` (sampelbaserad, i
+ *   den låsta poseEnvelope.ts). Rätt antal, fel gränser. Risk: låg i antal (1 av 6 nya),
+ *   men en sådan sving skulle få bildrutor från adress→topp utan träff.
+ */
+export const STRETCH_MAX_FACTOR = 8;
+
+export interface SegmentOptions {
+  /** Klippets tidslinje är en Slo-Mo-rendering (mp4Probe.readTimeStretch). */
+  timeStretched?: boolean;
+}
+
+interface UpperLimits {
+  maxEnvelopeSec: number;
+  maxBurstSec: number;
+  maxDownswingSec: number;
+}
+
+function upperLimits(opts: SegmentOptions): UpperLimits {
+  const k = opts.timeStretched ? STRETCH_MAX_FACTOR : 1;
+  return {
+    maxEnvelopeSec: MAX_ENVELOPE_SEC * k,
+    maxBurstSec: MAX_BURST_SEC * k,
+    maxDownswingSec: MAX_DOWNSWING_SEC * k,
+  };
+}
+
 // ── Typer ────────────────────────────────────────────────────────────────────
 
 export interface SwingCandidate {
@@ -226,6 +273,13 @@ export interface DetectedSwing {
   impactSec: number | null;
   /** Impact när den finns, annars envelopens start. Ordning + cooldown använder denna. */
   anchorSec: number;
+  /**
+   * Satt (alltid `true`) när klippet är en Slo-Mo-rendering. Då är envelope-, nedsvings-
+   * och burst-DURATIONERNA i filens sträckta tid, inte verklig tid — de får inte visas
+   * eller utvärderas som tempo. Tidpunkterna (för att hämta bildrutor) är fortfarande
+   * rätt i filens egen tidsbas. Utelämnat för vanliga klipp, så deras utdata är oförändrad.
+   */
+  timeStretched?: true;
 }
 
 export interface SessionSwings {
@@ -248,7 +302,11 @@ interface Vec {
  * `detectSwingEnvelope` som om den vore ett enkelsvingsklipp (ADR-003 §2 steg A).
  * Kastar aldrig; på otolkbar indata returneras en tom kandidatlista med `reason`.
  */
-export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResult {
+export function segmentSwingCandidates(
+  samples: PoseSample[],
+  opts: SegmentOptions = {},
+): SegmentationResult {
+  const { maxBurstSec } = upperLimits(opts);
   const n = samples.length;
   const t = samples.map((s) => s.t);
   const sampleDt = medianDt(t);
@@ -355,7 +413,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
       // en utebliven sving går inte att härleda till rätt steg. Rent observationellt.
       const culls: string[] = [];
       if (burstSec < MIN_BURST_SEC) culls.push(`too short (${burstSec.toFixed(2)}s < ${MIN_BURST_SEC}s)`);
-      if (burstSec > MAX_BURST_SEC) culls.push(`too long (${burstSec.toFixed(2)}s > ${MAX_BURST_SEC}s)`);
+      if (burstSec > maxBurstSec) culls.push(`too long (${burstSec.toFixed(2)}s > ${maxBurstSec}s)`);
       if (peak < refSpeed * MIN_BURST_PEAK_FRAC) {
         culls.push(
           `too slow (peak ${peak.toFixed(2)} < ${(refSpeed * MIN_BURST_PEAK_FRAC).toFixed(2)})`,
@@ -372,7 +430,7 @@ export function segmentSwingCandidates(samples: PoseSample[]): SegmentationResul
 
       if (
         burstSec >= MIN_BURST_SEC &&
-        burstSec <= MAX_BURST_SEC &&
+        burstSec <= maxBurstSec &&
         peak >= refSpeed * MIN_BURST_PEAK_FRAC
       ) {
         const startIdx = indexAtOrAfter(t, t[i] - PAD_BEFORE_SEC);
@@ -427,7 +485,9 @@ export function isSwing(
   refSpeed: number,
   /** Ankartid för närmast föregående ACCEPTERADE sving (impact, annars envelope-start). */
   prevAcceptedImpactSec?: number | null,
+  opts: SegmentOptions = {},
 ): SwingGate {
+  const { maxEnvelopeSec, maxDownswingSec } = upperLimits(opts);
   const no = (reason: string): SwingGate => ({ accepted: false, reason });
 
   if (!envelope.valid) return no(`envelope invalid (${envelope.reason ?? 'unknown'})`);
@@ -438,7 +498,7 @@ export function isSwing(
 
   const envSec = envelope.finishSec - envelope.startSec;
   if (envSec < MIN_ENVELOPE_SEC) return no(`envelope ${envSec.toFixed(2)}s < ${MIN_ENVELOPE_SEC}s (waggle?)`);
-  if (envSec > MAX_ENVELOPE_SEC) return no(`envelope ${envSec.toFixed(2)}s > ${MAX_ENVELOPE_SEC}s (not one swing)`);
+  if (envSec > maxEnvelopeSec) return no(`envelope ${envSec.toFixed(2)}s > ${maxEnvelopeSec}s (not one swing)`);
 
   if (envelope.peakSpeed < refSpeed * MIN_PEAK_SPEED_FRAC) {
     return no(
@@ -486,8 +546,8 @@ export function isSwing(
   const ds = envelope.impact?.downswingSec ?? null;
   if (ds !== null) {
     if (ds < MIN_DOWNSWING_SEC) return no(`downswing ${ds.toFixed(2)}s < ${MIN_DOWNSWING_SEC}s`);
-    if (ds > MAX_DOWNSWING_SEC) {
-      return no(`downswing ${ds.toFixed(2)}s > ${MAX_DOWNSWING_SEC}s (envelope spans more than one swing)`);
+    if (ds > maxDownswingSec) {
+      return no(`downswing ${ds.toFixed(2)}s > ${maxDownswingSec}s (envelope spans more than one swing)`);
     }
   }
 
@@ -517,8 +577,11 @@ export function isSwing(
  * → grinda. Ett segment in ger identiskt resultat som dagens enkelklippsväg ut —
  * det är hela poängen med att wrappa i stället för att skriva om.
  */
-export function detectSessionSwings(samples: PoseSample[]): SessionSwings {
-  const segmentation = segmentSwingCandidates(samples);
+export function detectSessionSwings(
+  samples: PoseSample[],
+  opts: SegmentOptions = {},
+): SessionSwings {
+  const segmentation = segmentSwingCandidates(samples, opts);
   const swings: DetectedSwing[] = [];
   const rejected: SessionSwings['rejected'] = [];
 
@@ -530,13 +593,14 @@ export function detectSessionSwings(samples: PoseSample[]): SessionSwings {
     }
     const envelope = detectSwingEnvelope(slice);
     const prev = swings.length > 0 ? swings[swings.length - 1].anchorSec : null;
-    const gate = isSwing(envelope, segmentation.refSpeed, prev);
+    const gate = isSwing(envelope, segmentation.refSpeed, prev, opts);
     if (gate.accepted) {
       swings.push({
         candidate,
         envelope,
         impactSec: envelope.impact?.timeSec ?? null,
         anchorSec: envelope.impact?.timeSec ?? envelope.startSec,
+        ...(opts.timeStretched ? { timeStretched: true as const } : {}),
       });
     } else {
       rejected.push({ candidate, envelope, reason: gate.reason });

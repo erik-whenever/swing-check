@@ -23,6 +23,7 @@ import { createLogger } from '../../lib/logger';
 import { detectSessionSwings, type DetectedSwing } from '../../lib/poseSegments';
 import { selectEnvelopeFrames, type FramePick } from '../../lib/poseEnvelopeSelection';
 import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
+import { readTimeStretch } from '../../lib/mp4Probe';
 import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
 import { SkeletonOverlay } from './SkeletonOverlay';
@@ -45,27 +46,47 @@ export function SegmentedSwings({
   poseSamples: PoseSample[];
   videoBlob: Blob;
 }) {
+  // S-44: a Slo-Mo render gets widened upper time limits. Read the flag from the file
+  // first and segment only once it is known — segmenting twice would log twice and
+  // flash an unflagged result. Keyed by blob, so a new clip never sees the old flag.
+  const [stretch, setStretch] = useState<{ blob: Blob; timeStretched: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    readTimeStretch(videoBlob).then((s) => {
+      if (!cancelled) setStretch({ blob: videoBlob, timeStretched: s.timeStretched });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [videoBlob]);
+  const timeStretched = stretch?.blob === videoBlob ? stretch.timeStretched : null;
+
   // Segmentation is pure and cheap — derive it, don't store it.
-  const session = useMemo(() => detectSessionSwings(poseSamples), [poseSamples]);
+  const session = useMemo(
+    () => (timeStretched === null ? null : detectSessionSwings(poseSamples, { timeStretched })),
+    [poseSamples, timeStretched],
+  );
 
   const [frames, setFrames] = useState<SwingFrames[]>([]);
   const [status, setStatus] = useState<GrabStatus>('idle');
   const [progress, setProgress] = useState(0);
   const [lightbox, setLightbox] = useState<{ b64: string; label: string } | null>(null);
 
-  const multi = session.swings.length > 1;
+  const multi = (session?.swings.length ?? 0) > 1;
 
   // Segmenteringssteget loggas ALLTID, oberoende av utfallet — det är den enda
   // signalen som skiljer "segmenteringen hittade inga burstar" från "grinden fällde
   // dem". WARN, inte INFO: logpanelen visar bara WARN och uppåt, och en diagnostik
   // som inte syns är ingen diagnostik.
   useEffect(() => {
+    if (!session) return;
     const d = session.segmentation.diagnostics;
     const span =
       poseSamples.length > 0
         ? [round(poseSamples[0].t), round(poseSamples[poseSamples.length - 1].t)]
         : [0, 0];
     log.warn('Segmentation', {
+      timeStretched,
       poseSamples: poseSamples.length,
       clipSpanSec: span,
       sampleDt: round(session.segmentation.sampleDt),
@@ -89,13 +110,13 @@ export function SegmentedSwings({
       ),
       ...(session.segmentation.reason ? { segmentationReason: session.segmentation.reason } : {}),
     });
-  }, [session, poseSamples]);
+  }, [session, poseSamples, timeStretched]);
 
   useEffect(() => {
     // Frames grabbas bara för en MULTI-sving-klipp: vid noll eller en sving visar
     // panelen diagnostik, och den vanliga frame-griden nedanför är redan rätt vy.
     // Ingen state-återställning behövs här — nästa multi-klipp nollar vid grab-start.
-    if (!multi) return;
+    if (!multi || !session) return;
     let cancelled = false;
     (async () => {
       setFrames([]);
@@ -114,12 +135,15 @@ export function SegmentedSwings({
             swing.candidate.endSec,
           );
           const e = swing.envelope;
+          // Durations of a time-stretched swing are in the file's stretched time —
+          // not logged as if they were tempo (S-44). Time POSITIONS stay valid.
+          const stretched = swing.timeStretched === true;
           log.warn(`Swing ${i + 1}/${session.swings.length}`, {
             envelopeSec: [round(e.startSec), round(e.finishSec)],
-            envelopeDurationSec: round(e.finishSec - e.startSec),
+            envelopeDurationSec: stretched ? 'time-stretched' : round(e.finishSec - e.startSec),
             impactSec: swing.impactSec === null ? null : round(swing.impactSec),
             impactReason: e.impactReason,
-            downswingSec: e.impact ? round(e.impact.downswingSec) : null,
+            downswingSec: stretched ? 'time-stretched' : e.impact ? round(e.impact.downswingSec) : null,
             verticalExcursion: round(e.addressY - e.apexY),
             frameCount: sel.picks.length,
             impactClusterApplied: sel.impactClusterApplied,
@@ -155,6 +179,12 @@ export function SegmentedSwings({
     };
   }, [multi, session, videoBlob]);
 
+  if (!session) {
+    return (
+      <p className="text-[10px] font-mono text-fuchsia-300/70">Segmentation: reading clip flags…</p>
+    );
+  }
+
   // Panelen visas ALLTID när pose har kört. Den är mest värdefull när INGET hittas —
   // "ingen panel" går inte att skilja från "koden kördes aldrig", och det var precis
   // den tvetydigheten som gjorde noll-svingsfallet omöjligt att felsöka.
@@ -177,6 +207,7 @@ export function SegmentedSwings({
           }`}
         >
           {session.swings.length} swing{session.swings.length === 1 ? '' : 's'}
+          {timeStretched && ' · time-stretched (Slo-Mo render)'}
         </span>
       </div>
 
@@ -356,15 +387,16 @@ function SwingSection({
           </span>
         </div>
         <div className="text-[10px] font-mono text-muted mt-0.5">
-          envelope [{e.startSec.toFixed(2)} → {e.finishSec.toFixed(2)}] ={' '}
-          {(e.finishSec - e.startSec).toFixed(2)}s ·{' '}
+          envelope [{e.startSec.toFixed(2)} → {e.finishSec.toFixed(2)}]
+          {swing.timeStretched ? ' · time-stretched, durations hidden' : ` = ${(e.finishSec - e.startSec).toFixed(2)}s`}{' '}
+          ·{' '}
           {/* Impact är polish, inte acceptanskrav — en sving utan verifierad impact
               är fortfarande en sving och får uniform baslinje (ADR-002). Märk den
               som sådan i stället för att låta den se ut som ett fel. */}
           {swing.impactSec !== null ? (
             <>
-              <span className="text-emerald-300">impact {swing.impactSec.toFixed(2)}</span> · ds{' '}
-              {e.impact!.downswingSec.toFixed(2)}s
+              <span className="text-emerald-300">impact {swing.impactSec.toFixed(2)}</span>
+              {!swing.timeStretched && ` · ds ${e.impact!.downswingSec.toFixed(2)}s`}
             </>
           ) : (
             <span className="text-sky-300" title={e.impactReason}>

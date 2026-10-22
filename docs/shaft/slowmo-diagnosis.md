@@ -273,7 +273,7 @@ tidsgräns, aldrig en undre.
 `src/lib/mp4Probe.ts`, ingen pipelinekod rörd):
 
 - **`elst`:** en enda post per spår, `media_rate` = 1 överallt. Ingen avspelningstakt.
-- **`moov/meta`:** `full-frame-rate-playback-intent` (0 för de 10 renderade, **1** för äkta
+- **`moov/meta`:** `full-frame-rate-playback-intent` (0 för de 9 renderade och för orenderade 120 fps-`3555` — rättat i S-44, **1** för äkta
   höghastighet `3655`) + plats, modell, mjukvara, datum, (3555/3655) lins. Inget intervall, ingen takt.
 - **`mebx`-nyckeltabeller (`stsd` → `keys`/`keyd`/`dtyp`) och sampeldata (`stsz`/`stsc`/`stco`):**
   `segment-identifier` är ett enda sampel över hela klippet med ett **UUID** (36 B ASCII,
@@ -306,6 +306,53 @@ faktorskattningen spretar 3,1–8,4 mot sanna 4×. Panelen visar det som rådata
 **Inte gjort:** jämförelse mot Bilder-appens slow-reglage (går inte att läsa härifrån); avkodning av
 `detected-face`/`live-photo-info` (ej tidsrelevanta). Om originalet av 3584 hade telemetrispåret och
 väljarens omkodning tog bort det, eller om det aldrig fanns, går inte att avgöra från filen.
+
+## 6. S-44 — fixen: övre tidstak × 8 för sträckta klipp
+
+**Detektor:** `readTimeStretch` (`src/lib/mp4Probe.ts`) = `full-frame-rate-playback-intent` **0** och
+videospår **< 90 fps**. Fps-villkoret behövs: `IMG_3555` bär intent 0 men är en orenderad 119,9 fps-fil
+med realtidstidslinje. Flaggar exakt de 9 renderade egna klippen (3550, 3556, 3557, 3558, 3569, 3575,
+3583, 3587, 3597).
+
+**Skalat × `STRETCH_MAX_FACTOR` (8):** `MAX_ENVELOPE_SEC` 3,0 → 24, `MAX_BURST_SEC` 5,5 → 44,
+`MAX_DOWNSWING_SEC` 0,6 → 4,8 — de enda övre tidstaken i `poseSegments.ts`; `poseEnvelope.ts` har
+inga. **Inte skalat:** undre gränser, `COOLDOWN_SEC`, `PAD_AFTER_SEC`, hastighetsgränser (relativa
+klippets egen `refSpeed`, alltså invarianta). Två icke-invarianter i den låsta `poseEnvelope.ts` som
+INTE är grindar men påverkar gränserna: `START_QUIET_FLOOR` (absolut fart → starten hamnar några
+sampel annorlunda) och `FINISH_MIN_HOLD_FRAMES` (sampel → en sträckt toppvila kan läsas som finish,
+se 3587).
+
+**Före/efter**, varm helklipps-pose (`run_pose_clip.py`, native fps — samma avvikelse från
+produktionens 15 fps som own-clips-stability.md), `detectSessionSwings` utan resp. med flaggan
+(`docs/shaft/slowmo/stretch_compare.local.test.ts`). "Före" återger own-clips-stability exakt (78
+svingar, samma 14 nollklipp). Facit = antal svingar sett i kontaktark (0,4 s steg) av varje klipp:
+
+| klipp | flagga | facit (bildrutor) | före | efter | anmärkning |
+|---|---|---:|---:|---:|---|
+| `IMG_3550.MOV` | sträckt | 1 | 0 (burst 6,13 s > 5,5) | **0** | faller nu på `envelope 0,40 s < 0,7` — klippet börjar mitt i uppsvingen (1×-delen 0–0,48 s rymmer hela backswingen), ingen adress att mäta från. Undre gräns, orörd |
+| `IMG_3557.MOV` | sträckt | 1 | 0 (burst 9,10 s) | **1** | env 2,97–7,47, impact 6,67 (bild ~6,8) |
+| `IMG_3558.MOV` | sträckt | 1 | 0 (burst 7,13 s) | **1** | env 3,67–8,83, impact 7,33 (bild ~7,2) |
+| `IMG_3569.MOV` | sträckt | 1 | 0 (burst 6,03 s + 2 förkastade) | **1** | env 1,47–6,17, impact 4,73; avslappningen efter 9 s ryms nu i samma (längre) burst i stället för att bli egna, förkastade kandidater |
+| `IMG_3575.MOV` | sträckt | 1 | 0 (klippt svans) | **0** | klippet börjar i uppsvingen och slutar under finishen — ingen adress, ingen avslutad finish. Strukturellt, orörd |
+| `IMG_3583.MOV` | sträckt | 1 | 0 (burst 11,23 s) | **1** | env 1,47–7,73, impact 6,07 (bild ~6,0) |
+| `IMG_3587.MOV` | sträckt | 1 | 0 (burst 8,10 s + klippt svans) | **1 ⚠** | env 12,13–**15,47**, ingen impact — envelopen slutar vid **toppen** (bild: träff ~15,8, finish till ~19,6). Rätt antal, fel gränser (OSÄKER) |
+| `IMG_3555.MOV` | ej sträckt (intent 0, 119,9 fps) | — | 0 | 0 | ingen adressplatå — oförändrad |
+| `IMG_3556.MOV` | sträckt | — | 0 | 0 | ingen adressplatå — oförändrad (undre gräns) |
+| `IMG_5074.MP4` | ej | — | 0 | 0 | klippt svans — oförändrad |
+| `IMG_5245.MP4` | ej | — | 0 | 0 | exkursion 0,035 — oförändrad |
+| `IMG_5405.MP4` | ej | — | 0 | 0 | envelope 3,90 s > 3,0 — oförändrad |
+| `IMG_5186.MP4` | ej | — | 0 | 0 | låg handledssynlighet — oförändrad |
+| `IMG_3597.MOV` | sträckt | 1 (+1 provsving) | 1 | **2 ⚠** | ny: env 21,70–26,83 = **provsving utan boll** (bild 22–26 s), fälld förut bara av `MAX_ENVELOPE_SEC` (5,13 s fil ≈ 1,3 s verklig). Den riktiga svingen 48,73–49,43 oförändrad |
+| övriga 56 klipp (inkl. `IMG_3703`, `IMG_3655`) | ej | — | 70 | 70 | **byte-identiskt** (hela `SessionSwings`-sammandraget, inte bara antal) |
+| **summa 70** | 9 sträckta | | **78** | **84** | +4 rena, +1 fel gränser (3587), +1 provsving (3597) |
+
+**Faktor 8 mot 4 mot 2** (samma 9 klipp): 8 och 4 **identiska** överallt. Vid 2 tappas 3569 och 3583
+och 3597:s provsving försvinner. 8 släpper alltså inte in något som 4 inte också släpper in på det här
+urvalet — de två tveksamma acceptanserna (3587, 3597) kommer av sträckningen som sådan, inte av taket.
+
+**Vad det INTE säger:** 9 klipp, en golfare per klipp, alla 4×. Inget 8×-klipp (240 fps) finns att
+testa mot. Produktionens uppladdning (`frameExtractor`) kör inte segmenteraren — fixen syns i
+Segmentation View och i livedetektorns kod (som aldrig får sträckta klipp), inte i Vision-flödet.
 
 ## Kör om
 

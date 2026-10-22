@@ -3,11 +3,12 @@
 // Skips itself when the clips are absent, so CI and other machines are unaffected.
 import { existsSync, openAsBlob } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { blobSource, probeMp4, stretchProfile } from './mp4Probe';
+import { blobSource, probeMp4, readTimeStretch, stretchProfile } from './mp4Probe';
 
 const DIR = 'data/shaft/clips/own';
 const has = (f: string) => existsSync(`${DIR}/${f}`);
-const probe = async (f: string) => probeMp4(blobSource(await openAsBlob(`${DIR}/${f}`)));
+const probe = async (f: string) =>
+  probeMp4(blobSource(await openAsBlob(`${DIR}/${f}`)), { decodeMebx: true });
 const video = (p: Awaited<ReturnType<typeof probe>>) => p.tracks.find((t) => t.handler === 'vide')!;
 
 describe('mp4Probe vs slowmo-diagnosis.md', () => {
@@ -60,5 +61,18 @@ describe('mp4Probe vs slowmo-diagnosis.md', () => {
     const seg = p.tracks.find((t) => t.mebxKeys.includes('com.apple.quicktime.segment-identifier'))!;
     expect(seg.mebxSamples).toHaveLength(1);
     expect(String(seg.mebxSamples[0].items[0].value)).toMatch(/^[0-9A-F]{8}-[0-9A-F]{4}-/);
+  });
+
+  // S-44: the production flag on every own clip — exactly the 9 rendered Slo-Mo files.
+  it.skipIf(!has('IMG_3550.MOV'))('readTimeStretch flags exactly the 9 rendered Slo-Mo clips (not 3555, not 3655)', async () => {
+    const { readdirSync } = await import('node:fs');
+    const flagged: string[] = [];
+    for (const f of readdirSync(DIR).sort()) {
+      if ((await readTimeStretch(await openAsBlob(`${DIR}/${f}`))).timeStretched) flagged.push(f);
+    }
+    expect(flagged).toEqual([
+      'IMG_3550.MOV', 'IMG_3556.MOV', 'IMG_3557.MOV', 'IMG_3558.MOV', 'IMG_3569.MOV',
+      'IMG_3575.MOV', 'IMG_3583.MOV', 'IMG_3587.MOV', 'IMG_3597.MOV',
+    ]);
   });
 });

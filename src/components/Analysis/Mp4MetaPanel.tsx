@@ -105,7 +105,7 @@ export function Mp4MetaPanel({ blob }: { blob: Blob }) {
 
   useEffect(() => {
     let cancelled = false;
-    probeMp4(blobSource(blob)).then(
+    probeMp4(blobSource(blob), { decodeMebx: true }).then(
       (probe) => !cancelled && setResult({ blob, probe }),
       (e) =>
         !cancelled && setResult({ blob, error: e instanceof Error ? e.message : String(e) }),

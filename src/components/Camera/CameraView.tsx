@@ -3,6 +3,7 @@ import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
 import { useSessionCapture } from '../../hooks/useSessionCapture';
 import { extractFrames, ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
+import { readTimeStretch } from '../../lib/mp4Probe';
 import { logCameraCapabilities } from '../../lib/cameraDiagnostics';
 import {
   useSessionStore,
@@ -113,11 +114,15 @@ export function CameraView() {
     clearSwings();
     const swingId = addSwing({ status: 'extracting' });
     try {
-      const { selected, meta } = await extractFrames(blob, ANALYSIS_FRAME_COUNT, 0.8, {
-        onProgress: setProgress,
-      });
+      // Read the Slo-Mo flag alongside extraction (S-44): a few kB of container reads,
+      // never throws, and a non-MP4/MOV blob simply reads as not stretched.
+      const [{ selected, meta }, stretch] = await Promise.all([
+        extractFrames(blob, ANALYSIS_FRAME_COUNT, 0.8, { onProgress: setProgress }),
+        readTimeStretch(blob),
+      ]);
       updateSwing(swingId, {
         ...swingFromExtraction(selected, meta),
+        ...(stretch.timeStretched ? { timeStretched: true as const } : {}),
         status: DEV_PREVIEW ? 'detected' : 'analyzing',
       });
 

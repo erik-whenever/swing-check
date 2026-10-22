@@ -3192,7 +3192,7 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 > `co64` → läs varje sampel ur `mdat`), och panelen visar (a) sträckningsprofil ur telemetrins
 > tidtagning, (b) enkelsampel-värden, (c) en ljudprofil på begäran (`audioProfile.ts`). **Belägg,
 > alla 11 egna Slo-Mo-klipp:** `elst` = en post, `media_rate` 1 överallt; `moov/meta` bär bara
-> flaggan `full-frame-rate-playback-intent` (0 för de 10 renderade, **1** för äkta-höghastighets-
+> flaggan `full-frame-rate-playback-intent` (0 för de 9 renderade och för orenderade 120 fps-`3555`, **1** för äkta-höghastighets-
 > `3655`) plus plats/modell/datum; `segment-identifier` är **bara ett UUID** (36 B ASCII); inga andra
 > Apple-nycklar med intervall/takt. **Men implicit och exakt:** i de 3 klipp som bär
 > `scene-illuminance` (120 Hz kameratelemetri — `3550`, `3587`, `3597`) sträcks telemetrins sampel med
@@ -3206,6 +3206,41 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 > 4×. `mp4Probe.test.ts` (syntetiskt, körs överallt) + `mp4Probe.local.test.ts` (3550-platån, 3655
 > 1×, 3557 utan telemetri). Rapport: [shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §5.
 > Ej gjort: jämförelse mot Bilder-appens slow-reglage (kan inte läsas härifrån).
+
+### [~] S-44 — Fix: tidssträckta Slo-Mo-klipp i segmenteraren
+
+> **Kod klar, verifierad (2026-10-22) — 5 av 7 missade räddas, 2 kan inte räddas utan att röra undre
+> gränser; beslut ditt.** `mp4Probe.ts` är nu produktionsmodul (ingen dev-import; `mebx`-avkodning
+> opt-in för panelen) med `readTimeStretch(blob)`: **sträckt = intent 0 OCH videospår < 90 fps**.
+> Avvikelse från uppdraget, motiverad: `IMG_3555` bär intent 0 men är en orenderad 119,9 fps-fil i
+> realtid — flaggan ensam hade märkt den sträckt (utfallet blir ändå detsamma, ingen adressplatå).
+> `poseSegments.ts`: `STRETCH_MAX_FACTOR = 8` skalar **`MAX_ENVELOPE_SEC`, `MAX_BURST_SEC` (via
+> `MAX_ENVELOPE_SEC` + `POST_FINISH_TAIL_SEC`), `MAX_DOWNSWING_SEC`** — de enda övre tidstaken i
+> kedjan. Ej skalade (undre/invarianta): alla `MIN_*`, `MIN_ADDRESS_SEC`/`PAD_BEFORE_SEC`,
+> `COOLDOWN_SEC`, `PAD_AFTER_SEC`, hastighetsgränser (relativa `refSpeed`). `poseEnvelope.ts`
+> (låst) har inga övre tidstak. Utanför segmenteraren: `MAX_ANALYSIS_SEC` 300 s i
+> `poseTrajectory.ts` (analysfönster, orört — ett 8×-klipp på >37 s verklig tid trunkeras).
+> `DetectedSwing.timeStretched` / `SessionSwing.timeStretched` (additiva, bara satta när `true`).
+> Kopplat in: Segmentation View (läser flaggan ur filen, segmenterar först när den är känd, döljer
+> envelope-/nedsvingsduration), uppladdningen i `CameraView` (märker `SessionSwing`). **Inte**
+> kopplat: `frameExtractor` (låst till Ström A klar; produktionens uppladdning kör inte
+> segmenteraren alls, så där finns inga tak att skala), `extractDataset`/`shaftPreview` (dev,
+> ändrar dataset — eget beslut), live (aldrig sträckt). **Tidsbaserade mätvärden — inventering:**
+> produktionen visar/utvärderar **inga** (regelbiblioteket är rent positionellt, Vision får bara
+> stillbilder, prompten har ingen tid); dev: envelope-/nedsvings-/burst-duration i
+> Segmentation View (dolda för sträckta svingar, burst-diagnostik kvar), `LiveSwingPanel` (live),
+> `dataset/slowmo.ts` (envelope > 3 s = "slowmo", orört), `shaft/measure/plausibility.ts`
+> (°/s-takter — kvoten blad/skaft är invariant; ej i produktion). **Verifiering:** varm helklipps-
+> pose (`run_pose_clip.py`, oförändrad) på alla 70, `detectSessionSwings` före/efter via
+> `docs/shaft/slowmo/stretch_compare.local.test.ts`. Före = own-clips-stability exakt (78, samma 14
+> nollklipp). Efter = 84; **61 oflaggade klipp byte-identiska**; facit för de 7 ur kontaktark (alla
+> 1 sving). Räddade: 3557, 3558, 3569, 3583 (impact där bilden visar träffen), 3587 (**fel gränser**:
+> envelopen slutar vid toppen). Ej räddade: 3550 (börjar i uppsvingen → envelope 0,40 s < 0,7),
+> 3575 (ingen adress, ingen avslutad finish). Avvikelse mot "resten oförändrad": 3597 (sträckt, ej i
+> listorna) får en **provsving** utan boll. Faktor 8 vs 4 identiskt på alla egna klipp. Tabell:
+> [shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §6. **Återstår (beslut):** (a) 3587:s
+> topp-som-finish (`FINISH_MIN_HOLD_FRAMES` är sampelbaserad i låsta `poseEnvelope.ts`),
+> (b) provsvingar generellt, (c) om 3550/3575 alls ska räknas som missade.
 
 
 ---

@@ -86,6 +86,12 @@ export interface SessionSwing {
   error: string | null;
   /** Latency chain (D-5 pass 3). Null on the clip path, which has no anchor clock. */
   timings: SwingTimings | null;
+  /**
+   * Set (always `true`) when the source clip is an iOS Slo-Mo render (S-44,
+   * `mp4Probe.readTimeStretch`): `envelopeSec`/`impactSec` are positions in the FILE's
+   * stretched timeline — valid for seeking, never as a duration or tempo.
+   */
+  timeStretched?: true;
 }
 
 interface SessionState {

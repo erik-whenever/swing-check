@@ -268,3 +268,49 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
     expect(detectSessionSwings([]).swings).toEqual([]);
   });
 });
+
+// ── S-44: tidssträckta Slo-Mo-klipp ──────────────────────────────────────────
+// Syntetisk sträckning: samma pose-serie med tidsstämplarna multiplicerade. Det är ett
+// helt sträckt klipp (verkliga renderingar sträcker bara mitten), alltså det strängaste
+// fallet för de övre taken.
+describe('time-stretched clips (S-44)', () => {
+  const stretch = (samples: PoseSample[], k: number): PoseSample[] =>
+    samples.map((s) => ({ ...s, t: s.t * k }));
+
+  for (const name of ['session-multi', 'dtl-full', 'face-on', 'dtl-clipped']) {
+    const fx = fixtures.get(name);
+    if (!fx) continue;
+
+    it(`${name}: no flag and timeStretched:false give byte-identical output`, () => {
+      expect(detectSessionSwings(fx.samples, { timeStretched: false })).toEqual(
+        detectSessionSwings(fx.samples),
+      );
+      expect(detectSessionSwings(fx.samples).swings.every((w) => w.timeStretched === undefined)).toBe(true);
+    });
+  }
+
+  const multi = fixtures.get('session-multi');
+  if (multi) {
+    for (const k of [4, 8]) {
+      it(`session-multi stretched ${k}×: unflagged loses every swing, flagged recovers all ${SESSION_MULTI_SWINGS}`, () => {
+        const s = stretch(multi.samples, k);
+        expect(detectSessionSwings(s).swings).toHaveLength(0);
+        const flagged = detectSessionSwings(s, { timeStretched: true });
+        expect(flagged.swings).toHaveLength(SESSION_MULTI_SWINGS);
+        // Same swings on the k× timeline, all marked. Overlap, not equality: the
+        // envelope's START_QUIET_FLOOR (poseEnvelope.ts) is an absolute speed, so the
+        // onset back-up lands a few samples differently once every speed is k× lower.
+        const base = detectSessionSwings(multi.samples).swings;
+        flagged.swings.forEach((w, i) => {
+          expect(w.timeStretched).toBe(true);
+          expect(w.envelope.startSec).toBeLessThan(base[i].envelope.finishSec * k);
+          expect(w.envelope.finishSec).toBeGreaterThan(base[i].envelope.startSec * k);
+        });
+      });
+    }
+
+    it('the caps stay finite: a 20× stretch (1.6 s swings → 32 s) is not rescued', () => {
+      expect(detectSessionSwings(stretch(multi.samples, 20), { timeStretched: true }).swings).toHaveLength(0);
+    });
+  }
+});

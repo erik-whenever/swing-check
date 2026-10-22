@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stretchProfile, type MebxSample } from './mp4Probe';
+import { readTimeStretch, stretchProfile, timeStretchOf, type MebxSample, type Mp4Probe } from './mp4Probe';
 import { lowPitchRun, zeroCrossingProfile } from './audioProfile';
 
 /** 120 Hz telemetry: n1 samples at 1×, a 3-sample ramp, n4 at 4×, ramp back, n1 at 1×. */
@@ -50,5 +50,50 @@ describe('lowPitchRun', () => {
     expect(run!.startSec).toBeCloseTo(1, 1);
     expect(run!.endSec).toBeCloseTo(4, 1);
     expect(run!.ratio).toBeCloseTo(4, 0);
+  });
+});
+
+describe('timeStretchOf (S-44)', () => {
+  const probe = (intent: number | null, fps: number | null): Mp4Probe => ({
+    fileSize: 0,
+    majorBrand: 'qt  ',
+    compatibleBrands: [],
+    topLevel: [],
+    movieTimescale: 600,
+    movieDuration: 0,
+    movieDurationSec: 0,
+    appleKeysRaw: [],
+    meta:
+      intent === null
+        ? []
+        : [{ key: 'com.apple.quicktime.full-frame-rate-playback-intent', where: 'moov/meta', value: intent }],
+    tracks:
+      fps === null
+        ? []
+        : [
+            {
+              trackId: 1, handler: 'vide', handlerName: '', codec: 'avc1', timescale: 600,
+              duration: 0, durationSec: 0, edits: [], mebxKeys: [], mebxKeyTable: [],
+              mebxSamples: [], mebxTruncated: false,
+              stts: { sampleCount: 1, entries: 1, distinctDeltas: 1, minDelta: 20, medianDelta: 20, maxDelta: 20, fps },
+            },
+          ],
+  });
+
+  it('intent 0 on a 30 fps render → stretched (the phone pick, 3550 …)', () => {
+    expect(timeStretchOf(probe(0, 30)).timeStretched).toBe(true);
+  });
+  it('intent 0 on a 120 fps original → NOT stretched (3555: real-time timeline)', () => {
+    expect(timeStretchOf(probe(0, 119.94)).timeStretched).toBe(false);
+  });
+  it('intent 1 → not stretched (3655)', () => {
+    expect(timeStretchOf(probe(1, 115.3)).timeStretched).toBe(false);
+  });
+  it('no key → not stretched (every ordinary clip)', () => {
+    expect(timeStretchOf(probe(null, 30)).timeStretched).toBe(false);
+  });
+  it('unreadable blob → not stretched, never throws', async () => {
+    const s = await readTimeStretch(new Blob([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9])]));
+    expect(s).toEqual({ timeStretched: false, intent: null, videoFps: null });
   });
 });

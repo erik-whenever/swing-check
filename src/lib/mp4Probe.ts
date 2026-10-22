@@ -1,10 +1,10 @@
-// DEV-ONLY (VITE_DEV_PREVIEW) — read ISO-BMFF / QuickTime container metadata from a
-// video Blob in the browser, without decoding a single frame.
+// Read ISO-BMFF / QuickTime container metadata from a video Blob in the browser,
+// without decoding a single frame. No dependencies, no dev-only imports.
 //
-// Exists to answer one question (slowmo-diagnosis.md §2): does the File that iOS hands
-// <input type=file> still carry Apple's Slo-Mo traces — `com.apple.quicktime.*` keys,
-// a `mebx` track, the real frame rate in `stts` — or has the OS stripped/re-rendered
-// them on the way? Nothing in the analysis pipeline reads this; it is an inspection aid.
+// Two users. PRODUCTION (S-44): `readTimeStretch` decides whether an uploaded clip is an
+// iOS Slo-Mo render whose timeline is stretched, so the segmenter can widen its upper
+// time limits. DEV (S-42/S-43): the Container metadata panel shows everything, including
+// decoded `mebx` samples (opt-in via `decodeMebx` — thousands of small reads).
 //
 // Port of the scratchpad `mp4_probe.py` from the S-slowmo diagnosis (not committed
 // then): same boxes, same derived numbers (fps = samples · timescale / Σdelta,
@@ -463,7 +463,12 @@ function scanAppleKeys(bytes: Uint8Array): string[] {
   return [...found].sort();
 }
 
-export async function probeMp4(src: ByteSource): Promise<Mp4Probe> {
+export interface ProbeOptions {
+  /** Decode every `mebx` sample (dev panel only — one small read per sample). */
+  decodeMebx?: boolean;
+}
+
+export async function probeMp4(src: ByteSource, opts: ProbeOptions = {}): Promise<Mp4Probe> {
   const result: Mp4Probe = {
     fileSize: src.size,
     majorBrand: '',
@@ -561,7 +566,7 @@ export async function probeMp4(src: ByteSource): Promise<Mp4Probe> {
           if (stsd) Object.assign(t, readStsd(v, stsd));
           const stts = child(v, stbl, 'stts');
           if (stts) t.stts = readStts(v, stts, t.timescale);
-          if (t.codec === 'mebx') await readMebxSamples(src, v, stbl, t);
+          if (t.codec === 'mebx' && opts.decodeMebx) await readMebxSamples(src, v, stbl, t);
         }
       }
       result.tracks.push(t);
@@ -634,4 +639,50 @@ export function stretchProfile(samples: MebxSample[]): StretchSegment[] {
     }
   }
   return out;
+}
+
+// ── Production: is this an iOS Slo-Mo render with a stretched timeline? (S-44) ──
+
+export const SLOMO_INTENT_KEY = 'com.apple.quicktime.full-frame-rate-playback-intent';
+/**
+ * A rendered Slo-Mo export runs at an ordinary rate (30 fps in all 10 own renders and
+ * Erik's phone pick); an UNRENDERED high-speed original stores every capture frame on
+ * a real-time timeline at 100+ fps (3555: 119.9 fps, intent 0; 3655: 115.3, intent 1).
+ * Only the rendered kind is stretched, so the flag alone is not enough: 3555 carries
+ * intent 0 but its 0.775 s timeline is real time.
+ */
+const RENDERED_MAX_FPS = 90;
+
+export interface TimeStretch {
+  /** True only for intent 0 on an ordinary-rate video track — see RENDERED_MAX_FPS. */
+  timeStretched: boolean;
+  /** `full-frame-rate-playback-intent` from moov/meta, or null when absent. */
+  intent: number | null;
+  videoFps: number | null;
+}
+
+export function timeStretchOf(probe: Mp4Probe): TimeStretch {
+  const item = probe.meta.find((m) => m.key === SLOMO_INTENT_KEY);
+  const intent = typeof item?.value === 'number' ? item.value : null;
+  const videoFps = probe.tracks.find((t) => t.handler === 'vide')?.stts?.fps ?? null;
+  return {
+    timeStretched: intent === 0 && videoFps !== null && videoFps < RENDERED_MAX_FPS,
+    intent,
+    videoFps,
+  };
+}
+
+const NOT_STRETCHED: TimeStretch = { timeStretched: false, intent: null, videoFps: null };
+
+/**
+ * Read the stretch flag of an uploaded clip. Never throws: a file the parser cannot read
+ * (WebM from MediaRecorder, a truncated upload) is treated as NOT stretched, which is
+ * exactly today's behaviour.
+ */
+export async function readTimeStretch(blob: Blob): Promise<TimeStretch> {
+  try {
+    return timeStretchOf(await probeMp4(blobSource(blob)));
+  } catch {
+    return NOT_STRETCHED;
+  }
 }
