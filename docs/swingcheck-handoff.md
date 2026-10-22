@@ -3,7 +3,13 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-13 (`[~]`) — iPhone-försök via preview-deploy: shaft-v2
+> **Senast (2026-10-22, stream-shaft):** S-45 steg 2 (`[~]`, väntar på beslut) — poängsatt. 10 av 81
+> accepterade svingar är falska (9 provsving, 1 ingen sving, 12 %). Ingen körtidssignal i grinden
+> skiljer dem (bästa kandidat: 5/10 mot 6/71 slag, klippsammanblandad). Ingen tröskel vald.
+> Rekommendation: ingen grind nu. Vid behov: be Vision om boll vid adress/finish.
+> [shaft/practice-review/resultat.md](shaft/practice-review/resultat.md).
+>
+> **Före det (2026-10-22, stream-shaft):** S-13 (`[~]`) — iPhone-försök via preview-deploy: shaft-v2
 > kör (load 606 ms, inferens median 83 ms) men dev-vyn gav svarta bildrutor + flikomladdning. Orsak:
 > 26 fullupplösta JPEG:er i state/`<img>`. Dev-vyn visar nu ~360 px thumbnails, detektion oförändrad
 > på full upplösning. **Återstår: Erik ser punkterna på iPhone** (ny preview-deploy). Ny öppen post

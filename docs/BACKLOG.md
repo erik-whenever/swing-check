@@ -3272,14 +3272,23 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 
 ### [~] S-45 — Provsvingar accepteras som svingar (generellt, inte slow-mo)
 
-> **Steg 1 klart (2026-10-22): bedömningspaket byggt. Återstår: Eriks bedömning, sedan
-> poängsättning.** Produktionens kedja (`extractPoseTrajectory` 15 fps WASM VIDEO-läge →
-> `readTimeStretch` → `detectSessionSwings`) körd i dev-appen via puppeteer på alla **70** egna
-> klipp: **81 accepterade svingar i 59 klipp, 11 klipp med 0**. Blind vy (S-32-stil, envelope
-> ±1 s, svar slag/provsving/ingen sving/osäker), frö `0x45a1c0de`, nyckel i separat fil. Start:
-> `start data\shaft\practice-review\erik\index.html`. Skript och metod:
-> [shaft/practice-review/README.md](shaft/practice-review/README.md). Ej jämförbart rad för rad
-> med S-44:s 84 (python, native fps).
+> **Steg 2 klart (2026-10-22): poängsatt. Återstår: ditt beslut om rekommendationen.** Eriks blinda
+> svar: **10 av 81 accepterade är falska (9 provsving, 1 ingen sving) = 12 % (Wilson 95 %: 7–21 %)**,
+> alla först i sitt klipp. **Ingen körtidssignal i grinden skiljer dem:** exkursion, toppfart,
+> synlighet, nedsving, impact (8/10 mot 65/71) och adresshållning överlappar helt. Bästa kandidat
+> (finish under envelopens topp ≈ envelope ≥ 2 s, samma fenomen, r = 0,67) tar 5/10 men också 6/71
+> slag, och tre av de slagen kommer ur samma klipp som en falsk (klippsammanblandning). De andra 5
+> falska är omöjliga att skilja. Ingen tröskel vald. **Bollen** finns redan i bild (adress- och
+> finish-rutorna går till Vision, beskärningen når under fötterna), men ingenting detekterar den.
+> **Rekommendation: bygg ingen grind nu.** En provsving kostar ett Vision-anrop (~7 000 tokens) och
+> får en riktig analys. Om förvirringen visar sig vara verklig: be Vision om boll vid adress/finish
+> (inga nya bildrutor). Lokal bolldetektion först om kostnaden blir ett problem, och mot ett nytt,
+> oberoende facit. Rapport: [shaft/practice-review/resultat.md](shaft/practice-review/resultat.md).
+>
+> Steg 1 (2026-10-22): bedömningspaket. Produktionens kedja (`extractPoseTrajectory` 15 fps WASM
+> VIDEO-läge → `readTimeStretch` → `detectSessionSwings`) i dev-appen via puppeteer på alla **70**
+> egna klipp: **81 accepterade svingar i 59 klipp, 11 klipp med 0**. Blind vy, frö `0x45a1c0de`.
+> [shaft/practice-review/README.md](shaft/practice-review/README.md).
 
 `detectSessionSwings` har ingen signal som skiljer en provsving (ingen boll) från ett slag: grinden
 mäter struktur (adress → händerna upp → hållen finish, varaktighet, exkursion), och en provsving har

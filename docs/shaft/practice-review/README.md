@@ -82,6 +82,4 @@ data/shaft/top-review/.venv/Scripts/python.exe docs/shaft/practice-review/build_
 
 ## Återstår
 
-1. Eriks bedömning av alla 81.
-2. Poängsättning: andel provsving/ingen sving bland accepterade, och (ADR-003 Risker §4) om det
-   alls är ett problem för användaren.
+Steg 2 (poängsättning) är klart: [resultat.md](resultat.md). Kvar är Eriks beslut om rekommendationen.
