@@ -1,7 +1,16 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-09-20.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
+>
+> **Senast (2026-10-22, stream-shaft):** S-42 (`[~]`) — telefontest bekräftade att iOS-väljaren
+> lämnar ut den tidssträckta Slo-mo-filen (burst 6,85 s > `MAX_BURST_SEC`, 0 svingar). Ny dev-panel
+> **Container metadata** i Frame Preview (`mp4Probe.ts` + `Mp4MetaPanel.tsx`, bakom
+> `VITE_DEV_PREVIEW`) visar `mvhd` vs `video.duration`, spår/stts-fps och alla
+> `com.apple.quicktime.*`-nycklar för den File som faktiskt nådde `<input type=file>`. Verifierad
+> mot alla 70 egna klipp (census exakt som [shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md)).
+> Återstår: Eriks avläsning på iPhone via preview-deployen av `stream-shaft`. Ingen fix, ingen
+> tröskel ändrad.
 >
 > **Senast (2026-09-20, stream-shaft):** S-41 (klar, `[x]`) — **grov läsning av toppens
 > skaftriktning: den stabiliserar inte, och grinden blir sämre.** Read-only, ingen ny estimator,

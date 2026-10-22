@@ -3158,6 +3158,26 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 **mildare** än rundans grind). Nytt i [shaft/STATUS.md](shaft/STATUS.md) §6.
 
 
+### [~] S-42 — Diagnos: bär den File iOS-väljaren lämnar ut kvar Apples Slo-Mo-spår?
+
+> **Panelen klar (2026-10-22), telefonsvaret återstår.** Bakgrund: telefontest 2026-10-22 på prod
+> (Slo-mo-klipp ur iOS Bilder via appens väljare) gav span 0–19,23 s, en burst på 6,85 s fälld av
+> `MAX_BURST_SEC` och 0 svingar — väljaren lämnar alltså ut den **tidssträckta** filen
+> ([shaft/slowmo-diagnosis.md](shaft/slowmo-diagnosis.md) §2). Ny dev-panel **Container metadata**
+> i Frame Preview (bakom `VITE_DEV_PREVIEW`, samma flagga som Segmentation View):
+> `src/lib/mp4Probe.ts` (ren TS-port av scratchpad-`mp4_probe.py`, inga beroenden; läser bara
+> toppnivåns boxhuvuden + `moov`, `mdat` hoppas över) + `src/components/Analysis/Mp4MetaPanel.tsx`.
+> Visar fil-namn/MIME/storlek, `mvhd`-längd bredvid `video.duration`, per spår handler/codec/
+> timescale/längd/stts-fps + min/median/max-delta (distinkta), `elst`-takt om ≠ 1, och alla
+> `com.apple.quicktime.*`-nycklar (strukturerade `keys`/`ilst`-värden + `mebx`-nyckeltabeller + rå
+> sträng-scan av `moov`). Ingen tröskel, ingen pipeline-kod rörd. **Verifierad:** TS-parsern mot alla
+> 70 egna klipp ger diagnosens census exakt (11 Slo-Mo-nycklar, samma fps/deltan/längder, samma 8
+> tvådelta-klipp); `mp4Probe.local.test.ts` låser 3550/3555/5410 (hoppar över sig själv utan
+> klippen); panelen körd i `npm run dev` via puppeteer med 3550 och 5410. **Rättelse till
+> diagnosen:** `full-frame-rate-playback-intent` ligger strukturerat i `moov/meta` (värde `0`),
+> inte bara som rå sträng. **Återstår:** Erik kör panelen på iPhone (preview-deploy av
+> `stream-shaft`) med samma Slo-mo-klipp och läser av om nyckeln/`hvc1`/`mebx` överlevde väljaren.
+
 
 ---
 

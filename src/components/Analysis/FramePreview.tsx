@@ -7,6 +7,7 @@ import type { PoseSample } from '../../lib/poseTrajectory';
 import { detectSwingEnvelope, type SwingEnvelope } from '../../lib/poseEnvelope';
 import type { FrameMeta } from '../../lib/frameExtractor';
 import { SegmentedSwings } from './SegmentedSwings';
+import { Mp4MetaPanel } from './Mp4MetaPanel';
 
 const DEV_PREVIEW = import.meta.env.VITE_DEV_PREVIEW === 'true';
 
@@ -139,6 +140,9 @@ export function FramePreview() {
             {poseStatus === 'idle' && <span className="text-faint">—</span>}
           </p>
         )}
+
+        {/* Container metadata of the uploaded clip (dev only) — slowmo-diagnosis.md §2. */}
+        {DEV_PREVIEW && videoBlob && <Mp4MetaPanel blob={videoBlob} />}
 
         {DEV_PREVIEW && poseStatus === 'done' && poseSamples && (
           <button
