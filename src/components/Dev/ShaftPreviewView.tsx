@@ -5,10 +5,14 @@
 //
 // The purpose is a side-by-side check that the model behaves the same in Safari on
 // a phone as it does in `training/evaluate.py` — so the overlay is drawn in the
-// FRAME's own coordinate space (an SVG viewBox sized to the source image), not in
-// CSS pixels. That way what you see is the coordinate the detector returned, at
-// whatever size the phone happens to render the image, and a letterbox mistake
-// shows up as points sliding off the shaft rather than as a layout quirk.
+// FRAME's own coordinate space (an SVG viewBox sized to the thumbnail, the detector's
+// source-pixel coordinates times one uniform `thumb.scale`), not in CSS pixels. That
+// way what you see is the coordinate the detector returned, at whatever size the
+// phone happens to render the image, and a letterbox mistake shows up as points
+// sliding off the shaft rather than as a layout quirk.
+//
+// The image is a ~360 px thumbnail, not the frame the detector saw — see the
+// `shaftPreview.ts` header for the iOS memory reason.
 //
 // No camera, no capture, no Vision call: this view only reads a file off disk.
 
@@ -27,6 +31,7 @@ import {
   type PreviewFrame,
   type PreviewProgress,
   type PreviewRun,
+  type PreviewThumb,
 } from '../../lib/shaft/shaftPreview';
 
 type Status = 'idle' | 'running' | 'done' | 'error';
@@ -189,12 +194,16 @@ function FrameCard({ frame }: { frame: PreviewFrame }) {
   return (
     <figure className="space-y-1">
       <div className="relative rounded-card overflow-hidden bg-black">
-        <img
-          src={`data:image/jpeg;base64,${frame.jpegBase64}`}
-          alt=""
-          className="block w-full"
-        />
-        {d && <ShaftOverlay detection={d} />}
+        {frame.thumb && (
+          <img
+            src={`data:image/jpeg;base64,${frame.thumb.jpegBase64}`}
+            width={frame.thumb.width}
+            height={frame.thumb.height}
+            alt=""
+            className="block w-full h-auto"
+          />
+        )}
+        {d && frame.thumb && <ShaftOverlay detection={d} thumb={frame.thumb} />}
       </div>
       <figcaption className="text-[10px] leading-tight font-mono text-faint space-y-0.5">
         <div>
@@ -231,9 +240,9 @@ function FrameCard({ frame }: { frame: PreviewFrame }) {
 
 /**
  * The four points as dots, with the shaft line (butt → hosel) and the sole line
- * (heel → toe) drawn between them, in the SOURCE image's coordinate space via the
- * viewBox — see the file header for why that is the whole point rather than a
- * convenience.
+ * (heel → toe) drawn between them, in the THUMBNAIL's coordinate space via the
+ * viewBox — source coordinates times one uniform factor, so a point off the shaft is
+ * still the detector's error, not the overlay's. See the file header.
  *
  * Stroke widths are given as a fraction of the image height so the overlay reads the
  * same on a 720×818 web clip and a 1080×1920 phone clip.
@@ -241,10 +250,14 @@ function FrameCard({ frame }: { frame: PreviewFrame }) {
  * Every element is conditional on its own points, so under the shipped 2-point model
  * the sole simply does not draw and nothing here needs to know which model is loaded.
  */
-function ShaftOverlay({ detection }: { detection: ShaftDetection }) {
-  const { width, height } = detection.imageSize;
+function ShaftOverlay({ detection, thumb }: { detection: ShaftDetection; thumb: PreviewThumb }) {
+  const { width, height, scale } = thumb;
   const unit = height / 200;
-  const { butt, hosel, toe, heel } = detection;
+  const at = (p: { x: number; y: number } | null) => p && { x: p.x * scale, y: p.y * scale };
+  const butt = at(detection.butt);
+  const hosel = at(detection.hosel);
+  const toe = at(detection.toe);
+  const heel = at(detection.heel);
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}

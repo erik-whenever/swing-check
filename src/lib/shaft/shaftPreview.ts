@@ -25,6 +25,13 @@
 // a distribution shift, not the model. Quality 0.92 likewise.
 //
 // Reads production, writes nothing back: no store, no Vision call, no SwingRecord.
+//
+// DETECT AT FULL RESOLUTION, KEEP ONLY A THUMBNAIL. Each full-resolution JPEG lives
+// exactly as long as its own `detectShaft()` call; what the run returns is a
+// ~THUMB_LONG_SIDE px copy. Holding all 26 originals (as base64 in React state and
+// as decoded `<img>`s, ~8 MB each at 1080p) blew iOS Safari's per-tab memory on
+// IMG_5765.mov — black frames, then a tab reload right after the result painted
+// (S-13, 2026-10-22). The detector's input is unchanged by this.
 
 import { ANALYSIS_FRAME_COUNT } from '../frameExtractor';
 import { createLogger } from '../logger';
@@ -40,13 +47,27 @@ const log = createLogger('ShaftPreview');
 /** Matches the dataset export — annotation and inference must see the same JPEG. */
 const FRAME_QUALITY = 0.92;
 
+/** Long side of the frame the view displays. Detection never sees this size. */
+const THUMB_LONG_SIDE = 360;
+/** Display-only JPEG, so the dataset's 0.92 has no claim on it. */
+const THUMB_QUALITY = 0.8;
+
+export interface PreviewThumb {
+  /** Bare base64 JPEG, `width`×`height`. */
+  jpegBase64: string;
+  width: number;
+  height: number;
+  /** Thumb px per source px — multiply a detection coordinate by this to draw it. */
+  scale: number;
+}
+
 export interface PreviewFrame {
   /** Clip-clock second the frame was grabbed at. */
   tSec: number;
   /** The selector's own phase label for this pick. */
   phase: SwingPhase;
-  /** Bare base64 JPEG, exactly as `grabFramesAtTimes` returns it. */
-  jpegBase64: string;
+  /** Downscaled copy of the frame the detector saw; null if it could not be decoded. */
+  thumb: PreviewThumb | null;
   /** Null when the detector threw on this frame; `error` then says why. */
   detection: ShaftDetection | null;
   error?: string;
@@ -138,7 +159,7 @@ export async function runShaftPreview(
       const frame: PreviewFrame = {
         tSec: pick.t,
         phase: pick.phase,
-        jpegBase64: jpegs[i],
+        thumb: null,
         detection: null,
       };
       try {
@@ -151,6 +172,13 @@ export async function runShaftPreview(
       } catch (err) {
         frame.error = err instanceof Error ? err.message : String(err);
       }
+      try {
+        frame.thumb = await makeThumb(jpegs[i]);
+      } catch (err) {
+        frame.error ??= `thumbnail: ${err instanceof Error ? err.message : String(err)}`;
+      }
+      // Drop the full-resolution original the moment both consumers are done with it.
+      jpegs[i] = '';
       frames.push(frame);
       report(
         'detecting',
@@ -195,6 +223,37 @@ export async function runShaftPreview(
     timing,
     sessionLoadMs,
   };
+}
+
+/**
+ * Full-resolution JPEG → ~THUMB_LONG_SIDE px JPEG. The decoded bitmap and the canvas
+ * are released explicitly rather than left to GC: iOS counts canvas backing stores
+ * against a hard budget and reclaims them late, which is the failure this exists for.
+ */
+async function makeThumb(jpegBase64: string): Promise<PreviewThumb> {
+  const blob = await (await fetch(`data:image/jpeg;base64,${jpegBase64}`)).blob();
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  try {
+    const scale = Math.min(1, THUMB_LONG_SIDE / Math.max(bitmap.width, bitmap.height));
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas context unavailable');
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return {
+      jpegBase64: canvas.toDataURL('image/jpeg', THUMB_QUALITY).split(',')[1],
+      width: canvas.width,
+      height: canvas.height,
+      // Per-axis rounding makes x and y scale differ by < 1 thumb px; one factor is
+      // what the overlay needs, and the error is below a dot's radius.
+      scale: canvas.width / bitmap.width,
+    };
+  } finally {
+    bitmap.close();
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 /** Shaft direction in degrees, `butt → hosel`, or null when an end is missing. */

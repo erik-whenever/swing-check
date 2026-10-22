@@ -1827,6 +1827,28 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > **Verifierat:** `npm run build` rent · `npm test` **375/375** · `npm run lint` 2 kvarstående
 > fel, båda sedan tidigare och i orörda filer (`FrameLightbox.tsx`, `useHistory.ts`).
 > **Ej sedd på en iPhone** — det är vad som återstår, och villkoret för att ta bort v1.
+>
+> **iPhone-försök 1 (2026-10-22, Erik; preview-deploy via `npx vercel deploy` från laptopen,
+> `IMG_5765.mov`, Slo-Mo).** Modellen laddar och kör: session load **606 ms**, inferens median
+> **83 ms** (76–95), preprocess median **35,5 ms**, 26 frames, 1 sving. **Men dev-vyn visade
+> svarta bildrutor och fliken laddades om strax efter att resultatet ritats — upprepat.** Vanlig
+> uppladdning/analys av samma klipp fungerade. Punkterna är alltså **inte sedda** på iPhone än.
+>
+> **Orsak, verifierad i koden:** `runShaftPreview` lade varje fullupplöst base64-JPEG i
+> `PreviewFrame.jpegBase64` och vyn renderade alla 26 som `<img>` — avkodat ~8 MB styck vid
+> 1080p, plus base64-strängarna i React-state. Det spränger iOS Safaris minnestak per flik.
+> (`detectShaft` stängde redan sin bitmap; dess 960²-scratch-canvas återanvänds.)
+> **Fix (dev-kod):** efter `detectShaft()` görs en ~360 px thumbnail (`makeThumb`, JPEG 0,8);
+> fullupplöst bitmap `close()`, canvas `width = height = 0`, och originalsträngen släpps
+> (`jpegs[i] = ''`). Detektionen körs fortfarande på oförändrade fullupplösta bildrutor.
+> Overlayn ritas i thumbnailens viewBox (källkoordinater × en enhetlig `thumb.scale`).
+> **Ej åtgärdat (produktionskod):** `grabFramesAtTimes` nollställer inte sin egen grab-canvas.
+> Headless-verifiering (`npm run dev`, puppeteer, WASM — headless WebGPU hänger på den här
+> maskinen även på orörd kod): `002.mp4` ger samma utfall som ovan (29 frames, 15 skaftlinjer,
+> 32 punkter), thumbnails 317×360, alla data-URL:er tillsammans 0,78 MB; punkterna ligger på
+> skaftet. `npm run build` rent, eslint rent på de två filerna. **Återstår: Erik ser punkterna
+> på iPhone.** Modellen nådde preview-deployen bara för att `vercel deploy` laddar upp disken —
+> se S-47.
 
 ### [x] S-14 — Fyra keypoints: `butt → hosel → toe → heel`
 
@@ -3290,6 +3312,14 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 > `timeStretched: true`, samma id. Tester: `datasetGate.test.ts` (skalning + frysning). Lägg till nya
 > exporters klipp i `frozenClips.ts` när de annoteras.
 
+### [ ] S-47 — Modellhosting inför produktion
+
+> **Öppen, inget beslut (upptäckt 2026-10-22 under S-13).** `public/models/*.onnx` är
+> gitignorerad, så **ingen git-baserad Vercel-build har någonsin haft skaftmodellen** — appens
+> preflight hittar den inte där. iPhone-testet fungerade bara för att `npx vercel deploy` laddar
+> upp den lokala disken (därav den nya rotankrade `.vercelignore`). Innan skaftdetektorn når
+> produktion måste det bestämmas var `shaft-v2.onnx` (~26 MB) bor och hur den versioneras —
+> inte avgjort här.
 
 ---
 

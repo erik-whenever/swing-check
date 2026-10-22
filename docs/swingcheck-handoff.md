@@ -3,7 +3,13 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-45 steg 1 (`[~]`) — bedömningspaket slag vs provsving.
+> **Senast (2026-10-22, stream-shaft):** S-13 (`[~]`) — iPhone-försök via preview-deploy: shaft-v2
+> kör (load 606 ms, inferens median 83 ms) men dev-vyn gav svarta bildrutor + flikomladdning. Orsak:
+> 26 fullupplösta JPEG:er i state/`<img>`. Dev-vyn visar nu ~360 px thumbnails, detektion oförändrad
+> på full upplösning. **Återstår: Erik ser punkterna på iPhone** (ny preview-deploy). Ny öppen post
+> S-47: modellen är gitignorerad → ingen git-build har den (modellhosting, inget beslut).
+>
+> **Före det (2026-10-22, stream-shaft):** S-45 steg 1 (`[~]`) — bedömningspaket slag vs provsving.
 > Produktionens segmenterare (dev-appen, puppeteer, 15 fps WASM) på 70 egna klipp → **81 svingar i
 > 59 klipp, 11 klipp med 0**. Blind vy: `start data\shaft\practice-review\erik\index.html`, frö
 > `0x45a1c0de`, nyckel `data/shaft/practice-review/key.json` (öppnas efter svaren). Återstår: Eriks
