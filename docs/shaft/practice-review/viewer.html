@@ -1,0 +1,268 @@
+<!doctype html>
+<!--
+  ONE-OFF (S-45): the blind judging view, slag vs provsving. TEMPLATE -- build_package.py
+  fills the ROUND marker below and writes the filled copy to data/shaft/practice-review/erik/.
+  This file is the reviewable source; the filled copy is gitignored with the frames.
+
+  WHAT THIS PAGE IS ALLOWED TO KNOW: an opaque id, the frame files and a playback interval,
+  per swing. Not the clip, not the seconds, not the envelope bounds or length (no frame
+  count is shown), not the impact, not the segmenter's flags (time-stretched, rejections).
+  Everything else lives in key.json, which nobody opens until the answers are in.
+-->
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slag eller provsving</title>
+<style>
+  :root {
+    --bg: #12151a; --panel: #1b1f27; --line: #2c333f; --fg: #e6e9ef;
+    --muted: #97a1b2; --accent: #6fb3ff; --ok: #57c98a; --warn: #e0b050;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif;
+    display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden;
+  }
+  header, footer {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 8px 14px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  footer { border-bottom: 0; border-top: 1px solid var(--line); }
+  main { display: grid; grid-template-columns: 1fr 320px; min-height: 0; }
+  #stage {
+    display: grid; place-items: center; min-height: 0; min-width: 0;
+    background: #06080b; position: relative;
+  }
+  #shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  aside { border-left: 1px solid var(--line); padding: 14px; overflow-y: auto; background: var(--panel); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+       margin: 18px 0 8px; font-weight: 600; }
+  h2:first-child { margin-top: 0; }
+  button {
+    font: inherit; background: #252b36; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #23405f; border-color: #35618f; }
+  button.chosen { background: #1f4a35; border-color: var(--ok); }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .verdicts button { width: 100%; text-align: left; }
+  .pill { font: 600 13px ui-monospace, monospace; background: #252b36; border: 1px solid var(--line);
+          border-radius: 999px; padding: 3px 10px; }
+  .muted { color: var(--muted); }
+  .crit { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #10141a; }
+  kbd { font: 12px ui-monospace, monospace; background: #252b36; border: 1px solid var(--line);
+        border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; }
+  textarea {
+    width: 100%; font: inherit; background: #10141a; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+    resize: vertical; min-height: 58px;
+  }
+  #bar { flex: 1; min-width: 160px; }
+  #progress { height: 6px; background: #252b36; border-radius: 3px; overflow: hidden; min-width: 120px; flex: 1; }
+  #progress i { display: block; height: 100%; background: var(--ok); width: 0; }
+  .done { color: var(--ok); }
+  .todo { color: var(--warn); }
+  ul.help { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+  ul.help li { margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <strong>Slag eller provsving (S-45)</strong>
+  <span class="pill" id="who"></span>
+  <span class="pill" id="seed"></span>
+  <span class="muted">Sving <b id="pos"></b> av <b id="total"></b></span>
+  <span class="pill" id="rid"></span>
+  <div id="progress"><i></i></div>
+  <span id="pcount" class="muted"></span>
+</header>
+
+<main>
+  <div id="stage">
+    <img id="shot" alt="">
+  </div>
+
+  <aside>
+    <h2>Kriterium</h2>
+    <p class="crit"><b>Slag</b> = bollen träffas: bollen syns före och är borta eller i rörelse
+      efter. Sekvensen visar segmenterarens sving plus ungefär en sekund på båda sidor.</p>
+
+    <h2>Din bedömning</h2>
+    <div class="verdicts">
+      <div class="row"><button data-v="slag">Slag <kbd>1</kbd></button></div>
+      <div class="row"><button data-v="provsving">Provsving <kbd>2</kbd></button></div>
+      <div class="row"><button data-v="ingen sving">Ingen sving <kbd>3</kbd></button></div>
+      <div class="row"><button data-v="osäker">Osäker <kbd>4</kbd></button></div>
+    </div>
+    <p class="muted"><b>Osäker</b> är ett riktigt svar. Använd det hellre än en gissning.</p>
+
+    <h2>Anteckning (frivillig)</h2>
+    <textarea id="note" placeholder="t.ex. bollen utanför bild, två svingar, bara waggle"></textarea>
+
+    <h2>Navigering</h2>
+    <div class="row">
+      <button id="prev">&larr; Sving <kbd>P</kbd></button>
+      <button id="next" class="primary">Sving &rarr; <kbd>N</kbd></button>
+    </div>
+    <div class="row">
+      <button id="firstTodo">Nästa obesvarade</button>
+    </div>
+
+    <h2>Tangenter</h2>
+    <ul class="help">
+      <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> en bildruta, med <kbd>Shift</kbd> fem</li>
+      <li><kbd>Home</kbd> <kbd>End</kbd> första / sista bildrutan</li>
+      <li><kbd>Space</kbd> spela upp i loop</li>
+      <li><kbd>1</kbd>–<kbd>4</kbd> svara</li>
+      <li><kbd>N</kbd> / <kbd>P</kbd> nästa / föregående sving</li>
+    </ul>
+
+    <h2>När allt är ifyllt</h2>
+    <div class="row">
+      <button id="export" class="primary">Exportera svar</button>
+    </div>
+    <p class="muted" id="exportHint"></p>
+  </aside>
+</main>
+
+<footer>
+  <button id="stepBack">&larr;</button>
+  <input type="range" id="bar" min="1" value="1">
+  <button id="stepFwd">&rarr;</button>
+  <button id="play">Spela <kbd>Space</kbd></button>
+</footer>
+
+<script>
+const ROUND = /*__ROUND__*/ null;
+
+const STORE = 'practice-s45-' + ROUND.annotator;
+const state = load();
+let i = 0, f = 1, playing = 0, cache = new Map();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* private window, blocked storage: start empty rather than fail */ }
+  return {};
+}
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* see load() */ }
+}
+
+const swing = () => ROUND.swings[i];
+const ans = () => (state[swing().id] = state[swing().id] || { verdict: null, note: '' });
+const answered = (a) => !!a && !!a.verdict;
+const src = (n) => '../frames/' + swing().id + '/' + String(n).padStart(3, '0') + '.jpg';
+
+function preload() {
+  cache = new Map();
+  for (let n = 1; n <= swing().frames; n++) {
+    const img = new Image();
+    img.src = src(n);
+    cache.set(n, img);
+  }
+}
+
+function showFrame(n) {
+  f = Math.min(swing().frames, Math.max(1, n));
+  document.getElementById('shot').src = src(f);
+  document.getElementById('bar').value = f;
+}
+
+function renderAnswer() {
+  const a = ans();
+  document.querySelectorAll('.verdicts button').forEach((b) =>
+    b.classList.toggle('chosen', b.dataset.v === a.verdict));
+  document.getElementById('note').value = a.note || '';
+  const done = ROUND.swings.filter((s) => answered(state[s.id])).length;
+  document.getElementById('pcount').textContent = done + ' / ' + ROUND.swings.length + ' besvarade';
+  document.getElementById('pcount').className = done === ROUND.swings.length ? 'done' : 'todo';
+  document.querySelector('#progress i').style.width = (100 * done / ROUND.swings.length) + '%';
+}
+
+function renderSwing() {
+  document.getElementById('pos').textContent = i + 1;
+  document.getElementById('rid').textContent = swing().id;
+  document.getElementById('bar').max = swing().frames;
+  preload();
+  showFrame(1);
+  renderAnswer();
+}
+
+function goto(n) {
+  i = (n + ROUND.swings.length) % ROUND.swings.length;
+  stop();
+  renderSwing();
+}
+
+function stop() { if (playing) { clearInterval(playing); playing = 0; document.getElementById('play').textContent = 'Spela'; } }
+function toggle() {
+  if (playing) return stop();
+  document.getElementById('play').textContent = 'Stopp';
+  playing = setInterval(() => showFrame(f >= swing().frames ? 1 : f + 1), swing().ms);
+}
+
+function setVerdict(v) { ans().verdict = v; save(); renderAnswer(); }
+
+document.querySelectorAll('.verdicts button').forEach((b) => { b.onclick = () => setVerdict(b.dataset.v); });
+document.getElementById('note').oninput = (e) => { ans().note = e.target.value; save(); renderAnswer(); };
+document.getElementById('prev').onclick = () => goto(i - 1);
+document.getElementById('next').onclick = () => goto(i + 1);
+document.getElementById('stepBack').onclick = () => { stop(); showFrame(f - 1); };
+document.getElementById('stepFwd').onclick = () => { stop(); showFrame(f + 1); };
+document.getElementById('play').onclick = toggle;
+document.getElementById('bar').oninput = (e) => { stop(); showFrame(+e.target.value); };
+document.getElementById('firstTodo').onclick = () => {
+  const n = ROUND.swings.findIndex((s) => !answered(state[s.id]));
+  if (n >= 0) goto(n); else alert('Alla svingar är besvarade.');
+};
+
+document.getElementById('export').onclick = () => {
+  const missing = ROUND.swings.filter((s) => !answered(state[s.id])).length;
+  if (missing && !confirm(missing + ' svingar är obesvarade. Exportera ändå?')) return;
+  const out = {
+    round: 'S-45', annotator: ROUND.annotator, seed: ROUND.seed,
+    exportedAt: new Date().toISOString(),
+    answers: ROUND.swings.map((s, n) => {
+      const a = state[s.id] || {};
+      return { id: s.id, order: n + 1, verdict: a.verdict ?? null, note: a.note || '' };
+    }),
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'svar-' + ROUND.annotator + '.json';
+  a.click(); URL.revokeObjectURL(url);
+};
+
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  const step = e.shiftKey ? 5 : 1;
+  const k = e.key;
+  if (k === 'ArrowLeft') { stop(); showFrame(f - step); }
+  else if (k === 'ArrowRight') { stop(); showFrame(f + step); }
+  else if (k === 'Home') { stop(); showFrame(1); }
+  else if (k === 'End') { stop(); showFrame(swing().frames); }
+  else if (k === ' ') toggle();
+  else if (k === '1') setVerdict('slag');
+  else if (k === '2') setVerdict('provsving');
+  else if (k === '3') setVerdict('ingen sving');
+  else if (k === '4') setVerdict('osäker');
+  else if (k === 'n' || k === 'N') { goto(i + 1); return; }
+  else if (k === 'p' || k === 'P') { goto(i - 1); return; }
+  else return;
+  e.preventDefault();
+});
+
+document.getElementById('who').textContent = ROUND.annotator;
+document.getElementById('seed').textContent = 'frö ' + ROUND.seed;
+document.getElementById('total').textContent = ROUND.swings.length;
+document.getElementById('exportHint').textContent =
+  'Spara filen som data/shaft/practice-review/svar-' + ROUND.annotator + '.json';
+goto(0);
+</script>
+</body>
+</html>

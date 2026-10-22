@@ -3248,7 +3248,16 @@ avvisar TSO rakt av) och `cameraAngle` (`dtl` krävs; i appen ofta `null` → `u
 > topp-som-finish (`FINISH_MIN_HOLD_FRAMES` är sampelbaserad i låsta `poseEnvelope.ts`),
 > (b) provsvingar generellt, (c) om 3550/3575 alls ska räknas som missade. *(Avgjort, se ovan.)*
 
-### [ ] S-45 — Provsvingar accepteras som svingar (generellt, inte slow-mo)
+### [~] S-45 — Provsvingar accepteras som svingar (generellt, inte slow-mo)
+
+> **Steg 1 klart (2026-10-22): bedömningspaket byggt. Återstår: Eriks bedömning, sedan
+> poängsättning.** Produktionens kedja (`extractPoseTrajectory` 15 fps WASM VIDEO-läge →
+> `readTimeStretch` → `detectSessionSwings`) körd i dev-appen via puppeteer på alla **70** egna
+> klipp: **81 accepterade svingar i 59 klipp, 11 klipp med 0**. Blind vy (S-32-stil, envelope
+> ±1 s, svar slag/provsving/ingen sving/osäker), frö `0x45a1c0de`, nyckel i separat fil. Start:
+> `start data\shaft\practice-review\erik\index.html`. Skript och metod:
+> [shaft/practice-review/README.md](shaft/practice-review/README.md). Ej jämförbart rad för rad
+> med S-44:s 84 (python, native fps).
 
 `detectSessionSwings` har ingen signal som skiljer en provsving (ingen boll) från ett slag: grinden
 mäter struktur (adress → händerna upp → hållen finish, varaktighet, exkursion), och en provsving har

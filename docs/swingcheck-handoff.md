@@ -3,7 +3,13 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
 >
-> **Senast (2026-10-22, stream-shaft):** S-46 (klar) — Slo-Mo-flaggan i `extractDataset`, bara för
+> **Senast (2026-10-22, stream-shaft):** S-45 steg 1 (`[~]`) — bedömningspaket slag vs provsving.
+> Produktionens segmenterare (dev-appen, puppeteer, 15 fps WASM) på 70 egna klipp → **81 svingar i
+> 59 klipp, 11 klipp med 0**. Blind vy: `start data\shaft\practice-review\erik\index.html`, frö
+> `0x45a1c0de`, nyckel `data/shaft/practice-review/key.json` (öppnas efter svaren). Återstår: Eriks
+> svar (`svar-erik.json`), sedan poängsättning. [shaft/practice-review/README.md](shaft/practice-review/README.md).
+>
+> **Före det (2026-10-22, stream-shaft):** S-46 (klar) — Slo-Mo-flaggan i `extractDataset`, bara för
 > klipp som aldrig exporterats: `frozenClips.ts` fryser alla 152 exporterade klipp (batch-01…03 och
 > evalset kan inte byta id). Oflaggade klipp: manifest-poster och JPEG byte-identiska före/efter.
 > **När en ny export annoteras: lägg dess klipp i `frozenClips.ts`.**
