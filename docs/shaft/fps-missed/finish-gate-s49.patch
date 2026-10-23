@@ -1,0 +1,145 @@
+diff --git a/src/lib/poseEnvelope.ts b/src/lib/poseEnvelope.ts
+index 276cde7..6e2c57b 100644
+--- a/src/lib/poseEnvelope.ts
++++ b/src/lib/poseEnvelope.ts
+@@ -73,16 +73,25 @@ const START_QUIET_FLOOR = 0.04;
+  */
+ const SETTLE_SPEED_FRAC = 0.2;
+ /**
+- * MINIMUM FINISH HOLD (consecutive low-speed samples). Structural discriminator:
+- * the follow-through finish is posed and HELD across many frames, whereas the
+- * backswing top is a brief transition of only a few frames. Requiring a longer
++ * MINIMUM FINISH HOLD (seconds of consecutive low-speed samples). Structural
++ * discriminator: the follow-through finish is posed and HELD across many frames, whereas
++ * the backswing top is a brief transition of only a few frames. Requiring a longer
+  * hold stops a short low-speed dwell at the top from being read as the finish —
+  * the exact collapse this replaces (finish snapping back to the backswing top,
+  * because backswing-top and finish are near-equal wrist-height maxima).
+- * OSÄKER: 3 frames ≈ 0.2 s at ~15 fps; a very fast finish that is barely held
+- * could still fall through to clip-cutoff protection. Field-tune on real clips.
++ *
++ * S-49: was FINISH_MIN_HOLD_FRAMES = 3, a SAMPLE count — 0.2 s at 15 fps but 0.1 s at
++ * 30 fps, so a short-held finish passed at 30 fps and failed at 15 (IMG_4613/5406,
++ * docs/shaft/fps-missed-swings.md). Now 0.1 s = today's 3 samples at 30 fps; samples =
++ * max(2, round(sec / dt)) like MIN_ADDRESS_SEC → 3 at 30 fps, 2 at 15 fps.
+  */
+-const FINISH_MIN_HOLD_FRAMES = 3;
++const FINISH_MIN_HOLD_SEC = 0.1;
++/**
++ * FINISH-GATE REFERENCE INTERVAL (S-49). The finish gate (settle threshold + hold) runs on
++ * a speed series smoothed over the same TIME as SMOOTH_HALF gives at this interval, so
++ * the peak it scales from is comparable across sampling rates. See `finishKernelSide`.
++ */
++const FINISH_REF_DT = 1 / 30;
+ 
+ // ── Impact tunables (confident-only polish) ────────────────────────────────────
+ /** Wrists must rise at least this far (normalized y) above address to be a swing. */
+@@ -270,7 +279,8 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
+   if (visibleFrac < MIN_VISIBLE_FRAC) {
+     return fail('low wrist visibility', { trackedWrist, visibleFrac });
+   }
+-  const pos = smoothVec(interpolate(raw), SMOOTH_HALF);
++  const filled = interpolate(raw);
++  const pos = smoothVec(filled, SMOOTH_HALF);
+ 
+   // ── Speed (normalized units / second) ──────────────────────────────────────
+   // total = magnitude of wrist displacement; vy = signed vertical component
+@@ -376,20 +386,29 @@ export function detectSwingEnvelope(samples: PoseSample[]): SwingEnvelope {
+ 
+   // ── Finish: first sustained high-settle AFTER the downswing pass ───────────────
+   // Walk forward from the pass; the finish onset is the start of the first run of
+-  // FINISH_MIN_HOLD_FRAMES low-speed samples (the held follow-through pose). The
++  // FINISH_MIN_HOLD_SEC worth of low-speed samples (the held follow-through pose). The
+   // hold-length requirement is what separates the finish from the brief low-speed
+   // dwell at the backswing top — a top would clear a 1–2 frame settle but not this.
+-  const settleThresh = peakSpeed * SETTLE_SPEED_FRAC;
++  //
++  // S-49: threshold, its reference peak and the hold are all rate-independent. At 15 fps
++  // the shared `speedSm` is smoothed over twice the time it is at 30 fps, which shrinks
++  // the peak (0.57–0.70× on clean clips) while the slow post-finish lowering keeps its
++  // speed — so `0.2 × peak` sank under it. The gate therefore reads `finishSpeed`, built
++  // with 30 fps-equivalent smoothing (identical to `speedSm` at ≥ 30 fps). `peakSpeed`
++  // itself is untouched: poseSegments/datasetGate compare it against `refSpeed`.
++  const finishSpeed = finishGateSpeed(filled, t, sampleDt, speedSm);
++  const settleThresh = Math.max(...finishSpeed) * SETTLE_SPEED_FRAC;
++  const finishHoldFrames = Math.max(2, Math.round(FINISH_MIN_HOLD_SEC / sampleDt));
+   let finishIdx = -1;
+   let clippedTail = false;
+   if (passIdx >= 0) {
+     let quiet = 0;
+     let runStart = passIdx + 1;
+     for (let i = passIdx + 1; i < n; i++) {
+-      if (speedSm[i] < settleThresh) {
++      if (finishSpeed[i] < settleThresh) {
+         if (quiet === 0) runStart = i;
+         quiet++;
+-        if (quiet >= FINISH_MIN_HOLD_FRAMES) {
++        if (quiet >= finishHoldFrames) {
+           finishIdx = runStart; // finish ONSET = first frame of the held-high run
+           break;
+         }
+@@ -614,6 +633,64 @@ function smooth(v: number[], half: number): number[] {
+   return out;
+ }
+ 
++/**
++ * Side weight `a` of the 3-tap kernel [a, 1−2a, a] that gives the finish gate's speed
++ * series, at sample interval `dt`, the same temporal smoothing `speedSm` has at
++ * FINISH_REF_DT. `speedSm` = moving average on position → first difference → moving
++ * average on speed; as a filter on velocity its time variance is
++ *   2 · h(h+1)/3 · dt²  +  dt²/12      (two (2h+1)-tap averages + the difference's box),
++ * h = SMOOTH_HALF, i.e. (17/12)·dt² for h = 1. The 3-tap kernel contributes 2a·dt² per
++ * pass, so a = (refVar/dt² − 1/12) / 4. Clamped to [0, 1/3]; 1/3 is today's average, and
++ * at ≥ 30 fps the caller uses `speedSm` itself. 15 fps → a = 13/192 ≈ 0.068.
++ * OSÄKER: the undersampling of a ~0.15 s downswing at 15 fps is not recoverable — this
++ * removes the smoothing's share of the peak shrink, not the sampling's.
++ */
++function finishKernelSide(dt: number): number {
++  const h = SMOOTH_HALF;
++  const refVar = ((2 * h * (h + 1)) / 3 + 1 / 12) * FINISH_REF_DT ** 2;
++  const a = (refVar / dt ** 2 - 1 / 12) / 4;
++  return Math.min(1 / 3, Math.max(0, a));
++}
++
++/** Speed series for the finish gate (S-49): `speedSm`'s chain with the time-matched
++ *  kernel from `finishKernelSide`. Returns `speedSm` unchanged at ≥ 30 fps. */
++function finishGateSpeed(filled: Vec[], t: number[], sampleDt: number, speedSm: number[]): number[] {
++  const a = finishKernelSide(sampleDt);
++  if (a >= 1 / 3) return speedSm;
++  const w = [a, 1 - 2 * a, a];
++  const p = smoothVecWeighted(filled, w);
++  const speed = new Array<number>(p.length).fill(0);
++  for (let i = 1; i < p.length; i++) {
++    const dt = t[i] - t[i - 1] || sampleDt;
++    speed[i] = dist(p[i], p[i - 1]) / dt;
++  }
++  return smoothWeighted(speed, w);
++}
++
++/** Centered 3-tap weighted average; weights renormalised over in-range taps at the
++ *  edges, as `smooth` does. */
++function smoothWeighted(v: number[], w: number[]): number[] {
++  const out = new Array<number>(v.length);
++  for (let i = 0; i < v.length; i++) {
++    let sum = 0;
++    let k = 0;
++    for (let j = -1; j <= 1; j++) {
++      if (i + j >= 0 && i + j < v.length) {
++        sum += v[i + j] * w[j + 1];
++        k += w[j + 1];
++      }
++    }
++    out[i] = sum / k;
++  }
++  return out;
++}
++
++function smoothVecWeighted(v: Vec[], w: number[]): Vec[] {
++  const xs = smoothWeighted(v.map((p) => p.x), w);
++  const ys = smoothWeighted(v.map((p) => p.y), w);
++  return xs.map((x, i) => ({ x, y: ys[i] }));
++}
++
+ function smoothVec(v: Vec[], half: number): Vec[] {
+   const xs = smooth(v.map((p) => p.x), half);
+   const ys = smooth(v.map((p) => p.y), half);

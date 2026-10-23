@@ -3,7 +3,14 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-shaft):** S-49 (diagnos, klar): 4613, 5063 och 5406 får 0 svingar i
+> **Senast (2026-10-23, stream-shaft):** S-49 fixförsök **stoppat** (`[~]`). En fps-oberoende
+> finishgrind (hållkrav 0,1 s, 30 fps-ekvivalent utjämning, förregistrerad i `c1fd057`) räddar
+> 4613/5406 och håller S-45-facit (0 slag förlorade, falska 10 → 10). Men den flyttar 90 av 101
+> webbenvelopes, tappar en S-32-sving (`072`) och gör toppvila till finish (`062`, `070`, 3587 i
+> 15 fps). session-multi-testet faller med 2,05 rutor. `poseEnvelope.ts` är orörd, ändringen ligger
+> som patch. Beslut (i/ii/iii) väntar: [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md) §6.
+>
+> **Före det (2026-10-23, stream-shaft):** S-49 (diagnos, klar): 4613, 5063 och 5406 får 0 svingar i
 > appens 15 fps-kedja. Alla tre fälls av `clipped tail`, och alla tre är sannolikt slag. 4613 och 5406
 > beror på **fps**: `peakSpeed` krymper till ~0,6× i 15 fps medan rörelsen efter finishen inte gör
 > det, och hållkravet är 3 sampel. Därför klarar inte en kort hållen finish settle-grinden. 5063

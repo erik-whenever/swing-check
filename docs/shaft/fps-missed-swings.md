@@ -181,3 +181,70 @@ S-32:s 103 svingar, 15 fps, datasetvägen (`detectSessionSwings` + `collectDatas
 klipp → ej sträckta) och produktionsvägen: varje ändrad envelope redovisas. (e) 3587.
 Dessutom: 30 fps-utfallet före/efter (ska vara oförändrat eller nära), regressionsharnessens
 goldens och `npm test`.
+
+## 6. Resultat: (a)–(c) håller, (d) och (e) gör det inte. Stoppat, ingen produktionskod ändrad
+
+> 2026-10-23. Designen i §5 kördes oförändrad, i en körning och utan iteration. Enligt
+> stoppregeln är **värdena inte ändrade och koden inte committad**. Ändringen ligger som
+> [`fps-missed/finish-gate-s49.patch`](fps-missed/finish-gate-s49.patch) (`git apply`).
+> `poseEnvelope.ts` är oförändrad i repot.
+
+Upplägg: pose extraherad **en gång** i dev-appens webbläsarkedja (varm WASM, VIDEO-läge):
+70 egna klipp i 15 fps (`extractPoseTrajectory`) och 30 fps (kopia av loopen), och de 80
+webbklipp som bär S-32:s svingar i 15 fps ([`extract_rates.cjs`](fps-missed/extract_rates.cjs)).
+Samma sampel matades till `detectSessionSwings` (och för webb även `collectDatasetSwings`) i
+webbläsaren, först med gamla och sedan med nya `poseEnvelope.ts`
+([`run_segmenter.cjs`](fps-missed/run_segmenter.cjs), [`compare_fix.py`](fps-missed/compare_fix.py)).
+Utdata (gitignorerat): `data/shaft/fps-missed/fix/`. Kontroller av uppställningen: före-körningen
+i 15 fps återger S-45 exakt (81 svingar, 0 nya, 10 falska), och datasetvägen återger alla 102
+webbsvingar ur S-32 (den 103:e är `IMG_5427`, ett eget klipp).
+
+| | före | efter |
+|---|---|---|
+| (a) egna klipp där 15 och 30 fps ger olika svingar | 7 av 70 (81 mot 82 svingar) | **4 av 70** (84 mot 82) |
+| 30 fps-utfallet | – | **oförändrat i alla 70** |
+| (b) 4613 / 5406 i 15 fps | 0 / 0 | **3,29–4,83 / 2,87–4,40** (= native-envelopen inom 0,07 s) |
+| 5063 | 0 | 0 (spåraren, som väntat) |
+| (c) S-45-slag som försvinner | – | **0 av 71** |
+| (c) accepterade falska | 10 | **10** |
+| (c) nya envelopes | – | 3: `IMG_4613` 3,29–4,83, `IMG_5406` 2,87–4,40, `juli132025-1134fm` 7,83–9,23 (den sista accepteras redan i 30 fps före fixen) |
+| (d) datasetvägen, webbsvingar | 102 | **101**: `072` 17,71–19,71 (S-32-sving) faller på `vertical excursion 0,054 < 0,08` |
+| (d) envelopes med ändrad finish (webb, dataset) | – | **90 av 101** (85 tidigare, 5 senare), median **−0,067 s** (1 sampel), 20 flyttar > 0,2 s |
+| (d) produktionsvägen, webb | 80 | 84 (`009`, `040`, `054`, `083` går från dataset-relaxed till produktion) |
+| (e) 3587 i 15 fps | 12,18–17,04, impact 15,58 | **12,18–15,51, ingen impact** (= 30 fps-utfallet: topp som finish) |
+| `npm test` | 406/406 | **405/406**: `poseSegments.test.ts` session-multi, sving 2 finish 33,13 → 32,99 (2,05 rutor, tol ±2). `poseEnvelopeRegression` gröna |
+
+Kvar i (a): `IMG_3656`, `IMG_5186`, `IMG_5360` (bara 15 fps) och `IMG_5356` 54,43–56,07 (bara 30 fps).
+
+**Varför (d) inte håller.** Fixen gör det den skulle i 15 fps: finishen hittas lika tidigt som i
+30 fps. Men det betyder också att 30 fps-beteendet med **toppvila som finish** följer med in i
+produktionens 15 fps-kedja. Hållkravet på 3 sampel i 15 fps (0,2 s) var det som skyddade mot det
+(kommentaren i `poseEnvelope.ts`: "a top would clear a 1–2 frame settle but not this"). Med 2 sampel
+och mindre utjämning:
+
+- **Finish före den gamla impacten** (envelopen slutar vid toppen eller i nedsvinget, impact
+  försvinner): `062` 5,79 → 4,32 (impact var 4,39), `070` 13,65 → 10,52 (10,85), `3587`
+  17,04 → 15,51 (15,58). `040` och `005` tappar också impact.
+- `054` byter nedsvingspass (impact 5,00 → 3,46), och `072`:s tredje sving krymper så mycket att
+  händerna inte hinner upp (exkursion 0,054).
+- De flesta stora flyttarna behåller impact och kortar en finish som förut gick ut i sänkningen
+  efter svingen (t.ex. `022` 4,19 → 3,06 med impact 2,52, `IMG_5269` 2,73 → 1,67). Det kan vara en
+  förbättring, men det är inte bedömt mot bild.
+- Det systematiska skiftet på −1 sampel i ~85 % av envelopes kommer av att löpningen nu startar på
+  ett sampel som förut låg strax över tröskeln. Frame-id i den annoterade datan beror på
+  envelopen. En omextraktion av frysta klipp (`frozenClips.ts` fryser bara sträckflaggan) skulle
+  inte längre återge exporternas `tSec`.
+
+**Vad det säger om designen.** Att låsa till native 30 fps-beteendet var fel ankare för
+hållkravet. 30 fps har redan toppvila-som-finish (3587, S-44), och 15 fps var den robusta
+konfigurationen just där. Peak-delen och hållkravs-delen har inte prövats var för sig. Det hade
+varit iteration mot facit, och designen var låst som en enhet.
+
+**Ditt beslut.** Det jag ser som möjligt, men som inte är prövat:
+- **(i)** Ankra i 15 fps i stället: hållkravet i sekunder = 0,2 s (dagens 15 fps), och peak-
+  utjämningen tidsankrad till 15 fps. Då skulle 30 fps ändras i stället för produktionen.
+- **(ii)** Bara peak-delen (§5 (2)), med hållkravet kvar på 3 sampel.
+- **(iii)** Låt det vara. 4613/5406 är 2 av 71 slag, och produktionen kör alltid 15 fps.
+
+Varje variant behöver en ny förregistrering och samma körning (a)–(e). Sampeldatan finns kvar, så
+en omkörning tar några minuter.

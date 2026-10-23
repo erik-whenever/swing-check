@@ -3382,8 +3382,23 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 
 
 
-### [x] S-49 — Diagnos: tre klipp med 0 svingar i appens 15 fps-kedja (4613, 5063, 5406)
+### [~] S-49 — Tre klipp med 0 svingar i appens 15 fps-kedja (4613, 5063, 5406): diagnos klar, fix stoppad
 
+> **Fixförsök (2026-10-23): stoppat enligt stoppregeln. Ingen produktionskod ändrad, beslut ditt.**
+> Designen förregistrerades före körningen (`c1fd057`, fps-missed-swings.md §5): hållkrav 0,1 s
+> (= 3 sampel i 30 fps → 2 i 15 fps) och finishgrindens fartserie med 30 fps-ekvivalent
+> tidsutjämning. Den kördes en gång på pose extraherad i webbläsarkedjan. **(a)** 15↔30 fps skiljer
+> sig i 4 av 70 egna klipp (före 7), och 30 fps är oförändrat. **(b)** 4613 och 5406 accepteras
+> (= native inom 0,07 s), 5063 inte. **(c)** 0 av 71 slag förlorade, falska 10 → 10, nya: 4613,
+> 5406, `juli132025` 7,83–9,23. **(d) håller inte:** 90 av 101 webbenvelopes får en annan finish
+> (median −1 sampel, 20 > 0,2 s). `072`:s S-32-sving faller (exkursion), och `062`/`070` får sin finish
+> före den gamla impacten (toppvila som finish). **(e)** 3587 i 15 fps blir topp-som-finish, som i
+> 30 fps. `poseSegments.test.ts` session-multi faller med 2,05 rutor (tol 2). Slutsats: native
+> 30 fps var fel ankare för hållkravet. 15 fps-hållningen på 0,2 s var det som skyddade mot
+> toppvilan. Ändringen sparad som `docs/shaft/fps-missed/finish-gate-s49.patch`. **Återstår (beslut):**
+> (i) ankra i 15 fps, (ii) bara peak-delen, eller (iii) låt bli. Varje variant behöver ny
+> förregistrering. Rapport: [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md) §5–6.
+>
 > **Klart (2026-10-23), bara diagnos. Ingen tröskel och ingen produktionskod ändrad.** Alla tre fälls
 > av `clipped tail` i appen, och alla tre missade envelopes är sannolikt **slag** (4613 3,27–4,80 s,
 > 5406 2,80–4,37 s, 5063 16,13–17,27 s, en kort pitch). Fyra konfigurationer genom samma
