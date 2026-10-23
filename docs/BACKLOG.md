@@ -3506,9 +3506,19 @@ XNNPACK-delegat, telemetri). Varje symbol finns i både `TensorFlowLiteC.framewo
 `libMediaPipeTasksCommon_device_graph.a` (MediaPipeTasksVision 0.10.x). Inga andra länkfel. Inte lappat.
 Android är inte byggt.
 
-**Kvar:** Eriks beslut om väg vidare (se handoff), sedan bygge, mätningar och rapport mot grinden.
+**Beslut (Erik, 2026-10-23): spiken delas.** Pose och skaft byggs separat, eftersom grinden mäter dem var
+för sig. Värme under kombinerad last mäts inte: produkten kör skaftet på cirka 26 rutor per sving efter
+slaget, inte live. Profilerna är `pose-lite`, `pose-full` och `shaft` (`react-native.config.js` utesluter
+den andra sidans native-paket). Skaftbygget mäter även **burst 26**: 26 rutor i följd, körda direkt efter
+varandra. iOS-prebuild av båda typerna är verifierad: pose har MediaPipe utan TFLite, skaft har TFLite
+med Core ML utan MediaPipe.
+
+**Kvar:** EAS-byggen (Erik), mätningar på iPhone och sedan Android, rapport mot grinden.
 
 ### [ ] N-3 — Kärnflödet i appen
+**På iOS körs skaftet i Core ML direkt, inte via TFLite** ([F6](oppna-fragor.md)). MediaPipe Pose bär en egen
+TFLite, och två TFLite-kopior i samma binär ger dubbla symboler (N-2). shaft-v2 konverteras därför till
+`.mlpackage` (samma vikter) och körs i en egen Nitro-modul för VisionCamera 5.
 
 ### [ ] N-4 — 30 fps-omkalibrering (S-49 §6)
 

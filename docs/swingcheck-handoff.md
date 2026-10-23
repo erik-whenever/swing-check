@@ -3,7 +3,12 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2 stoppad vid första iOS-bygget. MediaPipe och
+> **Senast (2026-10-23, stream-native):** N-2 fortsätter med delad spike (Eriks beslut). Byggen:
+> `pose-lite`, `pose-full` och `shaft` (eas.json). Appen väljer variant via sitt bundle-id. Skaftbygget har
+> **Burst 26** för produktens mönster. F6 och N-3 noterar: skaftet körs i Core ML direkt på iOS, eftersom
+> TFLite krockar med MediaPipe. **Nästa:** Erik bygger `pose-lite` för iOS.
+>
+> **Före det (2026-10-23):** N-2 stoppad vid första iOS-bygget. MediaPipe och
 > fast-tflite länkar båda in TFLite:s C-API: 54 dubbla `TfLite*`-symboler mellan `TensorFlowLiteC` 2.17.0 och
 > `libMediaPipeTasksCommon_device_graph.a` (bygge `60a0c910…`). Inte lappat. **Väntar på Eriks beslut**,
 > se rapporten i sessionen och BACKLOG N-2.

@@ -97,6 +97,10 @@ Xcode/Instruments. Arbetet börjar med det som inte kräver Mac (delad logik, An
 **Ordning (~130 h, mål: säsongsstart april 2027):** (1) spike: 30 fps + pose + shaft-v2 på
 enhet, grind för beslutet; (2) kärnflödet; (3) 30 fps-omkalibrering (S-49 §6); (4) handsfree
 med taligenkänning på enheten; (5) TestFlight och Play.
+**Skaftet körs i Core ML direkt på iOS, inte via TFLite (fynd i N-2, 2026-10-23).** MediaPipe Pose
+länkar in en egen kopia av TFLite:s C-API, och en TFLite-runtime till i samma iOS-binär ger dubbla
+`TfLite*`-symboler (54 st, EAS-bygge `60a0c910…`). Så shaft-v2 konverteras till Core ML
+(`.mlpackage`, samma vikter) och körs i en egen Nitro-modul i N-3. Android är inte berört av beslutet.
 
 ---
 
