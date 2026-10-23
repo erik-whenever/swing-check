@@ -159,7 +159,10 @@ export default function App() {
   const frameProcessor = useFrameProcessor(
     (frame) => {
       'worklet';
-      const g = globalThis as unknown as WorkletGlobals;
+      // `global`, not `globalThis`: worklets-core's Babel plugin treats `globalThis` as a free
+      // variable and captures the JS thread's whole global object into the closure, which it
+      // then wraps recursively until the JS thread's stack overflows (crash 2026-10-23 21:06).
+      const g = global as unknown as WorkletGlobals;
       const W = frame.width;
       const H = frame.height;
       // Letterbox exactly like core/lib/shaft/letterbox.ts (Ultralytics' rounding).
