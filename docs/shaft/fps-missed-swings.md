@@ -128,3 +128,56 @@ detekterar något som inte finns.
   tröskel som inte skalar med en topp som själv beror på fps. För 5063 gäller i stället
   interpolation över långa pose-tapp. Valet är ditt, och en ändring i `poseEnvelope.ts` (låst)
   kräver regressionsharnessen.
+
+## 5. Fixen: design, låst före första körningen (2026-10-23)
+
+> Skriven och committad **innan** något är kört mot den nya koden. Värdena är härledda ur
+> dagens beteende i native 30 fps, inte ur de tre missade klippen. Ingen iteration mot facit:
+> stämmer inte mätningen (c) eller (d) stannar arbetet och värdena ändras inte.
+
+Bara **finishgrinden** i `poseEnvelope.ts` ändras: settle-tröskelns referenstopp, serien som
+jämförs mot den, och hållkravet. Allt annat är orört: `SMOOTH_HALF`, adressplatå, start,
+nedsvingspass, impact, `lastMotion`-skyddet, `SETTLE_SPEED_FRAC` = 0,2, och det rapporterade
+`envelope.peakSpeed` (det jämförs mot `refSpeed` i `poseSegments.ts`/`datasetGate.ts` och måste
+vara byggt som förut).
+
+**(1) Hållkravet i sekunder.** `FINISH_MIN_HOLD_FRAMES = 3` ersätts av
+`FINISH_MIN_HOLD_SEC = 0,1` (= 3 sampel × 1/30 s, dagens krav i native 30 fps). Antal sampel =
+`max(2, round(FINISH_MIN_HOLD_SEC / sampleDt))`, samma idiom som `MIN_ADDRESS_SEC`. Ger 3 i
+30 fps (även 29,97: 2,997 → 3) och 2 i 15 fps (0,133 s). Golvet 2 betyder att ett ensamt sampel
+aldrig räknas som hållen finish.
+
+**(2) Finishgrindens fartserie med samma tidsutjämning som i 30 fps.** Dagens `speedSm` är
+glidande medel över 3 sampel på positionen → differens → glidande medel över 3 sampel på farten.
+Som filter på hastigheten har kedjan tidsvariansen `2·(2/3)·dt² + dt²/12 = (17/12)·dt²`
+(två 3-tapsmedel + differensens låda). I 30 fps är σ = 0,040 s; i 15 fps är den dubbelt så stor,
+vilket är en av de två orsakerna till att toppen krymper (§2). Finishgrinden får en egen serie
+`finishSpeed`, byggd med samma kedja men med kärnan `[a, 1−2a, a]` där `a` väljs så att
+variansen blir 30 fps-värdet:
+
+```
+4a·dt² + dt²/12 = (17/12)·(1/30)²   →   a = ((17/12)·(1/30 / dt)² − 1/12) / 4,  klampat till [0, 1/3]
+```
+
+- 30 fps: `a` = 1/3 → kärnan är dagens 3-sampelsmedel. Vid `a ≥ 1/3` används `speedSm` själv,
+  alltså exakt dagens kod. (29,97 fps ger `a` = 0,3328, kärnvikter som skiljer < 0,2 %.)
+- 15 fps: `a` = 13/192 ≈ 0,068 → mindre utjämning, samma effektiva tidsfönster som 30 fps.
+- Över 30 fps: klampat, dagens sampelbaserade beteende (ingen produktion kör där).
+- Kanter: vikterna normaliseras med summan av vikterna inom serien (som `smooth` idag).
+
+Referenstoppen för settle = `max(finishSpeed)`, och settle-löpningen räknas på `finishSpeed`
+(samma serie för tröskel och jämförelse). Det som inte går att återvinna är undersamplingen: ett
+nedsving på ~0,15 s har 2–3 sampel i 15 fps oavsett utjämning. Fixen tar bort utjämningens del
+av krympningen, inte samplingens.
+
+**Kända sampelberoenden som lämnas:** `IMPACT_END_MARGIN_FRAMES` (2) och `SMOOTH_HALF` i resten
+av kedjan. De styr inte finishgrinden.
+
+**Mätning (låst):** samma sving = accepterade envelopes som överlappar med minst 50 % av den
+kortares längd. (a) alla 70 egna klipp, webbläsaren, 15 och 30 fps, före/efter. (b) 4613 och
+5406 accepterade i 15 fps. (c) mot S-45-facit (`key.json` + `svar-erik.json`): inget av de 71
+slagen försvinner, antalet accepterade falska ≤ 10, nya envelopes listas. (d) webbklippen bakom
+S-32:s 103 svingar, 15 fps, datasetvägen (`detectSessionSwings` + `collectDatasetSwings`, frysta
+klipp → ej sträckta) och produktionsvägen: varje ändrad envelope redovisas. (e) 3587.
+Dessutom: 30 fps-utfallet före/efter (ska vara oförändrat eller nära), regressionsharnessens
+goldens och `npm test`.
