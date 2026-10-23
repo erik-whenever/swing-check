@@ -3530,7 +3530,27 @@ som att personen var utanför bild eller rörde sig, inte som en modellskillnad.
 i median. Slutsats: full ryms också i 30 fps med marginal (p99 28,5 ms mot 33 ms), men lite har dubbelt så stor
 marginal. Valet mellan dem avgörs av noggrannhet, inte av tid.
 
-**Kvar:** skaftbygget (paritet, burst 26, 3 min), Android, rapport mot grinden.
+**Mätning 3 — skaft (shaft-v2 float32, TFLite med Core ML-delegaten), samma telefon, 30 fps (2026-10-23):**
+- **Paritet: klarar grinden.** Avvikelsen mot Python är 0,23 px för greppänden och 0,45 px för hoseln i
+  källbildens pixlar (gräns 2 px). Boxkonfidens 0,787 i appen mot 0,784 i Python.
+- **Tid: klarar inte grinden (≤ 30 ms), men det skiljer bara ~2 ms.** Medianen för inferens låg på
+  31,7 ms vid paritet (20 körningar) och 31,7–32,6 ms per burst (p95 35–37 ms). Webben på samma telefon:
+  83 ms, alltså 2,6× snabbare här. Ren inferens för 26 rutor tar 823–847 ms per sving (webben ~2,2 s).
+- **Burst 26 ×5:** 1,80–1,88 s totalt. Drygt hälften är förberedelse (37 ms/ruta), som är en artefakt i
+  spiken: letterboxen är en JS-loop över uint8 i workleten. I liveläget, där resize-pluginet lämnar
+  float32, tar samma steg 2,8 ms. Produkten ska förbereda rutorna natively.
+- **3 min live (inte produktens mönster):** inferensen steg från 35 till 41 och sedan 45 ms i median per
+  minut. Thermal gick till `fair` efter 63 s, aldrig `serious`. 23 % tappade rutor, väntat eftersom
+  inferensen är över 33 ms. Max boxkonfidens 0,19: ingen klubba hittades live.
+  `// OSÄKER`: det framgår inte av loggen om en klubba var i bild. Om den var det pekar det på ett fel i
+  livevägen (rotation eller färgordning), inte i modellen, eftersom pariteten stämmer.
+- **Osäkert:** TFLite:s Core ML-delegat kan lämna delar av grafen på CPU. N-3 kör Core ML direkt
+  (`.mlpackage`, F6), och float16 är inte mätt. Båda kan ta bort de sista 2 ms men är inte verifierade.
+
+**Grinden, sammanfattning (iPhone 16 Pro):** pose lite ✔, pose full ✔, skaftparitet ✔, skafttid ✘ (32 mot
+30 ms). Android är inte mätt.
+
+**Kvar:** Eriks beslut om skafttiden (godta, eller mät om med Core ML direkt i N-3), Android.
 
 ### [ ] N-3 — Kärnflödet i appen
 **På iOS körs skaftet i Core ML direkt, inte via TFLite** ([F6](oppna-fragor.md)). MediaPipe Pose bär en egen

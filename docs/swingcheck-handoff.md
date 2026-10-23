@@ -3,9 +3,14 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2: även pose full på iPhone 16 Pro **klarar grinden**: 19,2 ms
-> median, 21,2 ms vid p95 och 28,5 ms vid p99, 0,17 % tappade rutor (bara vid start), thermal `nominal` i 3 min.
-> Kvar: skaft och Android.
+> **Senast (2026-10-23, stream-native):** N-2 på iPhone 16 Pro är mätt färdigt.
+> - **Klarar grinden:** pose lite och full, och skaftparitet (≤ 0,45 px).
+> - **Klarar inte grinden:** skafttiden, 32 ms mot 30 ms. Det är ändå 2,6× snabbare än webbens 83 ms, och
+>   26 rutor tar 0,83 s.
+> - **Kvar:** Eriks beslut om skafttiden, och Android. Detaljerna står i BACKLOG N-2 (mätning 3).
+>
+> **Före det:** pose full klarar grinden: 19,2 ms median, 21,2 ms vid p95 och 28,5 ms vid p99, 0,17 %
+> tappade rutor (bara vid start), thermal `nominal` i 3 min.
 >
 > **Före det:** pose lite klarar grinden: 17,3 ms median och 18,7 ms vid p95, 0,15 % tappade rutor (bara
 > under uppvärmningen), thermal `nominal` i 3 min.
