@@ -80,10 +80,28 @@ bättre tidsankring av fasövergångarna, eventuellt pose-estimering som stöd.
 
 
 ### F6 — Native iOS + Android i stället för webbapp/PWA?
-**Datum:** 2026-09-15 · **Status:** ÖPPEN
+**Datum:** 2026-09-15 · **Status:** BESLUTAD 2026-10-23
+
+**Beslut (2026-10-23): React Native (Expo med dev client + VisionCamera) för iOS och Android.**
+Kamera, pose (MediaPipe native SDK) och skaftinferens (Core ML / TFLite) körs i native moduler.
+Domänlogiken (ren TS i `src/lib`: poseEnvelope-kedjan, `shaft/measure`, regelbiblioteket,
+api-logiken) delas som en kodbas. Workern och Supabase är oförändrade. Dev-vyer och
+datasetverktyg blir kvar som desktop-webb. S-47 löses genom att modellen följer med appbinären.
+**Varför inte Swift + Kotlin:** två implementationer av regel- och mätkedjan riskerar att ge
+olika utslag på iOS och Android (G2) och halverar iterationstakten på det som skiljer
+produkten från konkurrenterna. Native vinner bara på UI-polish och direkt API-åtkomst, och
+RN når samma API:er via egna Swift-moduler. **Varför inte Capacitor:** inferens och kamera
+stannar i WKWebView (fps, latens, reload-buggen). **Flutter:** samma produkt som RN men logiken
+skrivs om i Dart. **Mac:** Erik skaffar en inom kort för iOS-modulerna och profilering i
+Xcode/Instruments. Arbetet börjar med det som inte kräver Mac (delad logik, Android, UI).
+**Ordning (~130 h, mål: säsongsstart april 2027):** (1) spike: 30 fps + pose + shaft-v2 på
+enhet, grind för beslutet; (2) kärnflödet; (3) 30 fps-omkalibrering (S-49 §6); (4) handsfree
+med taligenkänning på enheten; (5) TestFlight och Play.
+
+---
 
 SwingCheck är byggd som webbapp/PWA. Erik lutar nu åt **native iOS + Android före lansering**.
-**Beslutet är inte fattat** — den här posten listar konsekvenserna, den avgör ingenting.
+*Underlaget nedan skrevs före beslutet och står kvar som motivering.*
 
 **Vad som INTE påverkas.** Skaftmodellen är formatoberoende: samma tränade vikter exporteras
 till ONNX, Core ML eller TFLite **utan omträning**. Dataset, annoteringsschema och
