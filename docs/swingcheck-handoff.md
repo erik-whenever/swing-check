@@ -3,7 +3,11 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2 fortsätter med delad spike (Eriks beslut). Byggen:
+> **Senast (2026-10-23, stream-native):** N-2: pose lite på iPhone 16 Pro **klarar grinden**: 17,3 ms
+> median och 18,7 ms vid p95, 0,15 % tappade rutor (bara under uppvärmningen), thermal `nominal` i 3 min.
+> Kvar: pose full, skaft och Android.
+>
+> **Före det:** N-2 fortsätter med delad spike (Eriks beslut). Byggen:
 > `pose-lite`, `pose-full` och `shaft` (eas.json). Appen väljer variant via sitt bundle-id. Skaftbygget har
 > **Burst 26** för produktens mönster. F6 och N-3 noterar: skaftet körs i Core ML direkt på iOS, eftersom
 > TFLite krockar med MediaPipe. **Nästa:** Erik bygger `pose-lite` för iOS.

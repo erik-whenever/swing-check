@@ -3513,7 +3513,14 @@ den andra sidans native-paket). Skaftbygget mäter även **burst 26**: 26 rutor 
 varandra. iOS-prebuild av båda typerna är verifierad: pose har MediaPipe utan TFLite, skaft har TFLite
 med Core ML utan MediaPipe.
 
-**Kvar:** EAS-byggen (Erik), mätningar på iPhone och sedan Android, rapport mot grinden.
+**Mätning 1 — pose lite, iPhone 16 Pro (iPhone17,1), iOS 26.6.2, 30 fps 1920×1080, 3 min (2026-10-23):**
+klarar grinden. 5 410 rutor, 29,95 fps. Pose 17,3 ms/ruta i median och 18,7 ms vid p95 (99:e percentilen
+19,9 ms), stabil över alla tre minuterna (17,3 / 17,2 / 17,4 ms i median per minut). 8 tappade rutor (0,15 %),
+alla under uppvärmningen de första 0,4 s: där låg 3 rutor på 77–199 ms, därefter var det inga över 33 ms.
+Thermal `nominal` hela tiden. Pose hittades i 99,3 % av rutorna. Logg: `apps/spike/logs/` (gitignorerad).
+Kraschen vid första starten var ett fel i spikens JS (`globalThis` i workleten), rättat i `8314866`.
+
+**Kvar:** pose full, skaftbygget (paritet, burst 26, 3 min), Android, rapport mot grinden.
 
 ### [ ] N-3 — Kärnflödet i appen
 **På iOS körs skaftet i Core ML direkt, inte via TFLite** ([F6](oppna-fragor.md)). MediaPipe Pose bär en egen
