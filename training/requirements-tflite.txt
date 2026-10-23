@@ -1,0 +1,26 @@
+# ONNX -> TFLite conversion for the native spike (training/export_tflite.py). Python 3.11, Windows.
+# Own venv: onnx2tf pins a TensorFlow/onnx stack that clashes with requirements.txt.
+#
+#   py -3.11 -m venv training\.venv-tflite
+#   training\.venv-tflite\Scripts\python.exe -m pip install --no-deps onnx2tf==1.29.24
+#   training\.venv-tflite\Scripts\python.exe -m pip install -r training\requirements-tflite.txt
+#
+# onnx2tf is installed with --no-deps because its pins include ai-edge-litert==2.1.0, which has
+# no Windows wheel. export_tflite.py points that module name at TensorFlow's own TFLite
+# interpreter instead. Everything below is onnx2tf 1.29.24's own pin list minus that one.
+requests==2.32.5
+numpy==1.26.4
+onnx==1.19.1
+onnxruntime==1.23.0
+opencv-python==4.11.0.86
+onnxsim==0.4.36
+onnxoptimizer==0.4.2
+tensorflow==2.19.0
+tf-keras==2.19.0
+onnx-graphsurgeon==0.5.8
+simple-onnx-processing-tools==1.1.32
+psutil==5.9.5
+protobuf==4.25.5
+h5py==3.11.0
+ml-dtypes==0.5.1
+flatbuffers==25.12.19
