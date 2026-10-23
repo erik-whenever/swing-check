@@ -3482,8 +3482,25 @@ Nitro-moduler. Alla MediaPipe-posepaket som går via VisionCamera är v4-plugins
   `expo-mediapipe-pose`, `@rbayuokt/expo-body-vision`. Andra modeller: `react-native-mediapipe-vision`
   (ML Kit), `react-native-nitro-pose-exercises` (Apple Vision). Endast Android: `expo-vision-camera-v4-mediapipe`.
 
-Kvar: Eriks val av väg (se handoff), sedan steg 1–6. Skaftkonverteringen (steg 4, Python-sidan) beror inte
-på valet.
+**Beslut (Erik, 2026-10-23):** spiken körs på SDK 54 + VC 4.7.3 med `react-native-mediapipe-pose-plugin`, i
+`apps/spike` (slit-och-släng; N-3 börjar rent på SDK 58 + VC5). Pose mäts med både lite och full. Om
+`eas build` fallerar på dubbla TFLite-symboler: stoppa, lappa inte. Android mäts i samma spike om
+pluginen klarar det utan egen Kotlin.
+
+**Gjort 2026-10-23:**
+- Steg 4: `training/export_tflite.py` konverterar shaft-v2.onnx med onnx2tf (samma vikter) till float32
+  och float16. TFLite-CPU mot ONNX på paritetsbilden (IMG_5410 ruta 60): float32 0,000 px, float16
+  ≤ 0,017 px. Utdata `[1, 11, 18900]` som ONNX.
+- Steg 1–3, 5, 6: `apps/spike` (Expo SDK 54, dev client). Pose-pluginet kopplas in av
+  `plugins/withPoseLandmarker.js` enligt dess README; enda ändringen i dess kod är modellnamnet. Det ger
+  två varianter: `development` (lite) och `development-full`. Skaft via fast-tflite med Core ML på iOS och
+  GPU på Android. Thermal via `react-native-nitro-thermal`. Loggen (JSON) delas från appen. Prebuild är
+  verifierad för iOS (i Linux-container) och Android, Metro-bundlen för båda, och tsc/eslint är rena.
+  Webbens test, lint och build är oförändrade.
+- Android klaras utan egen Kotlin: pluginets egen Kotlin-fil och registrering (README §5), fast-tflite
+  med `android-gpu`, thermal från API 29.
+
+**Kvar:** EAS-byggen (Erik), mätningarna på iPhone och sedan Android, rapport mot grinden.
 
 ### [ ] N-3 — Kärnflödet i appen
 

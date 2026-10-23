@@ -3,7 +3,15 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2 stoppad i steg 3 enligt uppdraget. Inget färdigt
+> **Senast (2026-10-23, stream-native):** N-2 pågår (`[~]`). Erik valde SDK 54 + VC4 +
+> `react-native-mediapipe-pose-plugin` i `apps/spike`. Steg 4 är klart: `training/export_tflite.py`,
+> där TFLite-CPU har 0,000 px avvikelse mot ONNX. Spiken är byggd och verifierad lokalt (prebuild,
+> bundling, tsc/eslint). **Nästa:** Erik kör `eas login`, enhetsregistreringen och `eas build` för
+> `development` (lite) och `development-full`, iPhone först. Mät enligt `apps/spike/README.md`. Om
+> bygget fallerar på dubbla TFLite-symboler: stoppa och rapportera, lappa inte. Modellen och
+> paritetsbilden är gitignorerade, och Metro serverar dem från Eriks dator under mätningen.
+>
+> **Före det (2026-10-23):** N-2 stoppad i steg 3 enligt uppdraget. Inget färdigt
 > MediaPipe Pose-bibliotek för VisionCamera på iOS håller på Expo SDK 58 / VisionCamera 5, och ingen kod
 > är skriven. Alla VisionCamera-posepaket är v4-plugins (detaljer i BACKLOG N-2). Närmast är
 > `react-native-mediapipe-pose-plugin`: synkront, ingen fps-strypning, validerad på iPhone med SDK 54 /
