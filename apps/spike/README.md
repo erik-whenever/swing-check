@@ -18,16 +18,33 @@ webbens 19.2 i rotens `node_modules`.
 
 ## Byggen
 
-Två varianter per plattform, en per posemodell. Modellnamnet byts med en rad i config-pluginet:
-`development` (lite, samma modell som webben) och `development-full`.
+MediaPipe och fast-tflite kan inte länkas in i samma iOS-app. Båda bär TFLite:s C-API, och första
+bygget gav 54 dubbla `TfLite*`-symboler. Spiken byggs därför som tre varianter (`eas.json`).
+`react-native.config.js` och `app.config.ts` styr vilka native-paket som följer med. Appen läser
+variant från sitt eget bundle-id, eftersom dev-klienten hämtar konfigen från Metro.
+
+| Profil | Innehåll | Bundle-id |
+|---|---|---|
+| `pose-lite` | MediaPipe `pose_landmarker_lite` (samma som webben) | `com.swingcheck.spike.lite` |
+| `pose-full` | MediaPipe `pose_landmarker_full` | `com.swingcheck.spike.full` |
+| `shaft` | shaft-v2 TFLite, Core ML (iOS) / GPU (Android) | `com.swingcheck.spike.shaft` |
+
+Pose-modellen byts med en rad i config-pluginet (modellnamnet).
 
 ## Mätprotokoll
 
-1. Telefonen liggande på stativ. Personen helt i bild, 3–4 m bort. Skaft- och posemåtten gäller den
-   bild kameran ger (ingen rotation i spiken).
-2. **Paritet** först. Den kör stillbilden genom TFLite och värmer upp Core ML.
-3. **Pose · 30 · Starta 3 min.** Låt den gå klart. Rör inte telefonen. Tryck sedan **Dela logg**.
-4. Samma sak för **Skaft** och för **Båda**. **60** är valfritt.
-5. Upprepa med den andra varianten (`full`).
+Gemensamt: telefonen liggande på stativ, personen helt i bild 3–4 m bort. Spiken roterar inte
+bilden. **Dela logg** efter varje steg; loggen är JSON med sammanfattning, thermal per sekund och en
+rad per ruta.
 
-Loggen är JSON: sammanfattning, paritet, thermal varje sekund och en rad per ruta.
+**Pose-byggena** (`pose-lite`, sedan `pose-full`):
+1. **30 · Starta 3 min.** Låt den gå klart och rör inte telefonen. Det här är grinden: ms/ruta,
+   tappade rutor och thermal.
+2. **60** är valfritt.
+
+**Skaftbygget:**
+1. **Paritet.** Kör stillbilden genom TFLite och värmer upp Core ML.
+2. **Burst 26**, fem gånger. Fångar 26 rutor i följd och kör dem direkt efter varandra. Det är
+   produktens mönster: skaftet körs på cirka 26 rutor per sving efter slaget, inte live.
+3. **30 · Starta 3 min.** Skaft på varje ruta, för ms/ruta och thermal under långvarig last.
+4. Valfritt: upprepa 1–2 med **cpu** för att se vad Core ML ger.

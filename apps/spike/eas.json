@@ -7,13 +7,20 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "POSE_MODEL": "lite" },
       "ios": { "resourceClass": "default" },
       "android": { "buildType": "apk" }
     },
-    "development-full": {
+    "pose-lite": {
       "extends": "development",
-      "env": { "POSE_MODEL": "full" }
+      "env": { "SPIKE": "pose", "POSE_MODEL": "lite" }
+    },
+    "pose-full": {
+      "extends": "development",
+      "env": { "SPIKE": "pose", "POSE_MODEL": "full" }
+    },
+    "shaft": {
+      "extends": "development",
+      "env": { "SPIKE": "shaft" }
     }
   }
 }
