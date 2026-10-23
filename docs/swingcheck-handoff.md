@@ -3,7 +3,16 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-3 är uppdelad i **N-3.1–N-3.9** (BACKLOG). Android först:
+> **Senast (2026-10-24, stream-native):** N-3.1 `[~]`: koden är klar, och byggen på enhet återstår.
+> [ADR-0004](adr/0004-native-pipeline-nitro-modules.md): två Nitro-moduler, `pose` och `shaft`, med en
+> spec var. `apps/mobile` kör Expo 58 / RN 0.88 / VC 5.2.3 / Nitro 0.37.1. Stubbarna är Kotlin (länkar
+> MediaPipe 0.10.35 + LiteRT 1.4.2 GPU) och Swift. Dev-skärmen visar fps, stubbanrop, `runtimeInfo()`
+> och core jämfört med Node. **Nästa:** Erik bygger `development` med EAS för Android och kör på
+> telefonen, sedan iOS. När båda är gröna blir N-3.1 `[x]`, och N-3.2 (pose Android) tar vid. Lokalt
+> Gradle-bygge (Docker) stoppades av minnesbrist innan modulerna kompilerades, så Android-kompileringen
+> är bara verifierad av EAS.
+>
+> **Före det (2026-10-23, stream-native):** N-3 är uppdelad i **N-3.1–N-3.9** (BACKLOG). Android först:
 > skelett och länkningskontroll (3.1), pose (3.2), skaft (3.3), fångstkedjan (3.4), analys och lagring (3.5),
 > kärn-UI (3.6). Därefter iOS: `.mlpackage` (3.7) och Swift-modulerna på Mac (3.8). Sist helflödet på båda
 > plattformarna, och `apps/spike` tas bort (3.9). Punkterna från N-2 ligger under 3.2, 3.3 och 3.8.

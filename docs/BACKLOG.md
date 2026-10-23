@@ -3564,12 +3564,38 @@ TFLite, och två TFLite-kopior i samma binär ger dubbla symboler (N-2). shaft-v
 Uppdelad 2026-10-23 i N-3.1–N-3.9, i ordning. Android först, eftersom det inte kräver Mac. iOS-modulerna
 (N-3.7–N-3.8) väntar på Mac. Punkterna från N-2 är fördelade på underuppgifterna nedan.
 
-#### [ ] N-3.1 — ADR för native-pipelinen + skelett `apps/mobile` + modulstubbar + Android-länkningskontroll
+#### [~] N-3.1 — ADR för native-pipelinen + skelett `apps/mobile` + modulstubbar + Android-länkningskontroll
 ADR: två egna Nitro-moduler, `pose` och `shaft`, med ett TS-gränssnitt var (`.nitro.ts`). Kotlin nu, Swift
 senare. Ingen fast-tflite. Skelett: Expo SDK 58 + dev client, VisionCamera 5, Nitro, `@swingcheck/core` via
 `file:`. Stubbarna anropas från en frame processor. Android-bygget länkar in MediaPipe tasks-vision och
 LiteRT (GPU), och båda native-biblioteken laddas vid körning. Dev-skärm med 30 fps-förhandsvisning,
 fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-bygget av skelettet går igenom.
+
+**Gjort 2026-10-24 (kod klar, väntar på byggen på enhet):**
+- [ADR-0004](adr/0004-native-pipeline-nitro-modules.md). Avkodning och NMS för skaftet stannar i core,
+  och native lämnar rå utdata plus letterbox.
+- `apps/mobile`: Expo 58.0.17 / RN 0.88.0 / VisionCamera 5.2.3 (+ `-worklets`) / Nitro 0.37.1 /
+  nitro-image 0.15.2 / react-native-worklets 0.13.0. Versionerna gick ihop utan patchar.
+- `modules/pose` och `modules/shaft` (`@swingcheck/native-*`, `file:`): spec, nitrogen-kod och stubbar
+  (Kotlin + Swift). Android länkar `com.google.mediapipe:tasks-vision` 0.10.35 (samma som webben; 1.x
+  drar in `litertlm-android`, ~20 MB) och `com.google.ai.edge.litert:litert`/`-gpu`/`-gpu-api` 1.4.2.
+  Java-paketen överlappar inte, och `.so`-namnen skiljer sig (`libmediapipe_tasks_jni`,
+  `libtensorflowlite_jni`, `libtensorflowlite_gpu_jni`). `runtimeInfo()` laddar dem vid körning.
+- Dev-skärm: förhandsvisning med constraint 30 fps, fps-räknare, båda stubbarna per ruta och core
+  (14 regler, `detectSwingEnvelope` på `dtl-full`). Core-resultatet jämförs med Node (start 6,785 s,
+  impact 7,849 s, finish 8,315 s).
+- EAS `development` (Android APK, iOS internal). Bundle-id `com.swingcheck.app`.
+- Verifierat lokalt: tsc och eslint rena i `apps/mobile`, Android-prebuild klar, autolinking hittar
+  båda modulerna (Gradle + podspec). Metro-bundle för Android och iOS är klar, och workleten
+  transformeras. Webben: 438 tester (437 gröna, 1 skippad; de 3 kända `scripts/*.test.mjs` laddar
+  inte), lint 2 kända fel, build ren. Rotens eslint ignorerar `apps/mobile` (ESLint 10 laddade annars
+  dess config).
+- **Inte verifierat:** ett lokalt Gradle-bygge i Docker kom förbi resursstegen utan fel men stoppades
+  av minnesbrist innan modulerna kompilerades. iOS-prebuild går inte på Windows.
+
+**Återstår (Erik):** EAS-bygge för Android, installation på telefonen: 30 fps, stubbarna anropas,
+båda `runtimeInfo` utan FEL, core "samma som Node". Sedan ett EAS-bygge för iOS som går igenom. Sätt `[x]`
+när båda är gröna.
 
 #### [ ] N-3.2 — Pose-modul Android
 MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`.
