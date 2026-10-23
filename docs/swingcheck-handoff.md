@@ -3,7 +3,15 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-1b klar. Poseenvelope-kedjan, `fromDetection`, `api.ts`,
+> **Senast (2026-10-23, stream-native):** N-2 stoppad i steg 3 enligt uppdraget. Inget färdigt
+> MediaPipe Pose-bibliotek för VisionCamera på iOS håller på Expo SDK 58 / VisionCamera 5, och ingen kod
+> är skriven. Alla VisionCamera-posepaket är v4-plugins (detaljer i BACKLOG N-2). Närmast är
+> `react-native-mediapipe-pose-plugin`: synkront, ingen fps-strypning, validerad på iPhone med SDK 54 /
+> VC 4.7.3. **Väntar på Eriks beslut:** lås spiken till SDK 54 + VC4 med det paketet, eller skriv en egen
+> Nitro-modul för VC5. **Risk oavsett väg:** MediaPipe och `react-native-fast-tflite` kan krocka på
+> dubbla TFLite-symboler vid länkning.
+>
+> **Före det (2026-10-23, stream-native):** N-1b klar. Poseenvelope-kedjan, `fromDetection`, `api.ts`,
 > `sessionStats`, `phaseQuota` och `datasetTypes` ligger i `@swingcheck/core`, med tester och fixtures
 > (`packages/core/src/lib/__fixtures__/`). Loggern är delad: core har nivåer, konsol och ringbuffert och tar
 > miljö och sinks via `configureLogger`/`addLogSink`. `src/lib/logger.ts` är webbskalet (fjärrloggning,

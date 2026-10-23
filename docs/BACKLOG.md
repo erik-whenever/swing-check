@@ -3467,7 +3467,23 @@ och kostnadslogg via `configureApi` från `src/lib/coreSetup.ts`, som `main.tsx`
 (`import.meta.glob`). **Avvikelse:** `cameraZoom` stannar: den anropar `MediaStreamTrack.applyConstraints`
 och blir inte ren av att loggern delas.
 
-### [ ] N-2 — Spike: 30 fps + pose + shaft-v2 på enhet (grind för beslutet)
+### [~] N-2 — Spike: 30 fps + pose + shaft-v2 på enhet (grind för beslutet)
+**Stoppad 2026-10-23 i steg 3:** inget färdigt bibliotek för MediaPipe Pose + VisionCamera på iOS håller
+på aktuell stack. Ingen kod skriven. Expo SDK 58 (RN 0.88) går med VisionCamera 5, där plugins är
+Nitro-moduler. Alla MediaPipe-posepaket som går via VisionCamera är v4-plugins. Granskat (npm 2026-10-23):
+- `react-native-mediapipe-posedetection` 0.4.0: VC4. Hårdkodad strypning till ~15 fps i Swift, både rutor
+  och events (`minFrameInterval = 0.066`). Klarar inte 30 fps utan patch.
+- `react-native-mediapipe` 0.6.0 (dec 2024): VC4, gamla bryggarkitekturen, MediaPipe 0.10.12 låst.
+- `react-native-mediapipe-pose-plugin` 0.1.0: VC4, synkront `.video`-läge, ingen strypning. Validerad på
+  iPhone med Expo SDK 54 / RN 0.81.5 / VC 4.7.3. Inget pod-paket: Swift-filerna och en `post_install`-fix
+  för länkningen läggs in i projektet. Modellen är hårdkodad till `pose_landmarker_full` (webben kör `lite`).
+- `vision-camera-pose-landmarks-plugin` 0.1.0: VC4, `full` hårdkodad.
+- Egen kamera, inte VisionCamera (kan inte dela ruta med skaftet): `@curiouscosmos/react-native-mediapipe`,
+  `expo-mediapipe-pose`, `@rbayuokt/expo-body-vision`. Andra modeller: `react-native-mediapipe-vision`
+  (ML Kit), `react-native-nitro-pose-exercises` (Apple Vision). Endast Android: `expo-vision-camera-v4-mediapipe`.
+
+Kvar: Eriks val av väg (se handoff), sedan steg 1–6. Skaftkonverteringen (steg 4, Python-sidan) beror inte
+på valet.
 
 ### [ ] N-3 — Kärnflödet i appen
 
