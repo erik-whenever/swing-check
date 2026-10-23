@@ -35,8 +35,16 @@
 // If the envelope itself is not usable (`valid === false`), we fall back to Pass
 // 1's even distribution across the pose sample span and flag it.
 
-import type { SwingPhase } from './frameExtractor';
 import type { SwingEnvelope } from './poseEnvelope';
+
+/** The swing phases each extracted frame is anchored to. */
+export type SwingPhase =
+  | 'address'
+  | 'backswing'
+  | 'top'
+  | 'downswing'
+  | 'impact'
+  | 'follow-through';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 /**

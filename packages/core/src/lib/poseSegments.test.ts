@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectSwingEnvelope } from './poseEnvelope';
 import { detectSessionSwings, segmentSwingCandidates, isSwing } from './poseSegments';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 /** Antal rörelse-burstar i session-multi som bär svingenergi (steg A:s golden). */
 const SESSION_MULTI_SWING_CANDIDATES = 3;
@@ -58,7 +58,7 @@ describe('session segmentation (ADR-003 steg A + C)', () => {
   const multi = fixtures.get('session-multi');
 
   if (!multi) {
-    it.todo('session-multi: fixture missing — export into src/lib/__fixtures__/session-multi.json');
+    it.todo('session-multi: fixture missing — export into packages/core/src/lib/__fixtures__/session-multi.json');
   } else {
     // ── Steg A: det som fungerar ─────────────────────────────────────────────
     it(`session-multi: segmentation isolates ${SESSION_MULTI_SWING_CANDIDATES} swing-energy bursts`, () => {

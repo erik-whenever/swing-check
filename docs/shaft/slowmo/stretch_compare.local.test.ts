@@ -11,7 +11,7 @@
 import { openAsBlob, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { it } from 'vitest';
 import { blobSource, probeMp4, timeStretchOf } from '../../../packages/core/src/lib/mp4Probe';
-import { detectSessionSwings, type SessionSwings } from '../../../src/lib/poseSegments';
+import { detectSessionSwings, type SessionSwings } from '../../../packages/core/src/lib/poseSegments';
 import type { PoseSample } from '../../../src/lib/poseTrajectory';
 
 const POSE_DIR = process.env.S44_CLIPPOSE;

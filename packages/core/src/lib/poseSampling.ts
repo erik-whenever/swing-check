@@ -1,4 +1,4 @@
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 // Pure helper split out from the overlay component so the .tsx file only exports
 // a component (keeps react-refresh happy). The `PoseSample` import is type-only

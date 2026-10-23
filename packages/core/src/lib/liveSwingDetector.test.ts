@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { LiveSwingDetector } from './liveSwingDetector';
 import { detectSessionSwings } from './poseSegments';
 import { PoseRingBuffer } from './poseRingBuffer';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 /** Detection cadence used live (useLiveSwingDetection.DETECT_INTERVAL_SEC). */
 const DETECT_INTERVAL_SEC = 0.5;

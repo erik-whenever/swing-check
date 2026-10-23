@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore, selectPrimarySwing } from '../../store/session';
 import { FrameLightbox } from './FrameLightbox';
 import { SkeletonOverlay } from './SkeletonOverlay';
-import { nearestSample } from '../../lib/poseSampling';
-import type { PoseSample } from '../../lib/poseTrajectory';
-import { detectSwingEnvelope, type SwingEnvelope } from '../../lib/poseEnvelope';
+import { nearestSample } from '@swingcheck/core/lib/poseSampling';
+import type { PoseSample } from '@swingcheck/core/lib/poseSample';
+import { detectSwingEnvelope, type SwingEnvelope } from '@swingcheck/core/lib/poseEnvelope';
 import type { FrameMeta } from '../../lib/frameExtractor';
 import { SegmentedSwings } from './SegmentedSwings';
 import { Mp4MetaPanel } from './Mp4MetaPanel';
@@ -85,7 +85,7 @@ export function FramePreview() {
   };
 
   // Dump the raw pose-landmark series for the loaded clip as JSON so it can be
-  // frozen as a regression fixture (src/lib/__fixtures__/). MediaPipe is
+  // frozen as a regression fixture (packages/core/src/lib/__fixtures__/). MediaPipe is
   // deterministic enough to capture once — after that every envelope-logic change
   // is re-verified by `npm test` (poseEnvelopeRegression.test.ts) with no browser.
   const handleExportFixture = () => {
@@ -148,7 +148,7 @@ export function FramePreview() {
           <button
             onClick={handleExportFixture}
             className="w-full py-2 bg-surface hover:bg-raised rounded-lg text-xs font-mono text-fg-dim transition-colors"
-            title="Dump the raw pose-landmark series as a regression fixture (src/lib/__fixtures__/)"
+            title="Dump the raw pose-landmark series as a regression fixture (packages/core/src/lib/__fixtures__/)"
           >
             ⬇︎ Export pose fixture ({poseSamples.length} samples)
           </button>

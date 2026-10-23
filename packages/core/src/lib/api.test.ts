@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Rule } from '@swingcheck/core/types';
+import type { Rule } from '../types';
 import { analyzeSwing, maxTokensFor, TruncatedResponseError } from './api';
 
 const rule = (i: number): Rule => ({

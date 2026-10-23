@@ -41,22 +41,22 @@
 // of silently absent.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { analyzeSwing } from '../lib/api';
+import { analyzeSwing } from '@swingcheck/core/lib/api';
 import { ANGLE_TO_PROMPT, ruleMatchesAngle } from '@swingcheck/core/lib/cameraAngle';
 import {
   ANALYSIS_FRAME_COUNT,
   type FrameMeta,
-  type SwingPhase,
 } from '../lib/frameExtractor';
+import type { SwingPhase } from '@swingcheck/core/lib/poseEnvelopeSelection';
 import { createLogger, serializeError } from '../lib/logger';
 import { grabFramesAtTimes } from '../lib/poseFrameGrab';
-import { MAX_OUTPUT_SIDE } from '../lib/poseCropBox';
-import { selectEnvelopeFrames } from '../lib/poseEnvelopeSelection';
+import { MAX_OUTPUT_SIDE } from '@swingcheck/core/lib/poseCropBox';
+import { selectEnvelopeFrames } from '@swingcheck/core/lib/poseEnvelopeSelection';
 import { SerialQueue, type QueueStats } from '@swingcheck/core/lib/analysisQueue';
-import { sessionStats } from '../lib/sessionStats';
+import { sessionStats } from '@swingcheck/core/lib/sessionStats';
 import { buildSpeechParts, enqueueSpeech, TTS_FAILED } from '../lib/tts';
 import type { LiveLoopStats } from '../lib/livePoseLoop';
-import type { LiveSwingReport } from '../lib/liveSwingDetector';
+import type { LiveSwingReport } from '@swingcheck/core/lib/liveSwingDetector';
 import type { MaterializedWindow, VideoChunkRing } from '@swingcheck/core/lib/videoChunkRing';
 import type { Rule } from '@swingcheck/core/types';
 import { useRulesStore } from '../store/rules';

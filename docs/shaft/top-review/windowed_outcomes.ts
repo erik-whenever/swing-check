@@ -42,7 +42,7 @@
 //   node <tmp>/windowed_outcomes.mjs < <tmp>/in.json > <tmp>/out.json
 import { readFileSync } from 'node:fs';
 import { KEYPOINT_THRESHOLD } from '../../../packages/core/src/lib/shaft/shaftPostprocess';
-import type { ShaftDetection, ShaftPoint } from '../../../src/lib/shaft/shaftDetector';
+import type { ShaftDetection, ShaftPoint } from '../../../packages/core/src/lib/shaft/shaftPostprocess';
 import type { CameraAngle } from '../../../packages/core/src/lib/cameraAngle';
 import {
   buildShaftSwingSeries,
@@ -59,8 +59,8 @@ import {
 // FRAGA 3 drives production's OWN frame selector. `ANALYSIS_FRAME_COUNT` and
 // `selectEnvelopeFrames` are the app's, imported rather than described.
 import { ANALYSIS_FRAME_COUNT } from '../../../src/lib/frameExtractor';
-import { selectEnvelopeFrames } from '../../../src/lib/poseEnvelopeSelection';
-import type { SwingEnvelope } from '../../../src/lib/poseEnvelope';
+import { selectEnvelopeFrames } from '../../../packages/core/src/lib/poseEnvelopeSelection';
+import type { SwingEnvelope } from '../../../packages/core/src/lib/poseEnvelope';
 
 // ── What the Python side hands over ──────────────────────────────────────────
 

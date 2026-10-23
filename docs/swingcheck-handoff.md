@@ -3,7 +3,16 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** F6 beslutad (React Native). Ny ström N i BACKLOG.
+> **Senast (2026-10-23, stream-native):** N-1b klar. Poseenvelope-kedjan, `fromDetection`, `api.ts`,
+> `sessionStats`, `phaseQuota` och `datasetTypes` ligger i `@swingcheck/core`, med tester och fixtures
+> (`packages/core/src/lib/__fixtures__/`). Loggern är delad: core har nivåer, konsol och ringbuffert och tar
+> miljö och sinks via `configureLogger`/`addLogSink`. `src/lib/logger.ts` är webbskalet (fjärrloggning,
+> `window.onerror`) och re-exporterar kärnans API. `api.ts` konfigureras via `src/lib/coreSetup.ts`, som
+> importeras först i `main.tsx`. **Spärren "rör inte `frameExtractor` före Ström A" är upphävd.** A-3–A-5
+> är `[-]`, ersatta av ström N (F6). Kvar i `src/lib`: bara filer med direkt webbruntime (se BACKLOG N-1b).
+> Känt sedan tidigare: `scripts/*.test.mjs` (3 filer) laddar inte i vitest. Det gällde även före N-1.
+>
+> **Före det (2026-10-23, stream-native):** F6 beslutad (React Native). Ny ström N i BACKLOG.
 > **`stream-shaft` är fryst:** `stream-native` grenades från den, och fortsatt skaftarbete sker där.
 > N-1 klar: `packages/core` (`@swingcheck/core`, npm-workspace, ren TS utan byggsteg) har 30 filer:
 > `types.ts`, `ruleLibrary`, `prompt`, `cameraAngle`, `shaft/measure` utom `fromDetection`, `letterbox`,

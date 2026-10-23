@@ -14,8 +14,8 @@
 // clubface angle, club path in degrees in-to-out, angle of attack — is written down in
 // docs/shaft/datamodell.md. The second list matters as much as the first.
 
-export * from '@swingcheck/core/lib/shaft/measure/shaftSeries';
-export * from '@swingcheck/core/lib/shaft/measure/angles';
-export * from '@swingcheck/core/lib/shaft/measure/plausibility';
-export * from '@swingcheck/core/lib/shaft/measure/derived';
+export * from './shaftSeries';
+export * from './angles';
+export * from './plausibility';
+export * from './derived';
 export * from './fromDetection';

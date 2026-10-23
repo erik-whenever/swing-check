@@ -36,11 +36,12 @@
 import { ANALYSIS_FRAME_COUNT } from '../frameExtractor';
 import { createLogger } from '../logger';
 import { grabFramesAtTimes } from '../poseFrameGrab';
-import { selectEnvelopeFrames } from '../poseEnvelopeSelection';
-import { detectSessionSwings } from '../poseSegments';
+import { selectEnvelopeFrames } from '@swingcheck/core/lib/poseEnvelopeSelection';
+import { detectSessionSwings } from '@swingcheck/core/lib/poseSegments';
 import { extractPoseTrajectory } from '../poseTrajectory';
-import type { SwingPhase } from '../frameExtractor';
-import { detectShaft, loadShaftSession, type ShaftDetection } from './shaftDetector';
+import type { SwingPhase } from '@swingcheck/core/lib/poseEnvelopeSelection';
+import { detectShaft, loadShaftSession } from './shaftDetector';
+import type { ShaftDetection } from '@swingcheck/core/lib/shaft/shaftPostprocess';
 
 const log = createLogger('ShaftPreview');
 

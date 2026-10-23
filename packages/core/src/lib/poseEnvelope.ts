@@ -21,7 +21,7 @@
 // Pure + testable: takes PoseSample[] in, returns an envelope out. Selection
 // signal only — no club, no swing-plane math, no rule evaluation.
 
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 const WRIST_LEFT = 15;

@@ -11,9 +11,9 @@
 // is the file that gets rewritten. Everything above it reads `ShaftSwingSeries` and
 // does not notice.
 
-import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
-import type { ShaftDetection, ShaftPoint } from '../shaftDetector';
-import { angleDeg } from '@swingcheck/core/lib/shaft/measure/angles';
+import type { NormalizedLandmark } from '../../poseSample';
+import type { ShaftDetection, ShaftPoint } from '../shaftPostprocess';
+import { angleDeg } from './angles';
 import {
   emptyBodyReference,
   type BodyReference,
@@ -23,7 +23,7 @@ import {
   type ShaftFrameSample,
   type ShaftKeypoint,
   type ShaftSwingSeries,
-} from '@swingcheck/core/lib/shaft/measure/shaftSeries';
+} from './shaftSeries';
 
 /**
  * MediaPipe's 33-landmark pose topology, for the six landmarks the measurements read.

@@ -19,7 +19,7 @@
 //
 // Pure data structure: no pose, no React, no timers. Unit-testable.
 
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 /** ~30 s at ACTIVE_FPS (15) — comfortably longer than any single swing plus its
  *  address hold and settle, which is all the detector ever needs to see at once. */

@@ -3,8 +3,8 @@
 // identity, and the difference between "no pose" and "a pose the model is guessing at".
 
 import { describe, expect, it } from 'vitest';
-import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
-import type { ShaftDetection } from '../shaftDetector';
+import type { NormalizedLandmark } from '../../poseSample';
+import type { ShaftDetection } from '../shaftPostprocess';
 import {
   MIN_LANDMARK_VISIBILITY,
   buildShaftSwingSeries,

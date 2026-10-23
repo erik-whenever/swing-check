@@ -1,17 +1,8 @@
 import { createLogger, serializeError } from './logger';
-import { detectSwingEnvelope } from './poseEnvelope';
-import { selectEnvelopeFrames } from './poseEnvelopeSelection';
+import { detectSwingEnvelope } from '@swingcheck/core/lib/poseEnvelope';
+import { selectEnvelopeFrames, type SwingPhase } from '@swingcheck/core/lib/poseEnvelopeSelection';
 
 const log = createLogger('FrameExtractor');
-
-/** The swing phases each extracted frame is anchored to. */
-export type SwingPhase =
-  | 'address'
-  | 'backswing'
-  | 'top'
-  | 'downswing'
-  | 'impact'
-  | 'follow-through';
 
 export interface FrameMeta {
   b64: string;

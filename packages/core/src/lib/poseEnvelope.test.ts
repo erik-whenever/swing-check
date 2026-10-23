@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { detectSwingEnvelope } from './poseEnvelope';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 const DT = 1 / 15; // ~15 fps, the pose sampling rate
 

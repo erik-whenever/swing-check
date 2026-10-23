@@ -27,7 +27,7 @@
 // Ren funktion, inget I/O, ingen pose-körning — testbar mot frysta fixturer.
 
 import { detectSwingEnvelope, type SwingEnvelope } from './poseEnvelope';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 // ── Trösklar: wrist-serie (speglar poseEnvelope.ts) ──────────────────────────
 const WRIST_LEFT = 15;

@@ -4,7 +4,7 @@ import { useSessionStore, selectPrimarySwing } from '../../store/session';
 import { useRulesStore } from '../../store/rules';
 import { useSettingsStore } from '../../store/settings';
 import { useHistory } from '../../hooks/useHistory';
-import { analyzeSwing } from '../../lib/api';
+import { analyzeSwing } from '@swingcheck/core/lib/api';
 import {
   buildSpeechParts,
   cancelSpeech,

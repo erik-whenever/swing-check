@@ -4,7 +4,7 @@
 // diffing pixels. No phase detection here — just the raw trajectory that later
 // passes will analyse.
 
-import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
+import type { PoseSample } from '@swingcheck/core/lib/poseSample';
 import { getPoseLandmarker, resetPoseLandmarker } from './poseDetector';
 import { createLogger } from './logger';
 
@@ -38,13 +38,6 @@ const SAMPLE_FPS = 15;
  * this (lowering it brings back the rate loss).
  */
 const MAX_ANALYSIS_SEC = 300;
-
-export interface PoseSample {
-  /** Timestamp in seconds (relative to the start of the clip). */
-  t: number;
-  /** All 33 MediaPipe pose landmarks, or [] if no pose was detected. */
-  landmarks: NormalizedLandmark[];
-}
 
 // TIMELINE — per extraction, starting at 0.
 //

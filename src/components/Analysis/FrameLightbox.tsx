@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { FrameMeta } from '../../lib/frameExtractor';
-import type { PoseSample } from '../../lib/poseTrajectory';
+import type { PoseSample } from '@swingcheck/core/lib/poseSample';
 import { SkeletonOverlay } from './SkeletonOverlay';
-import { nearestSample } from '../../lib/poseSampling';
+import { nearestSample } from '@swingcheck/core/lib/poseSampling';
 
 interface Props {
   frames: FrameMeta[];

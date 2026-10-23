@@ -34,10 +34,10 @@ import { ANALYSIS_FRAME_COUNT } from '../frameExtractor';
 import { createLogger } from '../logger';
 import { readTimeStretch } from '@swingcheck/core/lib/mp4Probe';
 import { grabFramesAtTimes } from '../poseFrameGrab';
-import { selectEnvelopeFrames } from '../poseEnvelopeSelection';
-import { detectSessionSwings } from '../poseSegments';
+import { selectEnvelopeFrames } from '@swingcheck/core/lib/poseEnvelopeSelection';
+import { detectSessionSwings } from '@swingcheck/core/lib/poseSegments';
 import { extractPoseTrajectory } from '../poseTrajectory';
-import { derivePhase } from './datasetPhase';
+import { derivePhase } from '@swingcheck/core/lib/dataset/datasetPhase';
 import { FROZEN_CLIP_NAMES } from '@swingcheck/core/lib/dataset/frozenClips';
 import {
   DATASET_MAX_ENVELOPE_SEC,
@@ -46,16 +46,15 @@ import {
   collectDatasetSwings,
   gateCounts,
   type DatasetGate,
-} from './datasetGate';
+} from '@swingcheck/core/lib/dataset/datasetGate';
 import {
-  APP_VERSION,
   SHAFT_PHASES,
   frameId,
   type ClipSource,
   type DatasetManifest,
   type FrameMetadata,
   type ShaftPhase,
-} from './datasetTypes';
+} from '@swingcheck/core/lib/dataset/datasetTypes';
 import {
   MAX_FRAMES_PER_SWING,
   PHASE_TARGET_WEIGHTS,
@@ -63,7 +62,7 @@ import {
   cullToPhaseTargets,
   tallyPhases,
   type PhaseQuotaState,
-} from './phaseQuota';
+} from '@swingcheck/core/lib/dataset/phaseQuota';
 import {
   SLOWMO_ENVELOPE_THRESHOLD_SEC,
   SLOWMO_FRAME_CAP_FRAC,
@@ -71,6 +70,14 @@ import {
   type SlowmoMode,
 } from '@swingcheck/core/lib/dataset/slowmo';
 import { base64ToBytes, buildZip, type ZipEntry } from '@swingcheck/core/lib/dataset/zip';
+
+/**
+ * Build identity written into the manifest. `VITE_APP_VERSION` is set by the build
+ * (vite.config.ts) to `<package version>+<git sha>`; the fallback keeps the tool
+ * usable when it is not. Read here, in the web extractor, rather than in the shared
+ * `datasetTypes.ts`, which must not read a build environment.
+ */
+const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || 'dev';
 
 const log = createLogger('DatasetExtract');
 

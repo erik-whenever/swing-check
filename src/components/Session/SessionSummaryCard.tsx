@@ -11,7 +11,7 @@
 // or until the next session starts.
 
 import { useSessionStore } from '../../store/session';
-import type { Distribution } from '../../lib/sessionStats';
+import type { Distribution } from '@swingcheck/core/lib/sessionStats';
 
 export function SessionSummaryCard() {
   const summary = useSessionStore((s) => s.lastSummary);

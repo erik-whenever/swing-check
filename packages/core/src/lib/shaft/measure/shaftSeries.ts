@@ -31,12 +31,12 @@ import type { CameraAngle } from '../../cameraAngle';
  * The annotation spec's eight frame phases (docs/shaft/annotation-spec.md →
  * *Frame-attribut*), redeclared here rather than imported.
  *
- * `ShaftPhase` in `src/lib/dataset/datasetTypes.ts` is the same eight values, but that
- * module is DEV-ONLY and reads `import.meta.env` at module scope — importing it would
- * put a browser build constant inside the one layer that must not have one.
+ * `ShaftPhase` in `lib/dataset/datasetTypes.ts` is the same eight values, but that
+ * module is dataset tooling (DEV-ONLY) — it no longer reads `import.meta.env` (N-1b),
+ * yet the raw layer still should not depend on the extractor's types.
  * `shaftSeries.test.ts` pins the two lists equal so the duplication cannot drift.
  *
- * NOT `SwingPhase` from `frameExtractor.ts`: that set is six values and folds `through`
+ * NOT `SwingPhase` from `poseEnvelopeSelection.ts`: that set is six values and folds `through`
  * and `finish` into one `follow-through`. A shaft mid-follow-through and a shaft held
  * at the finish are different measurements, so they stay apart here.
  */

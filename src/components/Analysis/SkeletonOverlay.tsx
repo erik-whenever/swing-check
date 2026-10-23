@@ -1,5 +1,5 @@
 import { POSE_CONNECTIONS } from '@swingcheck/core/lib/poseConnections';
-import type { PoseSample } from '../../lib/poseTrajectory';
+import type { PoseSample } from '@swingcheck/core/lib/poseSample';
 
 /** Landmark below this visibility is treated as unreliable and not drawn. */
 const MIN_VISIBILITY = 0.4;

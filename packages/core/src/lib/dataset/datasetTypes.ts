@@ -5,12 +5,12 @@
 // (docs/shaft/annotation-spec.md); it reads the production chain, it never feeds it.
 
 import type { DatasetGate } from './datasetGate';
-import type { SlowmoMode } from '@swingcheck/core/lib/dataset/slowmo';
+import type { SlowmoMode } from './slowmo';
 
 /**
  * The eight frame phases from the annotation spec's `phase` attribute.
  *
- * NOT the same set as `SwingPhase` in frameExtractor.ts: the spec splits the code's
+ * NOT the same set as `SwingPhase` in poseEnvelopeSelection.ts: the spec splits the code's
  * single `follow-through` into `through` (the club still travelling) and `finish`
  * (the held end position), because those look completely different to a shaft
  * detector — one is a motion streak, the other is a static club behind the head.
@@ -47,7 +47,7 @@ export type ClipSource = 'web' | 'own';
 
 // `SlowmoMode` and the slow-motion derivation live in `slowmo.ts` (pure + unit-tested);
 // re-exported here so manifest consumers get it from the same module as the shapes.
-export type { SlowmoMode } from '@swingcheck/core/lib/dataset/slowmo';
+export type { SlowmoMode } from './slowmo';
 
 // `DatasetGate` and the relaxed gate live in `datasetGate.ts`, re-exported for the
 // same reason — a manifest reader should need one import for every field it sees.
@@ -119,7 +119,7 @@ export interface FrameMetadata {
 
 /** Top level of `manifest.json`. */
 export interface DatasetManifest {
-  /** Build identity of the app that produced the frames (see `APP_VERSION`). */
+  /** Build identity of the app that produced the frames (see `APP_VERSION` in `extractDataset.ts`). */
   appVersion: string;
   /** ISO 8601, UTC — when the extraction ran. */
   extractedAt: string;
@@ -148,13 +148,6 @@ export interface DatasetManifest {
   frameCount: number;
   frames: FrameMetadata[];
 }
-
-/**
- * Build identity written into the manifest. `VITE_APP_VERSION` is set by the build
- * (vite.config.ts) to `<package version>+<git sha>`; the fallback keeps the tool
- * usable when it is not.
- */
-export const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || 'dev';
 
 /**
  * STABLE FRAME ID — `<slug>-<hash>_s<swing>_f<frame>`.

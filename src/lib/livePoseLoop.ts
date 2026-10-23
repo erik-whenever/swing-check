@@ -28,8 +28,8 @@
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
 import { createLogger, serializeError } from './logger';
-import type { PoseRingBuffer } from './poseRingBuffer';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseRingBuffer } from '@swingcheck/core/lib/poseRingBuffer';
+import type { PoseSample } from '@swingcheck/core/lib/poseSample';
 
 const log = createLogger('LivePose');
 

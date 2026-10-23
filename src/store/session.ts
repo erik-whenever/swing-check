@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import type { SwingAnalysis } from '@swingcheck/core/types';
 import type { FrameMeta } from '../lib/frameExtractor';
 import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
-import { sessionStats, type SessionSummary } from '../lib/sessionStats';
+import { sessionStats, type SessionSummary } from '@swingcheck/core/lib/sessionStats';
 
 // `dataset` (shaft-annotation extractor) and `shaft` (shaft-detector preview) are
 // dev-only, VITE_DEV_PREVIEW. Both are routes, not tabs: App.tsx renders them only

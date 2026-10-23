@@ -1,10 +1,26 @@
-import type { Rule, SwingAnalysis } from '@swingcheck/core/types';
-import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote } from '@swingcheck/core/lib/prompt';
+import type { Rule, SwingAnalysis } from '../types';
+import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote } from './prompt';
 import { createLogger } from './logger';
 
 const log = createLogger('API');
 
-const API_URL = import.meta.env.VITE_API_URL || '/api/analyze';
+/**
+ * Injected by the platform shell at startup (web: src/lib/coreSetup.ts) — this module
+ * reads no build environment itself. The defaults are what an unset environment gave
+ * before the split: the same-origin path, and no cost line.
+ */
+export interface ApiConfig {
+  /** Worker endpoint that proxies Anthropic. The API key never reaches the client. */
+  url: string;
+  /** Log a WARN line with each analysis' cost (web: VITE_DEV_PREVIEW or VITE_DEBUG_MODE). */
+  logCost: boolean;
+}
+
+let config: ApiConfig = { url: '/api/analyze', logCost: false };
+
+export function configureApi(next: Partial<ApiConfig>): void {
+  config = { ...config, ...next };
+}
 
 // Priser 2026-08, verifiera vid modellbyte
 const CLAUDE_SONNET_4_5_PRICING = {
@@ -139,7 +155,7 @@ export async function analyzeSwing(
     .flat();
 
   const startedAt = performance.now();
-  const response = await fetch(API_URL, {
+  const response = await fetch(config.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -262,7 +278,7 @@ export async function analyzeSwing(
 
   // Also WARN, for the same reason as the response line above: one line per swing, and
   // the panel that shows it starts at WARN.
-  if (import.meta.env.VITE_DEV_PREVIEW || import.meta.env.VITE_DEBUG_MODE) {
+  if (config.logCost) {
     log.warn(`💰 Analysis cost: $${costUsd} (cached: ${cacheReadTokens > 0 ? 'hit' : cacheCreationTokens > 0 ? 'miss' : 'no'})`);
   }
 

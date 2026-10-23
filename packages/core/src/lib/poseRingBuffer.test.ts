@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { PoseRingBuffer, DEFAULT_RING_CAPACITY } from './poseRingBuffer';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 /** A sample carrying only what these tests read — the landmark payload is irrelevant. */
 function sample(t: number): PoseSample {

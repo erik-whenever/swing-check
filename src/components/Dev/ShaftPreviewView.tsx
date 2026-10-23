@@ -19,7 +19,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { Button } from '../ui';
 import { ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
-import { MODEL_FILE, MODEL_INPUT_SIZE, type ShaftDetection } from '../../lib/shaft/shaftDetector';
+import { MODEL_FILE, MODEL_INPUT_SIZE } from '../../lib/shaft/shaftDetector';
+import type { ShaftDetection } from '@swingcheck/core/lib/shaft/shaftPostprocess';
 import {
   CONF_THRESHOLD,
   KEYPOINT_THRESHOLD,

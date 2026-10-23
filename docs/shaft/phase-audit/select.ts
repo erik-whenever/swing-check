@@ -69,7 +69,7 @@ import {
   type MeasurementPhase,
   type ShaftFrameSample,
   type ShaftSwingSeries,
-} from '../../../src/lib/shaft/measure/index';
+} from '../../../packages/core/src/lib/shaft/measure/index';
 import type { CameraAngle } from '../../../packages/core/src/lib/cameraAngle';
 
 // The repo root is the working directory, not the script's own folder: the bundle esbuild

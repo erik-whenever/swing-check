@@ -2,7 +2,7 @@
 //
 // Replaces the manual "load 3 clips in the browser, read the logs" round: runs
 // detectSwingEnvelope + selectEnvelopeFrames against FROZEN pose-landmark fixtures
-// (src/lib/__fixtures__/*.json, captured once via the dev-preview export button)
+// (packages/core/src/lib/__fixtures__/*.json, captured once via the dev-preview export button)
 // and asserts the checkpoint-2 golden values. MediaPipe is deterministic enough
 // that the landmark series only has to be captured once — see __fixtures__/README.md.
 //
@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectSwingEnvelope } from './poseEnvelope';
 import { selectEnvelopeFrames } from './poseEnvelopeSelection';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 /** Production frame budget — must equal frameExtractor.ts's ANALYSIS_FRAME_COUNT
  *  (the single source of truth for frames/swing sent to Claude), which selectViaPose
@@ -165,7 +165,7 @@ describe('envelope regression (frozen fixtures)', () => {
     if (!fx) {
       // Not captured yet — keep the suite green, but make the gap visible.
       it.todo(
-        `${g.fixture}: fixture missing — export from dev preview into src/lib/__fixtures__/${g.fixture}.json`,
+        `${g.fixture}: fixture missing — export from dev preview into packages/core/src/lib/__fixtures__/${g.fixture}.json`,
       );
       continue;
     }

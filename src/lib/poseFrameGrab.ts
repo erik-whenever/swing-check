@@ -25,7 +25,7 @@
 // only the interesting rectangle is ever encoded to JPEG.
 
 import { createLogger } from './logger';
-import { planCrop, type CropPlan, type LandmarkBounds } from './poseCropBox';
+import { planCrop, type CropPlan, type LandmarkBounds } from '@swingcheck/core/lib/poseCropBox';
 
 const log = createLogger('FrameGrab');
 

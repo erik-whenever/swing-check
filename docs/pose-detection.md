@@ -233,9 +233,9 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   **⬇︎ Export pose fixture** som visas när pose-overlayn kört klart. Den dumpar den råa
   landmark-serien för det laddade klippet som JSON (per frame: `t` + alla 33 landmarks med
   `visibility`, coords rundade till 5 decimaler) → nedladdad fil.
-- **Fixture-katalog:** `src/lib/__fixtures__/` — en JSON per verifierat klipp
+- **Fixture-katalog:** `packages/core/src/lib/__fixtures__/` — en JSON per verifierat klipp
   (`dtl-full`, `dtl-clipped`, `face-on`). Gitignoras **inte** (de ÄR testinput). Format +
-  bakgrund i [`src/lib/__fixtures__/README.md`](../src/lib/__fixtures__/README.md).
+  bakgrund i [`packages/core/src/lib/__fixtures__/README.md`](../packages/core/src/lib/__fixtures__/README.md).
 - **Regressionstest:** `src/lib/poseEnvelopeRegression.test.ts` (vitest). Kör
   `detectSwingEnvelope` + `selectEnvelopeFrames` mot varje fixture **exakt som produktionens
   `selectViaPose`** (budget = `ANALYSIS_FRAME_COUNT`, 20; `span` = första/sista sampel-`t`) och
@@ -256,7 +256,7 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
 1. `npm run dev` med `VITE_DEV_PREVIEW=true`; ladda klippet i previewen och vänta tills
    pose-overlayn står `done`.
 2. Klicka **⬇︎ Export pose fixture**; döp om nedladdningen till `<namn>.json` och lägg i
-   `src/lib/__fixtures__/`.
+   `packages/core/src/lib/__fixtures__/`.
 3. Lägg en rad i `GOLDENS` (poseEnvelopeRegression.test.ts) med värdena som dev-previewens
    `EnvelopeSummary` visar (`envelope [start→finish]`, impact, `clippedTail`, cluster) samt
    `frameCount` = antal tiles previewens grid visar (default = budget; sätt exakt om dedupe
@@ -356,7 +356,7 @@ var detektorn placerade den. Ögonmät impact-klustringen i gridet mot even-stra
   chunk. Build+lint+test (7/7) rena. Avvikelse: cutover på checkpoint 2 (3 klipp), ej 20-klipp/±150 ms-
   metriken (ersatt av fält-`path`-instrumentering). Se *Cutover (D-3)* ovan + ADR-002.
 - [x] **Regressionsharness — envelope** *(2026-08-06)* — export-knapp (`FramePreview.tsx`, bakom
-  `VITE_DEV_PREVIEW`) dumpar råa landmark-serien som JSON; `src/lib/__fixtures__/` (en JSON/klipp);
+  `VITE_DEV_PREVIEW`) dumpar råa landmark-serien som JSON; `packages/core/src/lib/__fixtures__/` (en JSON/klipp);
   `poseEnvelopeRegression.test.ts` kör `detectSwingEnvelope`+`selectEnvelopeFrames` (produktionens
   `selectViaPose`-väg, budget = `ANALYSIS_FRAME_COUNT`) mot golden-värden (envelope/impact/`impactClusterApplied`) med
   ±1-frame-tolerans + exakt frame-antal. Saknad fixture = `todo` (grön tills fångad). `npm test`

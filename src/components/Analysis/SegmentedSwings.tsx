@@ -20,12 +20,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
 import { createLogger } from '../../lib/logger';
-import { detectSessionSwings, type DetectedSwing } from '../../lib/poseSegments';
-import { selectEnvelopeFrames, type FramePick } from '../../lib/poseEnvelopeSelection';
+import { detectSessionSwings, type DetectedSwing } from '@swingcheck/core/lib/poseSegments';
+import { selectEnvelopeFrames, type FramePick } from '@swingcheck/core/lib/poseEnvelopeSelection';
 import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
 import { readTimeStretch } from '@swingcheck/core/lib/mp4Probe';
-import { nearestSample } from '../../lib/poseSampling';
-import type { PoseSample } from '../../lib/poseTrajectory';
+import { nearestSample } from '@swingcheck/core/lib/poseSampling';
+import type { PoseSample } from '@swingcheck/core/lib/poseSample';
 import { SkeletonOverlay } from './SkeletonOverlay';
 
 const log = createLogger('SwingSegments');

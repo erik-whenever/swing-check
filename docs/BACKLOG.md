@@ -3454,6 +3454,19 @@ Tester 438 före och efter, samma utfall. Poseenvelope-kedjan, `api.ts` och `mea
 **följde inte med**: de importerar typer eller logger från webbfiler (`PoseSample` i `poseTrajectory`,
 `SwingPhase` i `frameExtractor`, `import.meta.env` i `logger`). Att bryta loss dem är nästa steg.
 
+### [x] N-1b — Poseenvelope-kedjan och `api.ts` delbara
+Klart 2026-10-23. Typerna `PoseSample` (+ en strukturell kopia av MediaPipes `NormalizedLandmark`)
+ligger i `core/lib/poseSample.ts`, `SwingPhase` i `poseEnvelopeSelection.ts`, och `ShaftPoint`/`ShaftDetection`
+i `shaftPostprocess.ts` (krävdes för `fromDetection`). Loggern är delad: kärnan i core (nivåer, konsol,
+ringbuffert) med `configureLogger` (isDev, version, plattform) och `addLogSink`. Webbens del i
+`src/lib/logger.ts` (fjärrtransporter, `window.onerror`) registrerar sig vid import. `api.ts` får URL
+och kostnadslogg via `configureApi` från `src/lib/coreSetup.ts`, som `main.tsx` importerar först.
+`APP_VERSION` flyttade till `extractDataset.ts` (enda läsaren). Flyttat: 15 källfiler (4 263 rader),
+14 tester (2 760), 5 fixtures. Testutfallen är oförändrade (438). Core-källkoden typkontrolleras utan
+`vite/client`, så `import.meta.env` i core ger kompileringsfel. Testerna har egen `tsconfig.test.json`
+(`import.meta.glob`). **Avvikelse:** `cameraZoom` stannar: den anropar `MediaStreamTrack.applyConstraints`
+och blir inte ren av att loggern delas.
+
 ### [ ] N-2 — Spike: 30 fps + pose + shaft-v2 på enhet (grind för beslutet)
 
 ### [ ] N-3 — Kärnflödet i appen

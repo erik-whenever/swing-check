@@ -20,5 +20,9 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are checked by tsconfig.test.json, which adds Vite's client types for the
+  // fixture tests' `import.meta.glob`. Kept out of here so source code that reaches for
+  // `import.meta.env` fails to compile instead of silently tying the core to Vite.
+  "exclude": ["src/**/*.test.ts"]
 }

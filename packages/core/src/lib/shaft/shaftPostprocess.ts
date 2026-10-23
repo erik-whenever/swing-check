@@ -191,3 +191,45 @@ export function selectBest(
   const kept = nms(candidates, options.iouThreshold);
   return { best: kept[0] ?? null, kept: kept.length, candidates: candidates.length };
 }
+
+export interface ShaftPoint {
+  /** X in the SOURCE image's own pixels — letterbox padding already removed. */
+  x: number;
+  /** Y in the SOURCE image's own pixels. */
+  y: number;
+  /** Keypoint visibility score, [0, 1]. Always >= KEYPOINT_THRESHOLD when present. */
+  conf: number;
+}
+
+export interface ShaftDetection {
+  /** Grip end, or null when the model did not locate it. */
+  butt: ShaftPoint | null;
+  /** Where the straight part of the shaft ends, or null. */
+  hosel: ShaftPoint | null;
+  /**
+   * Outer end of the sole, or null. ALWAYS null under a 2-point model — see the header of
+   * `src/lib/shaft/shaftDetector.ts`. `heel → toe` is the blade direction; `butt → hosel` is the shaft's.
+   */
+  toe: ShaftPoint | null;
+  /** Inner end of the sole (the hosel side), or null. Same caveat as `toe`. */
+  heel: ShaftPoint | null;
+  /** Confidence of the winning box; 0 when no box cleared CONF_THRESHOLD. */
+  boxConf: number;
+  /** `session.run()` wall time, ms. Decode and letterboxing are not counted. */
+  inferenceMs: number;
+  /** JPEG decode + letterbox draw + tensor fill, ms. */
+  preprocessMs: number;
+  /** Source image size, px — what the coordinates above are relative to. */
+  imageSize: { width: number; height: number };
+  /** Which execution provider ran this inference. */
+  // OSÄKER: webbens ORT-providers. En native detektor (Core ML / TFLite) behöver vidga
+  // unionen — en typändring, inget beteende, men den rör varje `switch` på fältet.
+  provider: 'webgpu' | 'wasm';
+  /**
+   * How many keypoints the loaded graph carries: 4 for the schema, 2 for a legacy
+   * checkpoint. Reported rather than inferred from which fields are null, because
+   * "this model has no toe" and "this frame has no visible toe" are different facts
+   * and a caller that conflates them will draw the wrong conclusion from a null.
+   */
+  modelKeypoints: number;
+}

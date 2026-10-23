@@ -18,8 +18,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLogger, serializeError } from '../lib/logger';
 import { LivePoseLoop, type LiveLoopStats } from '../lib/livePoseLoop';
-import { LiveSwingDetector, type LiveSwingReport } from '../lib/liveSwingDetector';
-import { PoseRingBuffer, DEFAULT_RING_CAPACITY } from '../lib/poseRingBuffer';
+import { LiveSwingDetector, type LiveSwingReport } from '@swingcheck/core/lib/liveSwingDetector';
+import { PoseRingBuffer, DEFAULT_RING_CAPACITY } from '@swingcheck/core/lib/poseRingBuffer';
 
 const log = createLogger('LiveSwing');
 

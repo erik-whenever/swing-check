@@ -45,7 +45,7 @@
 //
 // Pure: no canvas, no video, no React. Unit-tested with synthetic landmarks.
 
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 /**

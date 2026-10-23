@@ -11,13 +11,13 @@ import {
   emptyBodyReference,
   isPhaseObserved,
   type PhaseSource,
-} from '@swingcheck/core/lib/shaft/measure/shaftSeries';
+} from './shaftSeries';
 
 describe('MeasurementPhase', () => {
   it('is the annotation spec\'s eight phases, in swing order, identical to ShaftPhase', () => {
-    // The duplication is deliberate — `datasetTypes.ts` is DEV-ONLY and reads
-    // `import.meta.env` at module scope, and the raw layer must stay free of build
-    // constants. This assertion is what keeps the copy honest.
+    // The duplication is deliberate — `datasetTypes.ts` is DEV-ONLY dataset tooling,
+    // and the raw layer must not depend on it. This assertion is what keeps the copy
+    // honest.
     expect([...MEASUREMENT_PHASES]).toEqual([...SHAFT_PHASES]);
   });
 });

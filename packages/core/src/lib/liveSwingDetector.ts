@@ -24,7 +24,7 @@
 import { computeLandmarkBounds, type LandmarkBounds } from './poseCropBox';
 import type { SwingEnvelope } from './poseEnvelope';
 import { detectSessionSwings } from './poseSegments';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 /**
  * REPORT COOLDOWN (seconds). Mirrors `COOLDOWN_SEC` in poseSegments.ts, for the same

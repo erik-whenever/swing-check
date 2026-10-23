@@ -36,7 +36,7 @@ import {
   type PartQuality,
   type SkeletonPart,
 } from './poseCropBox';
-import type { PoseSample } from './poseTrajectory';
+import type { PoseSample } from './poseSample';
 
 const DT = 1 / 15;
 const SRC_W = 720;

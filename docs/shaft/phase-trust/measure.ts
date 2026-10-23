@@ -53,7 +53,7 @@ import {
   type PhaseSource,
   type ShaftFrameSample,
   type ShaftSwingSeries,
-} from '../../../src/lib/shaft/measure/index';
+} from '../../../packages/core/src/lib/shaft/measure/index';
 import type { CameraAngle } from '../../../packages/core/src/lib/cameraAngle';
 
 const ROOT = process.cwd();
