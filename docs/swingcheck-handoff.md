@@ -3,7 +3,13 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-shaft):** S-49 fixförsök **stoppat** (`[~]`). En fps-oberoende
+> **Senast (2026-10-23, stream-shaft):** S-49 **stängd som känd begränsning** (Eriks val iii).
+> 15 fps: kort finish mot topp-som-finish. 30 fps löser 4613/5406, och det är nu underlag under F6
+> (2× poseinferens, kräver omkalibrering). Variant (ii) hade enligt en read-out räddat båda, men den
+> är inte mätt på resten. 3587 är topp-som-finish i 30 fps, och webbklippen är inte mätta i 30 fps.
+> [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md) §7.
+>
+> **Före det (2026-10-23, stream-shaft):** S-49 fixförsök **stoppat** (`[~]`). En fps-oberoende
 > finishgrind (hållkrav 0,1 s, 30 fps-ekvivalent utjämning, förregistrerad i `c1fd057`) räddar
 > 4613/5406 och håller S-45-facit (0 slag förlorade, falska 10 → 10). Men den flyttar 90 av 101
 > webbenvelopes, tappar en S-32-sving (`072`) och gör toppvila till finish (`062`, `070`, 3587 i

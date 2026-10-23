@@ -248,3 +248,38 @@ varit iteration mot facit, och designen var låst som en enhet.
 
 Varje variant behöver en ny förregistrering och samma körning (a)–(e). Sampeldatan finns kvar, så
 en omkörning tar några minuter.
+
+## 7. Kontroll av variant (ii) utan ny körning, och stängning (2026-10-23)
+
+> Eriks val: **(iii) låt det vara**. Först en kontroll av om (ii) ändrar något alls i 15 fps.
+> Det gjordes utan ny extraktion och utan segmenterarkörning.
+
+**Ur koden: ja, i varje envelope.** (ii) behåller hållkravet på 3 sampel men byter finishgrindens
+fartserie. I 15 fps är `a` = 13/192 ≈ 0,068, inte 1/3. Både referenstoppen och serien som jämförs
+mot `0,2 × topp` blir därför andra än `speedSm` i varje envelope. Bara vid ≥ 30 fps är (ii) en no-op.
+
+**Ur posedatan: (ii) hade räddat båda.** [`readout_peak_only.py`](fps-missed/readout_peak_only.py)
+läser den sparade 15 fps-posen och de kandidatfönster som den gamla segmenteraren loggade. Sedan
+räknar den om finishgrinden. Repliken återger dagens kod exakt: topp 0,94 och 1,29, längsta settle
+1 och 2, alltså tabellen i §2.
+
+| klipp | idag: topp / längsta settle | (ii): topp / längsta settle | krav |
+|---|---|---|---|
+| 4613 | 0,94 / 1 | 1,55 / **3** | 3 |
+| 5406 | 1,29 / 2 | 3,35 / **15** | 3 |
+
+4613 klarar sig precis på gränsen. Toppen blir dock inte "jämförbar". Den **överskjuter** native
+30 fps (1,43 och 1,93): med svagare utjämning tar 15 fps-serien upp brus och artefakter. I 5406
+kommer toppen troligen från kamerarörelsen efter ~4,9 s, som ligger inom kandidatfönstret
+(2,47–6,00). Hur (ii) påverkar resten, alltså (d) och (e), är inte mätt. Det hade krävt en körning.
+
+**Stängt som känd begränsning.** I 15 fps står två fel mot varandra: en kort hållen finish
+(4613, 5406) och topp-som-finish (062, 070, 3587). Hållkravet i sampel kan inte skydda mot det ena
+utan att släppa in det andra. I 30 fps klarar finishgrinden 4613 och 5406 utan ändring (§2, §6 (a)).
+Lösningen är samplingstakten, och den hör till F6 (native). Underlaget står under F6 i
+[oppna-fragor.md](../oppna-fragor.md). Patchen ligger kvar som referens.
+
+**Invändning till formuleringen "i 30 fps fungerar båda":** det är belagt för de egna
+realtidsklippen, inte generellt. `IMG_3587` (sträckt Slo-Mo) får topp-som-finish i 30 fps, både med
+och utan patchen (§6 (e), S-44). Webbklippen (`062`, `070`) är inte extraherade i 30 fps. Om de
+klarar sig där är alltså okänt.

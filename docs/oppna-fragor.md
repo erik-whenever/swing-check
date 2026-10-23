@@ -100,6 +100,20 @@ träningspipeline är opåverkade.
   och skrivs om vid ett plattformsbyte.
 - **Datamodellen för skaftmätvärdena** (ej byggd än) bör läggas på en nivå som **överlever
   plattformsbytet** — mätvärden och regler ska inte vara bundna till webbruntime.
+- **Posens samplingstakt (underlag från S-49, 2026-10-23).** Appens pose körs i 15 fps
+  (`SAMPLE_FPS`). I 15 fps fäller finishgrinden i `poseEnvelope.ts` svingar med kort hållen
+  finish: `IMG_4613` och `IMG_5406`, 2 av 71 slag i S-45-facit, båda sannolikt slag. Det går inte
+  att rätta i 15 fps utan att toppvilan börjar läsas som finish (`062`, `070`, `3587`). **I 30 fps
+  accepteras båda med dagens kod oförändrad**, och 30 fps-utfallet på de 70 egna klippen ändras
+  inte av en fps-oberoende grind. Det talar för 30 fps om native gör det billigt.
+  **Kostnad: 2× poseinferens.** Dubbelt så många `detectForVideo`-anrop och seeks per klipp.
+  Minnet går från ~4,3 kB/sampel ≈ 19 MB till ~39 MB vid analystaket 300 s. Bearbetningstiden
+  (idag ~2–5 min för ett 4-minutersklipp på CPU-delegat, ADR-003 §Risker 7) fördubblas om native
+  inte är snabbare per bildruta. Det är inte mätt.
+  **Inte klart med 30 fps:** kedjans konstanter är kalibrerade i 15 fps (`IMPACT_ADDRESS_TOL` har en
+  `OSÄKER` om just detta). Sträckta Slo-Mo-klipp (`3587`) får topp-som-finish i 30 fps.
+  Webbklippen är inte mätta i 30 fps. En takthöjning kräver en regressionsomgång som S-49 §6:
+  (a)–(e) plus goldens. Rapport: [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md) §6–7.
 
 
 ### F7 — Skaftets svikt mot den räta butt→hosel-linjen

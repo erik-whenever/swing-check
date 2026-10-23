@@ -3382,8 +3382,19 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 
 
 
-### [~] S-49 — Tre klipp med 0 svingar i appens 15 fps-kedja (4613, 5063, 5406): diagnos klar, fix stoppad
+### [x] S-49 — Tre klipp med 0 svingar i appens 15 fps-kedja (4613, 5063, 5406): känd begränsning
 
+> **Stängd (2026-10-23) som känd begränsning, Eriks val (iii).** I 15 fps står kort hållen finish
+> (4613, 5406) mot topp-som-finish (062, 070, 3587). Ett hållkrav i sampel kan inte skydda mot det
+> ena utan att släppa in det andra. I 30 fps accepteras 4613 och 5406 av dagens kod. Lösningen är
+> samplingstakten, och den är **underlag under F6** (oppna-fragor.md): 2× poseinferens, och kedjan
+> kräver omkalibrering och en regressionsomgång. Kontroll utan ny körning
+> (`readout_peak_only.py`): variant (ii) (bara fartserien, 3 sampel kvar) ändrar finishgrinden i
+> varje 15 fps-envelope och hade räddat båda (settle 1→3, 2→15). Toppen överskjuter då native, och
+> effekten på (d)/(e) är inte mätt. Invändning: "30 fps klarar båda" gäller de egna realtidsklippen.
+> 3587 (sträckt) är topp-som-finish i 30 fps, och webbklippen är inte mätta i 30 fps. 5063 (spåraren)
+> är fortfarande olöst. Patchen ligger kvar. [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md) §7.
+>
 > **Fixförsök (2026-10-23): stoppat enligt stoppregeln. Ingen produktionskod ändrad, beslut ditt.**
 > Designen förregistrerades före körningen (`c1fd057`, fps-missed-swings.md §5): hållkrav 0,1 s
 > (= 3 sampel i 30 fps → 2 i 15 fps) och finishgrindens fartserie med 30 fps-ekvivalent
