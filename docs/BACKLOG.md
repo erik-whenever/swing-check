@@ -3561,13 +3561,50 @@ marginal. Valet mellan dem avgörs av noggrannhet, inte av tid.
 TFLite, och två TFLite-kopior i samma binär ger dubbla symboler (N-2). shaft-v2 konverteras därför till
 `.mlpackage` (samma vikter) och körs i en egen Nitro-modul för VisionCamera 5.
 
+Uppdelad 2026-10-23 i N-3.1–N-3.9, i ordning. Android först, eftersom det inte kräver Mac. iOS-modulerna
+(N-3.7–N-3.8) väntar på Mac. Punkterna från N-2 är fördelade på underuppgifterna nedan.
+
+#### [ ] N-3.1 — ADR för native-pipelinen + skelett `apps/mobile` + modulstubbar + Android-länkningskontroll
+ADR: två egna Nitro-moduler, `pose` och `shaft`, med ett TS-gränssnitt var (`.nitro.ts`). Kotlin nu, Swift
+senare. Ingen fast-tflite. Skelett: Expo SDK 58 + dev client, VisionCamera 5, Nitro, `@swingcheck/core` via
+`file:`. Stubbarna anropas från en frame processor. Android-bygget länkar in MediaPipe tasks-vision och
+LiteRT (GPU), och båda native-biblioteken laddas vid körning. Dev-skärm med 30 fps-förhandsvisning,
+fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-bygget av skelettet går igenom.
+
+#### [ ] N-3.2 — Pose-modul Android
+MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`.
+**Från N-2:** mät N-2-grinden på Android: pose 30 fps i 3 min (ms/ruta, tappade rutor, thermal). Ange
+telefonmodellen.
+
+#### [ ] N-3.3 — Skaftmodul Android
+LiteRT med GPU-delegaten. Letterbox, rotation och färgordning görs natively.
 **Från N-2:**
+- **Gör förberedelsen av skaftrutorna natively.** Spikens JS-letterbox tog 37 ms per ruta.
+- **Paritet mot Python** (gräns 2 px) och **burst 26**, på Android. Ange telefonmodellen.
 - **Live-förbehandlingen ska verifieras med klubba i bild:** rotation av bufferten och färgordning. Spiken
   kollade bara pariteten på en stillbild, och 3-minutersmätningen hade ingen klubba i bild.
+
+#### [ ] N-3.4 — Fångstkedjan
+Live-pose → core (`liveSwingDetector`/`poseSegments`/`poseEnvelope`), matad i 15 fps tills N-4 →
+svingdetektion → rututtag för Vision + 26 skaftrutor. Strategin för rututtaget beslutas i uppgiften.
+
+#### [ ] N-3.5 — Analys + lagring
+`core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
+utan env. Skaftmått via `core/measure`.
+
+#### [ ] N-3.6 — Kärn-UI
+Kamera/session, resultat, regler, historik, TTS. Club Cream-tokens.
+
+#### [ ] N-3.7 — shaft-v2 → `.mlpackage`
+fp32 och fp16, samma vikter. Konverteringen görs utan Mac, pariteten mäts på Mac.
+
+#### [ ] N-3.8 — Swift-moduler: pose (MediaPipe iOS) + skaft (Core ML direkt) [Mac]
+**Från N-2:**
 - **Mät om skafttiden med Core ML direkt.** Pröva också float16. TFLite med Core ML-delegaten gav 32 ms.
-- **Android:** mät samma grind som N-2 (pose 30 fps i 3 min, skaftets paritet och burst 26) och ange
-  telefonmodellen. Pose-pluginet och fast-tflite fungerar på Android utan egen Kotlin-kod.
-- **Gör förberedelsen av skaftrutorna natively.** Spikens JS-letterbox tog 37 ms per ruta.
+- **Gör förberedelsen av skaftrutorna natively** (som N-3.3).
+- **Live-förbehandlingen ska verifieras med klubba i bild** på iPhone (rotation, färgordning).
+
+#### [ ] N-3.9 — Helflöde på iPhone + Android, ta bort `apps/spike`
 
 ### [ ] N-4 — 30 fps-omkalibrering (S-49 §6)
 

@@ -3,7 +3,13 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** **N-2 är klar `[x]`**, och spiken bekräftar F6.
+> **Senast (2026-10-23, stream-native):** N-3 är uppdelad i **N-3.1–N-3.9** (BACKLOG). Android först:
+> skelett och länkningskontroll (3.1), pose (3.2), skaft (3.3), fångstkedjan (3.4), analys och lagring (3.5),
+> kärn-UI (3.6). Därefter iOS: `.mlpackage` (3.7) och Swift-modulerna på Mac (3.8). Sist helflödet på båda
+> plattformarna, och `apps/spike` tas bort (3.9). Punkterna från N-2 ligger under 3.2, 3.3 och 3.8.
+> **Nästa: N-3.1.**
+>
+> **Före det (2026-10-23, stream-native):** **N-2 är klar `[x]`**, och spiken bekräftar F6.
 > - **iPhone 16 Pro:** pose lite 17,3 ms och full 19,2 ms per ruta, thermal `nominal`.
 > - **Skaftet:** paritet ≤ 0,45 px. Tiden blev 32 ms, och Erik godtog den eftersom 26 rutor efter slaget
 >   tar 0,83 s.
