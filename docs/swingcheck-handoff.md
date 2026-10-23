@@ -3,7 +3,15 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-shaft):** S-13 stängd (`[x]`) — Erik iPhone-verifierade shaft-v2
+> **Senast (2026-10-23, stream-shaft):** S-49 (diagnos, klar): 4613, 5063 och 5406 får 0 svingar i
+> appens 15 fps-kedja. Alla tre fälls av `clipped tail`, och alla tre är sannolikt slag. 4613 och 5406
+> beror på **fps**: `peakSpeed` krymper till ~0,6× i 15 fps medan rörelsen efter finishen inte gör
+> det, och hållkravet är 3 sampel. Därför klarar inte en kort hållen finish settle-grinden. 5063
+> beror på **spåraren**: WASM-PoseLandmarker ger falska detektioner när golfaren gått ur bild, och
+> interpolationen gör dem till en skenrörelse. Python accepterar 5406 bara på en kameraartefakt.
+> Ingen tröskel ändrad, inget beslut. [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md).
+>
+> **Före det (2026-10-23, stream-shaft):** S-13 stängd (`[x]`) — Erik iPhone-verifierade shaft-v2
 > (preview-deploy, `IMG_5765`): load 606 ms, inferens median 83 ms (76–95), preprocess 35,5 ms,
 > 1 sving / 26 frames. Punkterna verifierade mot Python inom 1 px på desktop, inte okulärt på iPhone.
 > Känd brist (ej prioriterad, F6): `ShaftPreviewView` laddar om till startsidan vid skroll efter

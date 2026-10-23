@@ -3381,3 +3381,27 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 > inte avgjort här.
 
 
+
+### [x] S-49 — Diagnos: tre klipp med 0 svingar i appens 15 fps-kedja (4613, 5063, 5406)
+
+> **Klart (2026-10-23), bara diagnos. Ingen tröskel och ingen produktionskod ändrad.** Alla tre fälls
+> av `clipped tail` i appen, och alla tre missade envelopes är sannolikt **slag** (4613 3,27–4,80 s,
+> 5406 2,80–4,37 s, 5063 16,13–17,27 s, en kort pitch). Fyra konfigurationer genom samma
+> `detectSessionSwings`: webbläsare/python × 15 fps/native.
+> - **4613: fps.** 15 fps fäller i båda spårarna (settle 1 av 3 sampel), native accepterar i båda.
+>   Mekanism: `peakSpeed` blir 0,57–0,70× i 15 fps (nedsvinget undersamplas, utjämningen dubbelt så
+>   lång i tid). Hastigheten när klubban sänks efter finishen påverkas inte. `0,2 × peak` hamnar
+>   därför under den, och `FINISH_MIN_HOLD_FRAMES` = 3 räknas i sampel (0,2 s mot 0,1 s).
+> - **5406: fps** (webbläsaren 15 fps 2/3, native accepterar). Python accepterar i båda takterna,
+>   men **på en artefakt**: kameran rubbas efter ~4,9 s, ett skenfall blir peak och pass, och
+>   tappet blir "finish". Belägget för att svingen kan läsas i native kommer från webbläsaren.
+> - **5063: spåraren (python↔JS), inte fps.** Golfaren går ur bild 18,3–19,7 s. WASM-spåraren ger
+>   enstaka falska detektioner i tappet (python inga), och interpolationen gör dem till en skenrörelse
+>   som blir peak och nedsvingspass. Följden blir clipped tail i 15 fps och envelope 3,73 s > 3 s i native.
+> - Kontroll: 5 klipp (4603, 4617, 5073, 5383, 5411) ger 1 sving i alla fyra konfigurationerna,
+>   gränserna inom 0,1 s, settle i 15 fps 6–11 sampel. Kort hållen finish är det som skiljer.
+>
+> n = 3 + 5, inget frekvensmått. Hur nära 3-sampelsgränsen appens övriga svingar ligger är inte mätt.
+> Möjliga riktningar (inget valt, `poseEnvelope.ts` är låst): ett tidsbaserat hållkrav, en
+> settle-tröskel som inte beror på en fps-beroende topp, och för 5063 interpolation över långa
+> pose-tapp. Rapport: [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md).

@@ -1,0 +1,130 @@
+# Varför ger 4613, 5063 och 5406 noll svingar i appens 15 fps-kedja? (S-49)
+
+> 2026-10-23, `stream-shaft`. Bara diagnos. Ingen produktionskod och ingen tröskel ändrad.
+> `poseSegments.ts`, `poseEnvelope.ts` och `poseTrajectory.ts` är importerade och anropade,
+> aldrig ändrade.
+
+## Svaret
+
+| klipp | grind som fäller i appen (webbläsare, 15 fps) | webbläsare, native 30 fps | python, 15 fps | python, native 30 fps | orsak | missad envelope |
+|---|---|---|---|---|---|---|
+| `IMG_4613` | clipped tail (settle 1/3 sampel) | **accepterad** | clipped tail (1/3) | **accepterad** | **fps** | 3,27–4,80 s, impact ≈ 4,33. **Slag** (bollen ligger kvar vid 4,20 s och är i luften vid 4,40 s) |
+| `IMG_5406` | clipped tail (settle 2/3 sampel) | **accepterad** | accepterad, men på en artefakt | accepterad, men på en artefakt | **fps**. Python klarar sig bara på en artefakt (se nedan) | 2,80–4,37 s, impact ≈ 3,93. **Slag** (bollen ligger kvar vid 3,85 s och är i luften vid 4,05 s) |
+| `IMG_5063` | clipped tail (settle 0/3, passet hamnar i artefakt) | envelope 3,73 s > 3 s | **accepterad** | **accepterad** | **python↔JS (spåraren)**, inte fps | 16,13–17,27 s, impact ≈ 17,0. **Slag**: kort pitch, torvan lyfter vid 17,05 s och bollen syns inte efter träffen |
+
+Alla tre missade envelopes är sannolikt riktiga slag. Tiderna står i tabellen om du vill
+kontrollera själv. Bedömningen bygger på fem bildrutor per sving som jag tittat på (för 5063 också
+en beskärning runt bollen). Jag har inte gått igenom bildruta för bildruta.
+
+Kontrollen (fem klipp som ger svingar i appen) ger exakt 1 accepterad sving i alla fyra
+konfigurationerna, och envelopegränserna skiljer högst 0,1 s mellan dem. 15 fps gör alltså inte
+kedjan generellt sämre. Det som skiljer är **marginalen** vid finishen (§2).
+
+## 1. Upplägg
+
+Fyra konfigurationer per klipp. Alla matas genom **samma** JS-kedja, `detectSessionSwings(samples,
+{})` importerad från Vite i en riktig webbläsarsida. Inget av klippen är sträckt.
+
+| konfiguration | spårare | takt | hur |
+|---|---|---|---|
+| `browser15` | WASM-PoseLandmarker, VIDEO-läge, varm över klippet | 15 fps | `extractPoseTrajectory` självt, precis som `segment_clips.cjs` |
+| `browserNative` | samma | native (30 fps) | en kopia av `extractPoseTrajectory`s sampelloop där `SAMPLE_FPS` bytts mot videons fps. Konstanten i modulen är inte ändrad, och kopian var enda sättet att byta takt utan att röra produktionskoden |
+| `py15` | python-mediapipe 1.0.1, samma modell och optioner som `run_pose_clip.py` | var 2:a avkodade ruta | landmarkern ser bara 15 fps-sekvensen |
+| `pyNative` | samma | alla rutor | = own-clips-stability-körningen |
+
+Två kontroller av att uppställningen stämmer: `browser15` återger `segments.json` från S-45 (samma
+kandidatfönster och samma skäl för alla tre), och `pyNative` återger own-clips-stability (1 sving
+per klipp, och för 5063 samma två förkastade kandidater: ingen adressplatå och klippt svans).
+
+Skript (committade): [`fps-missed/extract_browser.cjs`](fps-missed/extract_browser.cjs),
+[`fps-missed/extract_python.py`](fps-missed/extract_python.py),
+[`fps-missed/analyze.cjs`](fps-missed/analyze.cjs). Utdata (gitignorerat):
+`data/shaft/fps-missed/samples/*.json` och `data/shaft/fps-missed/analysis.json`.
+
+`analyze.cjs` loggar per kandidat grindens skäl, och för clipped tail även de värden som avgjorde
+den. Värdena läses ur envelopens egen `debug`-spårning: om det finns ett nedsvingspass, och hur
+lång den längsta löpningen under `SETTLE_SPEED_FRAC × peakSpeed` efter passet är, jämfört med
+`FINISH_MIN_HOLD_FRAMES` = 3.
+
+## 2. Mekanismen bakom fps-fallen (4613, 5406)
+
+Finishen kräver **3 sampel i rad** under `0,2 × peakSpeed` efter nedsvingspasset
+(`poseEnvelope.ts`). Båda delarna beror på samplingstakten:
+
+1. **`peakSpeed` krymper i 15 fps, men hastigheten efter finishen gör det inte.** Nedsvinget tar
+   ~0,15 s. I 15 fps täcker det 2–3 sampel, och `SMOOTH_HALF = 1` sampel jämnar ut över 0,2 s
+   i stället för 0,067 s. På de sex rena klippen är toppen i 15 fps **0,57–0,70 × toppen i native**.
+   Att klubban sänks efter finishen är en långsam rörelse (~0,2–0,3) och påverkas inte. Tröskeln
+   sjunker alltså under den rörelsen. 4613: tröskeln 0,188 i 15 fps mot 0,285 i native. Hastigheten
+   efter finishen ligger på 0,24–0,33, och bara ett sampel (4,96 s: 0,188) kommer under.
+2. **Hållkravet räknas i sampel.** 3 sampel är 0,2 s i 15 fps men 0,1 s i 30 fps.
+
+| klipp | topp 15 / native (webbläsare) | längsta settle 15 fps | längsta settle native |
+|---|---:|---:|---:|
+| 4603 (kontroll) | 0,81 / 1,26 | 6 | 18 |
+| 4617 (kontroll) | 1,19 / 1,91 | 7 | 19 |
+| 5073 (kontroll) | 0,88 / 1,26 | 11 | 37 |
+| 5383 (kontroll) | 0,79 / 1,24 | 6 | 13 |
+| 5411 (kontroll) | 0,97 / 1,71 | 11 | 24 |
+| **4613** | 0,94 / 1,43 | **1** | 15 |
+| **5406** | 1,29 / 1,93 | **2** | 9 |
+
+4613 och 5406 har en **kort hållen finish**. I 4613 börjar klubban sänkas ~0,2 s efter finishen,
+och klippet slutar 1 s senare. I 5406 går händerna vidare uppåt efter ~0,25 s, och sedan rubbas
+kameran (bilden tippar mot marken vid ~5,9 s). Kontrollklippen håller finishen längre och klarar
+15 fps med 6–11 sampel.
+
+Python och webbläsaren ger nästan samma värden i 15 fps för 4613 (topp 0,92 mot 0,94, settle 1 mot
+1). Där är orsaken alltså bara fps.
+
+### 5406 i python: rätt antal av fel skäl
+
+Python accepterar 5406 i båda takterna, men inte svingens egen finish. Kameran rubbas efter
+~4,9 s, och spåraren tappar personen (py: 4,87–4,93 och 5,17–6,0 s utan pose). Mitt i tappet läser
+python ett snabbt "fall" (topp 2,77 i 15 fps och 4,93 i native, mot svingens ~1,3–1,9). Det fallet
+blir både `peakSpeed` och nedsvingspasset (5,00 s). Efter det står serien still eftersom
+interpolationen klampar, och stillheten läses som finish (5,10–5,20 s). Envelopen 2,80–5,10 s börjar
+rätt men slutar i kamerarörelsen. Webbläsaren i native hittar den riktiga finishen (4,37 s,
+impact 3,93 s). **Python-körningens "1 sving" i 5406 är alltså inte belägg för att svingen är lätt
+att läsa i native fps.** Det belägget kommer från `browserNative`.
+
+## 3. 5063: spåraren, inte fps
+
+Svingen (en kort pitch, händerna når bara 0,16 över adress) ligger 16,1–17,3 s. Efter den går
+golfaren ur bild, och pose saknas ~18,3–19,7 s i alla fyra konfigurationerna. Skillnaden är vad
+spåraren hittar på i tappet:
+
+| konfiguration | detektioner inne i 18,3–19,7 s (handhöjd y) |
+|---|---|
+| `py15` | inga |
+| `pyNative` | inga |
+| `browser15` | 18,87 (0,39), 18,93 (0,35) |
+| `browserNative` | 18,50 (0,33), 18,83 (0,39), 19,50 (0,33), 19,53 (0,39) |
+
+Den riktiga handhöjden på båda sidor om tappet är ~0,65. Webbläsarens WASM-PoseLandmarker ger
+alltså enstaka falska detektioner när personen är borta. Python ger inga. Kedjan interpolerar
+linjärt mellan dem, och det blir en snabb skenrörelse: 1,13 i 15 fps mot svingens egen topp 0,67 i
+`py15`. Den skenrörelsen
+
+- blir `peakSpeed`, så settle-tröskeln höjs,
+- ger det snabbaste fallande sampel nära adresshöjd, så nedsvingspasset hamnar i artefakten
+  (19,33 s i 15 fps, 19,63 s i native) i stället för vid träffen (16,93 s),
+- följs av rörelse till klippets slut. I 15 fps blir det därför **clipped tail (0 settle-sampel efter
+  passet)**. I native hittas en settle vid 19,80 s, men envelopen blir då 16,07–19,80 = **3,73 s >
+  `MAX_ENVELOPE_SEC` 3,0**.
+
+Python saknar artefakten och läser svingen rent i båda takterna (envelope 16,07/16,13–17,17/17,27 s,
+nedsving 0,40 s). Fps spelar ingen roll här. Det som fäller svingen är att webbläsarspåraren
+detekterar något som inte finns.
+
+## 4. Vad det här inte säger
+
+- **n = 3 missade + 5 kontroller, alla 30 fps-klipp från samma mobil.** Det är en mekanism, inte
+  en frekvens. Hur många av appens 81 svingar som ligger nära 3-sampelsgränsen är inte mätt. Den
+  längsta settle-löpningen i 15 fps finns i `analysis.json` för de klipp som körts här, inte för
+  alla 70.
+- Slag/provsving bygger på fem bildrutor per sving och är ingen blind bedömning.
+- Ingen tröskel är prövad. Kandidaterna finns i §2: ett tidsbaserat hållkrav, eller en settle-
+  tröskel som inte skalar med en topp som själv beror på fps. För 5063 gäller i stället
+  interpolation över långa pose-tapp. Valet är ditt, och en ändring i `poseEnvelope.ts` (låst)
+  kräver regressionsharnessen.
