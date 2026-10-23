@@ -1094,6 +1094,30 @@ Sänk Claude-vision-kostnaden per sving. Isolerad; egen branch `stream-e`. Se [R
 > *felet*, inte målet. `npm test` 157/157, build + lint rena. **Ej fältverifierad** — Erik
 > läser `cropAreaPct`/`cropAspect` på nästa session.
 
+### [x] S-48 — Visions svar klipps vid max_tokens med 7 regler (båda lägena)
+
+> Upptäckt 2026-10-22 på `stream-shaft` (S-45 steg 3). Fixad 2026-10-23 på `fix-s48-max-tokens`
+> direkt från `main`, så den kan gå till produktion utan `stream-shaft`. **Mätt (24 av 25
+> godkända anrop, 6 svingar, 7 DTL-regler):** före fixen klipptes **quick 6/6 vid 600** och
+> **detaljerat 5/6 vid 2000**. Quick kostar ~70 tokens per regel vid pass och ~110 vid fail, och
+> det är ren JSON utan prosa. Detaljerat kostar 180–410. Gränsen låg vid ~4–5 regler i quick och
+> ~4 i detaljerat. **Fix:** (a) `stop_reason 'max_tokens'` → `TruncatedResponseError` före
+> parsningen, ERROR-loggat, aldrig "Invalid JSON". (b) `maxTokensFor(mode, n)`: quick
+> `200+120·n`, där prompten är orörd och cachen intakt. Detaljerat `400+250·n` plus en gräns för
+> prosan per regel (`visual_evidence` ≤ 2 meningar, `observation` 1, `suggestion` ≤ 2), som ger
+> en ny cachepost en gång. Tak 4096. Workerns `MAX_TOKENS` 2000 → 4096 **kräver `wrangler
+> deploy`**. Till dess gäller 2000, och 7 regler i detaljerat läge ryms ändå (som mest 1817).
+> **Efter fixen: 0/12 klippta** (quick 639–757, detaljerat 1407–1817 tokens). Pass/fail-byten
+> 5/39 i detaljerat, samma nivå som körbruset i quick (5/40 med identisk prompt). Färre
+> `cannot_determine`. `cache_read_input_tokens` > 0 på 5/6 i båda lägena. Rapport:
+> [vision-max-tokens/README.md](vision-max-tokens/README.md).
+>
+> **Deployad 2026-10-23** från `main` (`c9da692`), Worker-version `8304e1cc` med `MAX_TOKENS 4096`.
+> **Taket verifierat via config, inte via anrop.** `pinRequestBody` klampar `max_tokens` mot
+> `env.MAX_TOKENS`, och deployutskriften visar 4096. Inget svar har hittills gått över 2000, så
+> ett anrop hade inte kunnat visa taket. Testanropet (nr 25, `s48-test-deploy-…`) kraschade i
+> mätskriptet innan svaret sparades, och om det debiterades är okänt. Inget anrop 26 enligt beslut.
+
 ---
 
 ## Ström G — Instruktörsspår (G2) — *låst bakom Ström B*
@@ -3341,21 +3365,4 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 > produktion måste det bestämmas var `shaft-v2.onnx` (~26 MB) bor och hur den versioneras —
 > inte avgjort här.
 
-### [ ] S-48 — Visions svar klipps vid max_tokens med 7 regler (båda lägena)
 
-> **Öppen, inget beslut (upptäckt 2026-10-22 under S-45 steg 3).** Produktionens anrop, utan
-> tillägg (sessionsvägen, E-2-beskärning, 28 bildrutor, de 7 DTL-reglerna ur biblioteket):
-> **quick-läge (appens standard: TTS på + `ttsMode 'quick'`, `MAX_TOKENS_QUICK` 600) klipps med
-> `stop_reason: max_tokens`** mitt i den sjunde regeln. Detaljerat läge (2000) klipps också. Svaret
-> var 6 000 tecken svensk `visual_evidence`/`observation`, och det anropet hade bollfrågan tillagd,
-> ett par dussin tokens. `parseAndValidate` kastar då "Invalid JSON". Användaren får ett misslyckat
-> anrop som redan är betalt (~$0,04 quick, ~$0,06 detaljerat). Bara n = 1 (P45-001, en sträckt sving),
-> så frekvensen är okänd, och antalet regler i fält är okänt (rules-storen är användarens egen).
-> Kommentaren i `api.ts` räknar med "~15 rules × a short_verdict" inom 600. Det stämmer inte här.
-> Underlag: [shaft/practice-review/vision-ball.md](shaft/practice-review/vision-ball.md).
-
----
-
-## Avklarat
-
-_(CC flyttar avbockade uppgifter hit med datum och en mening om vad som gjordes, så listan ovan hålls fokuserad på återstående arbete.)_

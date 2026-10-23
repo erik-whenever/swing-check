@@ -1,7 +1,7 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-22.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
 > **Senast (2026-10-22, stream-shaft):** S-45 steg 3 avbrutet efter 4 av 90 Vision-anrop. Bollfrågan är
 > obesvarad (n = 1, rätt). Fynd → **S-48:** produktionens anrop med 7 DTL-regler klipps vid
@@ -1338,6 +1338,12 @@ modellen*); status: [BACKLOG.md](BACKLOG.md) Ström S.
 
 ## Öppna trådar
 
+- **S-48 löst och Workern deployad (2026-10-23).** `api.ts` skalar `max_tokens` med antalet regler
+  (`maxTokensFor`: quick `200+120·n`, detaljerat `400+250·n`, tak 4096), och klippning kastar
+  `TruncatedResponseError`. Workern deployad från `main` (version `8304e1cc`, `MAX_TOKENS 4096`).
+  **Taket är verifierat via config, inte via anrop:** `pinRequestBody` klampar mot `env.MAX_TOKENS`, och
+  inget svar har hittills gått över 2000. Fältsignal: `analyzeSwing hit max_tokens` (ERROR). Underlag:
+  [vision-max-tokens/README.md](vision-max-tokens/README.md).
 - **Beskärningen är ej fältverifierad efter borttaget aspektlås (2026-08-11).** Första
   fältdatan fällde själva geometrin, inte grinden — se *Fungerar* ovan. Läs `cropReason` i
   sessionsloggen: allt annat än `ok` betyder att hela bilden skickades, och `gateDetail`
