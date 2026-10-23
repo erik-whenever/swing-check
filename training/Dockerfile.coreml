@@ -1,0 +1,13 @@
+# Linux environment for training/export_coreml.py on a Windows host (coremltools has no
+# Windows wheel). Venv at /opt/venv-coreml, same split as requirements-coreml.txt says.
+#
+#   docker build -t swingcheck-coreml -f training/Dockerfile.coreml training
+#
+# Run command: see the docstring of training/export_coreml.py.
+FROM python:3.11-slim-bookworm
+RUN python -m venv /opt/venv-coreml
+COPY requirements-coreml.txt /tmp/requirements-coreml.txt
+RUN /opt/venv-coreml/bin/pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.7.0 torchvision==0.22.0 \
+ && /opt/venv-coreml/bin/pip install --no-cache-dir -r /tmp/requirements-coreml.txt
+ENV PATH=/opt/venv-coreml/bin:$PATH
+WORKDIR /work
