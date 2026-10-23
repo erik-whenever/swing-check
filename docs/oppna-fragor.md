@@ -101,10 +101,10 @@ med taligenkänning på enheten; (5) TestFlight och Play.
 länkar in en egen kopia av TFLite:s C-API, och en TFLite-runtime till i samma iOS-binär ger dubbla
 `TfLite*`-symboler (54 st, EAS-bygge `60a0c910…`). Så shaft-v2 konverteras till Core ML
 (`.mlpackage`, samma vikter) och körs i en egen Nitro-modul i N-3. Android är inte berört av beslutet.
-**Spikens utfall (N-2, iPhone 16 Pro):** pose klarar 30 fps med god marginal (lite 17,3 ms, full 19,2 ms
+**Spiken bekräftar beslutet (N-2, iPhone 16 Pro, klar 2026-10-23):** pose klarar 30 fps med god marginal (lite 17,3 ms, full 19,2 ms
 i median, thermal `nominal` i 3 min). Skaftet ger samma punkter som Python (≤ 0,45 px) på 32 ms per ruta
 via TFLite och Core ML-delegaten, mot grinden 30 ms och webbens 83 ms. Det blir 0,83 s för en svings 26
-rutor.
+rutor. Erik godtog skafttiden, eftersom produkten kör skaftet efter slaget och inte live. Android mäts i N-3.
 
 ---
 

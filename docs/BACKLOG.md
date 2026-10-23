@@ -3467,7 +3467,11 @@ och kostnadslogg via `configureApi` från `src/lib/coreSetup.ts`, som `main.tsx`
 (`import.meta.glob`). **Avvikelse:** `cameraZoom` stannar: den anropar `MediaStreamTrack.applyConstraints`
 och blir inte ren av att loggern delas.
 
-### [~] N-2 — Spike: 30 fps + pose + shaft-v2 på enhet (grind för beslutet)
+### [x] N-2 — Spike: 30 fps + pose + shaft-v2 på enhet (grind för beslutet)
+**Klar 2026-10-23.** Grinden är klarad på iPhone 16 Pro: pose lite och full, skaftparitet ≤ 0,45 px.
+Skafttiden, 32 ms mot 30 ms, godtogs av Erik eftersom produktens mönster är 26 rutor efter slaget, alltså
+0,83 s per sving. Android mäts i N-3. F6 är bekräftat.
+
 **Stoppad 2026-10-23 i steg 3:** inget färdigt bibliotek för MediaPipe Pose + VisionCamera på iOS håller
 på aktuell stack. Ingen kod skriven. Expo SDK 58 (RN 0.88) går med VisionCamera 5, där plugins är
 Nitro-moduler. Alla MediaPipe-posepaket som går via VisionCamera är v4-plugins. Granskat (npm 2026-10-23):
@@ -3541,21 +3545,29 @@ marginal. Valet mellan dem avgörs av noggrannhet, inte av tid.
   float32, tar samma steg 2,8 ms. Produkten ska förbereda rutorna natively.
 - **3 min live (inte produktens mönster):** inferensen steg från 35 till 41 och sedan 45 ms i median per
   minut. Thermal gick till `fair` efter 63 s, aldrig `serious`. 23 % tappade rutor, väntat eftersom
-  inferensen är över 33 ms. Max boxkonfidens 0,19: ingen klubba hittades live.
-  `// OSÄKER`: det framgår inte av loggen om en klubba var i bild. Om den var det pekar det på ett fel i
-  livevägen (rotation eller färgordning), inte i modellen, eftersom pariteten stämmer.
+  inferensen är över 33 ms. Max boxkonfidens 0,19, vilket är väntat: kameran var riktad mot rummet och
+  ingen klubba var i bild. Livevägens förbehandling (rotation, färgordning) är därmed inte verifierad.
+  Det görs i N-3.
 - **Osäkert:** TFLite:s Core ML-delegat kan lämna delar av grafen på CPU. N-3 kör Core ML direkt
   (`.mlpackage`, F6), och float16 är inte mätt. Båda kan ta bort de sista 2 ms men är inte verifierade.
 
 **Grinden, sammanfattning (iPhone 16 Pro):** pose lite ✔, pose full ✔, skaftparitet ✔, skafttid ✘ (32 mot
 30 ms). Android är inte mätt.
 
-**Kvar:** Eriks beslut om skafttiden (godta, eller mät om med Core ML direkt i N-3), Android.
+**Beslut (Erik, 2026-10-23):** skafttiden godtas. Android mäts i N-3.
 
 ### [ ] N-3 — Kärnflödet i appen
 **På iOS körs skaftet i Core ML direkt, inte via TFLite** ([F6](oppna-fragor.md)). MediaPipe Pose bär en egen
 TFLite, och två TFLite-kopior i samma binär ger dubbla symboler (N-2). shaft-v2 konverteras därför till
 `.mlpackage` (samma vikter) och körs i en egen Nitro-modul för VisionCamera 5.
+
+**Från N-2:**
+- **Live-förbehandlingen ska verifieras med klubba i bild:** rotation av bufferten och färgordning. Spiken
+  kollade bara pariteten på en stillbild, och 3-minutersmätningen hade ingen klubba i bild.
+- **Mät om skafttiden med Core ML direkt.** Pröva också float16. TFLite med Core ML-delegaten gav 32 ms.
+- **Android:** mät samma grind som N-2 (pose 30 fps i 3 min, skaftets paritet och burst 26) och ange
+  telefonmodellen. Pose-pluginet och fast-tflite fungerar på Android utan egen Kotlin-kod.
+- **Gör förberedelsen av skaftrutorna natively.** Spikens JS-letterbox tog 37 ms per ruta.
 
 ### [ ] N-4 — 30 fps-omkalibrering (S-49 §6)
 

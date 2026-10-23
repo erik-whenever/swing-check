@@ -3,11 +3,15 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2 på iPhone 16 Pro är mätt färdigt.
-> - **Klarar grinden:** pose lite och full, och skaftparitet (≤ 0,45 px).
-> - **Klarar inte grinden:** skafttiden, 32 ms mot 30 ms. Det är ändå 2,6× snabbare än webbens 83 ms, och
->   26 rutor tar 0,83 s.
-> - **Kvar:** Eriks beslut om skafttiden, och Android. Detaljerna står i BACKLOG N-2 (mätning 3).
+> **Senast (2026-10-23, stream-native):** **N-2 är klar `[x]`**, och spiken bekräftar F6.
+> - **iPhone 16 Pro:** pose lite 17,3 ms och full 19,2 ms per ruta, thermal `nominal`.
+> - **Skaftet:** paritet ≤ 0,45 px. Tiden blev 32 ms, och Erik godtog den eftersom 26 rutor efter slaget
+>   tar 0,83 s.
+> - **Nästa: N-3** på SDK 58 + VisionCamera 5, med skaftet i Core ML direkt på iOS. Med på listan: verifiera
+>   live-förbehandlingen med klubba i bild, mät om skafttiden och mät Android (se BACKLOG N-3).
+> - **`apps/spike`** är slit-och-släng och kan tas bort när N-3 har egen mätning.
+>
+> **Före det:** N-2, skaftet. Paritet ✔, tid 32 ms mot grinden 30 ms (mätning 3 i BACKLOG).
 >
 > **Före det:** pose full klarar grinden: 19,2 ms median, 21,2 ms vid p95 och 28,5 ms vid p99, 0,17 %
 > tappade rutor (bara vid start), thermal `nominal` i 3 min.
