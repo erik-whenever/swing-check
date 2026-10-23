@@ -3520,7 +3520,17 @@ alla under uppvärmningen de första 0,4 s: där låg 3 rutor på 77–199 ms, d
 Thermal `nominal` hela tiden. Pose hittades i 99,3 % av rutorna. Logg: `apps/spike/logs/` (gitignorerad).
 Kraschen vid första starten var ett fel i spikens JS (`globalThis` i workleten), rättat i `8314866`.
 
-**Kvar:** pose full, skaftbygget (paritet, burst 26, 3 min), Android, rapport mot grinden.
+**Mätning 2 — pose full, samma telefon och inställningar, 3 min (2026-10-23):** klarar grinden. 5 414 rutor,
+29,95 fps. Pose 19,2 ms/ruta i median och 21,2 ms vid p95 (99:e percentilen 28,5 ms), alltså +2,0 ms i
+median mot lite. Per minut 19,6 / 19,1 / 19,0 ms. 9 tappade rutor (0,17 %), alla i ett enda glapp på 333 ms
+vid första rutan. 20 rutor låg över 33 ms (max 40 ms bortsett från första), men de gav inga fler tappade
+rutor. De föll i två perioder, 0–6 s och 124–135 s, där personen tappades och detektorn sökte om. Thermal
+`nominal` hela tiden. Pose hittades i 93,8 % av rutorna, där missarna föll i samma två perioder. Det ser ut
+som att personen var utanför bild eller rörde sig, inte som en modellskillnad. Rutor utan träff tar 14,8 ms
+i median. Slutsats: full ryms också i 30 fps med marginal (p99 28,5 ms mot 33 ms), men lite har dubbelt så stor
+marginal. Valet mellan dem avgörs av noggrannhet, inte av tid.
+
+**Kvar:** skaftbygget (paritet, burst 26, 3 min), Android, rapport mot grinden.
 
 ### [ ] N-3 — Kärnflödet i appen
 **På iOS körs skaftet i Core ML direkt, inte via TFLite** ([F6](oppna-fragor.md)). MediaPipe Pose bär en egen

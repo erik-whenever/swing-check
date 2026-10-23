@@ -3,9 +3,12 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2: pose lite på iPhone 16 Pro **klarar grinden**: 17,3 ms
-> median och 18,7 ms vid p95, 0,15 % tappade rutor (bara under uppvärmningen), thermal `nominal` i 3 min.
-> Kvar: pose full, skaft och Android.
+> **Senast (2026-10-23, stream-native):** N-2: även pose full på iPhone 16 Pro **klarar grinden**: 19,2 ms
+> median, 21,2 ms vid p95 och 28,5 ms vid p99, 0,17 % tappade rutor (bara vid start), thermal `nominal` i 3 min.
+> Kvar: skaft och Android.
+>
+> **Före det:** pose lite klarar grinden: 17,3 ms median och 18,7 ms vid p95, 0,15 % tappade rutor (bara
+> under uppvärmningen), thermal `nominal` i 3 min.
 >
 > **Före det:** N-2 fortsätter med delad spike (Eriks beslut). Byggen:
 > `pose-lite`, `pose-full` och `shaft` (eas.json). Appen väljer variant via sitt bundle-id. Skaftbygget har
