@@ -20,12 +20,43 @@ function base64Kb(b64: string): number {
 }
 
 // Generation speed — not image upload — dominates vision latency (26–46 s measured
-// on session swings). Quick mode asks for a lean schema (no visual_evidence, no
-// observation), so its ceiling is set to what that schema can actually need:
-// ~15 rules × a short_verdict + one-sentence suggestion. Detailed mode keeps the
-// full-text budget.
-const MAX_TOKENS_DETAILED = 2000;
-const MAX_TOKENS_QUICK = 600;
+// on session swings), and output is a per-rule cost: every rule is its own JSON object.
+// The ceiling is therefore scaled with the rule count instead of fixed. Measured with
+// 7 DTL rules (S-48, docs/vision-max-tokens/README.md): quick ≈ 90 tokens of header,
+// 65–115 per rule (no prose — short_verdict, frames, a suggestion on fail) and the
+// closing fields; detailed 130–245 per rule once its prose is capped (prompt.ts), down from
+// 180–410 uncapped. A fixed 600/2000 cut both modes off mid-rule at 7 rules.
+//
+// The ceiling only stops a runaway answer; it does not make answers longer. The Worker
+// clamps to its own MAX_TOKENS, so a raise above that needs a Worker deploy too.
+const MAX_TOKENS_CAP = 4096;
+
+export function maxTokensFor(quickMode: boolean, ruleCount: number): number {
+  const n = Math.max(1, ruleCount);
+  const budget = quickMode ? 200 + 120 * n : 400 + 250 * n;
+  return Math.min(budget, MAX_TOKENS_CAP);
+}
+
+/**
+ * The answer was cut off at `max_tokens`. Its JSON is incomplete, so nothing in it can be
+ * used — but the call was paid, and a "parse error" would hide that the ceiling is the
+ * cause. Thrown instead of handing the cut text to the parser.
+ */
+export class TruncatedResponseError extends Error {
+  readonly maxTokens: number;
+  readonly outputTokens: number;
+  readonly ruleCount: number;
+
+  constructor(maxTokens: number, outputTokens: number, ruleCount: number) {
+    super(
+      `Analysis cut off: the answer hit max_tokens (${outputTokens}/${maxTokens}, ${ruleCount} rules) — try again, or with fewer rules`,
+    );
+    this.name = 'TruncatedResponseError';
+    this.maxTokens = maxTokens;
+    this.outputTokens = outputTokens;
+    this.ruleCount = ruleCount;
+  }
+}
 
 /** Token accounting and cost for one analysis, as reported by the API. */
 export interface AnalysisUsage {
@@ -69,7 +100,8 @@ export async function analyzeSwing(
   }
 ): Promise<SwingAnalysis> {
   const quickMode = !!options.quickMode;
-  const maxTokens = quickMode ? MAX_TOKENS_QUICK : MAX_TOKENS_DETAILED;
+  // A focus rule is analysed in depth (extra correction/drill fields): budget it as two.
+  const maxTokens = maxTokensFor(quickMode, rules.length + (options.focusRuleId ? 1 : 0));
   const frameSizesKb = frames.map(base64Kb);
   log.info('analyzeSwing request', {
     frames: frames.length,
@@ -209,11 +241,13 @@ export async function analyzeSwing(
     stopReason: data.stop_reason,
   });
   if (data.stop_reason === 'max_tokens') {
-    log.warn('analyzeSwing hit max_tokens — response truncated', {
+    log.error('analyzeSwing hit max_tokens — response truncated', {
       maxTokens,
       outputTokens,
       quickMode,
+      activeRuleCount: rules.length,
     });
+    throw new TruncatedResponseError(maxTokens, outputTokens, rules.length);
   }
   if (cacheReadTokens > 0) {
     log.info(`Cache hit: ${cacheReadTokens} tokens (saved $${(cacheReadTokens * CLAUDE_SONNET_4_5_PRICING.cacheReadPerMillionTokens / 1_000_000).toFixed(4)})`, {

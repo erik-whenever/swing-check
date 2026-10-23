@@ -28,9 +28,9 @@ ALLOWED_ORIGINS = "https://swing-check-henna.vercel.app/,http://localhost:5173,h
 # Keep in sync with the price table in src/lib/api.ts.
 MODEL_ID = "claude-sonnet-4-5"
 
-# Ceiling for `max_tokens`. The client may ask for less (quick mode sends 600) but never
-# more; an absent or invalid value gets this ceiling.
-MAX_TOKENS = "2000"
+# Ceiling for `max_tokens`. The client may ask for less (api.ts maxTokensFor scales it with
+# mode and rule count, S-48) but never more; an absent or invalid value gets this ceiling.
+MAX_TOKENS = "4096"
 
 # Request bodies larger than this are rejected with 413 before the JSON is parsed.
 # 30 MB ≈ well above a 20-frame analysis; raise only with the frame budget.

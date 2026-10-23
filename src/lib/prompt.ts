@@ -60,6 +60,15 @@ const QUICK_BREVITY_INSTRUCTION = `BREVITY IS A HARD REQUIREMENT, NOT A PREFEREN
 - This overrides EVIDENCE FIRST in the system prompt: still ground every verdict in what you can actually see in the frames, but do not write that evidence down.
 - Do NOT explain your reasoning, restate the rule, or add preamble. Only the fields below.`;
 
+// Detailed mode is read on screen, but its prose is the bulk of the output: uncapped it ran
+// 180–410 tokens per rule and 7 rules no longer fit (S-48). The cap keeps the evidence and
+// its frame numbers — what the verdict is grounded in — and trims the restating.
+const DETAILED_LENGTH_INSTRUCTION = `LENGTH PER RULE (all rules share one answer — keep each one tight):
+- visual_evidence: at most 2 sentences — the frame numbers and what is visible in them.
+- observation: one sentence.
+- suggestion: at most 2 sentences.
+- Do not restate the rule or repeat the evidence in observation.`;
+
 function formatDrills(rule: Rule): string {
   if (!rule.drills || rule.drills.length === 0) return '';
   const drillLines = rule.drills
@@ -156,7 +165,9 @@ ${QUICK_BREVITY_INSTRUCTION}`
 
   "overall_assessment": "2-3 sentence summary",
   "cannot_determine_reasons": ["frame 4 is too dark to assess impact position"]
-}`;
+}
+
+${DETAILED_LENGTH_INSTRUCTION}`;
 
   return `You are analyzing a sequence of still frames from a golf swing video.
 
