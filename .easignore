@@ -1,0 +1,93 @@
+# EAS-uppladdningen för apps/spike (N-2). När den här filen finns läser EAS CLI den I STÄLLET
+# för .gitignore, så .gitignore står kopierad här nedanför. Håll dem i synk.
+# Tillägg: ospårat och lokalt som inte ska lämna datorn eller som inte behövs för bygget.
+data/
+.claude/
+yt-dlp.exe
+jq.exe
+training/
+docs/
+dev-dist/
+dist/
+
+# --- kopia av .gitignore ---
+# Env
+.env
+.env.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Dev PWA build artefakt (genereras av vite-plugin-pwa i dev)
+dev-dist/
+
+# Lokal Claude Code-config (maskinspecifik)
+.claude/settings.local.json
+
+# Pose model — binary asset fetched on demand via `npm run pose:model`
+public/models/*.task
+
+# Pose WASM runtime — copied from node_modules via `npm run pose:wasm`
+public/wasm/
+
+# Skaftdetektor — ONNX-modellen (exporteras av training/export_onnx.py) och
+# ONNX Runtimes WASM-runtime (kopieras från node_modules via `npm run shaft:wasm`)
+public/models/*.onnx
+public/ort/
+
+# Skaftannotering — bilder och exporter, publiceras aldrig (identifierbara personer)
+data/shaft/*
+!data/shaft/.gitkeep
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
+
+# Skaftdetektor-träning — dataset och körningar (stora, regenererbara)
+training/runs/
+training/datasets/
+training/.venv/
+training/.venv-tflite/
+__pycache__/
+
+# Skaftdetektor — spårningar per klipp (regenereras av training/trace_swing.py)
+training/trace-*.png
+training/trace-*.csv
+
+# Skaftmätning — kandidatbildrutor kopierade ur data/shaft av
+# scripts/across-sign-candidates.ts. Samma personer som originalen, samma skäl:
+# bilderna publiceras aldrig. Rapporten bredvid dem är text och committas.
+docs/shaft/across-sign-candidates/
+docs/shaft/across-sign-blind/
+docs/shaft/phase-audit/frames/
+.vercel
+.env*
+
+# Native spike (N-2) — genererade modeller och paritetsbild (training/export_tflite.py).
+# Paritetsbilden är en ruta ur Eriks klipp: identifierbar person, samma regel som data/shaft.
+apps/spike/assets/models/
+apps/spike/assets/parity/
