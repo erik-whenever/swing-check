@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "SwingCheck",
+    "slug": "swingcheck",
+    "version": "0.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "owner": "erikhawerman",
+    "ios": {
+      "bundleIdentifier": "com.swingcheck.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "SwingCheck filmar din sving för att analysera den."
+      }
+    },
+    "android": {
+      "package": "com.swingcheck.app",
+      "permissions": ["android.permission.CAMERA"],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": ["expo-dev-client"]
+  }
+}

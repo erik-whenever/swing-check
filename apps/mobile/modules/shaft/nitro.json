@@ -1,0 +1,32 @@
+{
+  "$schema": "https://nitro.margelo.com/nitro.schema.json",
+  "cxxNamespace": [
+    "swingcheck",
+    "shaft"
+  ],
+  "ios": {
+    "iosModuleName": "SwingShaft"
+  },
+  "android": {
+    "androidNamespace": [
+      "swingcheck",
+      "shaft"
+    ],
+    "androidCxxLibName": "SwingShaft"
+  },
+  "autolinking": {
+    "ShaftDetector": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridShaftDetector"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridShaftDetector"
+      }
+    }
+  },
+  "ignorePaths": [
+    "**/node_modules"
+  ]
+}

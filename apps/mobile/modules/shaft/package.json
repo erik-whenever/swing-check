@@ -1,0 +1,21 @@
+{
+  "name": "@swingcheck/native-shaft",
+  "private": true,
+  "version": "0.0.0",
+  "description": "shaft-v2 för VisionCamera 5 (Nitro): LiteRT GPU på Android, Core ML på iOS. ADR-0004.",
+  "main": "src/index",
+  "react-native": "src/index",
+  "source": "src/index",
+  "types": "src/index.ts",
+  "scripts": {
+    "specs": "nitrogen"
+  },
+  "homepage": "https://github.com/erik-whenever/swing-check",
+  "license": "UNLICENSED",
+  "author": "Erik Hawerman",
+  "peerDependencies": {
+    "react-native": "*",
+    "react-native-nitro-modules": "*",
+    "react-native-vision-camera": "*"
+  }
+}
