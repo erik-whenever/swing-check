@@ -98,6 +98,8 @@ type WorkletGlobals = {
   __burstDone?: number;
   __burstFrames?: Uint8Array[];
   __burstGeom?: { dw: number; dh: number; px: number; py: number };
+  /** Delegate whose model instance the burst has already warmed up. */
+  __warmFor?: string;
 };
 
 export default function App() {
@@ -211,6 +213,12 @@ export default function App() {
           // thread is blocked meanwhile; frames dropped during the burst do not count.
           const prepMs: number[] = [];
           const inferMs: number[] = [];
+          // Parity no longer warms this instance (it runs its own), so the first burst warms it
+          // here, outside the timing. The product loads the model at app start, long before a swing.
+          if (g.__warmFor !== delegate) {
+            model.runSync([letterboxInto(g.__burstFrames[0], 1 / 255)]);
+            g.__warmFor = delegate;
+          }
           const t0 = performance.now();
           for (const f of g.__burstFrames) {
             const a = performance.now();
@@ -271,7 +279,7 @@ export default function App() {
 
       onSample({ ts, poseMs, prepMs, inferMs, posed, shaftConf });
     },
-    [running, burstId, model, resize, onSample, onBurst],
+    [running, burstId, model, delegate, resize, onSample, onBurst],
   );
 
   const summarize = useCallback(() => {
@@ -396,10 +404,14 @@ export default function App() {
   };
 
   const doParity = async () => {
-    if (!model) return;
+    if (!tflite) return;
     setError(null);
     try {
-      setParity(await runParity(model));
+      // Own instance on purpose: fast-tflite 2.0 caches its output TypedArrays in whichever JS
+      // runtime calls first. Parity (model.run, JS runtime) and burst/live (runSync, camera
+      // worklet runtime) sharing one instance segfaulted in copyOutputBuffers (.ips 23:17:25).
+      const own = await tflite.loadTensorflowModel(SHAFT_MODEL, delegate);
+      setParity(await runParity(own));
     } catch (e) {
       setError(String(e));
     }
@@ -450,7 +462,7 @@ export default function App() {
           )}
           {SPIKE === 'shaft' ? (
             <>
-              <Btn label="Paritet" disabled={running || burstBusy || !model} onPress={doParity} />
+              <Btn label="Paritet" disabled={running || burstBusy} onPress={doParity} />
               <Btn label={burstBusy ? 'Burst …' : `Burst ${BURST_FRAMES}`} disabled={running || burstBusy || !model} onPress={() => setBurstId((n) => n + 1)} />
             </>
           ) : null}

@@ -43,7 +43,9 @@ rad per ruta.
 2. **60** är valfritt.
 
 **Skaftbygget:**
-1. **Paritet.** Kör stillbilden genom TFLite och värmer upp Core ML.
+1. **Paritet.** Kör stillbilden genom TFLite på en egen modellinstans. fast-tflite tål inte att samma
+   instans körs både i JS-tråden och i kameratråden. Första bursten värmer därför upp sin instans
+   utanför tidtagningen.
 2. **Burst 26**, fem gånger. Fångar 26 rutor i följd och kör dem direkt efter varandra. Det är
    produktens mönster: skaftet körs på cirka 26 rutor per sving efter slaget, inte live.
 3. **30 · Starta 3 min.** Skaft på varje ruta, för ms/ruta och thermal under långvarig last.
