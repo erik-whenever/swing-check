@@ -3500,7 +3500,13 @@ pluginen klarar det utan egen Kotlin.
 - Android klaras utan egen Kotlin: pluginets egen Kotlin-fil och registrering (README §5), fast-tflite
   med `android-gpu`, thermal från API 29.
 
-**Kvar:** EAS-byggen (Erik), mätningarna på iPhone och sedan Android, rapport mot grinden.
+**Stoppad 2026-10-23 vid första iOS-bygget (lite)** enligt Eriks villkor. Bygget
+`60a0c910-83a1-4839-8e81-c7a9e4e2d0db` fallerade i länkningen med 54 dubbla symboler, alla `TfLite*` (C-API,
+XNNPACK-delegat, telemetri). Varje symbol finns i både `TensorFlowLiteC.framework` 2.17.0 (fast-tflite) och
+`libMediaPipeTasksCommon_device_graph.a` (MediaPipeTasksVision 0.10.x). Inga andra länkfel. Inte lappat.
+Android är inte byggt.
+
+**Kvar:** Eriks beslut om väg vidare (se handoff), sedan bygge, mätningar och rapport mot grinden.
 
 ### [ ] N-3 — Kärnflödet i appen
 

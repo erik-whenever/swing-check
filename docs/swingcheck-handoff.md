@@ -3,7 +3,12 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-native):** N-2 pågår (`[~]`). Erik valde SDK 54 + VC4 +
+> **Senast (2026-10-23, stream-native):** N-2 stoppad vid första iOS-bygget. MediaPipe och
+> fast-tflite länkar båda in TFLite:s C-API: 54 dubbla `TfLite*`-symboler mellan `TensorFlowLiteC` 2.17.0 och
+> `libMediaPipeTasksCommon_device_graph.a` (bygge `60a0c910…`). Inte lappat. **Väntar på Eriks beslut**,
+> se rapporten i sessionen och BACKLOG N-2.
+>
+> **Före det (2026-10-23):** N-2 pågår (`[~]`). Erik valde SDK 54 + VC4 +
 > `react-native-mediapipe-pose-plugin` i `apps/spike`. Steg 4 är klart: `training/export_tflite.py`,
 > där TFLite-CPU har 0,000 px avvikelse mot ONNX. Spiken är byggd och verifierad lokalt (prebuild,
 > bundling, tsc/eslint). **Nästa:** Erik kör `eas login`, enhetsregistreringen och `eas build` för
