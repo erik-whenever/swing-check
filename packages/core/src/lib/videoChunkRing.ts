@@ -168,6 +168,9 @@ export class VideoChunkRing {
     const parts: Blob[] = headerPrepended ? [this.header!.blob, ...selected.map((c) => c.blob)] : selected.map((c) => c.blob);
 
     return {
+      // OSÄKER: ringen förutsätter MediaRecorder-chunkar och webbens Blob. Ren i den mening att
+      // den inte rör DOM, men har ingen motsvarighet i en VisionCamera-inspelning — kan behöva
+      // flyttas tillbaka till webben när N-3 visar hur native fångar.
       blob: new Blob(parts, { type: this.mimeType }),
       startSec: selected[0].startSec,
       endSec: selected[selected.length - 1].endSec,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readTimeStretch, stretchProfile, timeStretchOf, type MebxSample, type Mp4Probe } from './mp4Probe';
+import { readTimeStretch, stretchProfile, timeStretchOf, type MebxSample, type Mp4Probe } from '@swingcheck/core/lib/mp4Probe';
 import { lowPitchRun, zeroCrossingProfile } from './audioProfile';
 
 /** 120 Hz telemetry: n1 samples at 1×, a 3-sample ramp, n4 at 4×, ramp back, n1 at 1×. */

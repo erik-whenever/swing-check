@@ -23,7 +23,7 @@ import { createLogger } from '../../lib/logger';
 import { detectSessionSwings, type DetectedSwing } from '../../lib/poseSegments';
 import { selectEnvelopeFrames, type FramePick } from '../../lib/poseEnvelopeSelection';
 import { grabFramesAtTimes } from '../../lib/poseFrameGrab';
-import { readTimeStretch } from '../../lib/mp4Probe';
+import { readTimeStretch } from '@swingcheck/core/lib/mp4Probe';
 import { nearestSample } from '../../lib/poseSampling';
 import type { PoseSample } from '../../lib/poseTrajectory';
 import { SkeletonOverlay } from './SkeletonOverlay';

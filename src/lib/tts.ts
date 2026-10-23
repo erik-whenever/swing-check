@@ -1,4 +1,4 @@
-import type { RuleResult, SwingAnalysis } from '../types';
+import type { RuleResult, SwingAnalysis } from '@swingcheck/core/types';
 import type { TtsMode } from '../store/settings';
 import { useSettingsStore } from '../store/settings';
 import { useRulesStore } from '../store/rules';

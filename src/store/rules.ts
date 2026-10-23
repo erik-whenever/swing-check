@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuid } from 'uuid';
-import type { Rule } from '../types';
-import type { LibraryRule } from '../data/ruleLibrary';
+import type { Rule } from '@swingcheck/core/types';
+import type { LibraryRule } from '@swingcheck/core/data/ruleLibrary';
 
 interface RulesState {
   rules: Rule[];

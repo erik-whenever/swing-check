@@ -5,7 +5,7 @@
 // (docs/shaft/annotation-spec.md); it reads the production chain, it never feeds it.
 
 import type { DatasetGate } from './datasetGate';
-import type { SlowmoMode } from './slowmo';
+import type { SlowmoMode } from '@swingcheck/core/lib/dataset/slowmo';
 
 /**
  * The eight frame phases from the annotation spec's `phase` attribute.
@@ -47,7 +47,7 @@ export type ClipSource = 'web' | 'own';
 
 // `SlowmoMode` and the slow-motion derivation live in `slowmo.ts` (pure + unit-tested);
 // re-exported here so manifest consumers get it from the same module as the shapes.
-export type { SlowmoMode } from './slowmo';
+export type { SlowmoMode } from '@swingcheck/core/lib/dataset/slowmo';
 
 // `DatasetGate` and the relaxed gate live in `datasetGate.ts`, re-exported for the
 // same reason — a manifest reader should need one import for every field it sees.

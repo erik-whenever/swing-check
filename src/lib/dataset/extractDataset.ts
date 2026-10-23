@@ -32,13 +32,13 @@
 
 import { ANALYSIS_FRAME_COUNT } from '../frameExtractor';
 import { createLogger } from '../logger';
-import { readTimeStretch } from '../mp4Probe';
+import { readTimeStretch } from '@swingcheck/core/lib/mp4Probe';
 import { grabFramesAtTimes } from '../poseFrameGrab';
 import { selectEnvelopeFrames } from '../poseEnvelopeSelection';
 import { detectSessionSwings } from '../poseSegments';
 import { extractPoseTrajectory } from '../poseTrajectory';
 import { derivePhase } from './datasetPhase';
-import { FROZEN_CLIP_NAMES } from './frozenClips';
+import { FROZEN_CLIP_NAMES } from '@swingcheck/core/lib/dataset/frozenClips';
 import {
   DATASET_MAX_ENVELOPE_SEC,
   DATASET_MIN_ENVELOPE_SEC,
@@ -69,8 +69,8 @@ import {
   SLOWMO_FRAME_CAP_FRAC,
   deriveSlowmo,
   type SlowmoMode,
-} from './slowmo';
-import { base64ToBytes, buildZip, type ZipEntry } from './zip';
+} from '@swingcheck/core/lib/dataset/slowmo';
+import { base64ToBytes, buildZip, type ZipEntry } from '@swingcheck/core/lib/dataset/zip';
 
 const log = createLogger('DatasetExtract');
 

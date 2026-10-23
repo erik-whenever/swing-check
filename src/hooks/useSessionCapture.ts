@@ -42,7 +42,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { analyzeSwing } from '../lib/api';
-import { ANGLE_TO_PROMPT, ruleMatchesAngle } from '../lib/cameraAngle';
+import { ANGLE_TO_PROMPT, ruleMatchesAngle } from '@swingcheck/core/lib/cameraAngle';
 import {
   ANALYSIS_FRAME_COUNT,
   type FrameMeta,
@@ -52,13 +52,13 @@ import { createLogger, serializeError } from '../lib/logger';
 import { grabFramesAtTimes } from '../lib/poseFrameGrab';
 import { MAX_OUTPUT_SIDE } from '../lib/poseCropBox';
 import { selectEnvelopeFrames } from '../lib/poseEnvelopeSelection';
-import { SerialQueue, type QueueStats } from '../lib/analysisQueue';
+import { SerialQueue, type QueueStats } from '@swingcheck/core/lib/analysisQueue';
 import { sessionStats } from '../lib/sessionStats';
 import { buildSpeechParts, enqueueSpeech, TTS_FAILED } from '../lib/tts';
 import type { LiveLoopStats } from '../lib/livePoseLoop';
 import type { LiveSwingReport } from '../lib/liveSwingDetector';
-import type { MaterializedWindow, VideoChunkRing } from '../lib/videoChunkRing';
-import type { Rule } from '../types';
+import type { MaterializedWindow, VideoChunkRing } from '@swingcheck/core/lib/videoChunkRing';
+import type { Rule } from '@swingcheck/core/types';
 import { useRulesStore } from '../store/rules';
 import { useSettingsStore } from '../store/settings';
 import { useSessionStore, type SwingTimings } from '../store/session';

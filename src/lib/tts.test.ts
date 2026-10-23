@@ -9,7 +9,7 @@
 // failure mode the watchdog exists for.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RuleResult, SwingAnalysis } from '../types';
+import type { RuleResult, SwingAnalysis } from '@swingcheck/core/types';
 
 interface FakeUtterance {
   text: string;

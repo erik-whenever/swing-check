@@ -3,7 +3,7 @@ import { useHistory } from '../../hooks/useHistory';
 import { useRulesStore } from '../../store/rules';
 import { useSessionStore } from '../../store/session';
 import { useT } from '../../lib/i18n';
-import type { Rule, RuleResult } from '../../types';
+import type { Rule, RuleResult } from '@swingcheck/core/types';
 import { Button, Card, VerdictBars } from '../ui';
 
 type Verdict = RuleResult['verdict'];

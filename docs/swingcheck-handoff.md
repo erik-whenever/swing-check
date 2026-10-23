@@ -3,7 +3,16 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-23, stream-shaft):** S-49 **stängd som känd begränsning** (Eriks val iii).
+> **Senast (2026-10-23, stream-native):** F6 beslutad (React Native). Ny ström N i BACKLOG.
+> **`stream-shaft` är fryst:** `stream-native` grenades från den, och fortsatt skaftarbete sker där.
+> N-1 klar: `packages/core` (`@swingcheck/core`, npm-workspace, ren TS utan byggsteg) har 30 filer:
+> `types.ts`, `ruleLibrary`, `prompt`, `cameraAngle`, `shaft/measure` utom `fromDetection`, `letterbox`,
+> `shaftPostprocess`, `mp4Probe`, `slowmo`, `zip` m.fl. Webben importerar `@swingcheck/core/lib/…`.
+> Tester 438 före och efter. Kvar i webben trots ren logik: hela poseenvelope-kedjan (typ-import av
+> `PoseSample` från `poseTrajectory` och `SwingPhase` från `frameExtractor`) och `api.ts` (logger och
+> `import.meta.env`). `npm run lint` har 2 fel sedan tidigare (`FrameLightbox`, `useHistory`).
+>
+> **Före det (2026-10-23, stream-shaft):** S-49 **stängd som känd begränsning** (Eriks val iii).
 > 15 fps: kort finish mot topp-som-finish. 30 fps löser 4613/5406, och det är nu underlag under F6
 > (2× poseinferens, kräver omkalibrering). Variant (ii) hade enligt en read-out räddat båda, men den
 > är inte mätt på resten. 3587 är topp-som-finish i 30 fps, och webbklippen är inte mätta i 30 fps.

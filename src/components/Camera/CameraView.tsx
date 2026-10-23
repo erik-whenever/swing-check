@@ -3,7 +3,7 @@ import { useCamera } from '../../hooks/useCamera';
 import { useRangeMode } from '../../hooks/useRangeMode';
 import { useSessionCapture } from '../../hooks/useSessionCapture';
 import { extractFrames, ANALYSIS_FRAME_COUNT } from '../../lib/frameExtractor';
-import { readTimeStretch } from '../../lib/mp4Probe';
+import { readTimeStretch } from '@swingcheck/core/lib/mp4Probe';
 import { logCameraCapabilities } from '../../lib/cameraDiagnostics';
 import {
   useSessionStore,

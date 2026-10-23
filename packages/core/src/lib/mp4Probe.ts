@@ -17,6 +17,9 @@ export interface ByteSource {
   slice(start: number, end: number): Promise<ArrayBuffer>;
 }
 
+// OSÄKER: `Blob.arrayBuffer()` och `TextDecoder` (nedan) saknas eller är ofullständiga i
+// React Native/Hermes. Parsern läser via `ByteSource` och är ren; i appen behövs en
+// filbaserad ByteSource och troligen en TextDecoder-polyfill. Ej verifierat på enhet.
 export function blobSource(blob: Blob): ByteSource {
   return {
     size: blob.size,

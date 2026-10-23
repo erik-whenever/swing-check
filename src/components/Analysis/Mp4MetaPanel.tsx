@@ -8,7 +8,7 @@
 // Read-only: nothing here feeds extraction, the store, or the Vision call.
 
 import { useEffect, useState } from 'react';
-import { blobSource, probeMp4, stretchProfile, type Mp4Probe } from '../../lib/mp4Probe';
+import { blobSource, probeMp4, stretchProfile, type Mp4Probe } from '@swingcheck/core/lib/mp4Probe';
 import {
   decodeMono,
   lowPitchRun,

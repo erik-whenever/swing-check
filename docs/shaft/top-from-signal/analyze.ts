@@ -4,7 +4,7 @@ import { readFileSync, mkdtempSync, readdirSync, existsSync, mkdirSync } from 'n
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { angleDeg, signedAngleDifference } from '../../../src/lib/shaft/measure/angles';
+import { angleDeg, signedAngleDifference } from '../../../packages/core/src/lib/shaft/measure/angles';
 
 const S = process.argv[2];
 const EPS = Number(process.argv[3] ?? 5);

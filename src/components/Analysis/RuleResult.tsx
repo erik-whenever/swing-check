@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { RuleResult } from '../../types';
+import type { RuleResult } from '@swingcheck/core/types';
 import { useRulesStore } from '../../store/rules';
-import { mapDetectedAngle, ANGLE_LABEL } from '../../lib/cameraAngle';
-import type { CameraAngle } from '../../lib/cameraAngle';
+import { mapDetectedAngle, ANGLE_LABEL } from '@swingcheck/core/lib/cameraAngle';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 import { useT } from '../../lib/i18n';
 import { VerdictDot } from '../ui';
 

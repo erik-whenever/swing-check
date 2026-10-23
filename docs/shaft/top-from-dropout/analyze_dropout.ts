@@ -3,7 +3,7 @@
 // Usage: see docs/shaft/top-from-dropout.md. Args: <dense-dir> <export_manifests.json>
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { angleDeg, signedAngleDifference } from '../../../src/lib/shaft/measure/angles';
+import { angleDeg, signedAngleDifference } from '../../../packages/core/src/lib/shaft/measure/angles';
 
 const DENSE = process.argv[2];
 const MANIFESTS = process.argv[3];

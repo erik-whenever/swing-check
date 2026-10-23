@@ -3431,3 +3431,29 @@ Risker §4: ett falskt positiv kostar ett Vision-anrop).
 > Möjliga riktningar (inget valt, `poseEnvelope.ts` är låst): ett tidsbaserat hållkrav, en
 > settle-tröskel som inte beror på en fps-beroende topp, och för 5063 interpolation över långa
 > pose-tapp. Rapport: [shaft/fps-missed-swings.md](shaft/fps-missed-swings.md).
+
+---
+
+## Ström N — React Native-migreringen (F6)
+
+Beslut: [oppna-fragor.md F6](oppna-fragor.md) (BESLUTAD 2026-10-23). Branch: `stream-native`, grenad från
+`stream-shaft`. **`stream-shaft` är fryst från 2026-10-23:** fortsatt skaftarbete sker på `stream-native`,
+och domänlogiken ligger i `packages/core`.
+
+### [x] N-1 — Ren domänlogik till delat paket `@swingcheck/core`
+Klart 2026-10-23: npm-workspace `packages/core` (ren TS, inget byggsteg, `exports: "./*" → ./src/*.ts`).
+30 filer flyttade med `git mv` (19 källfiler, 11 tester; 4 426 + 2 288 rader) i speglad struktur
+(`src/{lib,data,types.ts}`), så interna importer är orörda. Webbappen importerar `@swingcheck/core/…`.
+Tester 438 före och efter, samma utfall. Poseenvelope-kedjan, `api.ts` och `measure/fromDetection`
+**följde inte med**: de importerar typer eller logger från webbfiler (`PoseSample` i `poseTrajectory`,
+`SwingPhase` i `frameExtractor`, `import.meta.env` i `logger`). Att bryta loss dem är nästa steg.
+
+### [ ] N-2 — Spike: 30 fps + pose + shaft-v2 på enhet (grind för beslutet)
+
+### [ ] N-3 — Kärnflödet i appen
+
+### [ ] N-4 — 30 fps-omkalibrering (S-49 §6)
+
+### [ ] N-5 — Handsfree med taligenkänning på enheten
+
+### [ ] N-6 — TestFlight och Play

@@ -65,7 +65,7 @@ import {
   modelToImage,
   PAD_VALUE,
   type LetterboxTransform,
-} from './letterbox';
+} from '@swingcheck/core/lib/shaft/letterbox';
 import {
   CHANNELS,
   CONF_THRESHOLD,
@@ -75,7 +75,7 @@ import {
   keypointCountForChannels,
   selectBest,
   type RawKeypoint,
-} from './shaftPostprocess';
+} from '@swingcheck/core/lib/shaft/shaftPostprocess';
 
 const log = createLogger('ShaftDetector');
 

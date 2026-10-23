@@ -54,7 +54,7 @@ import {
   type ShaftFrameSample,
   type ShaftSwingSeries,
 } from '../../../src/lib/shaft/measure/index';
-import type { CameraAngle } from '../../../src/lib/cameraAngle';
+import type { CameraAngle } from '../../../packages/core/src/lib/cameraAngle';
 
 const ROOT = process.cwd();
 if (!existsSync(path.join(ROOT, 'package.json'))) {

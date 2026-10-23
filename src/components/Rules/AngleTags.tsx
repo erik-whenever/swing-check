@@ -1,5 +1,5 @@
-import { ANGLE_LABEL, CAMERA_ANGLES } from '../../lib/cameraAngle';
-import type { CameraAngle } from '../../lib/cameraAngle';
+import { ANGLE_LABEL, CAMERA_ANGLES } from '@swingcheck/core/lib/cameraAngle';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 import { useT } from '../../lib/i18n';
 import { Chip } from '../ui';
 

@@ -1,6 +1,6 @@
 import { useSettingsStore } from '../store/settings';
-import { ANGLE_LABEL, CAMERA_ANGLES } from '../lib/cameraAngle';
-import type { CameraAngle } from '../lib/cameraAngle';
+import { ANGLE_LABEL, CAMERA_ANGLES } from '@swingcheck/core/lib/cameraAngle';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 import { Segmented } from './ui';
 
 /** DTL | Face-on segmented toggle, bound to the global camera angle. */

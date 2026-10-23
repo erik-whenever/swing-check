@@ -4,12 +4,12 @@ import { useSessionStore } from '../../store/session';
 import { useSettingsStore } from '../../store/settings';
 import { RuleBadge } from './RuleBadge';
 import { AngleTags, AngleFormPicker } from './AngleTags';
-import { ruleMatchesAngle, CAMERA_ANGLES } from '../../lib/cameraAngle';
-import type { CameraAngle } from '../../lib/cameraAngle';
+import { ruleMatchesAngle, CAMERA_ANGLES } from '@swingcheck/core/lib/cameraAngle';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 import { useT } from '../../lib/i18n';
 import type { TranslationKey } from '../../lib/i18n';
-import { PHASES } from '../../types';
-import type { Rule } from '../../types';
+import { PHASES } from '@swingcheck/core/types';
+import type { Rule } from '@swingcheck/core/types';
 import { Button, Card, Chip, Toggle } from '../ui';
 
 const FIELD =

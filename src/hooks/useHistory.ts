@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { get, set, del, keys } from 'idb-keyval';
-import type { SwingRecord } from '../types';
+import type { SwingRecord } from '@swingcheck/core/types';
 import {
   isSupabaseEnabled,
   saveSwingToSupabase,

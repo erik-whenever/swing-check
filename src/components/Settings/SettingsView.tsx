@@ -5,7 +5,7 @@ import type { Theme, Accent } from '../../store/settings';
 import { useOnboardingStore } from '../../store/onboarding';
 import { useSessionStore } from '../../store/session';
 import { AVAILABLE_LANGUAGES } from '../../lib/languages';
-import { CAMERA_ANGLES, ANGLE_LABEL } from '../../lib/cameraAngle';
+import { CAMERA_ANGLES, ANGLE_LABEL } from '@swingcheck/core/lib/cameraAngle';
 import { FlagIcon } from '../Home/FlagIcon';
 import { useT } from '../../lib/i18n';
 import type { TranslationKey } from '../../lib/i18n';

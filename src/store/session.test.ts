@@ -14,7 +14,7 @@ import {
   swingFromExtraction,
 } from './session';
 import type { FrameMeta } from '../lib/frameExtractor';
-import type { SwingAnalysis } from '../types';
+import type { SwingAnalysis } from '@swingcheck/core/types';
 
 const store = () => useSessionStore.getState();
 

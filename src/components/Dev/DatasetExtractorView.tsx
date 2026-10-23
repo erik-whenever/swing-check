@@ -22,7 +22,7 @@ import {
 } from '../../lib/dataset/extractDataset';
 import { MAX_FRAMES_PER_SWING } from '../../lib/dataset/phaseQuota';
 import { MULTI_SWING_SUSPECT_SEC } from '../../lib/dataset/datasetGate';
-import { SLOWMO_MODES, type SlowmoMode } from '../../lib/dataset/slowmo';
+import { SLOWMO_MODES, type SlowmoMode } from '@swingcheck/core/lib/dataset/slowmo';
 import type { ClipSource } from '../../lib/dataset/datasetTypes';
 
 type Status = 'idle' | 'running' | 'done' | 'error';

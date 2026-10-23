@@ -4,7 +4,7 @@ import {
   EnergyTrigger,
   DEFAULT_ENERGY_TRIGGER_CONFIG,
   type EnergyTriggerConfig,
-} from '../lib/audioTrigger';
+} from '@swingcheck/core/lib/audioTrigger';
 import { speak } from '../lib/tts';
 import { createLogger } from '../lib/logger';
 

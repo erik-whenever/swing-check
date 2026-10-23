@@ -25,7 +25,7 @@ import {
 } from './datasetGate';
 import type { SwingEnvelope } from '../poseEnvelope';
 import { STRETCH_MAX_FACTOR, isSwing, type SessionSwings, type SwingCandidate } from '../poseSegments';
-import { FROZEN_CLIP_NAMES } from './frozenClips';
+import { FROZEN_CLIP_NAMES } from '@swingcheck/core/lib/dataset/frozenClips';
 
 /** Session refSpeed used throughout — 1.0 makes the peak-speed fraction read directly. */
 const REF_SPEED = 1;

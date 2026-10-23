@@ -70,7 +70,7 @@ import {
   type ShaftFrameSample,
   type ShaftSwingSeries,
 } from '../../../src/lib/shaft/measure/index';
-import type { CameraAngle } from '../../../src/lib/cameraAngle';
+import type { CameraAngle } from '../../../packages/core/src/lib/cameraAngle';
 
 // The repo root is the working directory, not the script's own folder: the bundle esbuild
 // produces lives in a temp directory, so `import.meta.url` would point at the wrong tree.

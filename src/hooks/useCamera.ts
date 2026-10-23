@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { createLogger } from '../lib/logger';
-import { VideoChunkRing } from '../lib/videoChunkRing';
+import { VideoChunkRing } from '@swingcheck/core/lib/videoChunkRing';
 import { applyCameraZoom } from '../lib/cameraZoom';
 import { useSettingsStore } from '../store/settings';
 

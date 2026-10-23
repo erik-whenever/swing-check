@@ -18,7 +18,7 @@
 // Nothing here reaches the Vision call, the session store or SwingRecord.
 
 import type { LiveDetectionState } from '../../hooks/useLiveSwingDetection';
-import type { QueueStats } from '../../lib/analysisQueue';
+import type { QueueStats } from '@swingcheck/core/lib/analysisQueue';
 
 export function LiveSwingPanel({
   live,

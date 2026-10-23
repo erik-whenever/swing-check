@@ -10,7 +10,7 @@
 //   S44_CLIPPOSE=<out>/clippose S44_OUT=<out>/compare.json npx vitest run docs/shaft/slowmo
 import { openAsBlob, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { it } from 'vitest';
-import { blobSource, probeMp4, timeStretchOf } from '../../../src/lib/mp4Probe';
+import { blobSource, probeMp4, timeStretchOf } from '../../../packages/core/src/lib/mp4Probe';
 import { detectSessionSwings, type SessionSwings } from '../../../src/lib/poseSegments';
 import type { PoseSample } from '../../../src/lib/poseTrajectory';
 

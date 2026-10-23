@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { detectLanguage } from '../lib/languages';
 import type { Language } from '../lib/languages';
-import type { CameraAngle } from '../lib/cameraAngle';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 
 export type TtsMode = 'quick' | 'detailed';
 export type { Language };

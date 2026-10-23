@@ -3,7 +3,7 @@ import { useSessionStore, selectPrimarySwing } from '../../store/session';
 import { useRulesStore } from '../../store/rules';
 import { useToastStore } from '../../store/toast';
 import { exportSwingClip, isClipExportSupported, type OverlayLine } from '../../lib/videoExport';
-import type { RuleResult } from '../../types';
+import type { RuleResult } from '@swingcheck/core/types';
 import { createLogger } from '../../lib/logger';
 import { Button } from '../ui';
 

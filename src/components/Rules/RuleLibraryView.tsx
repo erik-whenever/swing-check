@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { RULE_LIBRARY } from '../../data/ruleLibrary';
+import { RULE_LIBRARY } from '@swingcheck/core/data/ruleLibrary';
 import { useRulesStore } from '../../store/rules';
 import { useSettingsStore } from '../../store/settings';
 import { useToastStore } from '../../store/toast';
 import { AngleTags } from './AngleTags';
-import { ruleMatchesAngle, ANGLE_LABEL } from '../../lib/cameraAngle';
+import { ruleMatchesAngle, ANGLE_LABEL } from '@swingcheck/core/lib/cameraAngle';
 import { useT } from '../../lib/i18n';
 import type { TranslationKey } from '../../lib/i18n';
-import { PHASES } from '../../types';
+import { PHASES } from '@swingcheck/core/types';
 import { Button, Card, SectionLabel } from '../ui';
 
 export function RuleLibraryView() {

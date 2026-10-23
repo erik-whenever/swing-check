@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
-import type { SwingAnalysis } from '../types';
+import type { SwingAnalysis } from '@swingcheck/core/types';
 import type { FrameMeta } from '../lib/frameExtractor';
-import type { CameraAngle } from '../lib/cameraAngle';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 import { sessionStats, type SessionSummary } from '../lib/sessionStats';
 
 // `dataset` (shaft-annotation extractor) and `shaft` (shaft-detector preview) are

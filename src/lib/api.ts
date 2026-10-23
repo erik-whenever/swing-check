@@ -1,5 +1,5 @@
-import type { Rule, SwingAnalysis } from '../types';
-import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote } from './prompt';
+import type { Rule, SwingAnalysis } from '@swingcheck/core/types';
+import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote } from '@swingcheck/core/lib/prompt';
 import { createLogger } from './logger';
 
 const log = createLogger('API');

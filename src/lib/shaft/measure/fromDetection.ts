@@ -13,7 +13,7 @@
 
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
 import type { ShaftDetection, ShaftPoint } from '../shaftDetector';
-import { angleDeg } from './angles';
+import { angleDeg } from '@swingcheck/core/lib/shaft/measure/angles';
 import {
   emptyBodyReference,
   type BodyReference,
@@ -23,7 +23,7 @@ import {
   type ShaftFrameSample,
   type ShaftKeypoint,
   type ShaftSwingSeries,
-} from './shaftSeries';
+} from '@swingcheck/core/lib/shaft/measure/shaftSeries';
 
 /**
  * MediaPipe's 33-landmark pose topology, for the six landmarks the measurements read.

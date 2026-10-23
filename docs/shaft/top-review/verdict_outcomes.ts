@@ -28,9 +28,9 @@
 //       --bundle --platform=node --format=esm --outfile=<tmp>/verdict_outcomes.mjs
 //   node <tmp>/verdict_outcomes.mjs < <tmp>/in.json > <tmp>/out.json
 import { readFileSync } from 'node:fs';
-import { KEYPOINT_THRESHOLD } from '../../../src/lib/shaft/shaftPostprocess';
+import { KEYPOINT_THRESHOLD } from '../../../packages/core/src/lib/shaft/shaftPostprocess';
 import type { ShaftDetection, ShaftPoint } from '../../../src/lib/shaft/shaftDetector';
-import type { CameraAngle } from '../../../src/lib/cameraAngle';
+import type { CameraAngle } from '../../../packages/core/src/lib/cameraAngle';
 import {
   buildShaftSwingSeries,
   checkShaftSeries,

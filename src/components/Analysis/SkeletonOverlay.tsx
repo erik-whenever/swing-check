@@ -1,4 +1,4 @@
-import { POSE_CONNECTIONS } from '../../lib/poseConnections';
+import { POSE_CONNECTIONS } from '@swingcheck/core/lib/poseConnections';
 import type { PoseSample } from '../../lib/poseTrajectory';
 
 /** Landmark below this visibility is treated as unreliable and not drawn. */

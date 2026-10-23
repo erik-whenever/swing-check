@@ -23,7 +23,7 @@ import { MODEL_FILE, MODEL_INPUT_SIZE, type ShaftDetection } from '../../lib/sha
 import {
   CONF_THRESHOLD,
   KEYPOINT_THRESHOLD,
-} from '../../lib/shaft/shaftPostprocess';
+} from '@swingcheck/core/lib/shaft/shaftPostprocess';
 import {
   bladeAngleDeg,
   runShaftPreview,

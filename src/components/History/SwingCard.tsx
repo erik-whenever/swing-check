@@ -1,7 +1,7 @@
-import type { SwingRecord } from '../../types';
-import { ANGLE_LABEL } from '../../lib/cameraAngle';
+import type { SwingRecord } from '@swingcheck/core/types';
+import { ANGLE_LABEL } from '@swingcheck/core/lib/cameraAngle';
 import { useT } from '../../lib/i18n';
-import { swingScore } from '../../lib/swingScore';
+import { swingScore } from '@swingcheck/core/lib/swingScore';
 import { Card, ScoreRing } from '../ui';
 
 interface Props {

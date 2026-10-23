@@ -7,8 +7,8 @@
 // Only swing METADATA + results are stored remotely — video blobs and base64 frames stay
 // local in IndexedDB. There is no auth yet, so user_id is always null for now.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { SwingRecord } from '../types';
-import type { CameraAngle } from './cameraAngle';
+import type { SwingRecord } from '@swingcheck/core/types';
+import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 import { createLogger } from './logger';
 
 const log = createLogger('Supabase');

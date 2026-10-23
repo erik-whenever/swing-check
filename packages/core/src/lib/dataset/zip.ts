@@ -107,6 +107,9 @@ export function buildZip(entries: ZipEntry[], date: Date = new Date()): Blob {
   end.u32(offset); // central directory offset
   end.u16(0); // comment length
 
+  // OSÄKER: React Natives Blob tar inte Uint8Array-delar. Ren i webbläsare/Node, men
+  // zip-utdata måste byggas annorlunda om datasetexporten någonsin körs i appen (låg risk:
+  // F6 håller datasetverktygen som desktop-webb).
   return new Blob([...parts, ...central, end.done()], { type: 'application/zip' });
 }
 

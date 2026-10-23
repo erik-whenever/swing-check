@@ -20,7 +20,7 @@ import { RuleResultRow } from './RuleResult';
 import { FrameViewer } from './FrameViewer';
 import { ShareButton } from './ShareButton';
 import { AnglePill } from '../AngleToggle';
-import { ruleMatchesAngle, ANGLE_TO_PROMPT } from '../../lib/cameraAngle';
+import { ruleMatchesAngle, ANGLE_TO_PROMPT } from '@swingcheck/core/lib/cameraAngle';
 import { createLogger } from '../../lib/logger';
 import { useT } from '../../lib/i18n';
 import type { TranslationKey } from '../../lib/i18n';

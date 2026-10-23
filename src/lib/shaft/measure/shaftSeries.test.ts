@@ -11,7 +11,7 @@ import {
   emptyBodyReference,
   isPhaseObserved,
   type PhaseSource,
-} from './shaftSeries';
+} from '@swingcheck/core/lib/shaft/measure/shaftSeries';
 
 describe('MeasurementPhase', () => {
   it('is the annotation spec\'s eight phases, in swing order, identical to ShaftPhase', () => {

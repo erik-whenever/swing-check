@@ -14,7 +14,7 @@
 //
 // Pure: an envelope and a time in, a phase out.
 
-import type { PhaseSource } from '../shaft/measure/shaftSeries';
+import type { PhaseSource } from '@swingcheck/core/lib/shaft/measure/shaftSeries';
 import type { SwingEnvelope } from '../poseEnvelope';
 import type { ShaftPhase } from './datasetTypes';
 
