@@ -1797,7 +1797,7 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 
 ---
 
-### [~] S-13 — Byt till `shaft-v2.onnx`
+### [x] S-13 — Byt till `shaft-v2.onnx`
 
 > **Delvis klart (2026-09-14).** Modellbytet är gjort och verifierat i webbläsaren på
 > **desktop**; `[~]` för att **iPhone-verifieringen återstår** och `shaft-v1.onnx` därför
@@ -1873,6 +1873,21 @@ Enda rörda delade filer: `src/App.tsx` (dev-route), `src/store/session.ts` (`Vi
 > skaftet. `npm run build` rent, eslint rent på de två filerna. **Återstår: Erik ser punkterna
 > på iPhone.** Modellen nådde preview-deployen bara för att `vercel deploy` laddar upp disken —
 > se S-47.
+>
+> **Klar (2026-10-23): iPhone-verifierad (Erik, 2026-10-22/23, preview-deploy via `npx vercel
+> deploy`, `IMG_5765`).** shaft-v2 laddas (**606 ms**) och kör: inferens median **83 ms**
+> (76–95), preprocess **35,5 ms**, 1 sving / 26 frames. **Punkternas läge är verifierat mot
+> Python inom 1 px på desktop, inte okulärt på iPhone.**
+>
+> **Känd brist (prioriteras inte, ingen felsökning nu):** dev-vyn `ShaftPreviewView` laddar om
+> sidan till startsidan när man börjar skrolla efter ett resultat, även efter `3e2ee68`. Ingen
+> `JetsamEvent` i iOS-loggen → inte minnesdödning; något i appen laddar om. Tas upp om webben
+> blir kvar (plattformen lutar åt native, F6).
+>
+> **`public/models/shaft-v1.onnx` ligger kvar.** Inget i `src/` eller `vite.config.ts`
+> refererar den, men `training/prelabel_batch.py` → `GEOMETRY_REFERENCE_MODEL` gör det, och
+> S-11-geometritestet i `training/test_prelabel_batch.py` hoppas tyst över utan den. Filen är
+> gitignorerad (radering går inte att ångra ur git) — väntar på Eriks beslut.
 
 ### [x] S-14 — Fyra keypoints: `butt → hosel → toe → heel`
 

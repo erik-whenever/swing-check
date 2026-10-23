@@ -3,7 +3,14 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
 >
-> **Senast (2026-10-22, stream-shaft):** S-45 steg 3 avbrutet efter 4 av 90 Vision-anrop. Bollfrågan är
+> **Senast (2026-10-23, stream-shaft):** S-13 stängd (`[x]`) — Erik iPhone-verifierade shaft-v2
+> (preview-deploy, `IMG_5765`): load 606 ms, inferens median 83 ms (76–95), preprocess 35,5 ms,
+> 1 sving / 26 frames. Punkterna verifierade mot Python inom 1 px på desktop, inte okulärt på iPhone.
+> Känd brist (ej prioriterad, F6): `ShaftPreviewView` laddar om till startsidan vid skroll efter
+> resultat, även efter `3e2ee68`; ingen JetsamEvent. `shaft-v1.onnx` kvar — används av
+> `training/prelabel_batch.py` (`GEOMETRY_REFERENCE_MODEL`); radering väntar på Eriks beslut.
+>
+> **Före det (2026-10-22, stream-shaft):** S-45 steg 3 avbrutet efter 4 av 90 Vision-anrop. Bollfrågan är
 > obesvarad (n = 1, rätt). Fynd → **S-48:** produktionens anrop med 7 DTL-regler klipps vid
 > `max_tokens` i quick-läge (600) **utan** tillägg, och i detaljerat läge (2000). Ogiltig JSON blir
 > ett betalt, misslyckat anrop. Bildrutor för alla 81 finns i `data/shaft/practice-review/vision/frames/`.
