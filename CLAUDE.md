@@ -22,7 +22,7 @@ Sanningen om vad som är gjort och kvar bor i [docs/BACKLOG.md](docs/BACKLOG.md)
 En arbetsbranch per ström: `stream-a`, `stream-b`, `stream-c`. Committa löpande på strömmens branch; PR mot `main` när strömmen (eller en meningsfull delmängd) är klar.
 
 ### Parallellitet
-Ström A/B/C är isolerade och körs i **separata git-worktrees** (en session per worktree). Enda korsningspunkten: **A-3 och B-3 rör båda `SwingRecord`** — håll fälten **additiva** (`swingStartTimestamp` resp. `user_id`), merga den som blir klar först och rebasa den andra. **Rör inte `frameExtractor`/`useFrameExtractor` förrän Ström A är klar.**
+Ström A/B/C är isolerade och körs i **separata git-worktrees** (en session per worktree). Enda korsningspunkten: **A-3 och B-3 rör båda `SwingRecord`** — håll fälten **additiva** (`swingStartTimestamp` resp. `user_id`), merga den som blir klar först och rebasa den andra.
 
 ## Hårda gränser
 - **Commits per uppgift på rätt ström-branch är förgodkända** av backlog-workflowen ovan. **Committa aldrig direkt på `main`** utan att jag ber om det — skapa/använd `stream-a/b/c`.

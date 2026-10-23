@@ -18,7 +18,7 @@ Vid varje arbetspass:
    - Uppdatera `swingcheck-handoff.md` enligt uppgiftens dokumentkrav.
    - Uppdatera/skapa den `docs/`-fil som uppgiften anger.
 5. **Committa** på arbetsbranchen för strömmen (se branch-konvention nedan). Håll commits fokuserade.
-6. **Lämna aldrig `BACKLOG.md` osynkad med verkligheten.** Om något blev halvgjort, markera det `[~]` och beskriv vad som återstår.
+6. **Lämna aldrig `BACKLOG.md` osynkad med verkligheten.** Om något blev halvgjort, markera det `[~]` och beskriv vad som återstår. `[-]` = ersatt eller struken, med hänvisning till vad som ersätter den — tas inte som nästa uppgift.
 
 ### Branch-konvention
 
@@ -26,7 +26,7 @@ En arbetsbranch per ström: `stream-a`, `stream-b`, `stream-c`. Committa löpand
 
 ### Parallellitet
 
-Strömmarna A, B och C är isolerade och kan köras samtidigt i **separata git-worktrees** (en CC-session per worktree). Enda korsningspunkten: A-3 och B-3 rör båda `SwingRecord`-interfacet — håll fälten additiva, merga den som blir klar först och rebasa den andra. Rör **inte** `frameExtractor`/`useFrameExtractor` förrän Ström A är klar.
+Strömmarna A, B och C är isolerade och kan köras samtidigt i **separata git-worktrees** (en CC-session per worktree). Enda korsningspunkten: A-3 och B-3 rör båda `SwingRecord`-interfacet — håll fälten additiva, merga den som blir klar först och rebasa den andra. ~~Rör **inte** `frameExtractor`/`useFrameExtractor` förrän Ström A är klar.~~ Upphävd 2026-10-23: A-3–A-5 är ersatta av ström N (F6).
 
 ---
 
@@ -151,7 +151,9 @@ Hands-free svingstart i hörlurs-session: användaren säger "start" (eller klap
 
 **Dokumentkrav:** `docs/voice-start.md`: bocka av A-2, tabell med tröskelparametrar/defaults, notera range-brus-svaghet (mäts i A-5). `swingcheck-handoff.md`: uppdatera `### Pågående: Voice-start`.
 
-### [ ] A-3 — Integrera röststart med session-läge + swingStartTimestamp
+### [-] A-3 — Integrera röststart med session-läge + swingStartTimestamp — *ersatt av ström N (F6)*
+
+> **Ersatt av ström N (F6), 2026-10-23.** Röststart och handsfree byggs native med taligenkänning på enheten (N-5). Inget gjort här.
 
 **Mål:** Trigger under session → starta inspelning, sätt `swingStartTimestamp` på SwingRecord. Blir ankaret för frame-extraktion och kringgår pixel-diff i session-läge.
 
@@ -169,7 +171,9 @@ Hands-free svingstart i hörlurs-session: användaren säger "start" (eller klap
 
 **Dokumentkrav:** `swingcheck-handoff.md`: uppdatera SwingRecord-modellen med swingStartTimestamp; flytta voice-rad till 'Fungerar' om flödet funkar; under 'Kritiskt olöst' notera att voice-start ger pålitligt ankare i session-läge (icke-voice fortfarande pixel-diff-beroende). `docs/voice-start.md`: bocka av A-3, beskriv hands-free-flödet steg för steg.
 
-### [ ] A-4 — Wake-word "start" via Porcupine + settings-toggle
+### [-] A-4 — Wake-word "start" via Porcupine + settings-toggle — *ersatt av ström N (F6)*
+
+> **Ersatt av ström N (F6), 2026-10-23.** Röststart och handsfree byggs native med taligenkänning på enheten (N-5). Inget gjort här.
 
 > **Villkorad (ROADMAP beslutsfork 2):** byggs endast om A-5-fältdata visar > 1 falsk trigger per 10 svingar. Annars stryks A-4 vid G1-scopefrysen.
 
@@ -188,7 +192,9 @@ Hands-free svingstart i hörlurs-session: användaren säger "start" (eller klap
 
 **Dokumentkrav:** `swingcheck-handoff.md`: lägg `VITE_PICOVOICE_KEY` i miljövariabler; uppdatera 'Fungerar' med röststart-lägen. `docs/voice-start.md`: bocka av A-4, dokumentera tre lägen, fallback, hur man skaffar/sätter nyckeln.
 
-### [ ] A-5 — Range-validering + tröskeltrimning
+### [-] A-5 — Range-validering + tröskeltrimning — *ersatt av ström N (F6)*
+
+> **Ersatt av ström N (F6), 2026-10-23.** Röststart och handsfree byggs native med taligenkänning på enheten (N-5). Inget gjort här.
 
 **Mål:** Validera på riktig range, mät false positive/negative för båda lägena, trimma trösklar och sätt default-läge.
 
