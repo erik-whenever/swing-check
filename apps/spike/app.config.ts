@@ -24,7 +24,8 @@ const config: ExpoConfig = {
     package: `com.swingcheck.spike.${POSE_MODEL}`,
     permissions: ['android.permission.CAMERA'],
   },
-  extra: { poseModel: POSE_MODEL },
+  owner: 'erikhawerman',
+  extra: { poseModel: POSE_MODEL, eas: { projectId: 'cc4eccde-189a-49ae-aca9-a0689268640c' } },
   plugins: [
     ['react-native-vision-camera', { enableFrameProcessors: true, enableMicrophonePermission: false }],
     ['react-native-fast-tflite', { enableCoreMLDelegate: true, enableAndroidGpuLibraries: true }],
