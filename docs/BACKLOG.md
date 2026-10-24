@@ -3615,13 +3615,19 @@ fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-
   release-pipeline) är min läsning, inte dokumenterad. Spikens fast-tflite på iOS var TFLite 2.17.0.
 
 #### [ ] N-3.2 — Pose-modul Android
-MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`.
+MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`. Underlag:
+[pose-android.md](native/pose-android.md). Specen tas från dess §6 ([ADR-0004, tillägget](adr/0004-native-pipeline-nitro-modules.md)).
+Kameran går i `'yuv'`. Modulen skalar ned, roterar och konverterar natively till RGBA i 720×1280 (libyuv).
+**Mät konverteringskostnaden** (`convertMs`) och jämför med CameraX:s `'rgb'` (pose-android.md §7, körning 6).
 **Från N-2:** mät N-2-grinden på Android: pose 30 fps i 3 min (ms/ruta, tappade rutor, thermal).
 **Mättelefon:** Samsung Galaxy A16 4G (MediaTek Helio G99), samma som N-3.1. Det är en budgettelefon och
 golvet för Android. Referens för iOS är iPhone 16 Pro (N-2).
 
 #### [ ] N-3.3 — Skaftmodul Android
-LiteRT med GPU-delegaten. Letterbox, rotation och färgordning görs natively.
+LiteRT med GPU-delegaten. Skaftet tar inte kamerans ruta: `capture`/`FrameExtractor` avkodar rutan ur
+svingklippet och ritar letterboxen natively efter cores geometri, och `shaft.detect` tar den bufferten
+(RGB 960×960). Stubbens `detect(frame: Frame)` byts ([ADR-0004, tillägget](adr/0004-native-pipeline-nitro-modules.md)).
+Innan `capture` finns (N-3.4) matas modulen med paritetsrutan och med rutor letterboxade i testkod.
 **Från N-2:**
 - **Gör förberedelsen av skaftrutorna natively.** Spikens JS-letterbox tog 37 ms per ruta.
 - **Paritet mot Python** (gräns 2 px) och **burst 26**, på Android. **Mättelefon:** Samsung Galaxy A16 4G
@@ -3631,7 +3637,10 @@ LiteRT med GPU-delegaten. Letterbox, rotation och färgordning görs natively.
 
 #### [ ] N-3.4 — Fångstkedjan
 Live-pose → core (`liveSwingDetector`/`poseSegments`/`poseEnvelope`), matad i 15 fps tills N-4 →
-svingdetektion → rututtag för Vision + 26 skaftrutor. Strategin för rututtaget beslutas i uppgiften.
+svingdetektion → rututtag för Vision + 26 skaftrutor. Rututtaget görs av modulen `capture` (väg 3 i
+[rututtag.md](native/rututtag.md); spec i [ADR-0004, tillägget](adr/0004-native-pipeline-nitro-modules.md)). `capture`
+äger klockan. **Grind:** värme under en hel session med pose + kodare + förhandsvisning (rututtag.md, risk 1).
+Faller den, blir det väg 1 (rå ring i 540p).
 
 #### [ ] N-3.5 — Analys + lagring
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op

@@ -1,7 +1,7 @@
 # shaft-v2 → Core ML (N-3.7, konverteringsdelen)
 
-**Datum:** 2026-10-24 · **Branch:** `stream-native-coreml` · **Status:** konverterad och spec-kontrollerad.
-Pariteten väntar på Mac (§5).
+**Datum:** 2026-10-24 · **Branch:** `stream-native-coreml`, mergad till `stream-native` · **Status:** konverterad
+och spec-kontrollerad. Pariteten väntar på Mac (§5). Avstämd mot [ADR-0004, tillägget](../adr/0004-native-pipeline-nitro-modules.md) 2026-10-24 (§2).
 
 ## 1. Vad som gjordes
 
@@ -49,7 +49,9 @@ Multiplikation med fp32 1/255 jämfört med division med 255 skiljer högst **6e
 `// OSÄKER:` (risk låg–medel) Det här gäller bara om Swift-sidan **inte** går via `VNCoreMLRequest`. Visions
 `imageCropAndScaleOption` skalar om själv och fyller med svart, inte 114. Den letterboxade bufferten ska
 in i `MLModel.prediction` direkt. Om kamerabufferten är YUV (`420f`) måste den konverteras till BGRA först.
-Jag vet inte säkert om Core ML tar emot YUV till en RGB-`ImageType` utan konvertering, och det verifieras i N-3.8.
+*Avgjort (ADR-0004):* frågan om YUV uppstår inte. Skaftrutorna kommer inte från kameran utan avkodas ur
+svingklippet av `capture`/`FrameExtractor`, som letterboxar och lämnar BGRA (`shaftPixelLayout: 'bgra'`) på iOS.
+Kameran går dessutom i BGRA på iOS (`pixelFormat: 'rgb'`), eftersom MediaPipe iOS kräver det.
 
 ## 3. Specen (kontrollerad efter sparning)
 
@@ -114,8 +116,6 @@ som Python-värden. Det är ofarligt med fast 960×960-input, men modellen kan i
 
 ```
 docker build -t swingcheck-coreml -f training/Dockerfile.coreml training
-# från worktreen; från huvudcheckouten räcker -v C:\SwingCheck:/work och inga argument
-docker run --rm -v C:\SwingCheck-coreml:/work -v C:\SwingCheck:/main swingcheck-coreml \
-    python training/export_coreml.py --onnx /main/public/models/shaft-v2.onnx \
-    --parity /main/apps/spike/assets/parity --out /main/data/shaft/coreml
+# från huvudcheckouten (worktreen C:\SwingCheck-coreml är borttagen efter mergen)
+docker run --rm -v C:\SwingCheck:/work swingcheck-coreml python training/export_coreml.py
 ```

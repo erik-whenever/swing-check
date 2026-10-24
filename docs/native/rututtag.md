@@ -1,6 +1,9 @@
 # Rututtaget i appen (förarbete till N-3.4)
 
-**Datum:** 2026-10-23 · **Ström:** N · **Status:** underlag och rekommendation. Inget är byggt eller beslutat.
+**Datum:** 2026-10-23 · **Ström:** N · **Status:** underlag. Inget är byggt.
+**Avstämd 2026-10-24** mot [pose-android.md](pose-android.md) och [ADR-0004, tillägget](../adr/0004-native-pipeline-nitro-modules.md#tillägg-2026-10-24--capture-pixelformat-och-klockan):
+modulen `capture` och dess spec är antagna, pixelformatet är avgjort per plattform, och `capture` äger
+klockan. Väg 3:s värmegrind (risk 1) mäts fortfarande i N-3.4.
 
 ## Antaganden
 
@@ -129,9 +132,9 @@ som posen.
 ### Väg 3 (rekommenderad) — hårdvarukodad ring i minnet, fönstret remuxas vid detektion
 
 ```
-VC5 frame output (yuv, 1080p30)
+VC5 frame output (1080p30; Android 'yuv', iOS 'rgb' = 32BGRA)
   └ worklet: t = capture.append(frame)      ← läser native-PTS, ger bufferten till HW-kodaren (ingen JS-kopia)
-             pose.detect(frame, t)          ← samma t på PoseSample
+             pose.detect(frame)             ← JS sätter samma t på PoseSample
              (var annan ruta på tid → core, 15 fps tills N-4)
   kodare (HEVC/H.264, ingen B-ruta, nyckelruta var 0,5 s) → ring av kodade sampel, 12 s, bunden
   detektion → capture.cutWindow(env −1, env +1)  → MP4 på disk (remux, ingen omkodning) + rutornas t
@@ -172,7 +175,9 @@ av ködjupet**. Det är samma princip som webbens klipp vid detektion, utan att 
   ([Frame](https://visioncamera.margelo.com/api/react-native-vision-camera/hybrid-objects/Frame)). Därför läses
   PTS natively och JS-sidans `timestamp` används inte.
 - **Batteri/värme:** hårdvarukodning av 1080p30 är det kameraappen gör vid vanlig inspelning. iOS matar
-  `IOSurface`-bufferten direkt (nollkopia). Android kopierar YUV in i kodarens indatabild (~3 MB/ruta, ~90 MB/s).
+  `IOSurface`-bufferten direkt, men i BGRA, eftersom MediaPipe iOS kräver det (ADR-0004). VideoToolbox
+  konverterar då själv till 4:2:0. Android kopierar YUV in i kodarens indatabild (~3 MB/ruta, ~90 MB/s).
+  // OSÄKER: VideoToolboxs BGRA → 4:2:0 ovanpå pose är inte mätt. Det ingår i risk 1.
   // OSÄKER: kostnaden ovanpå pose är inte mätt. N-2 mätte pose ensam i 3 min (`nominal`); en session är 20–60 min.
   Den mätningen är grinden för väg 3, se *Risker*.
 - **Historikvideo:** färdig vid detektion. Den är 1080p, utan omkodning, med verklig tidslinje och 30 fps.
@@ -183,7 +188,7 @@ av ködjupet**. Det är samma princip som webbens klipp vid detektion, utan att 
   Kodaren, ringen, muxen och avkodaren är vår egen Nitro-kod.
 
 **Swift (iOS):**
-- `VTCompressionSession` för HEVC (H.264 som reserv), med `RealTime`, `AllowFrameReordering = false`,
+- `VTCompressionSession` för HEVC (H.264 som reserv), matad med kamerans BGRA-`CVPixelBuffer`, med `RealTime`, `AllowFrameReordering = false`,
   `MaxKeyFrameIntervalDuration = 0.5` och `AverageBitRate`.
   ([VTCompressionSession](https://developer.apple.com/documentation/videotoolbox/vtcompressionsession))
 - En ring av kodade `CMSampleBuffer` med PTS, som evictar hela GOP:er.
@@ -196,13 +201,16 @@ av ködjupet**. Det är samma princip som webbens klipp vid detektion, utan att 
 
 **Kotlin (Android):**
 - `MediaCodec`-kodare (`video/avc`, HEVC om enheten har den), med `KEY_I_FRAME_INTERVAL` (float från API 25) och
-  `COLOR_FormatYUV420Flexible`. YUV-planen kopieras från `frame.image` till `getInputImage()`.
+  `COLOR_FormatYUV420Flexible`. Kameran går i `'yuv'` (ADR-0004). YUV-planen kopieras från `frame.image` till
+  `getInputImage()` i sensorns orientering (`enablePhysicalBufferRotation: false`), och orienteringen skrivs i
+  MP4:n med `MediaMuxer.setOrientationHint`. Extraktorn roterar till upprätt när rutorna avkodas.
   ([MediaCodec](https://developer.android.com/reference/android/media/MediaCodec),
   [KEY_I_FRAME_INTERVAL](https://developer.android.com/reference/android/media/MediaFormat#KEY_I_FRAME_INTERVAL))
 - En ring av `ByteBuffer` + `BufferInfo` + csd.
 - `MediaMuxer` för fönstret ([MediaMuxer](https://developer.android.com/reference/android/media/MediaMuxer)).
 - `MediaExtractor` + `MediaCodec`-avkodare till `ImageReader` (YUV_420_888), YUV→RGB för de valda rutorna (CPU räcker
-  för 26 rutor), beskärning, rotation, `Bitmap.compress` och letterbox.
+  för 26 rutor), beskärning, rotation, `Bitmap.compress` och letterbox. Skaftrutorna lämnas som RGB (`shaftPixelLayout:
+  'rgb'`) till LiteRT. På iOS lämnar `AVAssetReader` BGRA (`'bgra'`) till Core ML.
 - Ett alternativ är nollkopia via `HardwareBuffer` → EGL → kodarens indata-`Surface`. Det är mer kod och väljs bara om
   kopieringen syns i mätningen.
 
@@ -244,136 +252,23 @@ Avkodningshalvan ("rutor ur en MP4 på givna tider") är samma kod som en framti
 
 ---
 
-## Förslag: Nitro-spec
+## Nitro-spec: `capture` (avgjord)
 
-En tredje Nitro-modul, `capture`, bredvid `pose` och `shaft`. N-3.1:s ADR nämner två moduler, så den behöver kompletteras
-med denna. Modulen äger rutornas klocka, så `pose` tar `t` som argument i stället för att läsa egen tid.
-
-```ts
-// apps/mobile/modules/capture/src/specs/Capture.nitro.ts  (förslag, inte skapad)
-import type { HybridObject } from 'react-native-nitro-modules';
-import type { Frame } from 'react-native-vision-camera';
-
-export type VideoCodec = 'hevc' | 'h264';
-
-export interface CaptureConfig {
-  /** iOS: 'hevc'. Android: 'h264' (HEVC-kodare saknas på en del enheter). */
-  codec: VideoCodec;
-  /** 10e6 för HEVC, 14e6 för H.264 — nära iPhone-kamerans egna, som träningsdatat kom ur. */
-  bitrateBps: number;
-  /** 0,5 — styr hur långt före en vald tidpunkt avkodningen måste börja. */
-  keyframeIntervalSec: number;
-  /** 12 — ≥ 5,6 s behövs (se rututtag.md); marginalen kostar ~1,5 MB/s. */
-  retentionSec: number;
-  /** Katalog för svingfiler (appens dokumentkatalog, inte cache — det är historiken). */
-  clipDirectory: string;
-}
-
-export interface CaptureStats {
-  running: boolean;
-  /** UPPRÄTT storlek efter rotation — det `planCrop`/`computeLetterbox` ska räkna mot. */
-  width: number;
-  height: number;
-  framesIn: number;
-  /** Rutor kodaren inte hann ta emot (backpressure). Ska vara 0. */
-  framesDropped: number;
-  ringStartSec: number;
-  ringEndSec: number;
-  ringBytes: number;
-  appendMsP95: number;
-}
-
-export interface SwingClip {
-  path: string;
-  /** Sessionstid för filens första ruta (nyckelrutan ≤ begärd start). */
-  startSec: number;
-  endSec: number;
-  /** Sessionstid för varje ruta i filen, i avkodningsordning. Facit för ruta ↔ tid. */
-  frameTimesSec: number[];
-  truncatedStart: boolean;
-  truncatedEnd: boolean;
-  bytes: number;
-}
-
-export interface Capture extends HybridObject<{ ios: 'swift'; android: 'kotlin' }> {
-  start(config: CaptureConfig): void;
-  /**
-   * Anropas i frame-workleten för VARJE ruta, före pose. Läser rutans native-PTS, lämnar
-   * bufferten till kodaren och returnerar t = sekunder sedan sessionens första ruta.
-   * Samma t ska stå på rutans PoseSample. Blockerar aldrig på kodaren: vid backpressure
-   * räknas rutan i framesDropped och t returneras ändå.
-   */
-  append(frame: Frame): number;
-  stop(): void;
-  readonly stats: CaptureStats;
-  /**
-   * Skriv [startSec, endSec] som MP4 (remux, ingen omkodning). Anropas VID DETEKTION.
-   * Väntar högst maxWaitSec på att endSec ska spelas in; därefter truncatedEnd.
-   */
-  cutWindow(startSec: number, endSec: number, maxWaitSec: number): Promise<SwingClip>;
-}
-
-/** Källrektangel i UPPRÄTTA pixlar — `planCrop(...).rect`. */
-export interface CropRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface VisionOutput {
-  /** Saknas → hela rutan. */
-  crop?: CropRect;
-  /** `planCrop(...).output` */
-  outputWidth: number;
-  outputHeight: number;
-  jpegQuality: number;
-}
-
-/** `computeLetterbox(width, height, 960)` + PAD_VALUE — geometrin räknas i core, inte natively. */
-export interface ShaftOutput {
-  size: number;
-  drawWidth: number;
-  drawHeight: number;
-  padX: number;
-  padY: number;
-  padValue: number;
-}
-
-export interface ExtractRequest {
-  path: string;
-  /** `SwingClip.frameTimesSec`. Saknas (uppladdad fil) → filens egna PTS används. */
-  frameTimesSec?: number[];
-  /** Sessionstider att ta ut; närmaste ruta väljs. */
-  timesSec: number[];
-  vision?: VisionOutput;
-  shaft?: ShaftOutput;
-}
-
-export interface ExtractedFrame {
-  requestedSec: number;
-  /** Den faktiska rutans tid. |frameSec − requestedSec| ≤ en halv ruta. */
-  frameSec: number;
-  /** Ren base64-JPEG, satt när `vision` begärts. */
-  visionJpegBase64?: string;
-  /** RGB uint8, HWC, size×size, upprätt. Satt när `shaft` begärts. Skickas till shaft-modulen. */
-  shaftRgb?: ArrayBuffer;
-}
-
-export interface FrameExtractor extends HybridObject<{ ios: 'swift'; android: 'kotlin' }> {
-  /** Sekventiell avkodning från nyckelrutan före första tiden. Rör aldrig ringen. */
-  extract(request: ExtractRequest): Promise<ExtractedFrame[]>;
-}
-```
+*Avgjort 2026-10-24:* en tredje Nitro-modul, `capture`, bredvid `pose` och `shaft`. Specen står i
+[ADR-0004, tillägget](../adr/0004-native-pipeline-nitro-modules.md#specen-för-capture), som är
+kontraktet för N-3.4. Två ändringar mot förslaget som stod här:
+- **`pose.detect(frame)` tar inget `t`.** `capture.append(frame)` returnerar `t`, och JS sätter det på
+  rutans `PoseSample`. Båda anropen görs i samma worklet på samma ruta.
+- **`shaftRgb` blev `shaftPixels` + `shaftPixelLayout`** (`'rgb'` på Android, `'bgra'` på iOS), så att iOS
+  ger Core ML en BGRA-`CVPixelBuffer` utan extra konvertering
+  ([coreml-export.md](../shaft/coreml-export.md) §2).
 
 **Anropsmönster per sving:** `cutWindow` anropas direkt vid detektion. I kön körs först `extract` med bara `vision`,
 och Vision-anropet startar så fort det är klart. Sedan körs `extract` med bara `shaft`, i satser om ≤ 8 tider (22 MB),
 och varje sats går till shaft-modulen och släpps. `planCrop`, `computeLetterbox` och `selectEnvelopeFrames` stannar i
 core (TS). Native ritar bara geometrin den får, så pariteten med Python ligger kvar i den testade TS-koden.
 
-// OSÄKER: att ett `ArrayBuffer` från `capture` kan skickas till `shaft` utan kopia bygger på Nitros ArrayBuffer-ägarskap.
-Det är inte prövat. Om det kopieras kostar det 2,76 MB per ruta, vilket är acceptabelt. Om skaftet ska ta en native-yta
-direkt i stället, utan RGB-steget, behövs en delad HybridObject-typ mellan modulerna, och det stödet är inte undersökt.
+Att `ArrayBuffer` går från `capture` till `shaft` utan kopia är fortfarande osäkert, se ADR-0004.
 
 ---
 
@@ -385,7 +280,8 @@ direkt i stället, utan RGB-steget, behövs en delad HybridObject-typ mellan mod
 2. **Frame-poolen.** iOS-kodaren behåller `CVPixelBuffer` asynkront. Hinner den släppa bufferten innan poolen tar
    slut, när posen också håller rutan? Mät `framesDropped` och VC:s egna tappade rutor.
 3. **Android: kostnaden för YUV-kopian** in i `MediaCodec` vid 30 fps, och om kodaren accepterar
-   `YUV420Flexible` och HEVC på testtelefonen.
+   `YUV420Flexible` och HEVC på testtelefonen (Samsung Galaxy A16 4G, Helio G99). Pose-modulens egen
+   konvertering till RGBA (`convertMs`, pose-android.md §2) ligger på samma tråd och räknas in här.
 4. **PTS:** monotoni, enhet och klocka på båda plattformarna, och att pose-modulen verkligen får samma `t`.
    Test: en blixt eller klapp i bild, och samma ruta i pose-loggen och i den avkodade filen.
 5. **Avkodningshastighet** för 1080p på målenheterna. Det avgör om latensen blir 0,5 eller 1,2 s.

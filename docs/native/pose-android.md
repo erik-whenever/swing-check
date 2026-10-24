@@ -1,6 +1,8 @@
 # Pose-modulen på Android (förberedelse för N-3.2)
 
-**Status:** underlag, 2026-10-24. Ingen kod är skriven. Ström N, branch `stream-native-pose`.
+**Status:** underlag, 2026-10-24. Ingen kod är skriven. Ström N, mergad till `stream-native`.
+**Avstämd 2026-10-24** mot [rututtag.md](rututtag.md) och [ADR-0004, tillägget](../adr/0004-native-pipeline-nitro-modules.md#tillägg-2026-10-24--capture-pixelformat-och-klockan).
+Pixelformatet (§2), rotationen (§2) och klockan (§3) är ändrade efter det. Avsnitten är märkta *Avgjort*.
 **Fråga:** hur bygger vi en egen Nitro-modul för MediaPipe Pose (Tasks Vision, Kotlin) som körs i
 VisionCamera 5:s frame processor i 30 fps och ger utdata som exakt matchar `PoseSample`?
 
@@ -11,12 +13,10 @@ VisionCamera 5:s frame processor i 30 fps och ger utdata som exakt matchar `Pose
    källan i npm-paketen, inte bara ur dokumenten.
 2. **Bakre kameran och ett stativ.** Främre kameran används inte för att filma svingen. Modulen hanterar
    ändå spegling (se §2), så att ett senare val inte bryter koordinaterna.
-3. **Rututtaget (`docs/native/rututtag.md`) skrivs parallellt och finns inte i min worktree.** Jag antar att
-   det använder samma klocka som rutorna från VisionCamera, alltså `Frame.timestamp`. §3 definierar den
-   klockan så att rututtaget kan ansluta sig till den. Om rututtaget väljer en annan klocka måste en av
-   filerna ändras.
-4. **Telefonen är okänd.** Ingen Android-modell nämns i repot. Mätplanen (§7) kräver att modellen och
-   SoC:en loggas.
+3. ~~Rututtaget skrivs parallellt.~~ *Avgjort:* [rututtag.md](rututtag.md) finns nu. Modulen `capture` äger
+   klockan (`append(frame)` → `t`), och pose följer den (§3).
+4. ~~Telefonen är okänd.~~ *Avgjort:* mättelefonen är **Samsung Galaxy A16 4G (MediaTek Helio G99)**, samma
+   som i N-3.1. Det är en budgettelefon, inte ett flaggskepp (§7).
 5. **MediaPipe `tasks-vision` 0.10.35**, samma version som webbens `@mediapipe/tasks-vision` ^0.10.35.
    1.1.1 finns på Maven (2026-10-14), men den är yngre än två veckor och drar in `litertlm-android` 0.18.0.
 
@@ -25,8 +25,8 @@ VisionCamera 5:s frame processor i 30 fps och ger utdata som exakt matchar `Pose
 | Fråga | Val |
 |---|---|
 | Rutobjekt | `HybridFrameSpec` castas till `NativeFrame`, och `.image` ger en CameraX `ImageProxy`. Anropet sker synkront på den entrådiga executorn `com.margelo.camera.frame`. Bufferten lever tills JS anropar `frame.dispose()`. |
-| Format | `pixelFormat: 'rgb'` ger RGBA_8888. `ImageProxy.image` går till `MediaImageBuilder`, utan egen kopia. YUV och `'native'` (HardwareBuffer) avvisas av MediaPipe på Android. |
-| Rotation | `enablePhysicalBufferRotation: true`, så att CameraX ger en upprätt buffert och landmarks hamnar direkt i webbens koordinatsystem. Reservväg: `ImageProcessingOptions` med egen tillbakaräkning. |
+| Format | *Avgjort:* `pixelFormat: 'yuv'`, eftersom kodaren i `capture` tar samma ruta och vill ha YUV. Pose-modulen skalar ned och konverterar natively (libyuv) till RGBA i 720×1280 och slår in den med `ByteBufferImageBuilder`. MediaPipe på Android tar inte YUV. |
+| Rotation | *Avgjort:* `enablePhysicalBufferRotation: false`. Roteringen görs i samma libyuv-pass som nedskalningen, så MediaPipe ser en upprätt bild, och landmärkena hamnar direkt i webbens koordinatsystem. |
 | Läge | **VIDEO**, synkront. Tidsstämpeln i MediaPipe kommer från `ImageInfo.timestamp` (ns) och tvingas vara strikt växande. |
 | Delegat/modell | Konfigureras från JS och byggs lazy vid första `detect()` på kameratråden. GPU med reserv till CPU. Både lite och full följer med i dev-bygget. Valet görs efter mätningen. |
 | Tillbaka till JS | En Nitro-struct med en `ArrayBuffer` på Float32 33×4 (528 byte). Ingen JSON och inga 33 objekt per ruta. |
@@ -78,10 +78,9 @@ säger samma sak.
   `image.imageInfo.timestamp` i **nanosekunder**. iOS `HybridFrame.timestamp` = `metadata.timestamp.seconds`
   i **sekunder**. Modulen normaliserar till sekunder (§3), så att JS aldrig behöver känna till plattformen.
 
-// OSÄKER: att anropa en Nitro HybridObject från VC5-workleten är dokumenterat (guidens exempel
-fångar `plugin` direkt i `onFrame`). Om `react-native-worklets` kräver `NitroModules.box()` för att föra
-över objektet till kamerans runtime avgörs i N-3.1-skelettet. Risken är liten, eftersom det bara är en
-rad i JS.
+*Avgjort i N-3.1:* en HybridObject som skapas på modulnivå kan fångas direkt i `onFrame`, utan
+`NitroModules.box()`. Dev-skärmen (`apps/mobile/src/DevScreen.tsx`) anropar båda stubbarna så per ruta
+på Galaxy A16 4G och iPhone 16 Pro.
 
 ## 2. Rutan till MPImage utan onödig kopiering
 
@@ -91,53 +90,43 @@ bitmap (ARGB_8888), ByteBuffer (RGBA, RGB, ALPHA) och `android.media.Image` **en
 (`"Android media image must use RGBA_8888 config."`). YUV avvisas. Ingen HardwareBuffer- eller
 texturväg finns i Tasks-API:t.
 
-**Val: `pixelFormat: 'rgb'` och `MediaImageBuilder(imageProxy.image).build()`.**
-- VC5 översätter `'rgb'` till `ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888` (`HybridFrameOutput.kt`).
-  CameraX gör YUV→RGBA i libyuv, en gång per ruta. Det är den enda konverteringen vi betalar för.
-- `MediaImageBuilder` slår bara in `Image` i en container utan att läsa pixlarna (`MediaImageBuilder.java`).
-  `imageProxy.image` kräver `@OptIn(ExperimentalGetImage::class)`.
-- **YUV avstås från.** Att konvertera själv till RGBA kostar samma pass, fast i vår kod. VC5:s egna
-  dokument säger att LiteRT ändå konverterar YUV till RGB internt.
-- **`'native'` (PRIVATE/HardwareBuffer) avstås från.** MediaPipe Tasks kan inte ta emot den, och
+**Avgjort (ADR-0004, tillägget): `pixelFormat: 'yuv'`, och pose-modulen konverterar själv.**
+Det första valet här var `'rgb'` + `MediaImageBuilder(imageProxy.image)`, alltså CameraX:s RGBA_8888 utan
+egen kopia. Det föll när rututtaget lade en hårdvarukodare på samma `Frame`:
+- **Kodaren (`capture`) vill ha YUV.** `MediaCodec` tar `YUV420Flexible` eller en `Surface`, inte RGBA. Med
+  `'rgb'` hade kodaren behövt konvertera tillbaka till YUV i full upplösning per ruta.
+- **MediaPipe tar inte YUV.** `createImage` godtar `ByteBuffer` i RGBA, RGB eller ALPHA, och `Image` bara i
+  RGBA_8888 (se ovan). Pose-modulen gör därför ett eget pass: YUV_420_888 i 1080p → nedskalad, roterad RGBA i
+  **720×1280** (libyuv: skala och rotera de planara planen, sedan YUV → RGBA). Bufferten är direkt och
+  återanvänds mellan rutorna. Den slås in med `ByteBufferImageBuilder(buf, 720, 1280, MPImage.IMAGE_FORMAT_RGBA)`.
+- **720×1280 är webbens upplösning.** `useCamera.ts` ber om `ideal 1280×720`, och webbens trösklar är
+  kalibrerade på det. Pose-modellen tar 256×256 på personens ROI, och vid 720×1280 är ROI:n fortfarande
+  större än så. Kameran går i 1920×1080, eftersom rututtaget ger Vision och skaftet 1080p.
+- **Billigare än CameraX:s väg.** CameraX hade konverterat hela 1080p-rutan till RGBA. Här konverteras
+  44 % av pixlarna, och rotationen ingår i samma pass. VC5 anger att `'rgb'` drar ~2,6 gånger mer bandbredd
+  än `'yuv'` (`CameraFrameOutput.nitro.ts`).
+- **`'native'` (PRIVATE/HardwareBuffer) avstås från** som förut. MediaPipe Tasks kan inte ta emot den, och
   `getPixelBuffer()` kastar på PRIVATE ([#4207](https://github.com/margelo/react-native-vision-camera/issues/4207)).
 
-// OSÄKER: `createImage` för MEDIA_IMAGE gör sannolikt en kopia in i MediaPipes `ImageFrame`, plus en
-uppladdning till GPU med GPU-delegaten. Vid 1920×1080 är det 8,3 MB per ruta. Vi kan inte undvika den
-utan att gå förbi Tasks-API:t. **Upplösningen är därför den viktigaste ratten.** Pose-modellen tar
-256×256, så 1280×720 räcker för pose. Upplösningen delas dock med skaftet (shaft-v2 tar 960×960, eftersom
-18 900 ankare = 120² + 60² + 30²) och med rututtaget, så valet görs i N-3.4. Mät pose i både 1280×720 och
-1920×1080 (§7).
+// OSÄKER: konverteringens kostnad på Helio G99 är inte mätt. Den ligger på kameratråden före inferensen
+och ingår i budgeten på 33 ms (§1). Modulen mäter den som `convertMs` (§6), och den jämförs med CameraX:s
+`'rgb'`-väg i körning 6 (§7). libyuv finns inte i NDK:ns publika API och byggs in i modulen (BSD-3) via
+CMake. Om den vendras som källkod eller hämtas som förbyggd AAR avgörs i N-3.2.
+// OSÄKER: `createImage` för BYTEBUFFER gör sannolikt en kopia in i MediaPipes `ImageFrame`, plus en
+uppladdning till GPU med GPU-delegaten. Vid 720×1280 RGBA är det 3,7 MB per ruta, mot 8,3 MB i 1080p.
 
-**Rotation: `enablePhysicalBufferRotation: true` (huvudväg).**
+**Rotation: avgjort, i libyuv-passet.** `enablePhysicalBufferRotation: false`.
 - Webben matar MediaPipe med `<video>`-elementets avkodade ruta, som alltid är upprätt och aldrig
   speglad (CSS-spegling påverkar inte pixlarna). Landmarks är normaliserade mot den bildens bredd och höjd.
-- Med fysisk rotation sätter VC5 `setOutputImageRotationEnabled(true)`, och CameraX levererar en upprätt
-  buffert. Då är `rotationDegrees` 0, och MediaPipes utdata är redan i webbens koordinatsystem. Ingen
-  egen matematik behövs, BlazePose-detektorn ser en upprätt person, och iOS kan göra exakt samma sak.
-  VC5 tillåter inte detta ihop med `'native'`, men det spelar ingen roll för oss.
-- Kostnaden är ett extra CPU-pass i CameraX på samma tråd (§1). Den mäts (§7).
-
-**Reservväg om rotationen kostar för mycket (> ~3 ms vid vald upplösning):** `enablePhysicalBufferRotation:
-false`. Modulen läser då `rotationDegrees` och skickar
-`ImageProcessingOptions.builder().setRotationDegrees(r)` (PoseLandmarker godtar rotation men inte ROI,
-enligt `PoseLandmarker.java`). Därefter räknas punkterna om till den upprätta bilden. Med `r` = den
-medurs vridning som gör bufferten upprätt (CameraX-definitionen):
-
-| r | x′ | y′ |
-|---|---|---|
-| 0 | x | y |
-| 90 | 1 − y | x |
-| 180 | 1 − x | 1 − y |
-| 270 | y | 1 − x |
-
-Därefter speglas x om `isMirrored`: x″ = 1 − x′. Spikens `x: lm.y, y: 1 - lm.x` är fallet 270.
-`z` roteras inte, eftersom core inte läser `z` (grep i `packages/core`).
-
-// OSÄKER: Det är inte dokumenterat om MediaPipe Tasks returnerar landmarks i den roterade eller den
-oroterade bildens koordinater när `setRotationDegrees` används. Javadoc säger ingenting om det, och jag
-hittade inget issue. Googles egna Android-exempel roterar bitmappen själva i stället. Därför är det
-reservvägen, och tabellen ovan gäller bara om utdata ligger i buffertens (oroterade) koordinater.
-Det avgörs på telefonen (§7, test O).
+- Modulen läser `imageProxy.imageInfo.rotationDegrees` (inte `frame.orientation`, #4096, §1) och roterar den
+  nedskalade bilden i samma pass som konverteringen. MediaPipe ser en upprätt bild, och utdata är redan i
+  webbens koordinatsystem. Ingen `ImageProcessingOptions`, och ingen tillbakaräkning.
+- Kodaren får sensorns orientering och skriver den i MP4:n (`MediaMuxer.setOrientationHint`). CameraX
+  behöver inte rotera hela 1080p-rutan.
+- Den tidigare reservvägen (`ImageProcessingOptions.setRotationDegrees` + egen tillbakaräkning, med en
+  odokumenterad koordinatfråga) behövs inte längre. För att räkna om en punkt från den oroterade bufferten
+  till den upprätta bilden, med `r` = den medurs vridning som gör bufferten upprätt: 90 → (1 − y, x),
+  180 → (1 − x, 1 − y), 270 → (y, 1 − x). Spikens `x: lm.y, y: 1 - lm.x` är fallet 270.
 
 **Spegling.** På Android sätter VC5 `isMirrored = (mirrorMode == ON)`, och ImageAnalysis speglar aldrig
 bufferten. Med bakre kameran och `AUTO` är `isMirrored` alltså falskt. Modulen speglar ändå tillbaka
@@ -160,14 +149,16 @@ MediaPipes landmarkindex (15 = vänster handled, 16 = höger) följer då samma 
   rutor och kör bara detektorn när personen tappas
   ([Android-guiden](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/android)).
 
-**Tidsstämplar (ett kontrakt som rututtaget ansluter sig till):**
+**Tidsstämplar. *Avgjort:* `capture` äger klockan ([ADR-0004, tillägget](../adr/0004-native-pipeline-nitro-modules.md)).**
 - **Kameraklockan** = `imageProxy.imageInfo.timestamp` (ns) på Android och `CMSampleBuffer`:s
-  presentationstid (s) på iOS. Modulen returnerar den som `frameTimeSec: number` i **sekunder** på båda.
-  En double rymmer ns-värden exakt upp till 2^53 ns ≈ 104 dygn sedan uppstart. Precisionen räcker.
-- **`PoseSample.t` sätts i JS:** `t = frameTimeSec − originSec`. `originSec` ägs av fångstkedjan (N-3.4),
-  till exempel den första rutan i sessionen eller inspelningsstarten. Det är samma princip som webbens
-  `startedAt`, som gör "t = 34,2" till samma ögonblick i landmark-ringen och i videoringen
-  (`livePoseLoop.ts`). Pose-modulen väljer inget origo.
+  presentationstid (s) på iOS. Pose-modulen returnerar den som `frameTimeSec: number` i **sekunder** på
+  båda, men **bara för diagnostik** (test T, §7). En double rymmer ns-värden exakt upp till 2^53 ns ≈ 104
+  dygn sedan uppstart.
+- **`PoseSample.t` = det `t` som `capture.append(frame)` returnerar för samma ruta.** `capture` läser
+  samma native-PTS och räknar `t` från sessionens första ruta, och samma `t` står i klippets
+  `frameTimesSec`. Båda anropen görs i samma worklet på samma `Frame`, så de kan inte glida isär. Det är
+  samma princip som webbens `startedAt`, som gör "t = 34,2" till samma ögonblick i landmark-ringen och i
+  videoringen (`livePoseLoop.ts`). Pose-modulen väljer inget origo och tar inget `t` som argument.
 - **MediaPipe-tidsstämpeln** = `round(ns / 1e6)` ms. Om den inte är större än förra, sätts den till
   förra + 1, som i spiken och webben. Om den går **bakåt** med mer än 1 s (ny session, ny tidsbas) byggs
   landmarkern om i stället för att skjuta fram den i all oändlighet. Den interna ms-stämpeln lämnar aldrig
@@ -177,10 +168,9 @@ MediaPipes landmarkindex (15 = vänster handled, 16 = höger) följer då samma 
 sensorns tidsstämplar följer `SENSOR_INFO_TIMESTAMP_SOURCE`: REALTIME (`elapsedRealtimeNanos`) eller
 UNKNOWN (≈ `uptime`, stannar i djupsömn). De är monotona och jämförbara mellan strömmar från samma
 kamerainstans ([AOSP: Camera timestamping docs](https://android.googlesource.com/platform/frameworks/base/+/1ce3c167c5a3%5E%21/)).
-**Det räcker om rututtaget också använder `Frame.timestamp`.** Om rututtaget i stället läser ur en
-inspelad videofil (CameraX `Recorder`), är filens PTS relativa till inspelningsstarten, och
-kopplingen till sensorklockan måste mätas på telefonen (§7, test T). Logga `SENSOR_INFO_TIMESTAMP_SOURCE`
-per telefon.
+*Avgjort:* rututtaget läser samma native-PTS i `capture.append`, och det tar rutornas tid ur
+`frameTimesSec`, inte ur filens tidslinje (rututtag.md, väg 3). Klockans källa spelar därför ingen roll
+för kopplingen, bara för att den är monoton. Logga `SENSOR_INFO_TIMESTAMP_SOURCE` per telefon ändå.
 
 ## 4. Delegat, modell och var `.task` ligger
 
@@ -268,13 +258,13 @@ modulen.
 // OSÄKER: om core körs i kamerans worklet-runtime eller på JS-tråden (sampel överförs med
 `scheduleOnRN`, 15 st/s med 33 objekt) beslutas i N-3.4. Båda är billiga i den takten.
 
-## 6. Förslag: `pose.nitro.ts`
+## 6. Specen för N-3.2: `PoseDetector.nitro.ts`
 
 Samma spec implementeras i Kotlin nu och i Swift (N-3.8) senare utan ändring. Inget i den är
 Android-specifikt: tiden är i sekunder och koordinaterna är upprätta och ospeglade på båda plattformarna.
 
 ```ts
-// packages/…/pose/src/specs/pose.nitro.ts (sökvägen beslutas i N-3.1)
+// apps/mobile/modules/pose/src/specs/PoseDetector.nitro.ts (ersätter N-3.1-stubbens spec, ADR-0004)
 import type { HybridObject } from 'react-native-nitro-modules';
 import type { Frame } from 'react-native-vision-camera';
 
@@ -292,8 +282,8 @@ export interface PoseResult {
   status: PoseStatus;
   /**
    * Rutans tid på kameraklockan, i SEKUNDER på båda plattformarna
-   * (Android: ImageInfo.timestamp ns / 1e9, iOS: CMSampleBuffer-PTS).
-   * PoseSample.t = frameTimeSec − origin, där origin ägs av fångstkedjan.
+   * (Android: ImageInfo.timestamp ns / 1e9, iOS: CMSampleBuffer-PTS). Bara diagnostik:
+   * PoseSample.t är det t som capture.append(frame) returnerar för samma ruta (ADR-0004).
    */
   frameTimeSec: number;
   /**
@@ -302,17 +292,19 @@ export interface PoseResult {
    * Alltid 528 byte. Innehållet är odefinierat om status !== 'ok'.
    */
   landmarks: ArrayBuffer;
+  /** Android: YUV → nedskalad, roterad RGBA (libyuv), ms. iOS: 0 (MPImage direkt på BGRA). */
+  convertMs: number;
   /** Ren detectForVideo-tid, ms. */
   inferenceMs: number;
-  /** Hela detect() inkl. MPImage-inslagning och packning, ms. */
+  /** Hela detect() inkl. konvertering, MPImage-inslagning och packning, ms. */
   totalMs: number;
   /** Delegatet som faktiskt kördes. */
   delegate: PoseDelegate;
-  /** Bufferns rotation (0/90/180/270) innan modulen kompenserade. 0 när fysisk rotation är på. */
+  /** Bufferns rotation (0/90/180/270), som modulen roterade bort i konverteringen. */
   rotationDegrees: number;
 }
 
-export interface PoseLandmarker
+export interface PoseDetector
   extends HybridObject<{ ios: 'swift'; android: 'kotlin' }> {
   /** Sparar valet. Landmarkern byggs vid nästa detect(), på kameratråden. */
   configure(config: PoseConfig): void;
@@ -331,33 +323,35 @@ export interface PoseLandmarker
 Användning i JS (skiss):
 
 ```ts
-const pose = NitroModules.createHybridObject<PoseLandmarker>('PoseLandmarker');
+const pose = createPoseDetector(); // @swingcheck/native-pose, som i N-3.1
 pose.configure({ model: 'lite', delegate: 'gpu' });
 
 const frameOutput = useFrameOutput({
-  pixelFormat: 'rgb',
-  enablePhysicalBufferRotation: true,
-  targetResolution: { width: 1280, height: 720 }, // beslutas i N-3.4, se §2
+  pixelFormat: Platform.OS === 'android' ? 'yuv' : 'rgb', // iOS 'rgb' = 32BGRA (ADR-0004)
+  enablePhysicalBufferRotation: false, // pose roterar i libyuv-passet, kodaren via MP4-orientering
+  targetResolution: CommonResolutions.FHD_16_9, // 1080p för rututtaget; pose skalar själv till 720×1280
   onFrame(frame) {
     'worklet';
+    const t = capture.append(frame); // klockan (ADR-0004)
     const r = pose.detect(frame);
     frame.dispose();
-    // decimering till 15 fps + Float32Array → PoseSample här (§5)
+    // decimering till 15 fps på t + Float32Array → PoseSample { t, … } här (§5)
   },
 });
 ```
 
-`frame.dispose()` anropas direkt efter `detect`, eftersom landmarks redan är kopierade till
-`ArrayBuffer`. När skaftmodulen ska ta samma ruta (26 rutor efter slaget, N-3.4), flyttas `dispose()`
-till efter båda.
+`frame.dispose()` anropas efter `append` och `detect`. Kodaren har då fått sin kopia (Android) eller
+behåller själv `CVPixelBuffer` (iOS, rututtag.md risk 2), och landmärkena är kopierade till `ArrayBuffer`.
+Skaftet tar inte kamerans ruta. Dess rutor avkodas ur klippet (ADR-0004).
 
 ## 7. Vad som bara kan avgöras på telefonen, och mätplanen för N-2-grinden
 
 **Avgörs bara på telefonen:**
 1. ms/ruta för lite/full × GPU/CPU, och vilket delegat som vinner.
-2. Kostnaden för CameraX RGBA-konvertering + fysisk rotation. Den syns inte i `detect()` utan bara i
-   uppnådd fps och tappade rutor, eftersom den ligger på samma tråd före `onFrame` (§1).
-3. Om fysisk rotation och `MediaImageBuilder` faktiskt ger upprätta koordinater (test O).
+2. Kostnaden för den egna konverteringen (YUV → nedskalad, roterad RGBA), `convertMs`. Jämförs med
+   CameraX:s `'rgb'` + fysisk rotation, som inte syns i `detect()` utan bara i uppnådd fps och tappade rutor,
+   eftersom den ligger på samma tråd före `onFrame` (§1).
+3. Om libyuv-rotationen ger upprätta koordinater i alla fyra orienteringar (test O).
 4. Thermal över 3 min, och om GPU-bygget fungerar på just den kretsen.
 5. Kameraklockans källa (`SENSOR_INFO_TIMESTAMP_SOURCE`) och, om rututtaget läser ur en fil,
    förhållandet mellan rutans tidsstämpel och videons PTS (test T).
@@ -365,8 +359,8 @@ till efter båda.
 **Bygget:** dev-skärmen från N-3.1 med pose-modulen. Ingen spike-kod. Loggen är samma JSON-format som
 spiken (sammanfattning, thermal per sekund, en rad per ruta), så att `stats.ts` kan återanvändas.
 
-**Per ruta loggas:** `frameTimeSec`, `status`, `inferenceMs`, `totalMs`, `delegate`, `rotationDegrees`,
-`rebuilds`.
+**Per ruta loggas:** `frameTimeSec`, `status`, `convertMs`, `inferenceMs`, `totalMs`, `delegate`,
+`rotationDegrees`, `rebuilds`.
 **Per sekund:** `PowerManager.currentThermalStatus` (API 29+, samma källa som `react-native-nitro-thermal`)
 **och** `getThermalHeadroom(10)` (API 30+). Headroom varnar innan status ändras, vilket statusen ensam
 missar på många telefoner.
@@ -378,14 +372,20 @@ fps-intervall och modellens sha256.
 **3 min per körning, telefonen kall** — `thermal = none` och minst 5 min vila mellan körningarna, laddare
 urkopplad):
 
-| # | Modell | Delegat | Upplösning | Syfte |
+Kameran går i 1920×1080 `'yuv'` i alla körningar (ADR-0004). Kolumnen *Pose-indata* är vad modulen
+konverterar till.
+
+| # | Modell | Delegat | Pose-indata | Syfte |
 |---|---|---|---|---|
-| 1 | lite | GPU | 1280×720 | grind, standardvalet |
-| 2 | lite | CPU | 1280×720 | delegatval |
-| 3 | full | GPU | 1280×720 | grind för full |
-| 4 | full | CPU | 1280×720 | delegatval |
-| 5 | bästa av 1–4 | — | 1920×1080 | upplösningens kostnad (för N-3.4) |
-| 6 | som 5 | — | 1920×1080, `enablePhysicalBufferRotation: false` | rotationens kostnad |
+| 1 | lite | GPU | 720×1280 | grind, standardvalet |
+| 2 | lite | CPU | 720×1280 | delegatval |
+| 3 | full | GPU | 720×1280 | grind för full |
+| 4 | full | CPU | 720×1280 | delegatval |
+| 5 | bästa av 1–4 | — | 1080×1920 (ingen nedskalning) | upplösningens kostnad och nytta |
+| 6 | som 1–4:s bästa | — | kamera `'rgb'` + `enablePhysicalBufferRotation: true`, `MediaImageBuilder` | jämförelse: CameraX:s konvertering mot vår |
+
+// OSÄKER: kodaren i `capture` finns inte i N-3.2. Pose mäts alltså utan kodaren på samma tråd och
+samma krets. Den samlade lasten (pose + kodare + förhandsvisning) mäts i N-3.4 (rututtag.md, risk 1).
 
 **Grinden (samma som på iPhone):** 30 fps hålls i 3 min. **p99 `totalMs` < 33 ms**, tappade rutor
 **< 1 % efter de första 2 s** (uppvärmning räknas separat, som i mätning 1–2), och thermal når aldrig
@@ -396,8 +396,8 @@ rutorna, som på iPhone.
 
 **Kontrolltester (korta, inte 3 min):**
 - **O — orientering.** Telefonen i stående och liggande läge. Personen höjer **höger** hand. Rita punkterna
-  över förhandsvisningen. Landmark 16 (höger handled) ska ligga högst och på rätt sida. Bekräftar §2 och
-  avgör den OSÄKRA punkten om rotation via `ImageProcessingOptions`, om reservvägen behövs.
+  över förhandsvisningen. Landmark 16 (höger handled) ska ligga högst och på rätt sida. Bekräftar libyuv-
+  rotationen i §2 för varje `rotationDegrees` som telefonen ger.
 - **P — paritet mot webben.** Spara en RGBA-ruta + modulens landmarks från telefonen (dev-knapp). Kör
   samma PNG genom webbens MediaPipe 0.10.35, lite, IMAGE-läge. Krav: max |Δx|, |Δy| ≤ 0,01 för de punkter
   core läser (handleder, axlar, höfter). IMAGE-läge på båda sidor, eftersom VIDEO-spårningen beror på
@@ -406,10 +406,14 @@ rutorna, som på iPhone.
   ruta, så att tidsbasen syns. Om rututtaget läser ur fil: klappa i bild, och jämför klappens ruta i
   pose-loggen med motsvarande PTS i filen.
 
-**Telefon.** Mät på Eriks Android-telefon och ange modell och SoC i BACKLOG. // OSÄKER: en enda telefon
-säger lite om Android-flottan. Om den är ett flaggskepp, bör grinden på sikt också köras på en
-mellanklasstelefon (Snapdragon 7-serien eller Exynos 1x80). Det är inte ett krav för N-3.2, men en risk
-att föra in i N-6.
+**Telefon: Samsung Galaxy A16 4G (MediaTek Helio G99, Mali-G57 MC2).** Det är samma telefon som N-3.1
+verifierades på (30,5 fps, MediaPipe 0.10.35 och LiteRT laddade, GPU-delegaten stöds). Referens för iOS är
+iPhone 16 Pro (N-2: lite 17,3 ms, full 19,2 ms). Helio G99 är en budgetkrets. Klarar den grinden, så klarar
+mellanklassen den troligen också. Klarar den det inte, är det golvet för Android som flyttas, inte
+nödvändigtvis designen.
+// OSÄKER: att Mali-G57 MC2 vinner på GPU-delegaten för `lite` är inte givet. Uppladdningen av 3,7 MB RGBA
+per ruta kan äta upp vinsten, och XNNPACK på G99:s två A76-kärnor kan vara snabbare. Därför körs 1–4.
+Om GPU-bygget kastar på kretsen faller modulen tillbaka till CPU (§4), och det syns i `delegate`.
 
 ---
 
