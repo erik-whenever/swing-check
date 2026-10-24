@@ -59,6 +59,7 @@ training/runs/
 training/datasets/
 training/.venv/
 training/.venv-tflite/
+training/.venv-coreml/
 __pycache__/
 
 # Skaftdetektor — spårningar per klipp (regenereras av training/trace_swing.py)

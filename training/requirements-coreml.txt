@@ -1,0 +1,24 @@
+# shaft-v2 -> Core ML conversion (training/export_coreml.py). Python 3.11, Linux x86_64 or macOS.
+#
+# NOT Windows: coremltools 9.0 ships no Windows wheel. The sdist installs, but without its
+# native libmilstoragepython, so saving an ML Program fails with "BlobWriter not loaded".
+# On Windows, run it in the Linux container (training/Dockerfile.coreml) -- see export_coreml.py.
+#
+# torch and torchvision are listed here but must come from PyTorch's CPU index, not PyPI
+# (PyPI's Linux wheel drags in ~3 GB of CUDA). The Dockerfile installs them first with
+# --index-url; a PyPI torchvision next to the CPU torch fails with "torchvision::nms does not exist".
+#
+# coremltools converts from PyTorch, not ONNX. No shaft-v2 .pt exists (training/runs/ is
+# gone, see docs/shaft/source-split.md), so onnx2torch rebuilds a torch module from
+# shaft-v2.onnx's own initializers. Same weights; export_coreml.py checks it against ORT.
+torch==2.7.0
+# onnx2torch imports torchvision.
+torchvision==0.22.0
+coremltools==9.0
+onnx2torch==1.5.15
+onnx==1.17.0
+onnxruntime==1.22.0
+numpy==1.26.4
+# export_tflite.py (whose letterbox/select_best ports are imported) imports cv2 at the top.
+opencv-python-headless==4.11.0.86
+pillow==11.2.1
