@@ -3564,14 +3564,16 @@ TFLite, och två TFLite-kopior i samma binär ger dubbla symboler (N-2). shaft-v
 Uppdelad 2026-10-23 i N-3.1–N-3.9, i ordning. Android först, eftersom det inte kräver Mac. iOS-modulerna
 (N-3.7–N-3.8) väntar på Mac. Punkterna från N-2 är fördelade på underuppgifterna nedan.
 
-#### [~] N-3.1 — ADR för native-pipelinen + skelett `apps/mobile` + modulstubbar + Android-länkningskontroll
+#### [x] N-3.1 — ADR för native-pipelinen + skelett `apps/mobile` + modulstubbar + Android-länkningskontroll
 ADR: två egna Nitro-moduler, `pose` och `shaft`, med ett TS-gränssnitt var (`.nitro.ts`). Kotlin nu, Swift
 senare. Ingen fast-tflite. Skelett: Expo SDK 58 + dev client, VisionCamera 5, Nitro, `@swingcheck/core` via
 `file:`. Stubbarna anropas från en frame processor. Android-bygget länkar in MediaPipe tasks-vision och
 LiteRT (GPU), och båda native-biblioteken laddas vid körning. Dev-skärm med 30 fps-förhandsvisning,
 fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-bygget av skelettet går igenom.
 
-**Gjort 2026-10-24 (kod klar, väntar på byggen på enhet):**
+**Klar 2026-10-24, verifierad på telefon.**
+
+**Gjort 2026-10-24:**
 - [ADR-0004](adr/0004-native-pipeline-nitro-modules.md). Avkodning och NMS för skaftet stannar i core,
   och native lämnar rå utdata plus letterbox.
 - `apps/mobile`: Expo 58.0.17 / RN 0.88.0 / VisionCamera 5.2.3 (+ `-worklets`) / Nitro 0.37.1 /
@@ -3593,20 +3595,37 @@ fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-
 - **Inte verifierat:** ett lokalt Gradle-bygge i Docker kom förbi resursstegen utan fel men stoppades
   av minnesbrist innan modulerna kompilerades. iOS-prebuild går inte på Windows.
 
-**Återstår (Erik):** EAS-bygge för Android, installation på telefonen: 30 fps, stubbarna anropas,
-båda `runtimeInfo` utan FEL, core "samma som Node". Sedan ett EAS-bygge för iOS som går igenom. Sätt `[x]`
-när båda är gröna.
+**Verifierat på enhet (Erik, 2026-10-24):**
+- **Android:** Samsung Galaxy A16 4G (MediaTek Helio G99). 30,5 fps, båda stubbarna anropas per ruta.
+  MediaPipe tasks-vision 0.10.35 och LiteRT laddade i samma process, GPU-delegaten stöds på enheten.
+  Core = Node.
+- **iOS:** iPhone 16 Pro, EAS-bygge `f082c356-d406-4e36-a2ed-b78ff8059050` (`se.swingcheck.app`). 30,0 fps,
+  stubbarna anropas, core = Node. Kraschen vid första starten (`'PlatformConstants' could not be found`)
+  var inget byggfel. Dev-klienten hade hämtat bundlen från spikens Metro på 8081 (SDK 54, RN 0.81.5) i
+  stället för `apps/mobile` på 8082. Belägg: `apps/spike/.expo/devices.json` loggade iPhonen 15:50, och
+  `apps/mobile` har bara Android-enheten. Binären är RN 0.88.0 med nya arkitekturen och förkompilerad
+  RN-kärna, och alla pods kommer från `apps/mobile/node_modules`. Kör bara en Metro åt gången.
+- **LiteRT rapporterar `2.22.0-dev0+selfbuilt`, fast beroendet är 1.4.2.** Det är den underliggande
+  TFLite-runtimens version, inte paketets. `TensorFlowLite.runtimeVersion()` (`litert-api`) anropar
+  `InterpreterFactoryImpl.nativeRuntimeVersion`, som returnerar C-API:ts `TfLiteVersion()` i
+  `libtensorflowlite_jni.so`. Strängen `2.22.0-dev0+selfbuilt` ligger inbakad i den `.so`:n i
+  `litert-1.4.2.aar` från Google Maven (enda versionssträngen av den formen i filen). LiteRT 1.4.2
+  är alltså byggt från TensorFlow-källan under utvecklingen av 2.22, inte från en release-tagg.
+  Tolkningen av suffixet (`-dev0` = otaggat utvecklingsträd, `+selfbuilt` = inte TF:s egen
+  release-pipeline) är min läsning, inte dokumenterad. Spikens fast-tflite på iOS var TFLite 2.17.0.
 
 #### [ ] N-3.2 — Pose-modul Android
 MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`.
-**Från N-2:** mät N-2-grinden på Android: pose 30 fps i 3 min (ms/ruta, tappade rutor, thermal). Ange
-telefonmodellen.
+**Från N-2:** mät N-2-grinden på Android: pose 30 fps i 3 min (ms/ruta, tappade rutor, thermal).
+**Mättelefon:** Samsung Galaxy A16 4G (MediaTek Helio G99), samma som N-3.1. Det är en budgettelefon och
+golvet för Android. Referens för iOS är iPhone 16 Pro (N-2).
 
 #### [ ] N-3.3 — Skaftmodul Android
 LiteRT med GPU-delegaten. Letterbox, rotation och färgordning görs natively.
 **Från N-2:**
 - **Gör förberedelsen av skaftrutorna natively.** Spikens JS-letterbox tog 37 ms per ruta.
-- **Paritet mot Python** (gräns 2 px) och **burst 26**, på Android. Ange telefonmodellen.
+- **Paritet mot Python** (gräns 2 px) och **burst 26**, på Android. **Mättelefon:** Samsung Galaxy A16 4G
+  (MediaTek Helio G99, GPU-delegaten stöds enligt N-3.1). Referens: iPhone 16 Pro, 32 ms/ruta (N-2).
 - **Live-förbehandlingen ska verifieras med klubba i bild:** rotation av bufferten och färgordning. Spiken
   kollade bara pariteten på en stillbild, och 3-minutersmätningen hade ingen klubba i bild.
 
