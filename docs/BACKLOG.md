@@ -3584,7 +3584,7 @@ fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-
 - Dev-skärm: förhandsvisning med constraint 30 fps, fps-räknare, båda stubbarna per ruta och core
   (14 regler, `detectSwingEnvelope` på `dtl-full`). Core-resultatet jämförs med Node (start 6,785 s,
   impact 7,849 s, finish 8,315 s).
-- EAS `development` (Android APK, iOS internal). Bundle-id `com.swingcheck.app`.
+- EAS `development` (Android APK, iOS internal). Bundle-id `se.swingcheck.app` (`com.swingcheck.app` var upptaget hos Apple, Eriks val 2026-10-24).
 - Verifierat lokalt: tsc och eslint rena i `apps/mobile`, Android-prebuild klar, autolinking hittar
   båda modulerna (Gradle + podspec). Metro-bundle för Android och iOS är klar, och workleten
   transformeras. Webben: 438 tester (437 gröna, 1 skippad; de 3 kända `scripts/*.test.mjs` laddar
