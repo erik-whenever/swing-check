@@ -3614,7 +3614,7 @@ fps-räknare och ett core-resultat. EAS `development` för Android och iOS; iOS-
   Tolkningen av suffixet (`-dev0` = otaggat utvecklingsträd, `+selfbuilt` = inte TF:s egen
   release-pipeline) är min läsning, inte dokumenterad. Spikens fast-tflite på iOS var TFLite 2.17.0.
 
-#### [ ] N-3.2 — Pose-modul Android
+#### [~] N-3.2 — Pose-modul Android
 MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`. Underlag:
 [pose-android.md](native/pose-android.md). Specen tas från dess §6 ([ADR-0004, tillägget](adr/0004-native-pipeline-nitro-modules.md)).
 Kameran går i `'yuv'`. Modulen skalar ned, roterar och konverterar natively till RGBA i 720×1280 (libyuv).
@@ -3622,6 +3622,46 @@ Kameran går i `'yuv'`. Modulen skalar ned, roterar och konverterar natively til
 **Från N-2:** mät N-2-grinden på Android: pose 30 fps i 3 min (ms/ruta, tappade rutor, thermal).
 **Mättelefon:** Samsung Galaxy A16 4G (MediaTek Helio G99), samma som N-3.1. Det är en budgettelefon och
 golvet för Android. Referens för iOS är iPhone 16 Pro (N-2).
+
+**Gjort 2026-10-24 (kod klar, Eriks mätning återstår):** detaljer och avvikelser i
+[pose-android.md §8](native/pose-android.md).
+- **Spec:** `PoseDetector.nitro.ts` = pose-android.md §6 plus `runtimeInfo()` (ADR-0004). Nitrogen-koden är
+  incheckad. iOS-stubben ändrades bara så att den kompilerar mot specen. Ny `PoseProbe`, bara Android:
+  thermal och headroom, enhet och SoC, GL-renderer, kamerans tidsstämpelkälla, klockor och `detectImage`.
+- **Kotlin:** MediaPipe tasks-vision 0.10.35, synkront VIDEO-läge, lite/full och GPU/CPU vid `configure`.
+  Landmarkern byggs på kameratråden och byggs om vid ny konfiguration, `reset()`, trådbyte (VC #4213/#4227) och
+  tidsbas bakåt. GPU faller tillbaka till CPU. `detect` kastar aldrig per ruta. Utdata 33 × 4 Float32 i en
+  `ArrayBuffer`, upprätt och ospeglad, tid i sekunder.
+- **Konvertering:** ett JNI-anrop per ruta med libyuv: krominans till I420, `I420Scale` (box) till 1280 på
+  långsidan, `I420Rotate`, `J420ToABGR`. libyuv är vendrad (commit `eee45979`, v1974, BSD-3) och byggs med `-O3`
+  även i debug.
+- **Modeller:** `modules/pose/models.json` (versionsadress + sha256). Gradle laddar ned dem och avbryter vid fel
+  hash. Bibliotekets `noCompress` når inte APK:n, så modellen laddas via direkt buffert (`modelLoad` i loggen).
+- **Verifierat lokalt:** fullt Android-bygge (`expo prebuild` + `:app:assembleDebug`, arm64) i Docker
+  (`reactnativecommunity/react-native-android:v22.0`, NDK 27.1) går igenom. APK:n har `libSwingPose.so`,
+  `libmediapipe_tasks_jni.so` och båda `.task`. tsc och eslint rena i `apps/mobile`, Metro-bundle för Android
+  klar (även utan paritetsfiler). Python-referensen: lite och full hittar pose på stillbilden. Webben: 438
+  tester (437 gröna, 1 skippad), lint 2 kända fel, build ren. **Inte verifierat:** körning på telefon.
+- **Ändrat på vägen:** libyuvs SME-kod kompilerar inte med NDK 27 och är avstängd. CameraX läggs till som
+  `compileOnly` i VC:s version (1.7.0-alpha03), eftersom VisionCamera inte exponerar den.
+- **Klockan:** `t` = sekunder sedan sessionens första ruta på rutans egen tidsstämpel (`src/poseFrames.ts`,
+  `sessionTime`), samma klocka och origo som `capture.append` ska ge. Byts mot `append` i N-3.4.
+  Decimeringen till 15 fps för core görs i JS (`keepForCore`), tidsbaserat.
+- **Dev-skärm:** skelett över förhandsvisningen via VisionCameras sensortransformer (test O), val av
+  lite/full, gpu/cpu och yuv/rgb (körning 6), mätläget **30 · Starta 3 min** (per ruta `convertMs`, `inferMs`,
+  `totalMs`, rotation, delegat, ålder mot båda klockorna, core-flagga; thermal och headroom per sekund; enhet
+  och SoC; sammanfattning med median, p95, p99 och grinden) och **Dela logg** (JSON).
+- **Paritet:** `training/pose_parity.py` (egen venv `training/.venv-pose`, mediapipe 0.10.35) kör IMG_5410 ruta 60
+  (720×1280) i IMAGE-läge på CPU. Appen kör samma PNG (Metro, gitignorerad) och jämför alla 33 punkterna. Gräns:
+  max |Δx|, |Δy| ≤ 0,005 och |Δvisibility| ≤ 0,02 på CPU för lite och full. GPU och en YUV-rundtur genom
+  konverteringen rapporteras utan grind. Motivering: under den smalaste marginal en riktig sving har haft till
+  cores `IMPACT_ADDRESS_TOL` (0,007).
+- **Inte gjort:** körning 5 (ingen nedskalning) kräver en inställning som specen saknar.
+
+**Kvar (Erik, Galaxy A16 4G):** bygg `development` för Android, kontrollera overlayn stående och liggande
+(test O), kör Paritet, och kör grinden: lite GPU, lite CPU, full GPU, full CPU (3 min var, kall telefon), samt
+körning 6 (`rgb`). Grinden är N-2:s: p99 `totalMs` < 33 ms, tappade rutor < 1 % efter 2 s, thermal aldrig
+`severe`, ingen trend > +20 % från minut 1 till 3, pose i ≥ 93 % av rutorna.
 
 #### [ ] N-3.3 — Skaftmodul Android
 LiteRT med GPU-delegaten. Skaftet tar inte kamerans ruta: `capture`/`FrameExtractor` avkodar rutan ur

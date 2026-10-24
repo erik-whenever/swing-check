@@ -3,7 +3,20 @@
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
 > Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-24.
 >
-> **Senast (2026-10-24, stream-native):** **N-3.1 är klar `[x]`**, verifierad på Galaxy A16 4G (30,5 fps,
+> **Senast (2026-10-24, stream-native):** **N-3.2 (pose Android) är `[~]`: koden är klar, Eriks mätning på
+> Galaxy A16 4G återstår.** Allt som avgjordes står i [pose-android.md §8](native/pose-android.md), och
+> BACKLOG N-3.2 har listan.
+> - `modules/pose`: specen från pose-android.md §6 (+ `runtimeInfo`), Kotlin med MediaPipe 0.10.35 i VIDEO-läge,
+>   libyuv-konvertering (vendrad, `eee45979`) till upprätt RGBA med 1280 på långsidan, modeller ur
+>   `models.json` med sha256. `PoseProbe` (bara Android) ger thermal, enhet, klockor och paritet.
+> - Dev-skärmen: skelett-overlay, lite/full · gpu/cpu · yuv/rgb, **30 · Starta 3 min** med JSON-logg och
+>   **Dela logg**, **Paritet** mot `training/pose_parity.py` (gräns 0,005 på alla 33 punkter, CPU).
+> - `t` räknas på rutans egen tidsstämpel i JS (`sessionTime`) och byts mot `capture.append` i N-3.4.
+> - Avvikelse från underlaget: ingen återspegling av x (ImageAnalysis speglar aldrig bufferten).
+> - **Nästa:** Erik bygger `development` för Android, kör overlay-testet, Paritet och grindkörningarna. Sedan
+>   blir N-3.2 `[x]` med siffrorna, och N-3.3 (skaft Android) tar vid.
+>
+> **Före det (2026-10-24, stream-native):** **N-3.1 är klar `[x]`**, verifierad på Galaxy A16 4G (30,5 fps,
 > MediaPipe + LiteRT laddade, GPU-delegaten stöds) och iPhone 16 Pro (30,0 fps). Core = Node på båda.
 > iOS-kraschen vid första starten kom från spikens Metro på 8081, inte från bygget, så kör bara en Metro
 > åt gången. LiteRT:s `2.22.0-dev0+selfbuilt` är TFLite-runtimens version, inte paketets (BACKLOG N-3.1).

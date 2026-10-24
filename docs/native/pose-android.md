@@ -1,6 +1,7 @@
 # Pose-modulen på Android (förberedelse för N-3.2)
 
-**Status:** underlag, 2026-10-24. Ingen kod är skriven. Ström N, mergad till `stream-native`.
+**Status:** underlag, 2026-10-24. **Implementerat i N-3.2** (se §8 för vad som avgjordes och vad som avviker).
+Ström N, mergad till `stream-native`.
 **Avstämd 2026-10-24** mot [rututtag.md](rututtag.md) och [ADR-0004, tillägget](../adr/0004-native-pipeline-nitro-modules.md#tillägg-2026-10-24--capture-pixelformat-och-klockan).
 Pixelformatet (§2), rotationen (§2) och klockan (§3) är ändrade efter det. Avsnitten är märkta *Avgjort*.
 **Fråga:** hur bygger vi en egen Nitro-modul för MediaPipe Pose (Tasks Vision, Kotlin) som körs i
@@ -414,6 +415,88 @@ nödvändigtvis designen.
 // OSÄKER: att Mali-G57 MC2 vinner på GPU-delegaten för `lite` är inte givet. Uppladdningen av 3,7 MB RGBA
 per ruta kan äta upp vinsten, och XNNPACK på G99:s två A76-kärnor kan vara snabbare. Därför körs 1–4.
 Om GPU-bygget kastar på kretsen faller modulen tillbaka till CPU (§4), och det syns i `delegate`.
+
+## 8. Genomfört i N-3.2 (2026-10-24)
+
+Koden ligger i `apps/mobile/modules/pose` (Kotlin, C++) och `apps/mobile/src` (dev-skärmen). Mätningen på
+Galaxy A16 4G görs av Erik, och resultatet står i BACKLOG N-3.2.
+
+**Specen** är §6 oförändrad, plus `runtimeInfo()`, som ADR-0004 kräver av varje modul. Mätverktygen ligger i
+en egen HybridObject, `PoseProbe` (`HybridObject<{ android: 'kotlin' }>`), så att de inte blir en del av
+kontraktet som Swift implementerar i N-3.8: thermal och headroom (PowerManager), enhet och SoC, GL-renderer,
+`SENSOR_INFO_TIMESTAMP_SOURCE` per bakre kamera, klockorna och `detectImage` för pariteten.
+
+**Konverteringen** (`android/src/main/cpp/yuv_convert.cpp`), ett JNI-anrop per ruta i buffertar som återanvänds:
+1. Krominans till planar I420 om kameran interfolierar den (pixelstride 2). `Android420ToI420Rotate` med
+   `dst_y = nullptr` gör bara U och V.
+2. `I420Scale` till 1280 på långsidan, i buffertens egen orientering, med `kFilterBox`.
+3. `I420Rotate` med `ImageInfo.rotationDegrees` (medurs, CameraX:s konvention).
+4. `J420ToABGR`: fullt omfång BT.601 (JFIF, som Camera2 anger för YUV_420_888) → R, G, B, A i minnet.
+
+Nedskalningen görs först, så att rotation och färgkonvertering bara rör 720×1280. `'rgb'` (körning 6) går
+genom `ARGBRotate`, som bara kopierar när CameraX redan har roterat.
+// OSÄKER: fullt omfång antas. CameraX:s egen RGBA-väg räknar med begränsat omfång. Paritetens YUV-rundtur
+(`detectImage(…, viaYuv = true)`) visar hur mycket konverteringen flyttar landmärkena.
+
+**libyuv är vendrad** (`android/third_party/libyuv`, commit `eee45979`, 2026-10-01, version 1974, BSD-3) och
+byggs av en egen `libyuv.cmake`, som speglar uppströms filistor och flaggor per arkitektur (NEON, dotprod/i8mm,
+SVE2) utan verktyg, tester, JPEG och SME. SME är avstängt: uppströms kompileringstest går igenom med NDK 27:s
+clang, men `rotate_sme.cc` fallerar sedan på `__arm_new("za")`, och ingen telefon vi riktar oss mot har SME. Skäl: libyuv finns inte i NDK:ns publika API,
+det finns ingen officiell AAR, och googlesource ger inga stabila tarball-hashar. EAS och lokala byggen kör
+samma källa utan nätverk. libyuv och konverteringen kompileras alltid med `-O3`, eftersom dev-klienten är ett
+debugbygge (`-O1`) och `convertMs` mäts.
+
+**CameraX:** `NativeFrame.image` är en `ImageProxy`, men VisionCamera har CameraX som `implementation`. Modulen
+lägger därför till `androidx.camera:camera-core` som `compileOnly` i VC 5.2.3:s version (1.7.0-alpha03). Klasserna
+kommer från VisionCamera vid körning, så appen får aldrig två CameraX-versioner. Byts VC-versionen, ska den
+här raden följa med.
+
+**Avvikelse från §2, spegling:** modulen speglar **inte** tillbaka x när `isMirrored` är satt. VC5 sätter
+flaggan från `mirrorMode`, men `ImageAnalysis` speglar aldrig bufferten. Bufferten är alltså redan den
+ospeglade bilden, och en återspegling hade spegelvänt utdata. Med bakre kameran är flaggan ändå falsk.
+
+**Modellerna** står i `modules/pose/models.json` (versionsadress `float16/1` och sha256, samma värden som
+spikens tabell). Gradle laddar ned dem till `android/build/generated/pose-models/assets` före bygget och
+avbryter vid fel hash. `training/pose_parity.py` läser samma tabell. N-7 kan peka webbens nedladdning hit.
+**noCompress:** biblioteket sätter `noCompress += "task"`, men det når **inte** appens APK: i det lokala
+bygget ligger båda `.task` deflaterade. Modulen provar därför `AssetManager.openFd` vid körning. Går det, laddas
+modellen med `setModelAssetPath` (minnesmappad), annars med `setModelAssetBuffer` från en direkt buffert (5,8 MB
+lite, 9,4 MB full, utanför Java-heapen). I nuvarande bygge blir det alltså `buffer`, vilket står i
+`deviceInfo().modelLoad` och i loggen. Det påverkar laddningen, inte tiden per ruta. Vill vi ha minnesmappning
+behövs raden i appens `build.gradle` via en konfigplugin.
+
+**Ombyggnad och reserv:** landmarkern byggs på den tråd som anropar `detect()` och byggs om vid ny
+konfiguration, efter `reset()`, vid trådbyte (#4213) och när tidsbasen går bakåt mer än 1 s. Misslyckas
+GPU-bygget, eller kastar `detectForVideo` på GPU, byggs den om på CPU, och `delegate` i resultatet säger vad som
+kördes. `rebuilds` räknar alla byggen efter det första.
+// OSÄKER: den gamla GPU-landmarkern stängs på den nya tråden vid trådbyte. Det är inte prövat att MediaPipe tål
+det. Ett fel loggas och ignoreras.
+
+**Klockan:** `frameTimeSec` = `ImageInfo.timestamp / 1e9`. JS räknar `t` = sekunder sedan sessionens första
+ruta på den tiden (`src/poseFrames.ts`, `sessionTime`). Det är samma klocka, enhet och origo som
+`capture.append(frame)` kommer att ge, och i N-3.4 byts `sessionTime` mot `append`. Varje mätrad har också
+`elapsedRealtime − frameTimeSec` och `uptime − frameTimeSec` (test T): den klocka som ger en liten, stabil
+ålder är den rutorna följer.
+
+**15 fps till core** görs i JS och tidsbaserat (`keepForCore`: behåll om `t − senast ≥ 1/15 − en halv ruta`).
+Bara de behållna rutorna packas upp till `PoseSample`.
+
+**Overlayn** (`src/SkeletonOverlay.tsx`) räknar tillbaka varje punkt till den oroterade bufferten och använder
+sedan VisionCameras egna transformer: buffert → sensor (`Frame.convertFramePointToCameraPoint`) och sensor →
+vy (`convertCameraPointToViewPoint`). Det stämmer även när förhandsvisningen har ett annat bildformat (4:3)
+än 16:9-rutan, eftersom båda går via sensorns koordinater.
+
+**Paritet (test P, ändrat):** samma stillbild (IMG_5410 ruta 60, 720×1280, upprätt) och samma `.task` i
+Python (mediapipe 0.10.35) och i appen, IMAGE-läge på båda sidor. Gräns: max |Δx|, |Δy| ≤ **0,005** över
+**alla 33** punkter och |Δvisibility| ≤ 0,02, på CPU för båda modellerna. GPU och YUV-rundturen rapporteras
+men grindas inte. Motivering i `apps/mobile/src/parity.ts`: 0,005 ligger under den smalaste marginal en riktig
+sving har haft till en av cores rumsliga trösklar (träffen ska ligga inom `IMPACT_ADDRESS_TOL` = 0,07, och de
+uppmätta träffarna låg på 0,056–0,063). Den tidigare gränsen 0,01 för bara sex punkter var lösare än det.
+MediaPipe i Python skickar användningsloggar till `play.googleapis.com/log` (syns som 503-fel i utskriften).
+Det påverkar inte resultatet.
+
+**Inte gjort:** körning 5 (ingen nedskalning) kräver en inställning för långsidan, som inte finns i specen.
+Den görs om körning 1–4 visar att upplösningen behöver prövas.
 
 ---
 
