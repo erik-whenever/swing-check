@@ -7,15 +7,18 @@
     "icon": "./assets/icon.png",
     "owner": "erikhawerman",
     "ios": {
-      "bundleIdentifier": "com.swingcheck.app",
+      "bundleIdentifier": "se.swingcheck.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "SwingCheck filmar din sving för att analysera den."
+        "NSCameraUsageDescription": "SwingCheck filmar din sving för att analysera den.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.swingcheck.app",
-      "permissions": ["android.permission.CAMERA"],
+      "package": "se.swingcheck.app",
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,6 +27,13 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-dev-client"]
+    "plugins": [
+      "expo-dev-client"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "354490e7-bf0e-4dff-b111-c0f3d446a335"
+      }
+    }
   }
 }
