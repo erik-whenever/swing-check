@@ -1,9 +1,28 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-23.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-24.
 >
-> **Senast (2026-10-24, stream-native):** N-3.1 `[~]`: koden är klar, och byggen på enhet återstår.
+> **Senast (2026-10-24, stream-native):** **N-3.1 är klar `[x]`**, verifierad på Galaxy A16 4G (30,5 fps,
+> MediaPipe + LiteRT laddade, GPU-delegaten stöds) och iPhone 16 Pro (30,0 fps). Core = Node på båda.
+> iOS-kraschen vid första starten kom från spikens Metro på 8081, inte från bygget, så kör bara en Metro
+> åt gången. LiteRT:s `2.22.0-dev0+selfbuilt` är TFLite-runtimens version, inte paketets (BACKLOG N-3.1).
+> - **Mergat in i `stream-native`:** `stream-native-coreml` (`training/export_coreml.py`,
+>   [coreml-export.md](shaft/coreml-export.md)), `-grab` ([rututtag.md](native/rututtag.md)) och `-pose`
+>   ([pose-android.md](native/pose-android.md)). Worktrees och brancher är borttagna. Tre tomma mappar
+>   `C:\SwingCheck-{coreml,grab,pose}` var låsta av en annan process och ligger kvar. De kan tas bort när
+>   sessionerna där är stängda.
+> - **[ADR-0004](adr/0004-native-pipeline-nitro-modules.md) har ett tillägg:** en tredje modul, `capture`
+>   (kodad ring, klipp vid detektion, `FrameExtractor`), med spec. Den äger klockan: `append(frame)` → `t`
+>   på `PoseSample`. Android-kameran går i `'yuv'`, och pose konverterar natively till RGBA i 720×1280
+>   (libyuv). iOS går i `'rgb'` (= 32BGRA). Skaftet matas ur klippet, inte ur kameran, så shaft-stubbens
+>   `detect(frame)` byts i N-3.3.
+> - **Ny uppgift N-7:** lås pose-modellens version och hash (webben hämtar `latest`).
+> - **Lokalt `stream-native` har divergerat från origin:** commiten ` ka` (`ee746f9`) är pushad, och lokalt
+>   ersattes den av `98017c7` med samma träd. Push kräver `--force-with-lease`.
+> - **Nästa: N-3.2** (pose Android) på Galaxy A16 4G, inklusive `convertMs`.
+>
+> **Före det (2026-10-24, stream-native):** N-3.1 `[~]`: koden är klar, och byggen på enhet återstår.
 > [ADR-0004](adr/0004-native-pipeline-nitro-modules.md): två Nitro-moduler, `pose` och `shaft`, med en
 > spec var. `apps/mobile` kör Expo 58 / RN 0.88 / VC 5.2.3 / Nitro 0.37.1. Stubbarna är Kotlin (länkar
 > MediaPipe 0.10.35 + LiteRT 1.4.2 GPU) och Swift. Dev-skärmen visar fps, stubbanrop, `runtimeInfo()`
