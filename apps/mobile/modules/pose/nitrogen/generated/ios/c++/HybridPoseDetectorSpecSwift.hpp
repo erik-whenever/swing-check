@@ -12,19 +12,28 @@
 // Forward declaration of `HybridPoseDetectorSpec_cxx` to properly resolve imports.
 namespace SwingPose { class HybridPoseDetectorSpec_cxx; }
 
+// Forward declaration of `PoseConfig` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
 // Forward declaration of `PoseModel` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { enum class PoseModel; }
-// Forward declaration of `PoseFrameResult` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseFrameResult; }
-// Forward declaration of `PoseLandmark` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseLandmark; }
+// Forward declaration of `PoseDelegate` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { enum class PoseDelegate; }
+// Forward declaration of `PoseResult` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseResult; }
+// Forward declaration of `PoseStatus` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { enum class PoseStatus; }
+// Forward declaration of `ArrayBufferHolder` to properly resolve imports.
+namespace NitroModules { class ArrayBufferHolder; }
 // Forward declaration of `HybridFrameSpec` to properly resolve imports.
 namespace margelo::nitro::camera { class HybridFrameSpec; }
 
+#include "PoseConfig.hpp"
 #include "PoseModel.hpp"
-#include "PoseFrameResult.hpp"
-#include "PoseLandmark.hpp"
-#include <vector>
+#include "PoseDelegate.hpp"
+#include "PoseResult.hpp"
+#include "PoseStatus.hpp"
+#include <NitroModules/ArrayBuffer.hpp>
+#include <NitroModules/ArrayBufferHolder.hpp>
 #include <memory>
 #include <VisionCamera/HybridFrameSpec.hpp>
 #include <string>
@@ -75,23 +84,31 @@ namespace margelo::nitro::swingcheck::pose {
 
   public:
     // Properties
-    
+    inline double getRebuilds() noexcept override {
+      return _swiftPart.getRebuilds();
+    }
 
   public:
     // Methods
-    inline void load(PoseModel model) override {
-      auto __result = _swiftPart.load(static_cast<int>(model));
+    inline void configure(const PoseConfig& config) override {
+      auto __result = _swiftPart.configure(std::forward<decltype(config)>(config));
       if (__result.hasError()) [[unlikely]] {
         std::rethrow_exception(__result.error());
       }
     }
-    inline PoseFrameResult detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) override {
+    inline PoseResult detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) override {
       auto __result = _swiftPart.detect(frame);
       if (__result.hasError()) [[unlikely]] {
         std::rethrow_exception(__result.error());
       }
       auto __value = std::move(__result.value());
       return __value;
+    }
+    inline void reset() override {
+      auto __result = _swiftPart.reset();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
     }
     inline std::string runtimeInfo() override {
       auto __result = _swiftPart.runtimeInfo();

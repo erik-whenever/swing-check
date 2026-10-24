@@ -122,13 +122,18 @@ open class HybridPoseDetectorSpec_cxx {
   }
 
   // Properties
-  
+  public final var rebuilds: Double {
+    @inline(__always)
+    get {
+      return self.__implementation.rebuilds
+    }
+  }
 
   // Methods
   @inline(__always)
-  public final func load(model: Int32) -> bridge.Result_void_ {
+  public final func configure(config: PoseConfig) -> bridge.Result_void_ {
     do {
-      try self.__implementation.load(model: margelo.nitro.swingcheck.pose.PoseModel(rawValue: model)!)
+      try self.__implementation.configure(config: config)
       return bridge.create_Result_void_()
     } catch (let __error) {
       let __exceptionPtr = __error.toCpp()
@@ -137,7 +142,7 @@ open class HybridPoseDetectorSpec_cxx {
   }
   
   @inline(__always)
-  public final func detect(frame: bridge.std__shared_ptr_margelo__nitro__camera__HybridFrameSpec_) -> bridge.Result_PoseFrameResult_ {
+  public final func detect(frame: bridge.std__shared_ptr_margelo__nitro__camera__HybridFrameSpec_) -> bridge.Result_PoseResult_ {
     do {
       let __result = try self.__implementation.detect(frame: { () -> any HybridFrameSpec in
         let __unsafePointer = bridge.get_std__shared_ptr_margelo__nitro__camera__HybridFrameSpec_(frame)
@@ -145,10 +150,21 @@ open class HybridPoseDetectorSpec_cxx {
         return __instance.getHybridFrameSpec()
       }())
       let __resultCpp = __result
-      return bridge.create_Result_PoseFrameResult_(__resultCpp)
+      return bridge.create_Result_PoseResult_(__resultCpp)
     } catch (let __error) {
       let __exceptionPtr = __error.toCpp()
-      return bridge.create_Result_PoseFrameResult_(__exceptionPtr)
+      return bridge.create_Result_PoseResult_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
+  public final func reset() -> bridge.Result_void_ {
+    do {
+      try self.__implementation.reset()
+      return bridge.create_Result_void_()
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_void_(__exceptionPtr)
     }
   }
   

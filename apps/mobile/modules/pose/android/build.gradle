@@ -1,3 +1,6 @@
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+
 buildscript {
   repositories {
     google()
@@ -21,6 +24,43 @@ def isNewArchitectureEnabled() {
 // MediaPipe Tasks for Android. Same version as the web's @mediapipe/tasks-vision. 1.x pulls in
 // litertlm-android (~20 MB of LLM runtime) for nothing Pose uses. ADR-0004.
 def mediapipeVersion = "0.10.35"
+
+// The .task models: versioned URLs + sha256 from ../models.json (shared with
+// training/pose_parity.py). Downloaded into build/, not src/, so nothing binary is checked in
+// and EAS fetches them the same way as a local build. A hash mismatch fails the build.
+def poseModels = new JsonSlurper().parse(file("../models.json")).findAll { k, v -> v instanceof Map }
+def poseModelAssets = layout.buildDirectory.dir("generated/pose-models/assets").get().asFile
+
+def sha256Hex(File f) {
+  def md = MessageDigest.getInstance("SHA-256")
+  f.withInputStream { is ->
+    byte[] buf = new byte[1 << 16]
+    int n
+    while ((n = is.read(buf)) > 0) md.update(buf, 0, n)
+  }
+  return md.digest().collect { String.format("%02x", it) }.join()
+}
+
+def downloadPoseModels = tasks.register("downloadPoseModels") {
+  inputs.file("../models.json")
+  outputs.dir(poseModelAssets)
+  doLast {
+    poseModelAssets.mkdirs()
+    poseModels.each { name, m ->
+      def dest = new File(poseModelAssets, m.file)
+      if (dest.exists() && sha256Hex(dest) == m.sha256) return
+      def tmp = new File(poseModelAssets, m.file + ".part")
+      URI.create(m.url).toURL().withInputStream { is -> tmp.withOutputStream { os -> os << is } }
+      def got = sha256Hex(tmp)
+      if (got != m.sha256) {
+        tmp.delete()
+        throw new GradleException("${m.file}: sha256 ${got}, expected ${m.sha256} (${m.url})")
+      }
+      dest.delete()
+      tmp.renameTo(dest)
+    }
+  }
+}
 
 apply plugin: "com.android.library"
 apply plugin: 'org.jetbrains.kotlin.android'
@@ -50,6 +90,8 @@ android {
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
     buildConfigField "String", "MEDIAPIPE_VERSION", "\"${mediapipeVersion}\""
+    buildConfigField "String", "POSE_LITE_SHA256", "\"${poseModels.lite.sha256}\""
+    buildConfigField "String", "POSE_FULL_SHA256", "\"${poseModels.full.sha256}\""
 
     externalNativeBuild {
       cmake {
@@ -117,8 +159,16 @@ android {
     targetCompatibility JavaVersion.VERSION_1_8
   }
 
+  // MediaPipe memory-maps the .task when it is stored uncompressed. Whether a library's
+  // noCompress reaches the app's APK is not certain, so the module also checks at run time
+  // (PoseModels.kt) and falls back to loading the model into a direct buffer.
+  androidResources {
+    noCompress += "task"
+  }
+
   sourceSets {
     main {
+      assets.srcDirs += [poseModelAssets]
       if (isNewArchitectureEnabled()) {
         java.srcDirs += [
           // React Codegen files
@@ -135,6 +185,8 @@ repositories {
 }
 
 
+tasks.named("preBuild") { dependsOn(downloadPoseModels) }
+
 dependencies {
   // For < 0.71, this will be from the local maven repo
   // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
@@ -146,6 +198,10 @@ dependencies {
 
   // The Frame type in the spec (frame-processor plugin)
   implementation project(":react-native-vision-camera")
+  // NativeFrame.image is a CameraX ImageProxy, but VisionCamera keeps CameraX as `implementation`.
+  // compileOnly at VC 5.2.3's version: the classes come from VisionCamera at run time, so the
+  // app never gets a second CameraX version.
+  compileOnly "androidx.camera:camera-core:1.7.0-alpha03"
 
   // MediaPipe Pose Landmarker (libmediapipe_tasks_jni.so)
   implementation "com.google.mediapipe:tasks-vision:${mediapipeVersion}"

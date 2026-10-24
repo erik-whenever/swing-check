@@ -16,6 +16,7 @@
 #include <NitroModules/HybridObjectRegistry.hpp>
 
 #include "JHybridPoseDetectorSpec.hpp"
+#include "JHybridPoseProbeSpec.hpp"
 #include <NitroModules/DefaultConstructableObject.hpp>
 
 namespace margelo::nitro::swingcheck::pose {
@@ -34,6 +35,14 @@ struct JHybridPoseDetectorSpecImpl: public jni::JavaClass<JHybridPoseDetectorSpe
     return javaPart->getJHybridPoseDetectorSpec();
   }
 };
+struct JHybridPoseProbeSpecImpl: public jni::JavaClass<JHybridPoseProbeSpecImpl, JHybridPoseProbeSpec::JavaPart> {
+  static constexpr auto kJavaDescriptor = "Lcom/margelo/nitro/swingcheck/pose/HybridPoseProbe;";
+  static std::shared_ptr<JHybridPoseProbeSpec> create() {
+    static const auto constructorFn = javaClassStatic()->getConstructor<JHybridPoseProbeSpecImpl::javaobject()>();
+    jni::local_ref<JHybridPoseProbeSpec::JavaPart> javaPart = javaClassStatic()->newObject(constructorFn);
+    return javaPart->getJHybridPoseProbeSpec();
+  }
+};
 
 void registerAllNatives() {
   using namespace margelo::nitro;
@@ -41,12 +50,19 @@ void registerAllNatives() {
 
   // Register native JNI methods
   margelo::nitro::swingcheck::pose::JHybridPoseDetectorSpec::CxxPart::registerNatives();
+  margelo::nitro::swingcheck::pose::JHybridPoseProbeSpec::CxxPart::registerNatives();
 
   // Register Nitro Hybrid Objects
   HybridObjectRegistry::registerHybridObjectConstructor(
     "PoseDetector",
     []() -> std::shared_ptr<HybridObject> {
       return JHybridPoseDetectorSpecImpl::create();
+    }
+  );
+  HybridObjectRegistry::registerHybridObjectConstructor(
+    "PoseProbe",
+    []() -> std::shared_ptr<HybridObject> {
+      return JHybridPoseProbeSpecImpl::create();
     }
   );
 }

@@ -12,24 +12,30 @@
 namespace margelo::nitro::camera { class HybridFrameSpec; }
 // Forward declaration of `HybridPoseDetectorSpec` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { class HybridPoseDetectorSpec; }
-// Forward declaration of `PoseFrameResult` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseFrameResult; }
-// Forward declaration of `PoseLandmark` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseLandmark; }
+// Forward declaration of `PoseConfig` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
+// Forward declaration of `PoseDelegate` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { enum class PoseDelegate; }
 // Forward declaration of `PoseModel` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { enum class PoseModel; }
+// Forward declaration of `PoseResult` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseResult; }
+// Forward declaration of `PoseStatus` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { enum class PoseStatus; }
 
 // Include C++ defined types
 #include "HybridPoseDetectorSpec.hpp"
-#include "PoseFrameResult.hpp"
-#include "PoseLandmark.hpp"
+#include "PoseConfig.hpp"
+#include "PoseDelegate.hpp"
 #include "PoseModel.hpp"
+#include "PoseResult.hpp"
+#include "PoseStatus.hpp"
+#include <NitroModules/ArrayBuffer.hpp>
 #include <NitroModules/Result.hpp>
 #include <VisionCamera/HybridFrameSpec.hpp>
 #include <exception>
 #include <memory>
 #include <string>
-#include <vector>
 
 // C++ helpers for Swift
 #include "SwingPose-Swift-Cxx-Bridge.hpp"

@@ -1,43 +1,64 @@
 import type { HybridObject } from 'react-native-nitro-modules'
 import type { Frame } from 'react-native-vision-camera'
 
-/** Which MediaPipe Pose Landmarker model to load. The web runs `lite`; N-2 measured both. */
+// The N-3.2 spec, taken from pose-android.md §6 (ADR-0004, tillägget). One interface for both
+// platforms: Kotlin (MediaPipe Tasks for Android) now, Swift (MediaPipe Tasks for iOS) in N-3.8.
+// Nothing here is Android-specific: time is in seconds, and coordinates are upright and
+// unmirrored on both platforms.
+
 export type PoseModel = 'lite' | 'full'
+export type PoseDelegate = 'gpu' | 'cpu'
+export type PoseStatus = 'ok' | 'no-pose' | 'error'
 
-/**
- * One landmark in normalized [0, 1] image coordinates, already rotated to upright.
- * Same fields as core's `NormalizedLandmark`, so a result maps to a `PoseSample` without
- * a conversion step.
- */
-export interface PoseLandmark {
-  x: number
-  y: number
-  z: number
-  visibility: number
+export interface PoseConfig {
+  model: PoseModel
+  /** Requested delegate. 'gpu' falls back to 'cpu' if the build fails. */
+  delegate: PoseDelegate
 }
 
-export interface PoseFrameResult {
-  /** The frame's presentation timestamp, as VisionCamera reports it. */
-  timestamp: number
-  /** All 33 landmarks, or empty when no pose was found. */
-  landmarks: PoseLandmark[]
-  /** Time spent inside MediaPipe for this frame, ms. */
+export interface PoseResult {
+  status: PoseStatus
+  /**
+   * The frame's time on the camera clock, in SECONDS on both platforms
+   * (Android: ImageInfo.timestamp ns / 1e9, iOS: CMSampleBuffer PTS). Diagnostics only:
+   * PoseSample.t is the t that capture.append(frame) returns for the same frame (ADR-0004).
+   */
+  frameTimeSec: number
+  /**
+   * Float32 × 132: [x, y, z, visibility] for MediaPipe's 33 landmarks in index order.
+   * x, y are normalized to the UPRIGHT, UNMIRRORED image (same as the web's <video>).
+   * Always 528 bytes. The contents are undefined unless status === 'ok'.
+   */
+  landmarks: ArrayBuffer
+  /** Android: YUV → downscaled, rotated RGBA (libyuv), ms. iOS: 0 (MPImage directly on BGRA). */
+  convertMs: number
+  /** detectForVideo alone, ms. */
   inferenceMs: number
+  /** All of detect(), including conversion, MPImage wrapping and packing, ms. */
+  totalMs: number
+  /** The delegate that actually ran. */
+  delegate: PoseDelegate
+  /** The buffer's rotation (0/90/180/270), which the module rotated away in the conversion. */
+  rotationDegrees: number
 }
 
-/**
- * MediaPipe Pose on the camera thread. One interface for both platforms: Kotlin
- * (MediaPipe Tasks for Android) and Swift (MediaPipe Tasks for iOS). ADR-0004.
- */
 export interface PoseDetector
   extends HybridObject<{ ios: 'swift'; android: 'kotlin' }> {
-  /** Loads the model in VIDEO mode. Calling it again with another model swaps it. */
-  load(model: PoseModel): void
-  /** Runs synchronously on the frame-processor thread. */
-  detect(frame: Frame): PoseFrameResult
+  /** Stores the choice. The landmarker is built on the next detect(), on the camera thread. */
+  configure(config: PoseConfig): void
   /**
-   * Loads the native MediaPipe library and names it. A debug check that the runtime is
-   * linked and loadable in this binary, nothing more.
+   * One inference on the frame, synchronously. NEVER throws per frame, returns status 'error'
+   * instead. Throws only if configure() has not been called. The caller owns the frame (dispose
+   * afterwards).
+   */
+  detect(frame: Frame): PoseResult
+  /** Number of rebuilds (config, thread change, time base going backwards): diagnostics. */
+  readonly rebuilds: number
+  /** Releases the landmarker. The next detect() rebuilds it. */
+  reset(): void
+  /**
+   * Loads the native MediaPipe library and names it. A debug check that the runtime is linked
+   * and loadable in this binary (ADR-0004: every module has one).
    */
   runtimeInfo(): string
 }

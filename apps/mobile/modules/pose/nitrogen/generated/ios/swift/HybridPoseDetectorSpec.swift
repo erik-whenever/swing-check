@@ -11,11 +11,12 @@ import NitroModules
 /// See ``HybridPoseDetectorSpec``
 public protocol HybridPoseDetectorSpec_protocol: HybridObject {
   // Properties
-  
+  var rebuilds: Double { get }
 
   // Methods
-  func load(model: PoseModel) throws -> Void
-  func detect(frame: (any HybridFrameSpec)) throws -> PoseFrameResult
+  func configure(config: PoseConfig) throws -> Void
+  func detect(frame: (any HybridFrameSpec)) throws -> PoseResult
+  func reset() throws -> Void
   func runtimeInfo() throws -> String
 }
 

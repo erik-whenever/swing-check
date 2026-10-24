@@ -7,21 +7,30 @@
 
 #include "JHybridPoseDetectorSpec.hpp"
 
-// Forward declaration of `PoseFrameResult` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseFrameResult; }
-// Forward declaration of `PoseLandmark` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseLandmark; }
+// Forward declaration of `PoseResult` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseResult; }
+// Forward declaration of `PoseStatus` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { enum class PoseStatus; }
+// Forward declaration of `PoseDelegate` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { enum class PoseDelegate; }
+// Forward declaration of `PoseConfig` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
 // Forward declaration of `PoseModel` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { enum class PoseModel; }
 // Forward declaration of `HybridFrameSpec` to properly resolve imports.
 namespace margelo::nitro::camera { class HybridFrameSpec; }
 
-#include "PoseFrameResult.hpp"
-#include "JPoseFrameResult.hpp"
-#include "PoseLandmark.hpp"
-#include <vector>
-#include "JPoseLandmark.hpp"
+#include "PoseResult.hpp"
+#include "JPoseResult.hpp"
+#include "PoseStatus.hpp"
+#include "JPoseStatus.hpp"
+#include <NitroModules/ArrayBuffer.hpp>
+#include <NitroModules/JArrayBuffer.hpp>
+#include "PoseDelegate.hpp"
+#include "JPoseDelegate.hpp"
 #include <string>
+#include "PoseConfig.hpp"
+#include "JPoseConfig.hpp"
 #include "PoseModel.hpp"
 #include "JPoseModel.hpp"
 #include <memory>
@@ -58,17 +67,25 @@ namespace margelo::nitro::swingcheck::pose {
   }
 
   // Properties
-  
+  double JHybridPoseDetectorSpec::getRebuilds() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<double()>("getRebuilds");
+    auto __result = method(_javaPart);
+    return __result;
+  }
 
   // Methods
-  void JHybridPoseDetectorSpec::load(PoseModel model) {
-    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<JPoseModel> /* model */)>("load");
-    method(_javaPart, JPoseModel::fromCpp(model));
+  void JHybridPoseDetectorSpec::configure(const PoseConfig& config) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<JPoseConfig> /* config */)>("configure");
+    method(_javaPart, JPoseConfig::fromCpp(config));
   }
-  PoseFrameResult JHybridPoseDetectorSpec::detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) {
-    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPoseFrameResult>(jni::alias_ref<margelo::nitro::camera::JHybridFrameSpec::JavaPart> /* frame */)>("detect");
+  PoseResult JHybridPoseDetectorSpec::detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPoseResult>(jni::alias_ref<margelo::nitro::camera::JHybridFrameSpec::JavaPart> /* frame */)>("detect");
     auto __result = method(_javaPart, std::dynamic_pointer_cast<margelo::nitro::camera::JHybridFrameSpec>(frame)->getJavaPart());
     return __result->toCpp();
+  }
+  void JHybridPoseDetectorSpec::reset() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("reset");
+    method(_javaPart);
   }
   std::string JHybridPoseDetectorSpec::runtimeInfo() {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("runtimeInfo");

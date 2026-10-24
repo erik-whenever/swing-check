@@ -34,8 +34,10 @@ target_sources(
   ../nitrogen/generated/android/SwingPoseOnLoad.cpp
   # Shared Nitrogen C++ sources
   ../nitrogen/generated/shared/c++/HybridPoseDetectorSpec.cpp
+  ../nitrogen/generated/shared/c++/HybridPoseProbeSpec.cpp
   # Android-specific Nitrogen C++ sources
   ../nitrogen/generated/android/c++/JHybridPoseDetectorSpec.cpp
+  ../nitrogen/generated/android/c++/JHybridPoseProbeSpec.cpp
 )
 
 # From node_modules/react-native/ReactAndroid/cmake-utils/folly-flags.cmake

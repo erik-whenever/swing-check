@@ -27,16 +27,22 @@ import com.margelo.nitro.core.HybridObject
 )
 abstract class HybridPoseDetectorSpec: HybridObject() {
   // Properties
-  
+  @get:DoNotStrip
+  @get:Keep
+  abstract val rebuilds: Double
 
   // Methods
   @DoNotStrip
   @Keep
-  abstract fun load(model: PoseModel): Unit
+  abstract fun configure(config: PoseConfig): Unit
   
   @DoNotStrip
   @Keep
-  abstract fun detect(frame: com.margelo.nitro.camera.HybridFrameSpec): PoseFrameResult
+  abstract fun detect(frame: com.margelo.nitro.camera.HybridFrameSpec): PoseResult
+  
+  @DoNotStrip
+  @Keep
+  abstract fun reset(): Unit
   
   @DoNotStrip
   @Keep

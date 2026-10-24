@@ -14,8 +14,10 @@ namespace margelo::nitro::swingcheck::pose {
     HybridObject::loadHybridMethods();
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
-      prototype.registerHybridMethod("load", &HybridPoseDetectorSpec::load);
+      prototype.registerHybridGetter("rebuilds", &HybridPoseDetectorSpec::getRebuilds);
+      prototype.registerHybridMethod("configure", &HybridPoseDetectorSpec::configure);
       prototype.registerHybridMethod("detect", &HybridPoseDetectorSpec::detect);
+      prototype.registerHybridMethod("reset", &HybridPoseDetectorSpec::reset);
       prototype.registerHybridMethod("runtimeInfo", &HybridPoseDetectorSpec::runtimeInfo);
     });
   }

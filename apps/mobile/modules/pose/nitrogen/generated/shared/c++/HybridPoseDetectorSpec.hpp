@@ -13,15 +13,15 @@
 #error NitroModules cannot be found! Are you sure you installed NitroModules properly?
 #endif
 
-// Forward declaration of `PoseModel` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { enum class PoseModel; }
-// Forward declaration of `PoseFrameResult` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseFrameResult; }
+// Forward declaration of `PoseConfig` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
+// Forward declaration of `PoseResult` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseResult; }
 // Forward declaration of `HybridFrameSpec` to properly resolve imports.
 namespace margelo::nitro::camera { class HybridFrameSpec; }
 
-#include "PoseModel.hpp"
-#include "PoseFrameResult.hpp"
+#include "PoseConfig.hpp"
+#include "PoseResult.hpp"
 #include <memory>
 #include <VisionCamera/HybridFrameSpec.hpp>
 #include <string>
@@ -53,12 +53,13 @@ namespace margelo::nitro::swingcheck::pose {
 
     public:
       // Properties
-      
+      virtual double getRebuilds() = 0;
 
     public:
       // Methods
-      virtual void load(PoseModel model) = 0;
-      virtual PoseFrameResult detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) = 0;
+      virtual void configure(const PoseConfig& config) = 0;
+      virtual PoseResult detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) = 0;
+      virtual void reset() = 0;
       virtual std::string runtimeInfo() = 0;
 
     protected:

@@ -5,7 +5,7 @@
 - **Licens:** BSD-3-Clause (`LICENSE`, `PATENTS`)
 - **Med:** `source/` (utom `test.sh`), `include/`, `LICENSE`, `PATENTS`, `AUTHORS`, `README.chromium`. Inget annat.
 - **Byggs av:** [`../libyuv.cmake`](../libyuv.cmake), som speglar uppströms `CMakeLists.txt` per arkitektur men
-  utan verktyg, tester och JPEG.
+  utan verktyg, tester, JPEG och SME (`rotate_sme.cc` kompilerar inte med NDK 27).
 
 Varför vendrad och inte hämtad vid bygget: libyuv finns inte i NDK:ns publika API, det finns ingen officiell
 AAR, och googlesource ger inga stabila tarball-hashar. Med källan i repot bygger EAS och ett lokalt bygge

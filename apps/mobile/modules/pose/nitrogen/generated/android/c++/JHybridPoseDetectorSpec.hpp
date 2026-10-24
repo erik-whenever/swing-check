@@ -50,12 +50,13 @@ namespace margelo::nitro::swingcheck::pose {
 
   public:
     // Properties
-    
+    double getRebuilds() override;
 
   public:
     // Methods
-    void load(PoseModel model) override;
-    PoseFrameResult detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) override;
+    void configure(const PoseConfig& config) override;
+    PoseResult detect(const std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>& frame) override;
+    void reset() override;
     std::string runtimeInfo() override;
 
   private:

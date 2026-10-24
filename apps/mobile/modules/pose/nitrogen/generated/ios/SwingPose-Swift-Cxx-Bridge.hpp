@@ -12,10 +12,8 @@
 namespace margelo::nitro::camera { class HybridFrameSpec; }
 // Forward declaration of `HybridPoseDetectorSpec` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { class HybridPoseDetectorSpec; }
-// Forward declaration of `PoseFrameResult` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseFrameResult; }
-// Forward declaration of `PoseLandmark` to properly resolve imports.
-namespace margelo::nitro::swingcheck::pose { struct PoseLandmark; }
+// Forward declaration of `PoseResult` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseResult; }
 
 // Forward declarations of Swift defined types
 // Forward declaration of `HybridFrameSpec_cxx` to properly resolve imports.
@@ -25,14 +23,12 @@ namespace SwingPose { class HybridPoseDetectorSpec_cxx; }
 
 // Include C++ defined types
 #include "HybridPoseDetectorSpec.hpp"
-#include "PoseFrameResult.hpp"
-#include "PoseLandmark.hpp"
+#include "PoseResult.hpp"
 #include <NitroModules/Result.hpp>
 #include <VisionCamera/HybridFrameSpec.hpp>
 #include <exception>
 #include <memory>
 #include <string>
-#include <vector>
 
 /**
  * Contains specialized versions of C++ templated types so they can be accessed from Swift,
@@ -40,17 +36,6 @@ namespace SwingPose { class HybridPoseDetectorSpec_cxx; }
  */
 namespace margelo::nitro::swingcheck::pose::bridge::swift {
 
-  // pragma MARK: std::vector<PoseLandmark>
-  /**
-   * Specialized version of `std::vector<PoseLandmark>`.
-   */
-  using std__vector_PoseLandmark_ = std::vector<PoseLandmark>;
-  inline std::vector<PoseLandmark> create_std__vector_PoseLandmark_(size_t size) noexcept {
-    std::vector<PoseLandmark> vector;
-    vector.reserve(size);
-    return vector;
-  }
-  
   // pragma MARK: std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>
   /**
    * Specialized version of `std::shared_ptr<margelo::nitro::camera::HybridFrameSpec>`.
@@ -84,13 +69,13 @@ namespace margelo::nitro::swingcheck::pose::bridge::swift {
     return Result<void>::withError(error);
   }
   
-  // pragma MARK: Result<PoseFrameResult>
-  using Result_PoseFrameResult_ = Result<PoseFrameResult>;
-  inline Result_PoseFrameResult_ create_Result_PoseFrameResult_(const PoseFrameResult& value) noexcept {
-    return Result<PoseFrameResult>::withValue(value);
+  // pragma MARK: Result<PoseResult>
+  using Result_PoseResult_ = Result<PoseResult>;
+  inline Result_PoseResult_ create_Result_PoseResult_(const PoseResult& value) noexcept {
+    return Result<PoseResult>::withValue(value);
   }
-  inline Result_PoseFrameResult_ create_Result_PoseFrameResult_(const std::exception_ptr& error) noexcept {
-    return Result<PoseFrameResult>::withError(error);
+  inline Result_PoseResult_ create_Result_PoseResult_(const std::exception_ptr& error) noexcept {
+    return Result<PoseResult>::withError(error);
   }
   
   // pragma MARK: Result<std::string>
