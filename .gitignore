@@ -60,6 +60,7 @@ training/datasets/
 training/.venv/
 training/.venv-tflite/
 training/.venv-coreml/
+training/.venv-pose/
 __pycache__/
 
 # Skaftdetektor — spårningar per klipp (regenereras av training/trace_swing.py)
@@ -79,3 +80,6 @@ docs/shaft/phase-audit/frames/
 # Paritetsbilden är en ruta ur Eriks klipp: identifierbar person, samma regel som data/shaft.
 apps/spike/assets/models/
 apps/spike/assets/parity/
+
+# Appen (N-3.2) — pose-paritetens stillbild och Python-referens (training/pose_parity.py). Samma skäl.
+apps/mobile/assets/parity/
