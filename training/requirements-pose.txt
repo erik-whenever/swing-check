@@ -1,0 +1,12 @@
+# Pose parity for the native app (training/pose_parity.py, N-3.2). Python 3.11, Windows.
+# Own venv: mediapipe pins its own numpy/protobuf, which clash with requirements.txt.
+#
+#   py -3.11 -m venv training\.venv-pose
+#   training\.venv-pose\Scripts\python.exe -m pip install -r training\requirements-pose.txt
+#
+# The same MediaPipe version as the app (com.google.mediapipe:tasks-vision 0.10.35) and the web
+# (@mediapipe/tasks-vision ^0.10.35).
+mediapipe==0.10.35
+# Pinned as resolved 2026-10-24 (mediapipe's own dependencies):
+numpy==2.4.6
+opencv-contrib-python==5.0.0.93

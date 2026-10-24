@@ -435,6 +435,8 @@ Steg 3–6 är **inte** med i ONNX-grafen (Ultralytics exporterar utan NMS med
 
 Kör testen med `py -3.11 -m unittest discover -s training -t training`.
 | `requirements.txt` | Pinnade beroenden (utom PyTorch, se ovan). |
+| `pose_parity.py` | Pose-paritet för appen (N-3.2): en stillbild genom MediaPipe 0.10.35 i Python, lite och full, IMAGE-läge på CPU → `apps/mobile/assets/parity/` (gitignorerad). Egen venv: `requirements-pose.txt`. Modellerna hämtas ur `apps/mobile/modules/pose/models.json` med sha256-kontroll. |
+| `requirements-pose.txt` | `training\.venv-pose`: mediapipe 0.10.35 och dess beroenden. |
 
 `shaft_coco.py` finns för att `prepare_dataset.py` och `evaluate.py` **måste** tolka
 synlighetsflaggan exakt likadant. CVAT lämnar kvar koordinaten för en `outside`-punkt i
