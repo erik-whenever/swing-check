@@ -3665,3 +3665,11 @@ fp32 och fp16, samma vikter. Konverteringen görs utan Mac, pariteten mäts på 
 ### [ ] N-5 — Handsfree med taligenkänning på enheten
 
 ### [ ] N-6 — TestFlight och Play
+
+### [ ] N-7 — Lås pose-modellens version och hash (webb + app)
+Webbens `scripts/download-pose-model.mjs` hämtar `…/pose_landmarker_lite/float16/latest/…` utan hashkontroll.
+Spiken låser `…/float16/1/…` med sha256 (`apps/spike/plugins/withPoseLandmarker.js`: lite `59929e1d…d574a`,
+full `5134a3aa…011b1`). Om Google byter `latest`, får webben och appen olika modeller utan att något larmar,
+och webbens trösklar (`poseEnvelope`, `poseSegments`) gäller inte längre för appen. Lås båda vägarna mot samma
+versionsadress och samma sha256, och låt nedladdningen fallera vid avvikelse. Appens modul (`modules/pose`,
+N-3.2) läser samma tabell. Hittat i [pose-android.md](native/pose-android.md) §4. Rör webbkod, så den görs utanför N-3.

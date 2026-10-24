@@ -206,8 +206,8 @@ kalibrerar om. Konfidensgränserna lämnas på MediaPipes standardvärde 0,5/0,5
   använda `setModelAssetBuffer` (fungerar även komprimerat, men kostar 5–9 MB heap).
 - **Webbens nedladdningsskript (`scripts/download-pose-model.mjs`) hämtar `…/float16/latest/…`**, medan
   spiken låser `…/float16/1/…` och kontrollerar sha256. Om Google byter `latest`, får webben och appen
-  olika modeller tyst. Det ska rättas i en egen uppgift, inte här (rör inte kod). Flaggas för
-  BACKLOG.
+  olika modeller tyst. Det rättas i
+  [BACKLOG N-7](../BACKLOG.md).
 
 **Gradle:** `implementation 'com.google.mediapipe:tasks-vision:0.10.35'`, låst och samma version som
 webbens npm-paket. Spiken körde 0.10.29.
