@@ -8,6 +8,8 @@
 
 import { configureApi } from '@swingcheck/core/lib/api';
 import { DEFAULT_ANALYSIS_LANGUAGE, setAnalysisLanguage } from '@swingcheck/core/lib/language';
+import { INSTALL_ID_HEADER } from '@swingcheck/core/lib/installId';
+import { loadInstallId } from './installId';
 
 /**
  * React Native's fetch sends no Origin header, and the Worker rejects a proxy call without
@@ -21,10 +23,20 @@ export const NATIVE_ORIGIN = 'swingcheck://se.swingcheck.app';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').trim();
 
+/**
+ * Anonymous identity per installation (W-2). The Worker caps and logs cost per identity
+ * once its side lands (docs/native/identitet-w2.md); until then it ignores the header.
+ * Only the app sends it — the Worker's CORS does not allow the header, so the web must not.
+ */
+export const INSTALL_ID = loadInstallId();
+
 configureApi({
   url: API_URL,
   logCost: __DEV__,
-  headers: { Origin: NATIVE_ORIGIN },
+  headers: {
+    Origin: NATIVE_ORIGIN,
+    ...(INSTALL_ID ? { [INSTALL_ID_HEADER]: INSTALL_ID } : {}),
+  },
 });
 
 // The one place the language is set; the prompt and TTS (ttsConfigFor) both read it.
