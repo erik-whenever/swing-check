@@ -183,7 +183,10 @@ ligger efter cache-brytpunkten och ett test visar byte-identiskt prefix sv/en. `
 som W-2:s tak** (origin skyddar inte ensam; taket gör det). Cache-mätningen (sv/en, före/efter) får göras med ≤ 10
 riktiga anrop. Dirigenten bygger Worker-ändringen och skriver deploy-kommandon; **📱 Erik kör deploy + mätning lokalt**
 (wrangler-uppgifterna finns bara där).
-**Kvar:** Worker-ändringen (tillsammans med W-2), deploy, cache-mätningen. Därtill prov på enhet, webbens `useHistory` har kvar `MAX_RECORDS`, UI (språk, tak, "video rensad") i N-3.6.
+2026-10-25 (dirigent, körning 3): webbens `MAX_RECORDS` borta — `src/lib/historyRetention.ts` mäter faktiska bytes och kör
+cores `planMediaRetention` (video först, sedan bildrutor, poster behålls); tak `mediaCapMb` (300 MB) i settings, `SwingCard`
+visar "video rensad", Supabase-sidtak 500 (`OSÄKER`); 8 tester.
+**Kvar:** Worker-ändringen (tillsammans med W-2), deploy, cache-mätningen. Därtill prov på enhet, UI (språk, tak-reglage, "video rensad") i N-3.6.
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.

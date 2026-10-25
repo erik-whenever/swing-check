@@ -17,6 +17,7 @@
 - **N-3.5 `[~]` (dirigent 2026-10-25):** språk som parameter (prefix språkoberoende), `core/mediaRetention`
   (300 MB, video först), appens `coreSetup`/`mediaStore`. Workern ger 403 utan `Origin`; appen skickar
   `swingcheck://se.swingcheck.app`, som måste in i `ALLOWED_ORIGINS` före första analysen (`[?]` till Erik).
+  Webbens historik följer nu samma MB-policy (`src/lib/historyRetention.ts`, `videoPurged`/`framesPurged` additivt i `SwingRecord`).
 - **D-1 `[📱]`:** skissförslaget ligger i [design/d1/](design/d1/README.md); Erik granskar mot listan i README:n.
   Volt `#D6F03A` reserverad för det maskinen ser; livesessionen alltid mörk och läsbar på 3 m.
 - **V-1 `[~]`:** verktyg och metod klara ([eval/v1-facit.md](eval/v1-facit.md)); väntar på Eriks urval och facit
