@@ -30,7 +30,8 @@
     "plugins": [
       "expo-dev-client",
       "expo-sharing",
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

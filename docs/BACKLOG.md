@@ -304,7 +304,12 @@ görs (utgångsläge, kameravinkel, nivå, vad som visas och varför). **ADR-num
 
 W-1 ligger i [arkivet](archive/backlog-strommar.md).
 
-### [ ] W-2 — Identitet per installation + tak per identitet
+### [~] W-2 — Identitet per installation + tak per identitet
+2026-10-25 (dirigent): klientdel + spec. Core `lib/installId.ts` (UUID v4, validering, testad); appen läser/skapar
+identiteten i Keychain (`expo-secure-store`, `THIS_DEVICE_ONLY`) och skickar `X-SwingCheck-Install`. Webben skickar
+den inte (CORS). Spec + Worker-kodskiss: [identitet-w2.md](native/identitet-w2.md). **[?]** Får Workern ta emot
+headern och få tak per identitet (40 anrop / 400 000 tokens per dygn, D1-tabell `install_usage`, migrering 0003)
+— kräver prod-deploy och prod-D1? Kvar därtill: ombyggd dev-klient + enhetsprov, App Attest före öppen release.
 **Före N-6.** Inget inloggat konto i betan. Appen skapar en anonym identitet per installation (slumpad,
 lagrad i Keychain) och skickar den till Workern. Workern begränsar per identitet (anrop och/eller tokens per
 dygn) och loggar förbrukningen, så att kostnaden per analys går att följa. Native-anrop har ingen `Origin`,
