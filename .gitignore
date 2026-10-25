@@ -84,5 +84,9 @@ apps/spike/assets/parity/
 # Appen (N-3.2) — pose-paritetens stillbild och Python-referens (training/pose_parity.py). Samma skäl.
 apps/mobile/assets/parity/
 
+# V-1 facit för domkvalitet — bildrutor ur Eriks klipp (identifierbara personer) och
+# rådata från körningarna. Manifest (sha256) och facit committas i docs/eval/v1/.
+data/eval/
+
 # yt-dlp — lokalt verktyg för klipphämtningen (docs/shaft/annotation-spec.md), inte källkod
 /yt-dlp.exe

@@ -1,0 +1,26 @@
+{
+  // V-1:s eval-verktyg. Typkontrolleras av `tsc -b` (refereras från tsconfig.json) så att
+  // eval-reglerna hålls i core:s `Rule`-format och skripten följer core:s API. Node-typer
+  // för verktyget, DOM för koden som körs i puppeteer-sidan, vitest för testerna.
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../node_modules/.tmp/tsconfig.eval.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["*.ts"]
+}
