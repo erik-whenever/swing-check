@@ -21,6 +21,8 @@ export interface AppSettings {
   ruleMode: RuleMode;
   /** Library ids in the user's order. Kept in 'recommended' mode so switching back restores them. */
   customRuleIds: string[];
+  /** The welcome intro has been completed or skipped (shown on first launch only). */
+  welcomeSeen: boolean;
 }
 
 // OSÄKER: slider bounds are a product guess (50 MB ≈ a few slow-mo clips; 4 GB is far above
@@ -38,6 +40,7 @@ export function defaultSettings(): AppSettings {
     defaultAngle: 'dtl',
     ruleMode: 'recommended',
     customRuleIds: [],
+    welcomeSeen: false,
   };
 }
 
@@ -85,6 +88,7 @@ export function sanitizeSettings(value: unknown): AppSettings {
     defaultAngle: oneOf(ANGLES, v.defaultAngle, d.defaultAngle),
     ruleMode: oneOf(MODES, v.ruleMode, d.ruleMode),
     customRuleIds: sanitizeRuleIds(v.customRuleIds),
+    welcomeSeen: v.welcomeSeen === true,
   };
 }
 
