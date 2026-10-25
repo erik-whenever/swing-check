@@ -2,7 +2,7 @@
 // navigation. Screens stay presentation-only; everything stateful lives here.
 
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, type CompositeNavigationProp, type RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight, type BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -10,13 +10,21 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
-import type { PlayerLevel, RulePhase } from '@swingcheck/core/lib/recommendRules';
+import {
+  accuracyVerdict,
+  NO_ACCURACY_DATA,
+  type PlayerLevel,
+  type RuleAccuracyMap,
+  type RulePhase,
+} from '@swingcheck/core/lib/recommendRules';
 import { RULE_LIBRARY } from '@swingcheck/core/data/ruleLibrary';
 
 import { AnalysisScreen, PHASE_ORDER } from '../screens/AnalysisScreen';
 import { HistoryScreen, type HistoryItem } from '../screens/HistoryScreen';
 import { LiveSessionScreen, type LiveRuleVerdict } from '../screens/LiveSessionScreen';
 import { ResultScreen, type ResultRuleInfo } from '../screens/ResultScreen';
+import { RuleLibraryScreen } from '../screens/RuleLibraryScreen';
+import type { PhaseFilter } from '../screens/ruleLibraryLogic';
 import { RulesScreen } from '../screens/RulesScreen';
 import { UploadScreen, type SwingWindow } from '../screens/UploadScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
@@ -257,17 +265,65 @@ export function RulesContainer() {
     <RulesScreen
       style={useTopInset()}
       mode={mode}
-      onModeChange={(m) => void setMode(m)}
+      onModeChange={(m) => {
+        void setMode(m);
+        // OSÄKER: every switch to "Egna" opens the library (also when the own set already has
+        // rules) — the d1 entry point. Risk: low — one tap "Klar" back if unwanted.
+        if (m === 'custom') navigation.navigate('RuleLibrary');
+      }}
       rules={active.rules}
       angle={active.angle}
       levelLabel={LEVEL_LABEL[settings.level]}
       focusRuleId={entries[0]?.focusRuleId}
       enabledIds={enabledIds}
       onToggle={onToggle}
-      onAdd={() => {
-        // TODO(N-3.x): rule picker from the full library (own rules).
-      }}
+      onAdd={() => navigation.navigate('RuleLibrary')}
       onApply={() => navigation.navigate('Swing')}
+    />
+  );
+}
+
+// ── Regelbiblioteket ─────────────────────────────────────────────────────────
+
+// TODO(V-1): feed measured accuracy here; until then no rule is validated.
+const LIBRARY_ACCURACY: RuleAccuracyMap = NO_ACCURACY_DATA;
+const VALIDATED_IDS: ReadonlySet<string> = new Set(
+  RULE_LIBRARY.filter((r) => accuracyVerdict(LIBRARY_ACCURACY[r.id]) === 'pass').map((r) => r.id),
+);
+
+export function RuleLibraryContainer() {
+  const navigation = useNavigation<StackNav>();
+  const { settings } = useSettings();
+  const { mode, customRuleIds, setMode, toggleRule } = useRuleSelection();
+  const [query, setQuery] = useState('');
+  const [phase, setPhase] = useState<PhaseFilter>('all');
+  const [angle, setAngle] = useState<CameraAngle>(settings.defaultAngle);
+  const insets = useSafeAreaInsets();
+  const selectedIds = useMemo(() => new Set(customRuleIds), [customRuleIds]);
+  const onToggle = useCallback(
+    (id: string) => {
+      void toggleRule(id);
+      // OSÄKER: picking in the library from "Rekommenderat" (via "+") starts "Egna" from the
+      // stored custom list, not seeded with the recommendation. Risk: low — matches "Egna".
+      if (mode !== 'custom') void setMode('custom');
+    },
+    [mode, toggleRule, setMode],
+  );
+  return (
+    <RuleLibraryScreen
+      // iOS modal sheet sits below the status bar already; elsewhere it is a full card.
+      style={{ paddingTop: Platform.OS === 'ios' ? 0 : insets.top }}
+      library={RULE_LIBRARY}
+      query={query}
+      onQueryChange={setQuery}
+      phase={phase}
+      onPhaseChange={setPhase}
+      angle={angle}
+      onAngleChange={setAngle}
+      selectedIds={selectedIds}
+      onToggle={onToggle}
+      validatedIds={VALIDATED_IDS}
+      onDone={() => navigation.goBack()}
     />
   );
 }

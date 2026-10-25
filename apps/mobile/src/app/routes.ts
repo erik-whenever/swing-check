@@ -17,6 +17,8 @@ export type RootStackParamList = {
   Analysis: undefined;
   /** Resultat for a stored history entry. `fromHistory` hides "Nästa sving". */
   Result: { entryId: string; fromHistory?: boolean };
+  /** Regelbiblioteket — egna regler. Modal på iOS, öppnas från Regler ("+" / "Egna"). */
+  RuleLibrary: undefined;
   /** Developer screen (pose/parity checks). Only registered in __DEV__. */
   Dev: undefined;
 };
