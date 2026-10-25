@@ -77,7 +77,9 @@ Nitro 0.37.1; modulerna `pose` och `shaft` (Kotlin + Swift-stubbar). Verifierat 
 MediaPipe + LiteRT laddade, GPU stöds) och iPhone 16 Pro (30,0 fps). Bundle-id `se.swingcheck.app`. Kör bara
 en Metro åt gången (spikens Metro på 8081 gav iOS-kraschen).
 
-#### [~] N-3.2 — Pose-modul Android
+#### [📱] N-3.2 — Pose-modul Android
+**📱 Test (Erik, Galaxy A16 4G):** 1) bygg `development` för Android och öppna dev-skärmen; 2) kör Paritet och
+§9.4 (lite/full × GPU/CPU, 3 min var, kall telefon, plus `rgb`); 3) dela loggen (JSON) till nästa session.
 MediaPipe Tasks i VIDEO-läge, lite/full valbart, rotation → `PoseSample`. Underlag:
 [pose-android.md](native/pose-android.md). Specen tas från dess §6 ([ADR-0004, tillägget](adr/0004-native-pipeline-nitro-modules.md)).
 Kameran går i `'yuv'`. Modulen skalar ned, roterar och konverterar natively till RGBA i 720×1280 (libyuv).
@@ -170,7 +172,15 @@ svingdetektion → rututtag för Vision + 26 skaftrutor. Rututtaget görs av mod
 äger klockan. **Grind:** värme under en hel session med pose + kodare + förhandsvisning (rututtag.md, risk 1).
 Faller den, blir det väg 1 (rå ring i 540p).
 
-#### [ ] N-3.5 — Analys + lagring
+#### [~] N-3.5 — Analys + lagring
+2026-10-25 (dirigent): språket är en parameter (`core/language.ts`), prompten och TTS läser samma värde; språket
+ligger efter cache-brytpunkten och ett test visar byte-identiskt prefix sv/en. `core/mediaRetention`: tak i bytes
+(standard 300 MB), video rensas äldst först, sedan bildrutor, resultat aldrig. Appen: `coreSetup`
+(`EXPO_PUBLIC_API_URL`, saknas → fel utan anrop) och `mediaStore` (faktiska filstorlekar). Detaljer:
+[analys-lagring.md](native/analys-lagring.md).
+**Kvar:** `[?]` Workern nekar anrop utan `Origin` (403); appen skickar `Origin: swingcheck://se.swingcheck.app` —
+får det läggas i prod-Workerns `ALLOWED_ORIGINS`, och får cache-mätningen (sv/en, före/efter) göras med några
+riktiga anrop? Därtill prov på enhet, webbens `useHistory` har kvar `MAX_RECORDS`, UI (språk, tak, "video rensad") i N-3.6.
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.
@@ -183,15 +193,18 @@ V-1:s facit visar att det förbättrar domarna.
   först; **resultat och metadata behålls alltid**. Historiken visar en sving utan video som "video rensad".
   Taket är en inställning med ett försiktigt standardvärde; storleken räknas på faktiska bytes, inte uppskattat.
 
-#### [ ] N-3.6 — Kärn-UI
+#### [?] N-3.6 — Kärn-UI
+**[?] Väntar på Eriks godkännande av D-1-skisserna** (D-1: ingen produktkod före godkända skisser).
 Kamera/session, resultat, regler, historik, TTS. Club Cream-tokens.
 
-#### [~] N-3.7 — shaft-v2 → `.mlpackage`
+#### [📱] N-3.7 — shaft-v2 → `.mlpackage`
+**📱 Mac:** 1) checka ut `stream-native` på Macen; 2) kör coreml-export.md §5 (paritet fp32/fp16); 3) committa siffrorna i coreml-export.md.
 fp32 och fp16, samma vikter. Konverteringen görs utan Mac, pariteten mäts på Mac.
 **Konverteringen är klar** (`32b2927`, [coreml-export.md](shaft/coreml-export.md)): båda paketen, spec-kontrollerade.
 **Kvar:** pariteten på Mac (coreml-export.md §5). I betan används skaftet bara som visuell tracer.
 
-#### [ ] N-3.8 — Swift-moduler: pose (MediaPipe iOS) + skaft (Core ML direkt) [Mac]
+#### [📱] N-3.8 — Swift-moduler: pose (MediaPipe iOS) + skaft (Core ML direkt) [Mac]
+**📱 Kräver Mac** (Xcode-bygge och iPhone); förbereds inte i molnet.
 I betan ritar skaftet bara en visuell tracer i resultatet; inga skaftmått till prompten.
 **Från N-2:**
 - **Mät om skafttiden med Core ML direkt.** Pröva också float16. TFLite med Core ML-delegaten gav 32 ms.

@@ -14,6 +14,10 @@
   Mätning 1 på Galaxy A16 4G: 4,55 fps, `inferMs` 183 ms i median, `convertMs` 5,7 ms, paritet på CPU 1,1e-5.
   Huvudmisstanke: Java-API:ts CPU-väg kör XNNPACK med en tråd. **Nästa:** Erik kör §9.4, sedan rotorsak med
   siffror. Fixen görs i N-8, inte nu.
+- **N-3.5 `[~]` (dirigent 2026-10-25):** språk som parameter (prefix språkoberoende), `core/mediaRetention`
+  (300 MB, video först), appens `coreSetup`/`mediaStore`. Workern ger 403 utan `Origin`; appen skickar
+  `swingcheck://se.swingcheck.app`, som måste in i `ALLOWED_ORIGINS` före första analysen (`[?]` till Erik).
+- **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac), N-3.6 `[?]` (väntar på D-1-godkännande).
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
 - **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
   F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
