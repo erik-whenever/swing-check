@@ -27,6 +27,8 @@
 ## Att veta innan du börjar
 - **Kör bara en Metro åt gången** (spikens på 8081 gav iOS-kraschen i N-3.1). `apps/mobile` kör på 8082.
 - **Verifiering:** rotens `npm test` (vitest), `npm run lint`, `npx tsc -b`, och `npx tsc --noEmit` i `apps/mobile`.
+  CI kör samma fyra på push (`.github/workflows/ci.yml`). Lint är rent och `scripts/*.test.mjs` laddar sedan
+  2026-10-25. `mp4Probe.local.test.ts` (bara lokalt) kan slå i 5 s-timeouten under full svit (8 228 småläsningar med `decodeMebx`); ej åtgärdat.
 - **`origin/stream-native` har `ee746f9 " ka"`**, som lokalt ersattes av `98017c7` med identiskt träd. Push
   kräver att Erik väljer väg (merge `-s ours` eller `--force-with-lease`); ingen session pushar själv.
 - **Tomma mappar** `C:\SwingCheck-{coreml,grab,pose}` från mergade worktrees kan tas bort när inget låser dem.

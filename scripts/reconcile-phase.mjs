@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Reconcile annotated phase values from a CVAT COCO export against the derived
 // values in the batch manifest. Writes an authoritative lookup table and prints a
 // crosstable of derived → annotated so the direction of derivation errors is visible.

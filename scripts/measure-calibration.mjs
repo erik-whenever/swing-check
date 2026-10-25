@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Measure INTER-ANNOTATOR AGREEMENT on the shaft calibration set.
 //
 // WHAT THIS IS FOR. The 100 calibration frames are annotated independently by both

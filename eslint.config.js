@@ -12,9 +12,11 @@ export default defineConfig([
   // `training/.venv` is the S-10 Python environment, whose site-packages ship third-
   // party JS (matplotlib's web backend and friends). The same goes for the per-task venvs
   // (`training/.venv-tflite`, `-coreml`, `-pose`).
+  // `data/shaft` is gitignored annotation data; the top-review venv under it ships the same
+  // third-party JS.
   // `apps/mobile` (N-3) lints itself with eslint-config-expo (`npm run lint` there);
   // ESLint 10 would otherwise load its flat config and plugins from here.
-  globalIgnores(['dist', 'dev-dist', 'training/.venv', 'training/.venv-*', 'apps/mobile']),
+  globalIgnores(['dist', 'dev-dist', 'training/.venv', 'training/.venv-*', 'data/shaft', 'apps/mobile']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

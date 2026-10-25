@@ -1,0 +1,39 @@
+# Same four checks a session runs locally (CLAUDE.md → Kommandon). Tests that need
+# Erik's local clips (`*.local.test.ts`) skip themselves when the files are absent.
+name: CI
+
+on:
+  push:
+
+jobs:
+  web-and-core:
+    runs-on: ubuntu-latest
+    env:
+      # puppeteer is only used by local dev scripts (icons, measurement harnesses).
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Under load a few heavy tests (session-multi robustness, tts' cold module import)
+      # pass 5 s, vitest's default; a 2-core runner is load. Real hangs still fail.
+      - run: npx vitest run --testTimeout=30000
+      - run: npm run lint
+      - run: npx tsc -b
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+        working-directory: apps/mobile
+      - run: npm run typecheck
+        working-directory: apps/mobile

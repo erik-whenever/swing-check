@@ -22,11 +22,14 @@ export function FrameLightbox({ frames, index, poseSamples, onClose, onNavigate 
 
   const frame = frames[index];
 
-  // Reset zoom when switching frames
-  useEffect(() => {
+  // Reset zoom when switching frames. Done during render (React's "adjust state on prop
+  // change" pattern), not in an effect, so the new frame never paints at the old zoom.
+  const [zoomedIndex, setZoomedIndex] = useState(index);
+  if (zoomedIndex !== index) {
+    setZoomedIndex(index);
     setZoom(1);
     setOrigin({ x: 50, y: 50 });
-  }, [index]);
+  }
 
   // Keyboard: arrows to navigate, esc to close
   useEffect(() => {

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Draw a TRAINING BATCH out of the exported dataset ZIPs, with the calibration set
 // (and every earlier batch) excluded.
 //

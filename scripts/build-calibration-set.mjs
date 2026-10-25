@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Draw the fixed, reproducible CALIBRATION SET out of the exported dataset ZIPs.
 //
 // WHAT THIS IS FOR. The 100 frames drawn here are annotated INDEPENDENTLY by both

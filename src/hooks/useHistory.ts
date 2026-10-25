@@ -22,38 +22,46 @@ async function readLocalRecords(): Promise<SwingRecord[]> {
   return items.filter(Boolean) as SwingRecord[];
 }
 
+/** Supabase when configured (hydrated with local video/frames), otherwise IndexedDB. */
+async function readRecords(): Promise<SwingRecord[]> {
+  const local = await readLocalRecords();
+
+  // Prefer Supabase when configured; otherwise IndexedDB is the source of truth.
+  if (isSupabaseEnabled()) {
+    const remote = await loadSwingsFromSupabase(MAX_RECORDS);
+    if (remote) {
+      // Hydrate remote metadata with locally cached video/frames where available.
+      const localById = new Map(local.map((r) => [r.id, r]));
+      return remote.map((r) => {
+        const cached = localById.get(r.id);
+        return cached ? { ...r, videoBlob: cached.videoBlob, frames: cached.frames } : r;
+      });
+    }
+    // Supabase unavailable/failed → fall through to IndexedDB.
+  }
+
+  return local;
+}
+
 export function useHistory() {
   const [records, setRecords] = useState<SwingRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // State is only set in promise callbacks, so the mount effect can call this directly;
+  // `loadRecords` adds the synchronous `setLoading(true)` for later refreshes.
+  const fetchRecords = useCallback(
+    () =>
+      readRecords()
+        .then(setRecords)
+        .catch((err) => console.error('Failed to load history:', err))
+        .finally(() => setLoading(false)),
+    []
+  );
+
   const loadRecords = useCallback(async () => {
     setLoading(true);
-    try {
-      const local = await readLocalRecords();
-
-      // Prefer Supabase when configured; otherwise IndexedDB is the source of truth.
-      if (isSupabaseEnabled()) {
-        const remote = await loadSwingsFromSupabase(MAX_RECORDS);
-        if (remote) {
-          // Hydrate remote metadata with locally cached video/frames where available.
-          const localById = new Map(local.map((r) => [r.id, r]));
-          const merged = remote.map((r) => {
-            const cached = localById.get(r.id);
-            return cached ? { ...r, videoBlob: cached.videoBlob, frames: cached.frames } : r;
-          });
-          setRecords(merged);
-          return;
-        }
-        // Supabase unavailable/failed → fall through to IndexedDB.
-      }
-
-      setRecords(local);
-    } catch (err) {
-      console.error('Failed to load history:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    await fetchRecords();
+  }, [fetchRecords]);
 
   const saveRecord = useCallback(
     async (record: SwingRecord) => {
@@ -89,9 +97,10 @@ export function useHistory() {
     [loadRecords]
   );
 
+  // `loading` starts true, so the first load needs no synchronous setLoading.
   useEffect(() => {
-    loadRecords();
-  }, [loadRecords]);
+    void fetchRecords();
+  }, [fetchRecords]);
 
   return { records, loading, saveRecord, deleteRecord, refresh: loadRecords };
 }
