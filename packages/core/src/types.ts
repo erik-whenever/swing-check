@@ -27,7 +27,7 @@ export interface RuleResult {
   visual_evidence?: string;
   /** Omitted by the lean quick-mode schema — TTS never reads it. */
   observation?: string;
-  short_verdict?: string;  // <=6 word Swedish summary, used for TTS quick mode
+  short_verdict?: string;  // <=6 word summary in the analysis language (lib/language.ts), used for TTS quick mode
   suggestion?: string;
   correction?: string;
   drill_suggestion?: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSwingPrompt, buildFrameCountNote } from './prompt';
+import { buildSwingPrompt, buildFrameCountNote, buildLanguageNote, SYSTEM_PROMPT } from './prompt';
 import type { Rule } from '../types';
 
 function rule(partial: Partial<Rule> = {}): Rule {
@@ -74,5 +74,26 @@ describe('buildFrameCountNote', () => {
   it('carries the exact count for the post-breakpoint block', () => {
     expect(buildFrameCountNote(17)).toContain('17');
     expect(buildFrameCountNote(17)).not.toBe(buildFrameCountNote(18));
+  });
+});
+
+// N-3.5: the response language is a parameter, and the cached prefix (system prompt +
+// rules block) must not depend on it — otherwise every language pays its own cache writes.
+describe('language independence of the cached prefix', () => {
+  it('names no response language in the system prompt or the rules block', () => {
+    for (const quickMode of [true, false]) {
+      const prompt = buildSwingPrompt({ rules: RULES, focusRuleId: 'head-still', quickMode });
+      for (const text of [SYSTEM_PROMPT, prompt]) {
+        // "English" does occur: JSON keys and enum values stay in English in every language.
+        expect(text).not.toMatch(/Swedish|svensk/i);
+      }
+    }
+  });
+
+  it('puts the language and its examples in the post-breakpoint note', () => {
+    expect(buildLanguageNote('sv')).toContain('Swedish');
+    expect(buildLanguageNote('sv')).toContain('Händerna för lågt i toppen');
+    expect(buildLanguageNote('en')).toContain('English');
+    expect(buildLanguageNote('en')).not.toBe(buildLanguageNote('sv'));
   });
 });

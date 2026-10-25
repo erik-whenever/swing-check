@@ -1,5 +1,6 @@
 import type { Rule, SwingAnalysis } from '../types';
-import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote } from './prompt';
+import { SYSTEM_PROMPT, buildSwingPrompt, buildFrameCountNote, buildLanguageNote } from './prompt';
+import { getAnalysisLanguage, type AnalysisLanguage } from './language';
 import { createLogger } from './logger';
 
 const log = createLogger('API');
@@ -14,12 +15,31 @@ export interface ApiConfig {
   url: string;
   /** Log a WARN line with each analysis' cost (web: VITE_DEV_PREVIEW or VITE_DEBUG_MODE). */
   logCost: boolean;
+  /**
+   * Extra request headers. The native app sets `Origin` here: React Native's fetch sends
+   * none, and the Worker rejects a proxy call without an allowed Origin (403). See
+   * docs/native/analys-lagring.md.
+   */
+  headers: Record<string, string>;
 }
 
-let config: ApiConfig = { url: '/api/analyze', logCost: false };
+let config: ApiConfig = { url: '/api/analyze', logCost: false, headers: {} };
 
 export function configureApi(next: Partial<ApiConfig>): void {
   config = { ...config, ...next };
+}
+
+/** False when the shell configured no endpoint (native app without EXPO_PUBLIC_API_URL). */
+export function isApiConfigured(): boolean {
+  return config.url.trim() !== '';
+}
+
+/** Thrown before any request is made when no endpoint is configured. */
+export class ApiNotConfiguredError extends Error {
+  constructor() {
+    super('Analysis endpoint not configured — set the Worker URL (native: EXPO_PUBLIC_API_URL)');
+    this.name = 'ApiNotConfiguredError';
+  }
 }
 
 // Priser 2026-08, verifiera vid modellbyte
@@ -113,8 +133,12 @@ export async function analyzeSwing(
      * untouched; only the session path cares about the number.
      */
     onUsage?: (usage: AnalysisUsage) => void;
+    /** Response language; defaults to the app-wide one (lib/language.ts), which TTS also reads. */
+    language?: AnalysisLanguage;
   }
 ): Promise<SwingAnalysis> {
+  if (!isApiConfigured()) throw new ApiNotConfiguredError();
+  const language = options.language ?? getAnalysisLanguage();
   const quickMode = !!options.quickMode;
   // A focus rule is analysed in depth (extra correction/drill fields): budget it as two.
   const maxTokens = maxTokensFor(quickMode, rules.length + (options.focusRuleId ? 1 : 0));
@@ -126,6 +150,7 @@ export async function analyzeSwing(
     cameraAngle: options.cameraAngle ?? 'unknown',
     quickMode,
     maxTokens,
+    language,
   });
   log.debug('Frame payload sizes (KB)', {
     perFrameKb: frameSizesKb,
@@ -157,7 +182,7 @@ export async function analyzeSwing(
   const startedAt = performance.now();
   const response = await fetch(config.url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...config.headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
       max_tokens: maxTokens,
@@ -180,6 +205,8 @@ export async function analyzeSwing(
             { type: 'text' as const, text: prompt, cache_control: { type: 'ephemeral' as const } },
             // Everything below the breakpoint is per-swing and must never enter the cached
             // prefix — the frame count included, since dedupe makes it drift between swings.
+            // The language too: one cached prefix then serves every language.
+            { type: 'text' as const, text: buildLanguageNote(language) },
             { type: 'text' as const, text: buildFrameCountNote(frames.length) },
             ...imageContent,
           ],
