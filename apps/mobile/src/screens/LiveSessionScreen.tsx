@@ -319,7 +319,7 @@ function ControlButton({ label, onPress, icon, variant }: { label: string; onPre
         gap: 10,
         backgroundColor: solid ? '#FFFFFF' : 'rgba(255, 255, 255, 0.12)',
         opacity: pressed ? 0.82 : 1,
-        transform: pressed ? [{ scale: 0.98 }] : undefined,
+        transform: [{ scale: pressed ? 0.98 : 1 }], // alltid array, se ui/Button.tsx
       })}
     >
       {icon}

@@ -48,7 +48,8 @@ export function Button({ title, variant = 'primary', icon, disabled, style, ...r
           justifyContent: 'center',
           gap: 8,
           opacity: disabled ? 0.45 : pressed ? 0.82 : 1,
-          transform: pressed && !disabled ? [{ scale: 0.98 }] : undefined,
+          // Alltid en array: RN skickar null till processTransform när transform går array → undefined (krasch vid släpp).
+          transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
         surface,
         style,
