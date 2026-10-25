@@ -196,9 +196,10 @@ V-1:s facit visar att det förbättrar domarna.
   först; **resultat och metadata behålls alltid**. Historiken visar en sving utan video som "video rensad".
   Taket är en inställning med ett försiktigt standardvärde; storleken räknas på faktiska bytes, inte uppskattat.
 
-#### [?] N-3.6 — Kärn-UI
-**[?] Väntar på Eriks godkännande av D-1-skisserna** (D-1: ingen produktkod före godkända skisser).
-Kamera/session, resultat, regler, historik, TTS. Club Cream-tokens.
+#### [ ] N-3.6 — Kärn-UI
+**Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
+typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
+Kamera/session, resultat, regler, historik, TTS.
 
 #### [📱] N-3.7 — shaft-v2 → `.mlpackage`
 **📱 Mac:** 1) checka ut `stream-native` på Macen; 2) kör coreml-export.md §5 (paritet fp32/fp16); 3) committa siffrorna i coreml-export.md.
@@ -285,7 +286,8 @@ träffsäkerhet, självsäkra fel, konsistens, kostnad och tid per analys. Rekom
 
 Ny 2026-10-25. **Namnkrock:** arkivets pose-ström hette också D (D-1–D-5); de refereras som "arkivets D-x".
 
-### [📱] D-1 — Designspår för betan
+### [x] D-1 — Designspår för betan
+**Godkänd av Erik 2026-10-25: v2** ([design/d1-v2/](design/d1-v2/README.md)) — "bra start, justeras vid behov senare". Granskningslistans 8 punkter godkända i sin helhet. Kvar (tokens + komponenter i `apps/mobile`) görs i N-3.6.
 2026-10-25 (dirigent): skissförslaget "Cream Day / Fairway Night" — sex flöden i [design/d1/](design/d1/README.md)
 (`index.html` + PNG ljust/mörkt, riktning, avvikelser från Club Cream, granskningslista med 8 punkter).
 **📱 Granska (Erik):** 1) öppna `docs/design/d1/png/` (eller `index.html` lokalt); 2) visa `livesession.png` på
