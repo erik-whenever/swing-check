@@ -29,7 +29,8 @@ import type { PhaseFilter } from '../screens/ruleLibraryLogic';
 import { RulesScreen } from '../screens/RulesScreen';
 import { UploadScreen, type SwingWindow } from '../screens/UploadScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
-import { clock, dayLabel, historySwingView } from '../screens/reviewLogic';
+import { buildHistoryItems, currentFocusRuleId, focusTrend } from '../screens/historyLogic';
+import { clock, dayLabel } from '../screens/reviewLogic';
 import {
   analysableRules,
   analysisErrorView,
@@ -410,20 +411,20 @@ export function HistoryContainer() {
   const navigation = useNavigation<TabNav<'History'>>();
   const { entries } = useHistory();
   const now = useNowOnFocus();
-  // OSÄKER: live sessions are not grouped into HistorySession rows yet (no session records in
-  // HistoryEntry, see skarmar.md). Every entry shows as a single swing. Risk: low.
-  const items = useMemo<HistoryItem[]>(
-    () => entries.map((e) => ({ ...historySwingView(e), kind: 'swing', title: 'Uppladdat klipp' })),
-    [entries],
-  );
+  // Sessioner grupperas på sessionId, trenden följer den senaste svingens fokusregel (del 13).
+  const items = useMemo<HistoryItem[]>(() => buildHistoryItems(entries), [entries]);
+  const trend = useMemo(() => {
+    const focusId = currentFocusRuleId(entries);
+    const title = RULE_LIBRARY.find((r) => r.id === focusId)?.title ?? focusId ?? '';
+    return focusTrend(entries, focusId, title, now);
+  }, [entries, now]);
   return (
     <HistoryScreen
       style={useTopInset()}
+      trend={trend}
       items={items}
       now={now}
-      onOpen={(item) => {
-        if (item.kind === 'swing') navigation.navigate('Result', { entryId: item.id, fromHistory: true });
-      }}
+      onOpen={(swing) => navigation.navigate('Result', { entryId: swing.id, fromHistory: true })}
     />
   );
 }

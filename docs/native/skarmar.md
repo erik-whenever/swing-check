@@ -121,7 +121,7 @@ Designkälla: `docs/design/d1-v2/png/historik-{light,dark}.png`, `index.html` sh
 | --- | --- | --- |
 | `trend?` | `{ ruleTitle, points: {timestamp, value 0–100}[], percent, windowLabel }` | Fokusregelns trend; utelämnad → inget kort |
 | `items` | `(HistorySession \| HistorySwing)[]` | Grupperas per lokal dag, nyast först |
-| `onOpen` | `(item) => void` | Tryck på rad |
+| `onOpen` | `(swing: HistorySwing) => void` | Tryck på en svingrad; sessionsrader fälls ut i skärmen (UI-state) till sina svingar |
 | `now` | `number` | Injiceras (ren, testbar) |
 
 `HistorySession`: `title`, `startedAt`, `endedAt`, `swings: {passed, assessable}[]` → en stapel per sving
@@ -129,8 +129,15 @@ Designkälla: `docs/design/d1-v2/png/historik-{light,dark}.png`, `index.html` sh
 `historySwingView(entry)` + `kind: 'swing'`: tumnagel (första bilden om inte rensad), prickar
 (fokus först som rundad fyrkant, okänd = streckad ring), "Video rensad · resultatet finns kvar" (N-3.5).
 
-Livesessionen skriver i dag inga sessionsposter i `HistoryEntry` (bara `sessionId`); sammanställning
-till `HistorySession` görs av skärmens ägare.
+`HistorySession.swingItems` (äldst först, "Sving 1…n") visas indragna under raden när den fälls ut (›).
+
+**Sammanställning (del 13) — `historyLogic.ts`** (ren, vitest): `buildHistoryItems(entries)` grupperar
+svingar med samma `sessionId` till en `HistorySession` ("Livesession", start/slut = första/sista svingen,
+en stapel per sving); svingar utan `sessionId` blir "Uppladdat klipp". `currentFocusRuleId` = senaste
+svingens fokusregel (samma källa som Regler). `focusTrend(entries, focusId, title, now)` → trendkortet:
+fönster 21 dagar ("de senaste 3 veckorna"), en punkt per session, lösa uppladdningar slås ihop per lokal
+dag, "kan inte avgöras" räknas inte; `null` (inget kort) utan fokusregel eller bedömbara svingar.
+`HistoryContainer` kopplar och slår upp regeltiteln i `RULE_LIBRARY`.
 
 ## Livesession — `LiveSessionScreen.tsx`
 

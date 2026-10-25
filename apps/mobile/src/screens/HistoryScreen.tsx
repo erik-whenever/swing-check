@@ -1,6 +1,7 @@
 // Historiken (N-3.6 del 5) — ren presentation. Designkälla: docs/design/d1-v2/png/historik-*.png och
 // d1 README "Skärm för skärm → Historik". Fokusregelns trend överst, sedan dagar med sessioner
 // (en stapel per sving) och uppladdade svingar (tumnagel + prickar). Rensad video (N-3.5) märks.
+// Del 13: en sessionsrad fälls ut till sina svingar; data sammanställs i historyLogic.ts.
 
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
@@ -16,50 +17,18 @@ import {
   sessionBar,
   shortDate,
   trendDelta,
-  type HistorySwingView,
   type SwingDot,
 } from './reviewLogic';
+import type { HistoryItem, HistorySession, HistorySwing, HistoryTrend } from './historyLogic';
 
-export interface TrendPoint {
-  timestamp: number;
-  /** Andel godkända för fokusregeln, 0–100. */
-  value: number;
-}
-
-export interface HistoryTrend {
-  ruleTitle: string;
-  /** Äldst först. */
-  points: readonly TrendPoint[];
-  /** Andel godkända i fönstret, 0–100. */
-  percent: number;
-  /** "de senaste 3 veckorna". */
-  windowLabel: string;
-}
-
-export interface HistorySession {
-  kind: 'session';
-  id: string;
-  /** "Livesession · Range". */
-  title: string;
-  startedAt: number;
-  endedAt: number;
-  /** En per sving i ordning: godkända av bedömbara (0/0 = ingen dom → streckad stapel). */
-  swings: readonly { passed: number; assessable: number }[];
-}
-
-export interface HistorySwing extends HistorySwingView {
-  kind: 'swing';
-  /** "Uppladdat klipp". */
-  title?: string;
-}
-
-export type HistoryItem = HistorySession | HistorySwing;
+export type { HistoryItem, HistorySession, HistorySwing, HistoryTrend, TrendPoint } from './historyLogic';
 
 export interface HistoryScreenProps {
   /** Utelämnad (ingen fokusregel än) → inget trendkort. */
   trend?: HistoryTrend | null;
   items: readonly HistoryItem[];
-  onOpen: (item: HistoryItem) => void;
+  /** Tryck på en svingrad (även inuti en utfälld session). Sessionsrader fälls ut i skärmen. */
+  onOpen: (item: HistorySwing) => void;
   /** Klockan för "Idag"/"Igår" — injiceras så att skärmen är ren och testbar. */
   now: number;
   style?: StyleProp<ViewStyle>;
@@ -70,6 +39,15 @@ const timeOf = (i: HistoryItem) => (i.kind === 'session' ? i.startedAt : i.times
 export function HistoryScreen({ trend, items, onOpen, now, style }: HistoryScreenProps) {
   const { colors, space } = useTheme();
   const days = groupByDay(items, timeOf, now);
+  // Utfällda sessioner är ren UI-state (som trendkortets bredd) — ingen data ägs här.
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.bg }, style]}>
@@ -104,7 +82,13 @@ export function HistoryScreen({ trend, items, onOpen, now, style }: HistoryScree
               <View style={{ gap: space.md }}>
                 {day.items.map((item) =>
                   item.kind === 'session' ? (
-                    <SessionRow key={item.id} item={item} onPress={() => onOpen(item)} />
+                    <SessionRow
+                      key={item.id}
+                      item={item}
+                      expanded={open.has(item.id)}
+                      onPress={() => toggle(item.id)}
+                      onOpenSwing={onOpen}
+                    />
                   ) : (
                     <SwingRow key={item.id} item={item} onPress={() => onOpen(item)} />
                   ),
@@ -192,58 +176,84 @@ function TrendCard({ trend, now }: { trend: HistoryTrend; now: number }) {
   );
 }
 
-function SessionRow({ item, onPress }: { item: HistorySession; onPress: () => void }) {
+function SessionRow({
+  item,
+  expanded,
+  onPress,
+  onOpenSwing,
+}: {
+  item: HistorySession;
+  expanded: boolean;
+  onPress: () => void;
+  onOpenSwing: (swing: HistorySwing) => void;
+}) {
   const { colors, space } = useTheme();
   const passed = item.swings.reduce((s, x) => s + x.passed, 0);
   const assessable = item.swings.reduce((s, x) => s + x.assessable, 0);
   const pct = passPercent(passed, assessable);
   const barH = 40;
+  const canExpand = (item.swingItems?.length ?? 0) > 0;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
-      <Card style={{ padding: space.xl }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md }}>
-          <View style={{ flex: 1 }}>
-            <Text variant="headline" numberOfLines={1}>{item.title}</Text>
-            <Text variant="subhead" color="muted" tnum>
-              {`${countLabel(item.swings.length, 'sving', 'svingar')} · ${clock(item.startedAt)}–${clock(item.endedAt)}`}
-            </Text>
-          </View>
-          {pct !== null ? (
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text variant="title2" tnum>{`${pct} %`}</Text>
-              <Text variant="footnote" color="muted">godkända</Text>
+    <View style={{ gap: space.sm }}>
+      <Pressable
+        onPress={canExpand ? onPress : undefined}
+        accessibilityRole="button"
+        accessibilityState={canExpand ? { expanded } : undefined}
+        accessibilityHint={canExpand ? (expanded ? 'Döljer svingarna' : 'Visar svingarna') : undefined}
+      >
+        <Card style={{ padding: space.xl }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md }}>
+            <View style={{ flex: 1 }}>
+              <Text variant="headline" numberOfLines={1}>{item.title}</Text>
+              <Text variant="subhead" color="muted" tnum>
+                {`${countLabel(item.swings.length, 'sving', 'svingar')} · ${clock(item.startedAt)}–${clock(item.endedAt)}`}
+              </Text>
             </View>
-          ) : null}
-        </View>
-        <View
-          style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: barH, marginTop: space.lg }}
-          accessible
-          accessibilityLabel={`${item.swings.length} svingar, ${pct ?? 0} procent godkända`}
-        >
-          {item.swings.map((s, i) => {
-            const bar = sessionBar(s.passed, s.assessable);
-            return (
-              <View
-                key={i}
-                style={
-                  bar
-                    ? { flex: 1, height: barH * bar.height, borderRadius: 4, backgroundColor: bar.tone === 'pass' ? colors.pass : colors.fail }
-                    : { flex: 1, height: barH * 0.3, borderRadius: 4, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.faint }
-                }
-              />
-            );
-          })}
-        </View>
-      </Card>
-    </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md }}>
+              {pct !== null ? (
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text variant="title2" tnum>{`${pct} %`}</Text>
+                  <Text variant="footnote" color="muted">godkända</Text>
+                </View>
+              ) : null}
+              {canExpand ? (
+                <Text variant="headline" color="muted" style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}>›</Text>
+              ) : null}
+            </View>
+          </View>
+          <View
+            style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: barH, marginTop: space.lg }}
+            accessible
+            accessibilityLabel={`${item.swings.length} svingar, ${pct ?? 0} procent godkända`}
+          >
+            {item.swings.map((s, i) => {
+              const bar = sessionBar(s.passed, s.assessable);
+              return (
+                <View
+                  key={i}
+                  style={
+                    bar
+                      ? { flex: 1, height: barH * bar.height, borderRadius: 4, backgroundColor: bar.tone === 'pass' ? colors.pass : colors.fail }
+                      : { flex: 1, height: barH * 0.3, borderRadius: 4, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.faint }
+                  }
+                />
+              );
+            })}
+          </View>
+        </Card>
+      </Pressable>
+      {expanded && item.swingItems
+        ? item.swingItems.map((s) => <SwingRow key={s.id} item={s} onPress={() => onOpenSwing(s)} inset />)
+        : null}
+    </View>
   );
 }
 
-function SwingRow({ item, onPress }: { item: HistorySwing; onPress: () => void }) {
+function SwingRow({ item, onPress, inset = false }: { item: HistorySwing; onPress: () => void; inset?: boolean }) {
   const { colors, space, radius } = useTheme();
   const sub = [clock(item.timestamp), item.angle ? ANGLE_LABEL_SV[item.angle] : null].filter(Boolean).join(' · ');
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <Pressable onPress={onPress} accessibilityRole="button" style={inset ? { marginLeft: space.xl } : undefined}>
       <Card style={{ padding: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
         <View
           style={{
