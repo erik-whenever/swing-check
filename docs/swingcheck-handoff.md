@@ -35,6 +35,7 @@
 
 - **N-3.6 del 12 (körning 6):** uppladdning fungerar hela vägen (klippval → 32 jämna rutor → Worker → Historik → Resultat), interim-rututtag utan pose ([uppladdning.md](native/uppladdning.md)); ~5× fler input-tokens per sving tills N-3.8 beskär. Tre nya native-moduler → dev-klienten byggs om.
 
+- **N-3.5/N-3.6 del 14 (körning 7):** Inställningar (kugghjulet i Historik): språk, nivå, standardvinkel, medietak med lagringsstapel; lägre tak som rensar media bekräftas. Inga nya native-beroenden.
 - **N-6 steg 1 (körning 6):** EAS production-profil + expo-updates (fingerprint) klara, guide [testflight.md](native/testflight.md); `eas update` behöver `EXPO_PUBLIC_API_URL` inline. `swingcheck-temp` (rot + wrangler) lämnad — byte påverkar prod-PWA:ns Worker. 📱 Erik kör build + submit.
 - **N-3.6 del 13 (körning 6):** Historik har utfällbara sessionsrader + fokusregelns trend (`screens/historyLogic.ts`); syns när livepipelinen skriver `sessionId` (ingen kod gör det än).
 
