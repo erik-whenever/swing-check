@@ -179,9 +179,11 @@ ligger efter cache-brytpunkten och ett test visar byte-identiskt prefix sv/en. `
 (standard 300 MB), video rensas äldst först, sedan bildrutor, resultat aldrig. Appen: `coreSetup`
 (`EXPO_PUBLIC_API_URL`, saknas → fel utan anrop) och `mediaStore` (faktiska filstorlekar). Detaljer:
 [analys-lagring.md](native/analys-lagring.md).
-**Kvar:** `[?]` Workern nekar anrop utan `Origin` (403); appen skickar `Origin: swingcheck://se.swingcheck.app` —
-får det läggas i prod-Workerns `ALLOWED_ORIGINS`, och får cache-mätningen (sv/en, före/efter) göras med några
-riktiga anrop? Därtill prov på enhet, webbens `useHistory` har kvar `MAX_RECORDS`, UI (språk, tak, "video rensad") i N-3.6.
+**Beslut Erik 2026-10-25:** ja — `swingcheck://se.swingcheck.app` läggs i `ALLOWED_ORIGINS` i **samma Worker-deploy
+som W-2:s tak** (origin skyddar inte ensam; taket gör det). Cache-mätningen (sv/en, före/efter) får göras med ≤ 10
+riktiga anrop. Dirigenten bygger Worker-ändringen och skriver deploy-kommandon; **📱 Erik kör deploy + mätning lokalt**
+(wrangler-uppgifterna finns bara där).
+**Kvar:** Worker-ändringen (tillsammans med W-2), deploy, cache-mätningen. Därtill prov på enhet, webbens `useHistory` har kvar `MAX_RECORDS`, UI (språk, tak, "video rensad") i N-3.6.
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.
@@ -254,8 +256,9 @@ Ny 2026-10-25. Branch: `stream-native`. **Inget Claude-anrop körs förrän Erik
 DTL 13 / face-on 12), extract/freeze/verify (sha256 per bildruta + `rulesHash`), facit-mall (CSV) + validering,
 `run` med budgetspärr (dry-run standard), `score` (alla mätvärden, 38 tester). Metod och budget: [eval/v1-facit.md](eval/v1-facit.md).
 **📱 Kvar (Erik):** 1) `extract` lokalt (testa ett klipp först) och välj 30–50 svingar; 2) `freeze` + fyll i
-`facit.csv` blint tills `facit-check` är grön; 3) committa manifest + facit. **[?]** Budget: 120 anrop (40 × 3,
-`claude-sonnet-4-5`, quick) ≈ $3,9–6,6, tak `--approved-budget=8` — godkänns?
+`facit.csv` blint tills `facit-check` är grön; 3) committa manifest + facit. **Budget godkänd (Erik
+2026-10-25):** 120 anrop (40 × 3, `claude-sonnet-4-5`, quick) ≈ $3,9–6,6, tak `--approved-budget=8`. Gäller endast
+denna baslinjekörning; körs av Erik lokalt när facit är fryst.
 **Mål:** ett fryst facit som modell-, prompt- och regelval mäts mot, och som avgör om skaftmått behövs i domarna.
 - **Material:** 30–50 svingar ur befintliga klipp (DTL och face-on, olika spelare och nivåer), extraherade med
   produktionens kedja så att bildrutorna är de appen skickar. Fryst urval med id och sha256 per bildruta.
@@ -299,8 +302,9 @@ Ny 2026-10-25. Inte samma som öppna frågor F1–F9 i [oppna-fragor.md](oppna-f
 ### [~] F-1 — Rekommenderat regelset
 2026-10-25 (dirigent): [ADR-0005](adr/0005-rekommenderat-regelset.md) (Föreslagen) och ren `recommendRules()` i core
 (vinkel + nivå + valfri målfas + V-1-karta → ordnade biblioteks-id, valideringsstatus, motiveringskoder; 12 tester).
-Används ännu inte av appen. **[?]** Godkänner du nivåerna (nybörjare/medel/avancerad, max 3/5/6 regler) och att
-omätta regler visas som "ej validerad" tills V-1 är kört? Kvar: V-1-gränser mot baslinjen, UI (D-1).
+Används ännu inte av appen. **Beslut Erik 2026-10-25:** nivåerna (nybörjare/medel/avancerad, max 3/5/6 regler)
+godkända; omätta regler visas som "ej validerad" tills V-1 är kört; ADR-numret 0005 bekräftat (ADR-0005 kan sättas
+till Accepterad). Kvar: V-1-gränser mot baslinjen, UI (D-1).
 Användaren väljer regler själv **eller** får ett rekommenderat regelset. Skriv ADR för hur rekommendationen
 görs (utgångsläge, kameravinkel, nivå, vad som visas och varför). **ADR-numret:** Erik skrev "ADR-004", men
 0004 är native-pipelinen ([ADR-0004](adr/0004-native-pipeline-nitro-modules.md)); nästa lediga är **0005**
@@ -313,9 +317,10 @@ W-1 ligger i [arkivet](archive/backlog-strommar.md).
 ### [~] W-2 — Identitet per installation + tak per identitet
 2026-10-25 (dirigent): klientdel + spec. Core `lib/installId.ts` (UUID v4, validering, testad); appen läser/skapar
 identiteten i Keychain (`expo-secure-store`, `THIS_DEVICE_ONLY`) och skickar `X-SwingCheck-Install`. Webben skickar
-den inte (CORS). Spec + Worker-kodskiss: [identitet-w2.md](native/identitet-w2.md). **[?]** Får Workern ta emot
-headern och få tak per identitet (40 anrop / 400 000 tokens per dygn, D1-tabell `install_usage`, migrering 0003)
-— kräver prod-deploy och prod-D1? Kvar därtill: ombyggd dev-klient + enhetsprov, App Attest före öppen release.
+den inte (CORS). Spec + Worker-kodskiss: [identitet-w2.md](native/identitet-w2.md). **Beslut Erik 2026-10-25:** ja —
+Workern tar emot headern med tak per identitet (40 anrop / 400 000 tokens per dygn, D1-tabell `install_usage`,
+migrering 0003), i samma deploy som N-3.5:s origin. Dirigenten implementerar Worker-delen + migreringen med tester
+och skriver exakta deploy-/migreringskommandon; **📱 Erik kör migrering mot prod-D1 och deploy lokalt.** Kvar därtill: ombyggd dev-klient + enhetsprov, App Attest före öppen release.
 **Före N-6.** Inget inloggat konto i betan. Appen skapar en anonym identitet per installation (slumpad,
 lagrad i Keychain) och skickar den till Workern. Workern begränsar per identitet (anrop och/eller tokens per
 dygn) och loggar förbrukningen, så att kostnaden per analys går att följa. Native-anrop har ingen `Origin`,
