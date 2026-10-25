@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "owner": "erikhawerman",
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/354490e7-bf0e-4dff-b111-c0f3d446a335"

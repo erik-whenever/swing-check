@@ -31,7 +31,7 @@ Kör från `apps/mobile/` **när N-3.6:s uppladdningspipeline fungerar**:
 | `eas.json` `build.preview` | `distribution: internal`, `channel: preview`, samma `env` | Ad hoc-bygge till registrerade enheter utan TestFlight, om det behövs. |
 | `eas.json` `build.development` | oförändrad | Dev-klienten som förut. |
 | `eas.json` `submit.production.ios` | tom | Inga hemligheter i repo:t. **Valfritt för Erik:** efter första submit, fyll i `"ascAppId": "<App Store Connect → App Information → Apple ID>"` så slipper senare submits frågan. |
-| `app.json` `runtimeVersion` | `{ "policy": "fingerprint" }` | Runtime-versionen är en hash av allt native (paket, config, `modules/pose`, `modules/shaft`, plugins). En JS-uppdatering kan därför **aldrig** landa i en binär med annan native-kod — med `appVersion` hänger det på att någon kommer ihåg att bumpa versionen. |
+| `app.json` `runtimeVersion` | `{ "policy": "appVersion" }` | Runtime-versionen = `version` (nu `0.1.0`). Bytt från `fingerprint` 2026-10-25: fingerprinten blev olika på Windows och EAS (EAS räknar in prebuildens `ios/`, lokalt kom plattformen `web` med) och dev-bygget föll i "Configure expo-updates". **Pris:** vid native-ändring (se tabellen nedan) måste `version` bumpas, annars kan en JS-uppdatering landa i en binär med fel native-kod. |
 | `app.json` `updates.url` | `https://u.expo.dev/354490e7-…` | EAS Update-endpoint för projektet. |
 | `app.json` `version` | `0.0.0` → `0.1.0` | App Store Connect kräver en riktig marknadsversion. |
 
@@ -73,8 +73,8 @@ Kontroll av vilken runtime ett bygge/en uppdatering har: `npx expo-updates runti
 | Ändring i `modules/pose` eller `modules/shaft` (Swift/Kotlin/C++/podspec/nitrogen) | **Nytt bygge** |
 | `app.json` som påverkar native (plugins, `infoPlist`, behörigheter, ikon, bundle-id), `package.json`-scripts | **Nytt bygge** |
 
-Osäker? Kör `runtimeversion:resolve` före och efter ändringen: ändrad hash = nytt bygge krävs. En update
-publicerad mot en ny hash når bara byggen med samma hash; gamla binärer behåller sin senaste kompatibla JS.
+Varje rad som kräver **nytt bygge** kräver också att `version` i `app.json` bumpas (t.ex. `0.1.0` → `0.2.0`) i samma
+commit. En update når bara byggen med samma `version`; gamla binärer behåller sin senaste kompatibla JS.
 
 ## Kända risker
 
