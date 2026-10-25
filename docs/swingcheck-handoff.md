@@ -18,8 +18,6 @@
   (300 MB, video först), appens `coreSetup`/`mediaStore`. Workern ger 403 utan `Origin`; appen skickar
   `swingcheck://se.swingcheck.app`, som måste in i `ALLOWED_ORIGINS` före första analysen (`[?]` till Erik).
   Webbens historik följer nu samma MB-policy (`src/lib/historyRetention.ts`, `videoPurged`/`framesPurged` additivt i `SwingRecord`).
-- **D-1 `[📱]`:** skissförslaget ligger i [design/d1/](design/d1/README.md); Erik granskar mot listan i README:n.
-  Volt `#D6F03A` reserverad för det maskinen ser; livesessionen alltid mörk och läsbar på 3 m.
 - **V-1 `[~]`:** verktyg och metod klara ([eval/v1-facit.md](eval/v1-facit.md)); väntar på Eriks urval och facit
   plus budgetgodkännande ($8 för 120 anrop). Inget kört. Live-körning vägrar om manifest/facit inte är committade.
 - **N-7 `[x]`:** webben och appen hämtar pose-modellen från samma versionsadress och sha256 (`modules/pose/models.json`).
@@ -32,9 +30,6 @@
 - **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac),
   N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25: inget oblockerat kvar i N/V/D/F/W-2.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
-- **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
-  F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
-  lagring efter MB. **Inget V-körs mot Claude utan Eriks budgetgodkännande.**
 
 - **N-3.6 `[~]` (körning 5):** `src/ui/`, `src/state/`, `src/screens/` (sju rena skärmar inkl. Livesession), `src/app/` (React Navigation v7, entry `src/app/App`; DevScreen = långtryck på Historik i dev) och `src/tts/` (expo-speech, gemensam kö, "Läs upp" kopplad; Livesession på fliken Session utan pipeline) klara; regelbiblioteket som modal från "+"/Egna. Kvar: uppladdningspipeline, livepipeline (N-3.4). **Dev-klienten måste byggas om** (screens, safe-area, expo-font, svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`; CI installerar `apps/mobile` före vitest.
 

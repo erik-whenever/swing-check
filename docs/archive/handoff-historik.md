@@ -1602,3 +1602,10 @@ origin-kollen otillräcklig och behöver kompletteras med Supabase-session, se S
 
 > **Pose-assets:** `public/wasm/` + `public/models/*.task` är gitignorade och byggs av
 > `npm run pose:assets` (körs som `prebuild`). Saknas de i en deploy dör pose-init på båda delegaterna.
+
+## Utträngt 2026-10-25 (körning 6)
+- **D-1 `[📱]`:** skissförslaget ligger i [design/d1/](design/d1/README.md); Erik granskar mot listan i README:n.
+  Volt `#D6F03A` reserverad för det maskinen ser; livesessionen alltid mörk och läsbar på 3 m.
+- **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
+  F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
+  lagring efter MB. **Inget V-körs mot Claude utan Eriks budgetgodkännande.**
