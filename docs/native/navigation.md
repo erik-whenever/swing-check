@@ -28,6 +28,7 @@ dev-klienten måste byggas om.**
 | Stack | `Analysis` | `AnalysisContainer` | Analys pågår; svep-tillbaka avstängt, "Avbryt" = tillbaka |
 | Stack | `Result` `{ entryId, fromHistory? }` | `ResultContainer` | från Historik: "Nästa sving" dold |
 | Stack | `RuleLibrary` | `RuleLibraryContainer` | modal på iOS; från Regler ("+" / "Egna") |
+| Stack | `Settings` | `SettingsContainer` | modal på iOS; från kugghjulet i Historik (del 14) |
 | Stack | `Dev` | `DevScreen` | registreras bara i `__DEV__` |
 | Flik | `Swing` "Sving" | `UploadContainer` | Uppladdning |
 | Flik | `Session` "Session" | `LiveSessionContainer` | `LiveSessionScreen` med lokalt sessions-tillstånd |
@@ -58,6 +59,10 @@ I release-byggen finns rutten inte.
   `accuracyVerdict` (tom tills V-1); Klar → tillbaka.
 - **Historik:** varje `HistoryEntry` blir en uppladdad-sving-rad (`historySwingView`); sessioner
   grupperas inte än. Trendkort utelämnas. Tryck → `Result`.
+- **Inställningar** (`Settings`, del 14): språk, nivå, standardvinkel och medietak direkt till
+  `updateSettings`. Lagringsraden summerar `mediaStore.measureMedia` (faktiska bytes) över historiken.
+  Ett tak under det som redan ligger lagrat bekräftas med `Alert` ("Rensa äldre media?") innan det
+  sparas, eftersom `updateSettings` rensar mediefilerna direkt. Klar → tillbaka.
 - **Resultat:** `useHistoryEntry(entryId)`; regeltitlar/drill från `RULE_LIBRARY` (engelska i core,
   `// OSÄKER`). "Läs upp" → `useSpeech().readAloud` (variant `full`, barge-in); tystnar när skärmen lämnas.
 - **Livesession:** `liveSessionState.ts` (ren reducer, testad): status Redo/Analyserar/Pausad, klocka

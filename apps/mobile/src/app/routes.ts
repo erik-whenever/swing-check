@@ -19,6 +19,8 @@ export type RootStackParamList = {
   Result: { entryId: string; fromHistory?: boolean };
   /** Regelbiblioteket — egna regler. Modal på iOS, öppnas från Regler ("+" / "Egna"). */
   RuleLibrary: undefined;
+  /** Inställningar (språk, nivå, standardvinkel, medietak). Modal på iOS, öppnas från Historik. */
+  Settings: undefined;
   /** Developer screen (pose/parity checks). Only registered in __DEV__. */
   Dev: undefined;
 };

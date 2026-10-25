@@ -180,3 +180,19 @@ Grupperas per fas i svingens ordning (Uppställning → Avslut), rubrik "N av M"
 Ren logik i `screens/ruleLibraryLogic.ts` (test: `ruleLibraryLogic.test.ts`): `normalizeSearch`, `matchesQuery`, `groupLibrary`, `phaseCounts`, `selectedCount`, `selectedLabel`, `resultLabel`. Fas-/vinkeletiketter och `weightDots`/`requiredAngleText` återanvänds från `reviewLogic.ts`.
 
 Kända förenklingar (`// OSÄKER` i koden): core-titlarna är engelska tills biblioteket översätts — svensk fritext träffar då bara fasnamnet. Ägaren kopplar `onToggle` till `toggleCustomRule` och byter `ruleMode` till `custom` vid behov; ingen navigation här.
+
+## Inställningar (`SettingsScreen`, del 14)
+
+Ingen skiss i d1-v2; byggd av `SectionLabel` + `Card` + `Segmented`. Öppnas från kugghjulet bredvid "Historik" (`HistoryScreen.onSettings`).
+
+| Prop | Typ | Not |
+|---|---|---|
+| `language`, `onLanguageChange` | `AnalysisLanguage` | Svenska/English — samma värde styr prompt och uppläsning (N-3.5). |
+| `level`, `onLevelChange` | `PlayerLevel` | Nybörjare/Medelnivå/Avancerad (F-1, max 3/5/6 regler). |
+| `defaultAngle`, `onDefaultAngleChange` | `CameraAngle` | Startvärde för Uppladdning och Regelbiblioteket. |
+| `mediaCapMb`, `onMediaCapChange` | `number` | Förval 150/300/600/1000 MB (+ ett sparat värde utanför förvalen). Containern bekräftar om taket rensar media. |
+| `usedBytes`, `purgedCount` | `number` | Stapel "124 MB av 300 MB"; antal svingar med video rensad. |
+| `onDone` | `() => void` | "Klar". |
+
+Ren logik i `screens/settingsLogic.ts` (test: `settingsLogic.test.ts`): `formatMb`, `formatBytes`, `capOptions`, `storageSummary`, `capChangeWarning`. Förval i stället för reglage (`// OSÄKER`): inget nytt native-beroende, så dev-klienten behöver inte byggas om för den här delen.
+

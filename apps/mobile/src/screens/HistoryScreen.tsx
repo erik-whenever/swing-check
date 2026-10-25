@@ -31,12 +31,14 @@ export interface HistoryScreenProps {
   onOpen: (item: HistorySwing) => void;
   /** Klockan för "Idag"/"Igår" — injiceras så att skärmen är ren och testbar. */
   now: number;
+  /** Kugghjulet bredvid rubriken (del 14). Utelämnad → ingen knapp. */
+  onSettings?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
 const timeOf = (i: HistoryItem) => (i.kind === 'session' ? i.startedAt : i.timestamp);
 
-export function HistoryScreen({ trend, items, onOpen, now, style }: HistoryScreenProps) {
+export function HistoryScreen({ trend, items, onOpen, now, onSettings, style }: HistoryScreenProps) {
   const { colors, space } = useTheme();
   const days = groupByDay(items, timeOf, now);
   // Utfällda sessioner är ren UI-state (som trendkortets bredd) — ingen data ägs här.
@@ -52,9 +54,12 @@ export function HistoryScreen({ trend, items, onOpen, now, style }: HistoryScree
   return (
     <View style={[{ flex: 1, backgroundColor: colors.bg }, style]}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxxl }}>
-        <Text variant="largeTitle" accessibilityRole="header" style={{ paddingTop: space.sm, paddingBottom: space.lg, paddingHorizontal: space.xs }}>
-          Historik
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, paddingBottom: space.lg, paddingHorizontal: space.xs }}>
+          <Text variant="largeTitle" accessibilityRole="header">
+            Historik
+          </Text>
+          {onSettings ? <SettingsButton onPress={onSettings} /> : null}
+        </View>
 
         {trend ? <TrendCard trend={trend} now={now} /> : null}
 
@@ -303,5 +308,28 @@ function Dot({ dot, first }: { dot: SwingDot; first: boolean }) {
         backgroundColor: dot === 'pass' ? colors.pass : colors.fail,
       }}
     />
+  );
+}
+
+/** Rund ikonknapp (samma form som Uppladdningens inspelningsknapp) till Inställningar. */
+function SettingsButton({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Inställningar"
+      onPress={onPress}
+      style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+    >
+      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+        <Circle cx={12} cy={12} r={3.2} stroke={colors.fg} strokeWidth={1.8} />
+        <Path
+          d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"
+          stroke={colors.fg}
+          strokeWidth={1.8}
+          strokeLinecap="round"
+        />
+      </Svg>
+    </Pressable>
   );
 }
