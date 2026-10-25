@@ -5,5 +5,6 @@
     "resolveJsonModule": true
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "android", "ios", "modules/*/nitrogen"]
+  // Tests: tsconfig.test.json (checked by the root's tsc -b, where vitest lives).
+  "exclude": ["node_modules", "android", "ios", "modules/*/nitrogen", "**/*.test.ts"]
 }

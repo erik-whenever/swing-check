@@ -1,5 +1,5 @@
 // Pure model for the app's user settings (N-3.6). No expo imports, so it is unit-tested
-// from the repo root's vitest. settings.ts reads and writes the JSON file around it.
+// from the repo root's vitest. appStore.ts reads and writes the JSON file around it.
 
 import { DEFAULT_ANALYSIS_LANGUAGE, type AnalysisLanguage } from '@swingcheck/core/lib/language';
 import { DEFAULT_MEDIA_CAP_MB } from '@swingcheck/core/lib/mediaRetention';
