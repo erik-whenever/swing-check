@@ -214,8 +214,8 @@ Välkommen vid första start (`welcomeSeen`), uppladdningspipeline som stubb; [n
 (live/full), `Speaker`-interface, `SpeechQueue` med watchdog, 16 tester, [tts.md](native/tts.md); ingen motor än.
 **del 9** `expo-speech` + `expoSpeechSpeaker` (motor injicerad, `tts/device.ts`), `SpeechProvider`/`useSpeech` (språk ur settings),
 "Läs upp" på Resultat, `LiveSessionContainer` på fliken Session (Redo/Analyserar/Pausad, keep-awake, ingen pipeline); 8 tester.
-**del 10** `RuleLibraryScreen` + `ruleLibraryLogic` (sök, fas/vinkel, val; 10 tester), ej inkopplad.
-**Kvar:** koppla RuleLibraryScreen ("+"/Egna), klippval + pipeline (uppladdning → analys → `addSwing` → Resultat; rututtaget beror på
+**del 10–11** `RuleLibraryScreen` + `ruleLibraryLogic` (sök, fas/vinkel, val; 10 tester), modal-rutt `RuleLibrary` från "+"/Egna.
+**Kvar:** klippval + pipeline (uppladdning → analys → `addSwing` → Resultat; rututtaget beror på
 N-3.4/N-3.8), livepipeline → `enqueueLive` (N-3.4), sessionsrader/trend i Historik. **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
 (nya native-moduler); 2) gå igenom Välkommen → flikarna, öppna Resultat och tryck "Läs upp" med AirPods; 3) notera fel/fula skärmar.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,

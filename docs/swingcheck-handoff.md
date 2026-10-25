@@ -36,7 +36,7 @@
   F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
   lagring efter MB. **Inget V-körs mot Claude utan Eriks budgetgodkännande.**
 
-- **N-3.6 `[~]` (körning 5):** `src/ui/`, `src/state/`, `src/screens/` (sju rena skärmar inkl. Livesession), `src/app/` (React Navigation v7, entry `src/app/App`; DevScreen = långtryck på Historik i dev) och `src/tts/` (expo-speech, gemensam kö, "Läs upp" kopplad; Livesession på fliken Session utan pipeline) klara; `RuleLibraryScreen` finns ej inkopplad. Kvar: koppla biblioteket, uppladdningspipeline, livepipeline (N-3.4). **Dev-klienten måste byggas om** (screens, safe-area, expo-font, svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`; CI installerar `apps/mobile` före vitest.
+- **N-3.6 `[~]` (körning 5):** `src/ui/`, `src/state/`, `src/screens/` (sju rena skärmar inkl. Livesession), `src/app/` (React Navigation v7, entry `src/app/App`; DevScreen = långtryck på Historik i dev) och `src/tts/` (expo-speech, gemensam kö, "Läs upp" kopplad; Livesession på fliken Session utan pipeline) klara; regelbiblioteket som modal från "+"/Egna. Kvar: uppladdningspipeline, livepipeline (N-3.4). **Dev-klienten måste byggas om** (screens, safe-area, expo-font, svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`; CI installerar `apps/mobile` före vitest.
 
 ## Arkitektur i en rad
 `apps/mobile` (Expo 58 / RN 0.88 / VisionCamera 5 / Nitro 0.37) med egna Nitro-moduler `pose`, `shaft`
