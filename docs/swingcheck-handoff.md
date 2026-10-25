@@ -14,21 +14,21 @@
   Mätning 1 på Galaxy A16 4G: 4,55 fps, `inferMs` 183 ms i median, `convertMs` 5,7 ms, paritet på CPU 1,1e-5.
   Huvudmisstanke: Java-API:ts CPU-väg kör XNNPACK med en tråd. **Nästa:** Erik kör §9.4, sedan rotorsak med
   siffror. Fixen görs i N-8, inte nu.
-- **N-3.5 `[~]` (dirigent 2026-10-25):** språk som parameter (prefix språkoberoende), `core/mediaRetention`
+- **N-3.5 `[📱]` (dirigent 2026-10-25, ingen kod kvar):** språk som parameter (prefix språkoberoende), `core/mediaRetention`
   (300 MB, video först), appens `coreSetup`/`mediaStore`. Workern ger 403 utan `Origin`; appen skickar
   `swingcheck://se.swingcheck.app`, som måste in i `ALLOWED_ORIGINS` före första analysen (`[?]` till Erik).
   Webbens historik följer nu samma MB-policy (`src/lib/historyRetention.ts`, `videoPurged`/`framesPurged` additivt i `SwingRecord`).
 - **V-1 `[~]`:** verktyg och metod klara ([eval/v1-facit.md](eval/v1-facit.md)); väntar på Eriks urval och facit
   plus budgetgodkännande ($8 för 120 anrop). Inget kört. Live-körning vägrar om manifest/facit inte är committade.
 - **N-7 `[x]`:** webben och appen hämtar pose-modellen från samma versionsadress och sha256 (`modules/pose/models.json`).
-- **F-1 `[~]`:** ADR-0005 accepterad + `recommendRules` i core (oanvänd i appen). V-1-grinden tom tills facit finns.
+- **F-1 `[~]`:** ADR-0005 accepterad + `recommendRules` i core, används i appens Regler (Rekommenderat). V-1-grinden tom tills facit finns.
   `lib-forward-shaft-lean` är taggad DTL fast den syns face-on — noterat, inte ändrat.
 - **W-2 `[📱]`:** Worker-delen klar på `stream-native` men **ej deployad**: tak per installation (40 anrop /
   400 000 tokens/dygn, D1 `install_usage`, migrering 0003) + appens origin i `ALLOWED_ORIGINS`. D1-bindningen var fel
   (`swingcheck-logs`, koden läser `DB`) sedan `619e586` → loggar och globala taket har varit av i prod; rättat, slås på
   vid deploy. Erik kör deploy enligt [identitet-w2.md](native/identitet-w2.md#deploy-erik-kör-lokalt). Dev-klienten måste byggas om.
 - **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac),
-  N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25: inget oblockerat kvar i N/V/D/F/W-2.
+  N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25 (körning 8): inget oblockerat kvar i N/V/D/F/W-2; allt väntar på Eriks prov, Mac eller V-1:s facit.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
 - **N-3.6 `[~]` (körning 5):** `src/ui/`, `src/state/`, `src/screens/` (sju rena skärmar inkl. Livesession), `src/app/` (React Navigation v7, entry `src/app/App`; DevScreen = långtryck på Historik i dev) och `src/tts/` (expo-speech, gemensam kö, "Läs upp" kopplad; Livesession på fliken Session utan pipeline) klara; regelbiblioteket som modal från "+"/Egna. Kvar: uppladdningspipeline, livepipeline (N-3.4). **Dev-klienten måste byggas om** (screens, safe-area, expo-font, svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`; CI installerar `apps/mobile` före vitest.
 
