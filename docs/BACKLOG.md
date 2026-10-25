@@ -251,7 +251,11 @@ på `stream-native`; 2) kör S-49:s uppställning (§6 (a)–(e)) med 30 fps-sam
 ### [📱] N-5 — Handsfree med taligenkänning på enheten
 **📱 Kräver Mac + iPhone** (taligenkänning på enheten är native och provas med hörlurar); görs efter N-3.4.
 
-### [ ] N-6 — TestFlight och Play
+### [📱] N-6 — TestFlight och Play
+2026-10-25 (dirigent, körning 6): **steg 1 förberett** — `eas.json` production (store, kanal `production`, `autoIncrement`, `appVersionSource: remote`,
+`EXPO_PUBLIC_API_URL` inbakad) + preview; `expo-updates`, `runtimeVersion: fingerprint`, `updates.url`, version 0.1.0. Guide: [testflight.md](native/testflight.md)
+(`eas update` kräver `EXPO_PUBLIC_API_URL` inline). **📱 Erik (i `apps/mobile`, uppladdningen är nu klar):** 1) `npx eas-cli login` +
+`npx eas-cli build -p ios --profile production`; 2) `npx eas-cli submit -p ios --latest`; 3) installera via TestFlight och kör en uppladdning. Steg 2 väntar på N-3.7/N-3.8 och V-1.
 **Steg 1 (Erik 2026-10-25): intern TestFlight för Erik** så snart N-3.6:s uppladdningspipeline fungerar — via EAS (`eas build -p ios --profile production` + `eas submit`), ingen Mac krävs. Dirigenten förbereder `eas.json`-profil, `runtimeVersion`/EAS Update-kanal (så JS-ändringar når telefonen på rangen utan nytt bygge) och exakta kommandon; **📱 Erik kör build + submit** (Apple-inloggning).
 **Steg 2: extern beta** — kräver W-2 (deployad 2026-10-25), N-3.7/N-3.8 (Mac) och V-1.
 TestFlight är betan. Play är utanför betan. **Kräver W-2** (identitet per installation) innan första externa testare.

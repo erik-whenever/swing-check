@@ -2,10 +2,16 @@
   "expo": {
     "name": "SwingCheck",
     "slug": "swingcheck",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "owner": "erikhawerman",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/354490e7-bf0e-4dff-b111-c0f3d446a335"
+    },
     "ios": {
       "bundleIdentifier": "se.swingcheck.app",
       "supportsTablet": false,
