@@ -24,7 +24,7 @@
 ## Dirigenten får själv
 - Välja implementation, bibliotek inom befintlig stack, namn, struktur, UI-detaljer inom `docs/design-system.md`.
 - Bocka av/dela upp BACKLOG-uppgifter, skriva ADR för egna tekniska val.
-- Merga PR till `main` när lint = baslinje och alla tester gröna.
+- Merga PR till `stream-native` (aldrig `main`) när lint = baslinje och alla tester gröna.
 
 ## Dirigenten frågar alltid (`[?]` + pushnotis)
 - Produktriktning, prissättning, instruktörsrelation, vad som ingår i betan.
