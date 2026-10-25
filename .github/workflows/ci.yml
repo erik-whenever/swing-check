@@ -17,7 +17,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/mobile/package-lock.json
       - run: npm ci
+      # apps/mobile's state/screen tests run under the root vitest; their tsconfig extends
+      # expo/tsconfig.base, so the app's deps must be installed or oxc fails to load it.
+      - run: npm ci
+        working-directory: apps/mobile
       # Under load a few heavy tests (session-multi robustness, tts' cold module import)
       # pass 5 s, vitest's default; a 2-core runner is load. Real hangs still fail.
       - run: npx vitest run --testTimeout=30000

@@ -204,7 +204,11 @@ V-1:s facit visar att det förbättrar domarna.
 Outfit via `expo-font`, `Text`, `Card`, `Button`, `Segmented`, `Chip`, `SectionLabel`, `VerdictMark` (tre former), `ConfidenceBar`,
 `BrandHeader`; nya native-beroenden (`expo-font`, `react-native-svg`) → dev-klienten måste byggas om. **del 2** `apps/mobile/src/state/`:
 rena modeller (inställningar, historik med `planMediaRetention`, regelval via `recommendRules`, feltexter inkl. `UsageCapReachedError`).
-**Kvar:** hooks/persistens (`AppStateProvider`, expo-file-system) + tester för state, `docs/native/ui-komponenter.md`, navigation och de sju skärmarna, TTS.
+2026-10-25 (dirigent, körning 5): **del 3** `src/state/`: `AppStateProvider`, hooks (`useSettings`, `useHistory`, `useRuleSelection` m.fl.), filpersistens
+(expo-file-system bakom filinterface, tmp+flytt, korrupt fil kopieras undan, medietak efter varje sparning), 42 tester, [ui-komponenter.md](native/ui-komponenter.md).
+**del 4–5** `src/screens/`: rena presentationsskärmar Välkommen, Uppladdning, Analys pågår, Resultat, Regler, Historik (props in, inga hooks/nät),
+ren logik i `reviewLogic.ts` (13 tester); [skarmar.md](native/skarmar.md). Ej körda på enhet.
+**Kvar:** navigation + containrar (koppla skärmar till state/pipeline), Livesession-skärmen, TTS, enhetsprov.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
 typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
 Kamera/session, resultat, regler, historik, TTS.
