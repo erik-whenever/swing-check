@@ -186,7 +186,7 @@ riktiga anrop. Dirigenten bygger Worker-ändringen och skriver deploy-kommandon;
 2026-10-25 (dirigent, körning 3): webbens `MAX_RECORDS` borta — `src/lib/historyRetention.ts` mäter faktiska bytes och kör
 cores `planMediaRetention` (video först, sedan bildrutor, poster behålls); tak `mediaCapMb` (300 MB) i settings, `SwingCard`
 visar "video rensad", Supabase-sidtak 500 (`OSÄKER`); 8 tester.
-**Kvar:** Worker-ändringen (tillsammans med W-2), deploy, cache-mätningen. Därtill prov på enhet, UI (språk, tak-reglage, "video rensad") i N-3.6.
+**Kvar:** deploy av Worker-ändringen (byggd i W-2, körning 3) och cache-mätningen (📱 Erik, ≤ 10 anrop). Därtill prov på enhet, UI (språk, tak-reglage, "video rensad") i N-3.6.
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.
@@ -319,7 +319,14 @@ görs (utgångsläge, kameravinkel, nivå, vad som visas och varför). **ADR-num
 
 W-1 ligger i [arkivet](archive/backlog-strommar.md).
 
-### [~] W-2 — Identitet per installation + tak per identitet
+### [📱] W-2 — Identitet per installation + tak per identitet
+2026-10-25 (dirigent, körning 3): **Worker-delen klar, ej deployad.** `X-SwingCheck-Install` → tak per installation och
+UTC-dygn (40 anrop / 400 000 tokens, 429 `install_cap_reached`), D1 `install_usage` (migrering 0003), CORS tillåter
+headern, `swingcheck://se.swingcheck.app` i `ALLOWED_ORIGINS` (N-3.5). **D1-bindningen rättad `swingcheck-logs`→`DB`**
+(fel sedan `619e586`: D1-loggar och globala taket har varit avstängda i prod; slås på vid deploy). 18 nya tester.
+**📱 Erik:** 1) `cd worker`, följ [identitet-w2.md → Deploy](native/identitet-w2.md#deploy-erik-kör-lokalt) (migrering + deploy);
+2) kör röktesterna där; 3) bygg om dev-klienten och kör en analys på iPhone. Kvar därefter: App Attest före öppen release,
+begriplig text i appen för `install_cap_reached`/`daily_cap_reached`.
 2026-10-25 (dirigent): klientdel + spec. Core `lib/installId.ts` (UUID v4, validering, testad); appen läser/skapar
 identiteten i Keychain (`expo-secure-store`, `THIS_DEVICE_ONLY`) och skickar `X-SwingCheck-Install`. Webben skickar
 den inte (CORS). Spec + Worker-kodskiss: [identitet-w2.md](native/identitet-w2.md). **Beslut Erik 2026-10-25:** ja —

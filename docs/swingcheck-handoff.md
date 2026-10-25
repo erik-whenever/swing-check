@@ -25,9 +25,10 @@
 - **N-7 `[x]`:** webben och appen hämtar pose-modellen från samma versionsadress och sha256 (`modules/pose/models.json`).
 - **F-1 `[~]`:** ADR-0005 föreslagen + `recommendRules` i core (oanvänd i appen). V-1-grinden tom tills facit finns.
   `lib-forward-shaft-lean` är taggad DTL fast den syns face-on — noterat, inte ändrat.
-- **W-2 `[~]`:** appen skickar `X-SwingCheck-Install` (UUID v4 i Keychain); Workern ignorerar den tills
-  Worker-delen i [identitet-w2.md](native/identitet-w2.md) är deployad. Nya native-deps (`expo-secure-store`,
-  `expo-crypto`) → dev-klienten måste byggas om.
+- **W-2 `[📱]`:** Worker-delen klar på `stream-native` men **ej deployad**: tak per installation (40 anrop /
+  400 000 tokens/dygn, D1 `install_usage`, migrering 0003) + appens origin i `ALLOWED_ORIGINS`. D1-bindningen var fel
+  (`swingcheck-logs`, koden läser `DB`) sedan `619e586` → loggar och globala taket har varit av i prod; rättat, slås på
+  vid deploy. Erik kör deploy enligt [identitet-w2.md](native/identitet-w2.md#deploy-erik-kör-lokalt). Dev-klienten måste byggas om.
 - **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac), N-3.6 `[?]` (väntar på D-1-godkännande),
   N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25: inget oblockerat kvar i N/V/D/F/W-2.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
