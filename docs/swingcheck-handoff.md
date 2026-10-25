@@ -1,9 +1,15 @@
 # SwingCheck — Handoff / Överlämning
 
 > Aktuell kontext för en ny session. Läs tillsammans med [BACKLOG.md](BACKLOG.md) (auktoritativ för gjort/kvar).
-> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-24.
+> Stabil arkitektur: [../KONTEXT.md](../KONTEXT.md). Senast uppdaterad: 2026-10-25.
 >
-> **Senast (2026-10-24, stream-native):** **N-3.2 (pose Android) är `[~]`: koden är klar, Eriks mätning på
+> **Senast (2026-10-25, stream-native):** **Ny ordning i ström N (Eriks beslut): iOS slutförs först.**
+> Android-prestandan pausas efter N-3.2-diagnosen och blir **N-8**, som tas upp när iOS når beta. Ordning:
+> N-3.2-diagnosen → N-3.5 + N-3.6 (ren JS, båda dev-klienterna) → N-3.7 + N-3.8 (Mac) → N-3.4 och resten av
+> iOS-kedjan → N-8. **Första Android-mätningen** (lite · gpu · yuv, Galaxy A16 4G): 4,55 fps, 84,8 % tappade,
+> `inferMs` 183 ms i median, `convertMs` 5,7 ms. Paritet klarad på CPU (1,1e-5). Siffrorna står under N-3.2.
+>
+> **Före det (2026-10-24, stream-native):** **N-3.2 (pose Android) är `[~]`: koden är klar, Eriks mätning på
 > Galaxy A16 4G återstår.** Allt som avgjordes står i [pose-android.md §8](native/pose-android.md), och
 > BACKLOG N-3.2 har listan.
 > - `modules/pose`: specen från pose-android.md §6 (+ `runtimeInfo`), Kotlin med MediaPipe 0.10.35 i VIDEO-läge,

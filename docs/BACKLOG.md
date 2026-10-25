@@ -3564,6 +3564,16 @@ TFLite, och två TFLite-kopior i samma binär ger dubbla symboler (N-2). shaft-v
 Uppdelad 2026-10-23 i N-3.1–N-3.9, i ordning. Android först, eftersom det inte kräver Mac. iOS-modulerna
 (N-3.7–N-3.8) väntar på Mac. Punkterna från N-2 är fördelade på underuppgifterna nedan.
 
+**Ny ordning (Eriks beslut 2026-10-25): iOS slutförs först.** Android är fortfarande ett mål, men
+prestandaarbetet för Android pausas efter N-3.2-diagnosen och tas upp igen när iOS når beta (N-8). Ordning i ström N:
+1. N-3.2-diagnosen (rotorsaken till Android-posens tid, se N-3.2).
+2. N-3.5 och N-3.6 (ren JS, utvecklas och provas på båda dev-klienterna).
+3. N-3.7 och N-3.8 när Macen finns.
+4. N-3.4 (capture) och resten av iOS-kedjan.
+5. Android-prestandan: N-8, efter iOS-beta.
+
+N-3.3 (skaft Android) ligger kvar men görs inom eller efter N-8.
+
 #### [x] N-3.1 — ADR för native-pipelinen + skelett `apps/mobile` + modulstubbar + Android-länkningskontroll
 ADR: två egna Nitro-moduler, `pose` och `shaft`, med ett TS-gränssnitt var (`.nitro.ts`). Kotlin nu, Swift
 senare. Ingen fast-tflite. Skelett: Expo SDK 58 + dev client, VisionCamera 5, Nitro, `@swingcheck/core` via
@@ -3658,6 +3668,14 @@ golvet för Android. Referens för iOS är iPhone 16 Pro (N-2).
   cores `IMPACT_ADDRESS_TOL` (0,007).
 - **Inte gjort:** körning 5 (ingen nedskalning) kräver en inställning som specen saknar.
 
+**Mätning 1 — lite · gpu · yuv, Galaxy A16 4G (SM-A165F, MT6789/Helio G99, Mali-G57 MC2), person i bild,
+3 min (Erik, 2026-10-25): klarar inte grinden.** 4,55 fps, 84,81 % tappade rutor, pose i 72,9 % av rutorna.
+`totalMs` 190 ms i median, p95 354, p99 370. `convertMs` 5,65 ms, `inferMs` 182,94 ms i median. Thermal `none`,
+headroom 0,65. **Paritet (stillbild, ingen kamera):** klarar gränsen, CPU max |Δ| 1,1e-5. Tider på stillbilden:
+lite cpu 117 ms, lite gpu 308 ms, full cpu 131 ms. GPU avviker 1,9e-2 mot Python, cpu+yuv 6,9e-3.
+Inferensen är ~5× långsammare än väntat för två A76 (20–40 ms). Rotorsaken utreds innan något optimeras
+(diagnosen nedan). Konverteringen är inte problemet.
+
 **Kvar (Erik, Galaxy A16 4G):** bygg `development` för Android, kontrollera overlayn stående och liggande
 (test O), kör Paritet, och kör grinden: lite GPU, lite CPU, full GPU, full CPU (3 min var, kall telefon), samt
 körning 6 (`rgb`). Grinden är N-2:s: p99 `totalMs` < 33 ms, tappade rutor < 1 % efter 2 s, thermal aldrig
@@ -3705,6 +3723,11 @@ fp32 och fp16, samma vikter. Konverteringen görs utan Mac, pariteten mäts på 
 ### [ ] N-5 — Handsfree med taligenkänning på enheten
 
 ### [ ] N-6 — TestFlight och Play
+
+### [ ] N-8 — Android-prestanda (efter iOS-beta)
+Pausad till iOS når beta (Eriks beslut 2026-10-25). Utgångsläge: N-3.2 mätning 1 och diagnosen där.
+Målet är N-2-grinden på Galaxy A16 4G (golvet för Android), alternativt ett belagt besked om att telefonen
+inte klarar den och vad produkten då gör på Android (lägre fps till core, annan modell, annan miljö).
 
 ### [ ] N-7 — Lås pose-modellens version och hash (webb + app)
 Webbens `scripts/download-pose-model.mjs` hämtar `…/pose_landmarker_lite/float16/latest/…` utan hashkontroll.
