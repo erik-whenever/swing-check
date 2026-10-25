@@ -131,3 +131,25 @@ Designkälla: `docs/design/d1-v2/png/historik-{light,dark}.png`, `index.html` sh
 
 Livesessionen skriver i dag inga sessionsposter i `HistoryEntry` (bara `sessionId`); sammanställning
 till `HistorySession` görs av skärmens ägare.
+
+## Livesession — `LiveSessionScreen.tsx`
+
+**Designkälla:** `docs/design/d1-v2/png/livesession.png` (`.s5` i `d1-v2/index.html`); riktning i `docs/design/d1/README.md` → "Livesession" + avvikelsetabellen. G1-skärmen: telefon på stativ 2–4 m bort, läses utan att gå fram; rösten/hörlurarna styr, skärmen bekräftar.
+
+| Prop | Typ | Not |
+|---|---|---|
+| `camera?` | `ReactNode` | Kameraförhandsvisning bakom, nedtonad av en gradientslöja (skissens `.veil`). |
+| `status` | `LiveStatus` = `'ready'\|'listening'\|'analyzing'\|'paused'` | "Redo"/"Lyssnar"/"Analyserar"/"Pausad" i 36 pt volt. |
+| `statusDetail?` | `string` | Ersätter standardundertexten ("Slå när du vill"). |
+| `audioRouteLabel?` | `string` | "AirPods"-chipet; utelämnad → dolt. |
+| `swingNumber` | `number \| null` | "Sving 7 · senaste"; `null` → "Ingen sving än". |
+| `elapsedMs` | `number` | "14 min". |
+| `latest` | `{ id, title, verdict }[]` | Senaste svingens domar (`short_verdict` ordagrant), max tre rader; poängen (120 pt) = godkända av bedömbara. |
+| `focus?` | `{ title, history: (verdict \| null)[] }` | Fokusregelns dom per sving, äldst först → sju block, senaste med vit ring, "4 av 7" i guld. |
+| `onPause`, `onResume`, `onEnd` | `() => void` | 76 pt kontroller; Paus byts mot Fortsätt när `status === 'paused'`. |
+
+Alltid mörk (nästlad `ThemeProvider scheme="dark"`) med `live`-tokens; volt bara för LIVE och tillståndet (maskinseende). Domar = `VerdictMark size={52} onLive`. Stor display (poäng, tillstånd) skalar inte med Dynamic Type — layouten är redan dimensionerad för 3 m; domraderna krymper hellre (`adjustsFontSizeToFit`) än bryts. Säkra marginaler (safe area) lämnas till containern, som för övriga skärmar.
+
+Ren härledning i `screens/liveSessionLogic.ts` (test: `liveSessionLogic.test.ts`): `toLiveVerdict`, `liveScore`, `focusTrendBlocks` (sju senaste, tomma fyller ut till höger), `trendCountLabel`, `liveStatusText`, `elapsedLabel`.
+
+Kända förenklingar (`// OSÄKER` i koden): kameran tonas bara ned, ingen blur (kräver expo-blur = nytt beroende); "Redo"-pulsen är statisk (animation hör till ägaren/egen ui-komponent, med Reducera rörelse); streckat block för "ingen dom" använder RN:s `borderStyle: 'dashed'` (iOS först).
