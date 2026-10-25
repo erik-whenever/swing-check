@@ -215,7 +215,10 @@ I betan ritar skaftet bara en visuell tracer i resultatet; inga skaftmått till 
 #### [ ] N-3.9 — Helflöde på iPhone + Android, ta bort `apps/spike`
 I betan räcker iPhone; Android-delen följer N-8.
 
-### [ ] N-4 — 30 fps-omkalibrering (S-49 §6)
+### [📱] N-4 — 30 fps-omkalibrering (S-49 §6)
+**📱 Kräver Eriks dator** (dirigent 2026-10-25): omkalibreringen körs mot posedatan i `data/shaft/fps-missed/`
+(gitignorerad, finns bara lokalt) och helst mot 30 fps-pose från appen (efter N-3.4). 1) Starta en CC-session lokalt
+på `stream-native`; 2) kör S-49:s uppställning (§6 (a)–(e)) med 30 fps-sampel; 3) committa konstanterna + resultat i fps-missed-swings.md.
 
 ### [📱] N-5 — Handsfree med taligenkänning på enheten
 **📱 Kräver Mac + iPhone** (taligenkänning på enheten är native och provas med hörlurar); görs efter N-3.4.
