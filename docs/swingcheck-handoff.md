@@ -29,12 +29,14 @@
   400 000 tokens/dygn, D1 `install_usage`, migrering 0003) + appens origin i `ALLOWED_ORIGINS`. D1-bindningen var fel
   (`swingcheck-logs`, koden läser `DB`) sedan `619e586` → loggar och globala taket har varit av i prod; rättat, slås på
   vid deploy. Erik kör deploy enligt [identitet-w2.md](native/identitet-w2.md#deploy-erik-kör-lokalt). Dev-klienten måste byggas om.
-- **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac), N-3.6 `[?]` (väntar på D-1-godkännande),
+- **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac),
   N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25: inget oblockerat kvar i N/V/D/F/W-2.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
 - **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
   F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
   lagring efter MB. **Inget V-körs mot Claude utan Eriks budgetgodkännande.**
+
+- **N-3.6 `[~]` (körning 4):** `src/ui/` (tokens + baskomponenter) och `src/state/` (rena modeller) klara; kvar: state-hooks, navigation, skärmar. Dev-klienten byggs om (expo-font, react-native-svg).
 
 ## Arkitektur i en rad
 `apps/mobile` (Expo 58 / RN 0.88 / VisionCamera 5 / Nitro 0.37) med egna Nitro-moduler `pose`, `shaft`
