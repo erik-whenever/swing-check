@@ -3,6 +3,7 @@ import type { Rule, SwingAnalysis } from '@swingcheck/core/types';
 import {
   clampWindow,
   defaultSwingWindow,
+  frameResize,
   runUploadAnalysis,
   selectFrameTimes,
   UploadCancelledError,
@@ -59,6 +60,15 @@ describe('swing window', () => {
     expect(clampWindow({ start: -1, end: 9 }, 5)).toEqual({ start: 0, end: 5 });
     expect(clampWindow({ start: 2, end: 2 }, 3)).toEqual({ start: 0, end: 3 });
     expect(clampWindow(null, 3)).toEqual({ start: 0, end: 3 });
+  });
+});
+
+describe('frameResize', () => {
+  it('caps the longest edge, portrait included', () => {
+    expect(frameResize(3840, 2160)).toEqual({ width: 1280 });
+    expect(frameResize(1080, 1920)).toEqual({ height: 1280 });
+    expect(frameResize(2160, 3840)).toEqual({ height: 1280 });
+    expect(frameResize(720, 1280)).toBeNull();
   });
 });
 
