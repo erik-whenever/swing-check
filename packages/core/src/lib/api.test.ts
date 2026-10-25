@@ -6,7 +6,9 @@ import {
   configureApi,
   isApiConfigured,
   maxTokensFor,
+  parseUsageCapError,
   TruncatedResponseError,
+  UsageCapReachedError,
 } from './api';
 import { setAnalysisLanguage, DEFAULT_ANALYSIS_LANGUAGE } from './language';
 
@@ -126,5 +128,35 @@ describe('analyzeSwing configuration', () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://worker.example/api/analyze');
     expect(init.headers).toEqual({ Origin: 'swingcheck://app', 'Content-Type': 'application/json' });
+  });
+});
+
+describe('usage caps (W-2)', () => {
+  function mock429(body: string) {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 429 })));
+  }
+
+  it('throws UsageCapReachedError with the Worker message for install_cap_reached', async () => {
+    mock429(JSON.stringify({ error: 'install_cap_reached', message: 'Slut för idag.' }));
+    const err = await analyzeSwing(['x'], [rule(1)], {}).catch((e) => e);
+    expect(err).toBeInstanceOf(UsageCapReachedError);
+    expect(err.scope).toBe('install');
+    expect(err.message).toBe('Slut för idag.');
+  });
+
+  it('maps daily_cap_reached to scope daily and falls back to a default message', () => {
+    const err = parseUsageCapError(429, JSON.stringify({ error: 'daily_cap_reached' }));
+    expect(err?.scope).toBe('daily');
+    expect(err?.message).toMatch(/midnatt UTC/);
+  });
+
+  it('leaves other errors as generic API errors', async () => {
+    expect(parseUsageCapError(429, 'not json')).toBeNull();
+    expect(parseUsageCapError(500, JSON.stringify({ error: 'install_cap_reached' }))).toBeNull();
+    expect(parseUsageCapError(429, JSON.stringify({ error: 'rate_limited' }))).toBeNull();
+    mock429('nope');
+    const err = await analyzeSwing(['x'], [rule(1)], {}).catch((e) => e);
+    expect(err).not.toBeInstanceOf(UsageCapReachedError);
+    expect(err.message).toMatch(/API error 429/);
   });
 });

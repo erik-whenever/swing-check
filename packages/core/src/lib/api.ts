@@ -42,6 +42,45 @@ export class ApiNotConfiguredError extends Error {
   }
 }
 
+/** Which Worker cap answered 429: the global daily cap or the per-installation cap (W-2). */
+export type UsageCapScope = 'daily' | 'install';
+
+/**
+ * Thrown when the Worker answers 429 with `daily_cap_reached` or `install_cap_reached`.
+ * `message` is the Worker's user-facing text when present, so a shell that shows `err.message`
+ * gets a readable sentence instead of raw JSON.
+ */
+export class UsageCapReachedError extends Error {
+  readonly scope: UsageCapScope;
+  constructor(scope: UsageCapScope, message?: string) {
+    super(
+      message ??
+        (scope === 'install'
+          ? 'Dagens analyser för den här installationen är slut. Försök igen efter midnatt UTC.'
+          : 'Dagens analyser är slut. Försök igen efter midnatt UTC.'),
+    );
+    this.name = 'UsageCapReachedError';
+    this.scope = scope;
+  }
+}
+
+/** Maps a 429 body from the Worker to a UsageCapReachedError, or null for any other error body. */
+export function parseUsageCapError(status: number, body: string): UsageCapReachedError | null {
+  if (status !== 429) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const { error, message } = parsed as { error?: unknown; message?: unknown };
+  const scope: UsageCapScope | null =
+    error === 'install_cap_reached' ? 'install' : error === 'daily_cap_reached' ? 'daily' : null;
+  if (!scope) return null;
+  return new UsageCapReachedError(scope, typeof message === 'string' && message ? message : undefined);
+}
+
 // Priser 2026-08, verifiera vid modellbyte
 const CLAUDE_SONNET_4_5_PRICING = {
   inputPerMillionTokens: 3.0,
@@ -223,6 +262,8 @@ export async function analyzeSwing(
       responseMs,
       body: errorText.slice(0, 300),
     });
+    const capError = parseUsageCapError(response.status, errorText);
+    if (capError) throw capError;
     throw new Error(`API error ${response.status}: ${errorText}`);
   }
 
