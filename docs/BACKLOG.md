@@ -173,7 +173,8 @@ svingdetektion → rututtag för Vision + 26 skaftrutor. Rututtaget görs av mod
 äger klockan. **Grind:** värme under en hel session med pose + kodare + förhandsvisning (rututtag.md, risk 1).
 Faller den, blir det väg 1 (rå ring i 540p).
 
-#### [~] N-3.5 — Analys + lagring
+#### [📱] N-3.5 — Analys + lagring
+**📱 Test (Erik):** 1) kör cache-mätningen lokalt (≤ 10 anrop, sv/en, före/efter) enligt [analys-lagring.md](native/analys-lagring.md); 2) på iPhone: Historik → kugghjulet → byt språk och kör "Läs upp"; 3) sänk medietaket och kontrollera dialogen och "video rensad". Ingen kod kvar (dirigent körning 8).
 2026-10-25 (dirigent): språket är en parameter (`core/language.ts`), prompten och TTS läser samma värde; språket
 ligger efter cache-brytpunkten och ett test visar byte-identiskt prefix sv/en. `core/mediaRetention`: tak i bytes
 (standard 300 MB), video rensas äldst först, sedan bildrutor, resultat aldrig. Appen: `coreSetup`
@@ -340,9 +341,9 @@ Ny 2026-10-25. Inte samma som öppna frågor F1–F9 i [oppna-fragor.md](oppna-f
 ### [~] F-1 — Rekommenderat regelset
 2026-10-25 (dirigent): [ADR-0005](adr/0005-rekommenderat-regelset.md) (Föreslagen) och ren `recommendRules()` i core
 (vinkel + nivå + valfri målfas + V-1-karta → ordnade biblioteks-id, valideringsstatus, motiveringskoder; 12 tester).
-Används ännu inte av appen. **Beslut Erik 2026-10-25:** nivåerna (nybörjare/medel/avancerad, max 3/5/6 regler)
+Appen använder den sedan N-3.6 (`state/rulesModel.ts`, Regler → Rekommenderat; nivå i Inställningar), så UI-delen är klar (dirigent körning 8). **Beslut Erik 2026-10-25:** nivåerna (nybörjare/medel/avancerad, max 3/5/6 regler)
 godkända; omätta regler visas som "ej validerad" tills V-1 är kört; ADR-numret 0005 bekräftat. ADR-0005 satt till
-Accepterad (körning 3). Kvar: V-1-gränser mot baslinjen (väntar på V-1), UI (väntar på D-1).
+Accepterad (körning 3). Kvar: V-1-gränser mot baslinjen (väntar på V-1:s facit, 📱 Erik).
 Användaren väljer regler själv **eller** får ett rekommenderat regelset. Skriv ADR för hur rekommendationen
 görs (utgångsläge, kameravinkel, nivå, vad som visas och varför). **ADR-numret:** Erik skrev "ADR-004", men
 0004 är native-pipelinen ([ADR-0004](adr/0004-native-pipeline-nitro-modules.md)); nästa lediga är **0005**
