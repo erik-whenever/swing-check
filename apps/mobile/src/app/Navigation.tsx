@@ -17,6 +17,7 @@ import {
   ResultContainer,
   RuleLibraryContainer,
   RulesContainer,
+  SettingsContainer,
   UploadContainer,
   WelcomeContainer,
 } from './containers';
@@ -93,6 +94,11 @@ export function Navigation() {
         <Stack.Screen
           name="RuleLibrary"
           component={RuleLibraryContainer}
+          options={{ presentation: Platform.OS === 'ios' ? 'modal' : 'card' }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsContainer}
           options={{ presentation: Platform.OS === 'ios' ? 'modal' : 'card' }}
         />
         {__DEV__ && <Stack.Screen name="Dev" component={DevScreen} options={{ headerShown: true, title: 'Dev' }} />}

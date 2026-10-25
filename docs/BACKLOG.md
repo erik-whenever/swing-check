@@ -186,7 +186,9 @@ riktiga anrop. Dirigenten bygger Worker-ändringen och skriver deploy-kommandon;
 2026-10-25 (dirigent, körning 3): webbens `MAX_RECORDS` borta — `src/lib/historyRetention.ts` mäter faktiska bytes och kör
 cores `planMediaRetention` (video först, sedan bildrutor, poster behålls); tak `mediaCapMb` (300 MB) i settings, `SwingCard`
 visar "video rensad", Supabase-sidtak 500 (`OSÄKER`); 8 tester.
-**Kvar:** deploy av Worker-ändringen (byggd i W-2, körning 3) och cache-mätningen (📱 Erik, ≤ 10 anrop). Därtill prov på enhet, UI (språk, tak-reglage, "video rensad") i N-3.6.
+2026-10-25 (dirigent, körning 7): UI klart — Inställningar (modal från kugghjulet i Historik): språk, nivå, standardvinkel, medietak
+som förval 150/300/600/1000 MB med lagringsstapel av faktiska bytes; ett tak som rensar media bekräftas först ("video rensad" fanns redan i Historik). 6 tester, [skarmar.md](native/skarmar.md).
+**Kvar:** cache-mätningen (📱 Erik, ≤ 10 anrop) och prov på enhet (öppna Historik → kugghjulet → byt språk och tak).
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.
@@ -222,6 +224,7 @@ image-manipulator, ≤1280 px, JPEG 0,8; interim tills `capture`) → core/Worke
 Ren `runUploadAnalysis` (progress, avbrytbar; 8 tester), `UPLOAD_PIPELINE_AVAILABLE=true`; [uppladdning.md](native/uppladdning.md).
 **del 13** sessionsrader och trend i Historik: `historyLogic.ts` (ren, testad) grupperar på `sessionId` till utfällbar sessionsrad (stapel per sving → Resultat),
 uppladdningar som egna rader; fokusregelns trend (21 dagar, en punkt per session/uppladdningsdag). Sessionsrader syns först när livepipelinen sparar `sessionId`.
+**del 14** (körning 7) Inställningar (`SettingsScreen` + `settingsLogic`, route `Settings`), se N-3.5.
 **Kvar:** pose-baserat svingfönster/fasurval/beskärning (N-3.4/N-3.8 ersätter `FrameSource`/`selectFrameTimes`), skaftsteg och fasbilder på Analys,
 auto-vinkel, livepipeline → `enqueueLive` (N-3.4). **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
 (tre nya native-moduler; `EXPO_PUBLIC_API_URL` satt); 2) Sving → "Byt klipp" → kort klipp → "Bedöm svingen"; 3) kontrollera Resultat + Historik med bild, och att Avbryt mitt i inte sparar något.

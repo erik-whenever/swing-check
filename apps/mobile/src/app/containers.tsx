@@ -27,6 +27,8 @@ import { ResultScreen, type ResultRuleInfo } from '../screens/ResultScreen';
 import { RuleLibraryScreen } from '../screens/RuleLibraryScreen';
 import type { PhaseFilter } from '../screens/ruleLibraryLogic';
 import { RulesScreen } from '../screens/RulesScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { capChangeWarning } from '../screens/settingsLogic';
 import { UploadScreen, type SwingWindow } from '../screens/UploadScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { buildHistoryItems, currentFocusRuleId, focusTrend } from '../screens/historyLogic';
@@ -40,6 +42,7 @@ import {
   useRuleSelection,
   useSettings,
 } from '../state';
+import { measureMedia } from '../mediaStore';
 import { useSpeech, type SpeechSource } from '../tts';
 import { greetingFor, live, useTheme } from '../ui';
 import { initialLiveSession, liveElapsedMs, liveSessionReducer } from './liveSessionState';
@@ -424,6 +427,57 @@ export function HistoryContainer() {
       items={items}
       now={now}
       onOpen={(swing) => navigation.navigate('Result', { entryId: swing.id, fromHistory: true })}
+      onSettings={() => navigation.navigate('Settings')}
+    />
+  );
+}
+
+// ── Inställningar ────────────────────────────────────────────────────────────
+
+export function SettingsContainer() {
+  const navigation = useNavigation<StackNav>();
+  const { settings, updateSettings } = useSettings();
+  const { entries } = useHistory();
+  const insets = useSafeAreaInsets();
+  // Faktiska bytes på disk, som medietaket räknar (mediaStore.measureMedia); mäts om när historiken ändras.
+  const usedBytes = useMemo(
+    () => entries.reduce((sum, e) => {
+      const m = measureMedia(e);
+      return sum + m.videoBytes + m.framesBytes;
+    }, 0),
+    [entries],
+  );
+  const purgedCount = useMemo(() => entries.filter((e) => e.videoPurged).length, [entries]);
+  const onMediaCapChange = useCallback(
+    (mediaCapMb: number) => {
+      const warning = capChangeWarning(usedBytes, mediaCapMb);
+      if (!warning) {
+        void updateSettings({ mediaCapMb });
+        return;
+      }
+      // Ett lägre tak raderar mediefiler direkt (appStore.updateSettings) — bekräfta först.
+      Alert.alert('Rensa äldre media?', warning, [
+        { text: 'Avbryt', style: 'cancel' },
+        { text: 'Rensa', style: 'destructive', onPress: () => void updateSettings({ mediaCapMb }) },
+      ]);
+    },
+    [usedBytes, updateSettings],
+  );
+  return (
+    <SettingsScreen
+      // iOS modal sheet sits below the status bar already; elsewhere it is a full card.
+      style={{ paddingTop: Platform.OS === 'ios' ? 0 : insets.top }}
+      language={settings.language}
+      onLanguageChange={(language) => void updateSettings({ language })}
+      level={settings.level}
+      onLevelChange={(level) => void updateSettings({ level })}
+      defaultAngle={settings.defaultAngle}
+      onDefaultAngleChange={(defaultAngle) => void updateSettings({ defaultAngle })}
+      mediaCapMb={settings.mediaCapMb}
+      onMediaCapChange={onMediaCapChange}
+      usedBytes={usedBytes}
+      purgedCount={purgedCount}
+      onDone={() => navigation.goBack()}
     />
   );
 }

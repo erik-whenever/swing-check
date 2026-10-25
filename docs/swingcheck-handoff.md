@@ -30,11 +30,11 @@
 - **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac),
   N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25: inget oblockerat kvar i N/V/D/F/W-2.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
-
 - **N-3.6 `[~]` (körning 5):** `src/ui/`, `src/state/`, `src/screens/` (sju rena skärmar inkl. Livesession), `src/app/` (React Navigation v7, entry `src/app/App`; DevScreen = långtryck på Historik i dev) och `src/tts/` (expo-speech, gemensam kö, "Läs upp" kopplad; Livesession på fliken Session utan pipeline) klara; regelbiblioteket som modal från "+"/Egna. Kvar: uppladdningspipeline, livepipeline (N-3.4). **Dev-klienten måste byggas om** (screens, safe-area, expo-font, svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`; CI installerar `apps/mobile` före vitest.
 
 - **N-3.6 del 12 (körning 6):** uppladdning fungerar hela vägen (klippval → 32 jämna rutor → Worker → Historik → Resultat), interim-rututtag utan pose ([uppladdning.md](native/uppladdning.md)); ~5× fler input-tokens per sving tills N-3.8 beskär. Tre nya native-moduler → dev-klienten byggs om.
 
+- **N-3.5/N-3.6 del 14 (körning 7):** Inställningar (kugghjulet i Historik): språk, nivå, standardvinkel, medietak med lagringsstapel; lägre tak som rensar media bekräftas. Inga nya native-beroenden.
 - **N-6 steg 1 (körning 6):** EAS production-profil + expo-updates (fingerprint) klara, guide [testflight.md](native/testflight.md); `eas update` behöver `EXPO_PUBLIC_API_URL` inline. `swingcheck-temp` (rot + wrangler) lämnad — byte påverkar prod-PWA:ns Worker. 📱 Erik kör build + submit.
 - **N-3.6 del 13 (körning 6):** Historik har utfällbara sessionsrader + fokusregelns trend (`screens/historyLogic.ts`); syns när livepipelinen skriver `sessionId` (ingen kod gör det än).
 
