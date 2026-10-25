@@ -74,8 +74,9 @@ pressa en äldre iPhone-flik. Bedömt låg–medel; åtgärd vid behov: media un
    `cacheCreationTokens` i loggraden `analyzeSwing response received` för några svingar i följd, före och efter
    denna ändring, på båda språken. Väntat: en cache-skrivning första gången efter deploy (prefixet ändrades), sedan
    träffar oavsett språk.
-2. **Worker-konfig:** lägg till `swingcheck://se.swingcheck.app` i `ALLOWED_ORIGINS` (prod-ändring → Erik) och sätt
-   `EXPO_PUBLIC_API_URL` för dev-klienten/EAS.
+2. **Worker-konfig:** `swingcheck://se.swingcheck.app` är tillagd i `ALLOWED_ORIGINS` i `worker/wrangler.toml`
+   (branch `dirigent/W-2-worker`, samma deploy som W-2:s tak — se [identitet-w2.md](identitet-w2.md#deploy-erik-kör-lokalt)).
+   Kvar för Erik: deploya, och sätt `EXPO_PUBLIC_API_URL` för dev-klienten/EAS.
 3. **Enhetsprov:** en analys från dev-klienten på iOS (Origin-headern, `ApiNotConfiguredError` utan env) och att
    `enforceMediaCap` mäter och raderar riktiga filer.
 4. **N-3.6:** språk- och takinställning i UI, TTS i appen via `ttsConfigFor()`, historiken som visar "video rensad"

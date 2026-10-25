@@ -5,10 +5,12 @@ compatibility_date = "2024-01-01"
 # Persistent storage for client logs + the daily proxy call counter. Fill in database_id
 # after running:
 #   npx wrangler d1 create swingcheck-logs
-# Apply migrations (0001 client_logs, 0002 api_usage):
+# Apply migrations (0001 client_logs, 0002 api_usage, 0003 install_usage), from worker/:
 #   npx wrangler d1 migrations apply swingcheck-logs --remote
+# `binding` MUST be "DB": worker.ts reads env.DB. Any other name leaves env.DB undefined, and
+# every D1 feature (client logs, DAILY_CALL_CAP, the per-install cap) silently fails open.
 [[d1_databases]]
-binding = "swingcheck-logs"
+binding = "DB"
 database_name = "swingcheck-logs"
 database_id = "da971970-b8d0-4d35-b976-08d3394baaf4"
 migrations_dir = "migrations"
@@ -22,7 +24,10 @@ migrations_dir = "migrations"
 # dev origins ONLY, so a deploy without this value 403:s the real app. Put the app's own
 # origin here even when the app and the Worker share a domain: browsers send Origin on
 # same-origin POSTs too.
-ALLOWED_ORIGINS = "https://swing-check-henna.vercel.app/,http://localhost:5173,http://127.0.0.1:5173"
+# swingcheck://se.swingcheck.app is the native app (N-3.5): React Native's fetch sends no
+# Origin, so the app sets this one itself (apps/mobile/src/coreSetup.ts). It is forgeable
+# like any Origin — the call caps below are what protect the budget, not this list.
+ALLOWED_ORIGINS = "https://swing-check-henna.vercel.app/,http://localhost:5173,http://127.0.0.1:5173,swingcheck://se.swingcheck.app"
 
 # The model the proxy pins every request to; the client's `model` field is ignored.
 # Keep in sync with the price table in src/lib/api.ts.
@@ -40,6 +45,16 @@ BODY_MAX_BYTES = "31457280"
 # binding is missing or the write fails, the cap is skipped and the call goes through —
 # the wallet guard must never be what stops a swing from being analysed.
 DAILY_CALL_CAP = "300"
+
+# Per installation and UTC day (W-2, docs/native/identitet-w2.md). Keyed on the
+# X-SwingCheck-Install header (UUID v4) the native app sends; counted in D1 (install_usage).
+# Over either → 429 install_cap_reached. Tokens = input + output. Fails open like the above.
+INSTALL_DAILY_CALL_CAP = "40"
+INSTALL_DAILY_TOKEN_CAP = "400000"
+# Calls without a valid header (the web) share the bucket 'anon'. Unset → ANON_DAILY_CALL_CAP
+# equals DAILY_CALL_CAP and there is no anon token cap, i.e. the web behaves as before W-2.
+# ANON_DAILY_CALL_CAP = "300"
+# ANON_DAILY_TOKEN_CAP = "3000000"
 
 # Secrets (never in this file — set with `npx wrangler secret put <NAME>`):
 #   ANTHROPIC_API_KEY  required

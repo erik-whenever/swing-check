@@ -1,7 +1,8 @@
 # W-2 — Identitet per installation + tak per identitet
 
-Status: **klientdelen klar** (branch `dirigent/W-2`). **Worker-delen är en spec** — `worker/` är inte ändrad;
-ändringen nedan kräver Eriks godkännande (prod-deploy + D1-migrering).
+Status: **klientdelen klar** (branch `dirigent/W-2`). **Worker-delen implementerad och testad** (branch
+`dirigent/W-2-worker`, beslut Erik 2026-10-25) — **inte deployad**. Erik kör migrering + deploy, se
+[Deploy (Erik kör lokalt)](#deploy-erik-kör-lokalt).
 
 ## Varför
 Betan har inget inloggat konto. För att kostnaden ska gå att styra och följa per testare behöver Workern veta
@@ -27,10 +28,10 @@ identiteten (Android gör det inte). Ofarligt för taket; "installation" ligger 
 (`eas build --profile development`) innan appen startar — annars saknas native-modulen.
 
 ### Webben skickar INTE headern
-Workerns CORS svarar `Access-Control-Allow-Headers: Content-Type`. En ny custom header från webbläsaren utlöser en
-preflight som då misslyckas → **varje webbanalys skulle brytas**. Webben rörs därför inte i W-2. Native-fetch gör
-ingen preflight och påverkas inte. Webben kan få en identitet först när Worker-ändringen nedan (som lägger till
-headern i `Allow-Headers`) är deployad — och behöver den inte i betan.
+Den deployade Workern svarar `Access-Control-Allow-Headers: Content-Type`. En ny custom header från webbläsaren
+utlöser en preflight som då misslyckas → **varje webbanalys skulle brytas**. Webben rörs därför inte i W-2.
+Native-fetch gör ingen preflight och påverkas inte. Worker-ändringen lägger till headern i `Allow-Headers`
+(additivt), så webben *kan* få en identitet efter deploy — men behöver den inte i betan.
 
 ## Ärligt om säkerheten
 Identiteten är en **identifierare, inte en credential**. Den som läser trafiken (eller appens bundle) kan skicka
@@ -46,9 +47,10 @@ bara **det globala dygnstaket** (`DAILY_CALL_CAP`, finns) — det är plånboksg
    sig förbi det.
 3. **Tak per identitet och UTC-dygn:** `INSTALL_DAILY_CALL_CAP` (förslag 40 anrop) och
    `INSTALL_DAILY_TOKEN_CAP` (förslag 400 000 in+ut-tokens). Över → `429 install_cap_reached`.
-4. **Saknad/ogiltig header** → anropet räknas på hinken `anon` med samma tak. Webben hamnar där och delar ett tak —
-   acceptabelt i betan (webben är utvecklarens verktyg, inte testarnas). `// OSÄKER:` vill Erik att webben ska vara
-   undantagen från per-identitet-taket sätts `ANON_DAILY_CALL_CAP` högre; förslag: samma som globala taket.
+4. **Saknad/ogiltig header** → anropet räknas och loggas på hinken `anon`. **Implementerat:** `anon` har
+   `ANON_DAILY_CALL_CAP` (standard = `DAILY_CALL_CAP`, 300) och inget tokentak om inte `ANON_DAILY_TOKEN_CAP` sätts —
+   webben beter sig alltså exakt som före W-2 (krav: webbens flöde får inte brytas). `// OSÄKER:` den som tar bort
+   headern med curl hamnar i `anon` och begränsas bara av det globala taket; accepterat, se *Ärligt om säkerheten*.
 5. **Fail-open** som befintliga taket: saknas D1 eller misslyckas skrivningen släpps anropet igenom (taket skyddar
    plånboken men får aldrig bli det som stoppar en analys). Det globala taket och Anthropic-kontots egen
    spend-gräns är sista skyddet.
@@ -81,7 +83,23 @@ Kräver en Expo-modul för App Attest (t.ex. `@expo/app-integrity` om den finns 
 Swift-modul likt `modules/pose`) och Apple Developer-kontot (finns, krävs redan för TestFlight). Ingen extra
 kostnad. Sim-builds saknar App Attest → behåll interimsregeln som fallback för dev-klienter via en flagga.
 
-## Worker-ändring (kodskiss — INTE applicerad)
+## Worker-ändring (implementerad i `worker/`, ej deployad)
+
+Koden i `worker/worker.ts` följer skissen nedan. Avvikelser, med motivering:
+
+| Avvikelse | Varför |
+|---|---|
+| `wrangler.toml`: `binding = "swingcheck-logs"` → **`binding = "DB"`** | Koden läser `env.DB`. Med det gamla namnet är `env.DB` `undefined` i prod, så **all** D1-funktion (klientloggar, `DAILY_CALL_CAP`, nya taket) har tyst gått fail-open sedan 2026-08-11 (commit `619e586`). Utan rättningen gör W-2 ingenting. Ett test låser bindningsnamnet. |
+| `anon` får det globala taket som standard, inte 40 | Webbens flöde ska fungera som i dag (punkt 4 ovan). |
+| Headern normaliseras till gemener innan validering | Samma installation hamnar alltid i samma rad. |
+| Bara lyckade svar (`2xx` med `usage`) räknas i `install_usage` | Ett 529/overloaded från Anthropic kostar inget och ska inte äta testarens tak. Globala `api_usage` räknar som förut (alla anrop). |
+| `ctx` är valfri i `fetch` | Utan `ExecutionContext` (tester, lokalt) väntas D1-skrivningen in i stället för `waitUntil`. |
+| `swingcheck://se.swingcheck.app` tillagd i `ALLOWED_ORIGINS` (N-3.5) | Samma deploy. Origin skyddar inte ensam; taken gör det. |
+
+Tester: `worker/worker.test.ts` → `per-installation cap (W-2)` och `wrangler.toml (deploy config)` (alla mockar
+`fetch`; inget riktigt Anthropic-anrop).
+
+### Skiss (som underlag)
 
 ### Migrering `worker/migrations/0003_create_install_usage.sql`
 ```sql
@@ -206,9 +224,55 @@ SELECT install_id, day, calls,
 ```
 Priserna = `CLAUDE_SONNET_4_5_PRICING` i `packages/core/src/lib/api.ts`; byts modell, byts båda.
 
+## Deploy (Erik kör lokalt)
+
+Alla kommandon från `worker/` (där `wrangler.toml` för API-Workern ligger — **inte** `npm run deploy` i roten, den
+deployar PWA:n `swingcheck-temp`). Inloggad: `npx wrangler whoami`.
+
+1. **Kontrollera vilka migreringar som saknas** (läser bara):
+   ```sh
+   cd worker
+   npx wrangler d1 migrations list swingcheck-logs --remote
+   ```
+   Väntat: `0003_create_install_usage.sql` listas som ej applicerad (ev. även `0002` om den aldrig kördes).
+2. **Applicera migreringen** (skapar bara tabeller, `IF NOT EXISTS` — rör inga befintliga rader):
+   ```sh
+   npx wrangler d1 migrations apply swingcheck-logs --remote
+   ```
+3. **Deploya Workern:**
+   ```sh
+   npx wrangler deploy
+   ```
+   Kolla i utskriften att bindningen står som `env.DB (swingcheck-logs)` och att `INSTALL_DAILY_CALL_CAP` finns
+   bland vars.
+4. **Röktest utan Claude-anrop** (båda stoppas före Anthropic):
+   ```sh
+   # a) Preflight: native-origin godkänd, headern tillåten → 204 + Allow-Headers med X-SwingCheck-Install
+   curl -si -X OPTIONS https://swingcheck-api.swing-check.workers.dev/api/analyze \
+     -H 'Origin: swingcheck://se.swingcheck.app' \
+     -H 'Access-Control-Request-Method: POST' \
+     -H 'Access-Control-Request-Headers: content-type,x-swingcheck-install' | grep -iE '^HTTP|access-control-allow'
+   # b) Ogiltig JSON → 400 invalid_json (avvisas innan räkning och innan Anthropic)
+   curl -s -X POST https://swingcheck-api.swing-check.workers.dev/api/analyze \
+     -H 'Origin: swingcheck://se.swingcheck.app' -H 'Content-Type: application/json' \
+     -H 'X-SwingCheck-Install: 00000000-0000-4000-8000-000000000000' --data '{not json'
+   # c) Tabellen finns (läser bara)
+   npx wrangler d1 execute swingcheck-logs --remote \
+     --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+   ```
+   Väntat: a) `HTTP/2 204` och `access-control-allow-headers: Content-Type, X-SwingCheck-Install`;
+   b) `{"error":"invalid_json"}`; c) `api_usage`, `client_logs`, `install_usage` (+ `d1_migrations`).
+5. **Efter första riktiga analysen** (webb eller app): `npx wrangler tail` visar `[usage] {"installId":…}`, och
+   `SELECT * FROM install_usage ORDER BY day DESC LIMIT 5` visar raden.
+
+**Obs, bindningsrättningen:** när `env.DB` blir giltigt börjar även det globala taket (300/dygn) och
+`POST /api/log`-lagringen faktiskt fungera — de har varit tyst avstängda. Väntat och önskat, men nytt beteende i prod.
+
+**Backa:** `npx wrangler rollback` (förra versionen). Tabellen `install_usage` kan ligga kvar; den läses bara av
+den nya koden.
+
 ## Återstår (kräver Erik)
-1. Godkänn och applicera Worker-ändringen (migrering `0003` mot prod-D1 + deploy).
-2. Lägg `swingcheck://se.swingcheck.app` i `ALLOWED_ORIGINS` (redan på listan från N-3.5).
-3. Bygg om dev-klienten (nya native-moduler) och verifiera på enhet att headern når Workern (`wrangler tail` →
-   `[usage]`-raden).
-4. App Attest före öppen release.
+1. Kör [Deploy (Erik kör lokalt)](#deploy-erik-kör-lokalt) — migrering `0003` + deploy + röktest.
+2. Bygg om dev-klienten (nya native-moduler) och verifiera på enhet att headern når Workern (`wrangler tail` →
+   `[usage]`-raden med en UUID, inte `anon`).
+3. App Attest före öppen release.

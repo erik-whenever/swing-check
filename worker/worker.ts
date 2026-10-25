@@ -14,7 +14,9 @@
 //   2. Body size ceiling (BODY_MAX_BYTES) — checked before JSON.parse.
 //   3. Server-side pinning of `model` and the `max_tokens` ceiling.
 //   4. A daily call cap counted in D1 (DAILY_CALL_CAP).
-// Layer 4 fails OPEN by design: a D1 outage must never take the swing loop down.
+//   5. A per-installation daily cap on calls and tokens (W-2, X-SwingCheck-Install header,
+//      D1 install_usage). See docs/native/identitet-w2.md.
+// Layers 4 and 5 fail OPEN by design: a D1 outage must never take the swing loop down.
 
 // ── Defaults (every one overridable via env; see worker/wrangler.toml) ────────────
 /** Must match the model src/lib/api.ts is written and priced against. */
@@ -24,6 +26,14 @@ const DEFAULT_MAX_TOKENS = 4096;
 /** ~20 frames of base64 JPEG plus prompt; a real analysis lands far below this. */
 const DEFAULT_BODY_MAX_BYTES = 30 * 1024 * 1024;
 const DEFAULT_DAILY_CALL_CAP = 300;
+/** Per installation and UTC day (W-2). Beta-sized: a heavy range session is ~20–30 swings. */
+const DEFAULT_INSTALL_DAILY_CALL_CAP = 40;
+/** input + output tokens per installation and UTC day (cache tokens are logged, not capped). */
+const DEFAULT_INSTALL_DAILY_TOKEN_CAP = 400_000;
+/** Bucket for calls without a valid X-SwingCheck-Install header — the web app, today. */
+const ANON_INSTALL_ID = 'anon';
+/** Same shape as packages/core/src/lib/installId.ts (UUID v4, lower case). */
+const INSTALL_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 /**
  * Used only when ALLOWED_ORIGINS is unset, so that a fresh clone works with `npm run dev`
  * without configuration. Production origins are NOT guessed: deploying without setting
@@ -40,12 +50,15 @@ const DEV_FALLBACK_ORIGINS = [
 
 const CORS_METHOD_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  // X-SwingCheck-Install is additive: the native app sends it without a preflight, and
+  // allowing it here means the web can opt in later without breaking its preflight.
+  'Access-Control-Allow-Headers': 'Content-Type, X-SwingCheck-Install',
   'Access-Control-Max-Age': '86400',
 };
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  // ctx is optional so tests (and any caller without an ExecutionContext) still work.
+  async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const origin = request.headers.get('Origin');
     const originAllowed = isOriginAllowed(origin, env);
     // Vary: Origin on every response — the allow-origin value now depends on the request,
@@ -94,7 +107,7 @@ export default {
       return new Response('Method not allowed', { status: 405, headers: cors });
     }
 
-    return handleProxy(request, env, cors);
+    return handleProxy(request, env, cors, ctx);
   },
 };
 
@@ -139,6 +152,7 @@ async function handleProxy(
   request: Request,
   env: Env,
   cors: Record<string, string>,
+  ctx?: ExecutionContext,
 ): Promise<Response> {
   const maxBytes = positiveIntEnv(env.BODY_MAX_BYTES, DEFAULT_BODY_MAX_BYTES);
 
@@ -176,6 +190,24 @@ async function handleProxy(
     );
   }
 
+  // Per-installation cap, checked AFTER the global count so rotating UUIDs can never get
+  // past the global cap (it is the wallet guarantee; this one stops an ordinary tester).
+  const installId = installIdOf(request);
+  const day = utcDay();
+  const caps = installCaps(env, installId);
+  const mine = await installUsage(env, installId, day);
+  if (mine && (mine.calls >= caps.calls || (caps.tokens !== null && mine.tokens >= caps.tokens))) {
+    console.warn('[install-cap] reached', JSON.stringify({ installId, ...mine, ...caps }));
+    return json(
+      {
+        error: 'install_cap_reached',
+        message: 'Dagens analyser för den här installationen är slut. Försök igen efter midnatt UTC.',
+      },
+      429,
+      cors,
+    );
+  }
+
   const upstream = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -186,10 +218,143 @@ async function handleProxy(
     body: JSON.stringify(pinRequestBody(body as Record<string, unknown>, env)),
   });
 
-  return new Response(upstream.body, {
+  // Buffered instead of streamed so `usage` can be read. The answer is a few kB of JSON
+  // that api.ts reads with response.json() anyway — no behaviour change for the client.
+  const upstreamText = await upstream.text();
+  if (upstream.ok) {
+    const usage = usageOf(upstreamText);
+    if (usage) {
+      console.log('[usage]', JSON.stringify({ installId, ...usage }));
+      const write = recordInstallUsage(env, installId, day, usage);
+      // waitUntil: the client gets its answer without waiting on the D1 write.
+      if (ctx) ctx.waitUntil(write);
+      else await write;
+    }
+  }
+
+  return new Response(upstreamText, {
     status: upstream.status,
     headers: { 'Content-Type': 'application/json', ...cors },
   });
+}
+
+// ── Per-installation cap (W-2) ─────────────────────────────────────────────────
+
+interface AnthropicUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+}
+
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** The header value if it is a well-formed install id, otherwise the shared anon bucket. */
+function installIdOf(request: Request): string {
+  const raw = request.headers.get('X-SwingCheck-Install')?.trim().toLowerCase() ?? '';
+  return INSTALL_ID_RE.test(raw) ? raw : ANON_INSTALL_ID;
+}
+
+/**
+ * Caps for one identity. A real installation gets INSTALL_DAILY_*; the anon bucket (the web,
+ * which does not send the header) gets ANON_DAILY_CALL_CAP — defaulting to the global cap —
+ * and no token cap unless ANON_DAILY_TOKEN_CAP is set, so the web behaves exactly as before.
+ *
+ * // OSÄKER: dropping the header therefore escapes the 40-call cap and lands in anon, which
+ * // only the global cap bounds. Accepted for the beta: the identity is an identifier, not a
+ * // credential, and the global cap is the wallet guarantee until App Attest. Risk: low —
+ * // a tester using the app cannot drop the header; only someone scripting curl can.
+ */
+function installCaps(env: Env, installId: string): { calls: number; tokens: number | null } {
+  if (installId === ANON_INSTALL_ID) {
+    const globalCap = positiveIntEnv(env.DAILY_CALL_CAP, DEFAULT_DAILY_CALL_CAP);
+    const anonTokens = positiveIntEnv(env.ANON_DAILY_TOKEN_CAP, 0);
+    return {
+      calls: positiveIntEnv(env.ANON_DAILY_CALL_CAP, globalCap),
+      tokens: anonTokens > 0 ? anonTokens : null,
+    };
+  }
+  return {
+    calls: positiveIntEnv(env.INSTALL_DAILY_CALL_CAP, DEFAULT_INSTALL_DAILY_CALL_CAP),
+    tokens: positiveIntEnv(env.INSTALL_DAILY_TOKEN_CAP, DEFAULT_INSTALL_DAILY_TOKEN_CAP),
+  };
+}
+
+/**
+ * Today's usage for one identity so far, or null when unavailable (no row yet, no D1
+ * binding, read failed). Null lets the call through — same fail-open rule as countCall.
+ *
+ * Read-then-write is not atomic: two parallel calls at the limit can both pass. One call
+ * over is acceptable; the global cap stays atomic (RETURNING). The check is against the sum
+ * so far, not the coming call's tokens (unknown up front), so a call may cross the token
+ * cap once before it closes.
+ */
+async function installUsage(
+  env: Env,
+  installId: string,
+  day: string,
+): Promise<{ calls: number; tokens: number } | null> {
+  if (!env.DB) return null;
+  try {
+    return await env.DB.prepare(
+      `SELECT calls, input_tokens + output_tokens AS tokens
+         FROM install_usage WHERE install_id = ? AND day = ?`,
+    )
+      .bind(installId, day)
+      .first<{ calls: number; tokens: number }>();
+  } catch (err) {
+    console.warn('[install-cap] read failed — letting the request through', String(err));
+    return null;
+  }
+}
+
+function usageOf(text: string): AnthropicUsage | null {
+  try {
+    const usage = (JSON.parse(text) as { usage?: unknown }).usage;
+    return typeof usage === 'object' && usage !== null ? (usage as AnthropicUsage) : null;
+  } catch {
+    return null; // unparseable body: passed through untouched, as before
+  }
+}
+
+function tokenCount(n: unknown): number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** Upsert one proxied call and its tokens. Never throws — a failed write only loses a count. */
+async function recordInstallUsage(
+  env: Env,
+  installId: string,
+  day: string,
+  u: AnthropicUsage,
+): Promise<void> {
+  if (!env.DB) return;
+  try {
+    await env.DB.prepare(
+      `INSERT INTO install_usage
+         (install_id, day, calls, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens)
+       VALUES (?, ?, 1, ?, ?, ?, ?)
+       ON CONFLICT(install_id, day) DO UPDATE SET
+         calls = calls + 1,
+         input_tokens = input_tokens + excluded.input_tokens,
+         output_tokens = output_tokens + excluded.output_tokens,
+         cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+         cache_write_tokens = cache_write_tokens + excluded.cache_write_tokens`,
+    )
+      .bind(
+        installId,
+        day,
+        tokenCount(u.input_tokens),
+        tokenCount(u.output_tokens),
+        tokenCount(u.cache_read_input_tokens),
+        tokenCount(u.cache_creation_input_tokens),
+      )
+      .run();
+  } catch (err) {
+    console.warn('[install-usage] write failed', String(err));
+  }
 }
 
 /**
@@ -242,7 +407,7 @@ async function countCall(env: Env): Promise<number | null> {
     console.warn('[cap] no D1 binding — daily call cap not enforced');
     return null;
   }
-  const day = new Date().toISOString().slice(0, 10);
+  const day = utcDay();
   try {
     const { results } = await env.DB.prepare(
       `INSERT INTO api_usage (day, calls) VALUES (?, 1)
@@ -484,6 +649,10 @@ interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   run<T = unknown>(): Promise<D1Result<T>>;
   all<T = unknown>(): Promise<D1Result<T>>;
+  first<T = unknown>(): Promise<T | null>;
+}
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
 }
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
@@ -491,7 +660,7 @@ interface D1Database {
 
 interface Env {
   ANTHROPIC_API_KEY: string;
-  /** D1 binding for persistent client logs + the daily call counter (wrangler.toml). */
+  /** D1 binding for client logs + the call counters (wrangler.toml: binding = "DB"). */
   DB?: D1Database;
   /** Optional shared secret guarding GET /api/log reads. */
   LOG_READ_KEY?: string;
@@ -505,4 +674,12 @@ interface Env {
   BODY_MAX_BYTES?: string;
   /** Proxy calls allowed per UTC day before 429. */
   DAILY_CALL_CAP?: string;
+  /** Calls per installation (X-SwingCheck-Install) and UTC day before 429 install_cap_reached. */
+  INSTALL_DAILY_CALL_CAP?: string;
+  /** input + output tokens per installation and UTC day before 429 install_cap_reached. */
+  INSTALL_DAILY_TOKEN_CAP?: string;
+  /** Calls per UTC day for the anon bucket (no/invalid header, i.e. the web). Default: DAILY_CALL_CAP. */
+  ANON_DAILY_CALL_CAP?: string;
+  /** Token cap for the anon bucket. Unset → no token cap (the web behaves as before W-2). */
+  ANON_DAILY_TOKEN_CAP?: string;
 }
