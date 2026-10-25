@@ -229,13 +229,11 @@ göras robust mot MediaPipe-uppgraderingar.
 Målet är N-2-grinden på Galaxy A16 4G (golvet för Android), alternativt ett belagt besked om att telefonen
 inte klarar den och vad produkten då gör på Android (lägre fps till core, annan modell, annan miljö).
 
-### [ ] N-7 — Lås pose-modellens version och hash (webb + app)
-Webbens `scripts/download-pose-model.mjs` hämtar `…/pose_landmarker_lite/float16/latest/…` utan hashkontroll.
-Spiken låser `…/float16/1/…` med sha256 (`apps/spike/plugins/withPoseLandmarker.js`: lite `59929e1d…d574a`,
-full `5134a3aa…011b1`). Om Google byter `latest`, får webben och appen olika modeller utan att något larmar,
-och webbens trösklar (`poseEnvelope`, `poseSegments`) gäller inte längre för appen. Lås båda vägarna mot samma
-versionsadress och samma sha256, och låt nedladdningen fallera vid avvikelse. Appens modul (`modules/pose`,
-N-3.2) läser samma tabell. Hittat i [pose-android.md](native/pose-android.md) §4. Rör webbkod, så den görs utanför N-3.
+### [x] N-7 — Lås pose-modellens version och hash (webb + app)
+2026-10-25 (dirigent): webbens `scripts/download-pose-model.mjs` läser `apps/mobile/modules/pose/models.json`
+(samma tabell som Gradle och `pose_parity.py`), adress `float16/1`, sha256 kontrolleras och fel ger exit ≠ 0 utan
+kvarlämnad fil; 12 vitest-tester med mockad fetch. **📱** Kör `npm run pose:model` en gång lokalt och bekräfta
+"Downloaded and verified" (molnets proxy spärrar storage.googleapis.com).
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "comment": "MediaPipe Pose Landmarker models for the app (N-3.2). Versioned URLs (float16/1, not latest) checked against sha256: the Gradle build and training/pose_parity.py both read this table and fail on a mismatch. lite is byte-identical to the web's public/models/pose_landmarker_lite.task. N-7 points the web's download at the same table.",
+  "comment": "MediaPipe Pose Landmarker models for the app (N-3.2). Versioned URLs (float16/1, not latest) checked against sha256: the Gradle build, training/pose_parity.py and the web's scripts/download-pose-model.mjs (N-7) all read this table and fail on a mismatch, so web and app always run the same lite file.",
   "lite": {
     "file": "pose_landmarker_lite.task",
     "url": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
