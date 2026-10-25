@@ -44,9 +44,19 @@ export const UPLOAD_PIPELINE_AVAILABLE = true;
 // (≤1280 px, like the web's motion fallback), so a swing costs ~5× the input tokens until
 // N-3.8 brings the crop. Risk: medium — cost per upload, not correctness; the Worker caps it.
 export const UPLOAD_FRAME_COUNT = 32;
-/** Same as the web's canvas: longest edge capped at 1280 px, JPEG quality 0.8. */
-export const FRAME_MAX_WIDTH = 1280;
+/** Longest edge capped at 1280 px, JPEG quality 0.8. */
+export const FRAME_MAX_EDGE = 1280;
 export const FRAME_JPEG_QUALITY = 0.8;
+
+/**
+ * The resize that caps a frame's longest edge, or null when it already fits. Capping only the
+ * width let a portrait iPhone clip (1080×1920, 2160×3840) through at full height: 32 frames came
+ * to 37 MB and the Worker answered 413 (BODY_MAX_BYTES 30 MB).
+ */
+export function frameResize(width: number, height: number): { width: number } | { height: number } | null {
+  if (Math.max(width, height) <= FRAME_MAX_EDGE) return null;
+  return width >= height ? { width: FRAME_MAX_EDGE } : { height: FRAME_MAX_EDGE };
+}
 /** A clip at most this long is analysed whole when the user has not set a window. */
 export const DEFAULT_WINDOW_MAX_SEC = 4;
 

@@ -11,7 +11,7 @@ import { ANGLE_TO_PROMPT } from '@swingcheck/core/lib/cameraAngle';
 import { analyzeSwing } from '@swingcheck/core/lib/api';
 import {
   FRAME_JPEG_QUALITY,
-  FRAME_MAX_WIDTH,
+  frameResize,
   type FrameSource,
   type PickedClip,
   type UploadDeps,
@@ -30,7 +30,7 @@ export async function pickClip(): Promise<PickedClip | null> {
 
 /**
  * Interim frame source: a still at the given time via AVAssetImageGenerator
- * (expo-video-thumbnails), scaled to ≤1280 px and re-encoded as JPEG 0.8 like the web.
+ * (expo-video-thumbnails), longest edge scaled to ≤1280 px and re-encoded as JPEG 0.8 like the web.
  * N-3.4's native `capture` replaces this behind the same FrameSource interface.
  */
 // OSÄKER: AVAssetImageGenerator's default tolerance may snap to a nearby keyframe instead of
@@ -40,7 +40,8 @@ export const thumbnailFrameSource: FrameSource = {
   async grab(clipUri, timeSec) {
     const thumb = await getThumbnailAsync(clipUri, { time: Math.round(timeSec * 1000), quality: 1 });
     const ctx = ImageManipulator.manipulate(thumb.uri);
-    if (thumb.width > FRAME_MAX_WIDTH) ctx.resize({ width: FRAME_MAX_WIDTH });
+    const resize = frameResize(thumb.width, thumb.height);
+    if (resize) ctx.resize(resize);
     const ref = await ctx.renderAsync();
     const saved = await ref.saveAsync({ compress: FRAME_JPEG_QUALITY, format: SaveFormat.JPEG, base64: true });
     deleteQuietly(thumb.uri);

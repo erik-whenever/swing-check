@@ -13,7 +13,7 @@ Interimsväg som fungerar på iOS utan N-3.4 (native `capture`) och N-3.8 (Swift
 4. **Fel** → `analysisErrorView` (inkl. `UsageCapReachedError`) i en Alert, sedan tillbaka. **Avbryt** stoppar före nästa steg; ett Worker-svar som kommer efter avbrott kastas och sparas inte (anropet är redan betalt).
 
 ## Interim-rututtag
-`thumbnailFrameSource` (`uploadAdapters.ts`): `expo-video-thumbnails` (AVAssetImageGenerator) vid vald tid → `expo-image-manipulator` skalar till ≤ 1280 px bredd och kodar JPEG 0.8 med base64 — samma format/storlek som webbens canvas (`frameExtractor.ts`).
+`thumbnailFrameSource` (`uploadAdapters.ts`): `expo-video-thumbnails` (AVAssetImageGenerator) vid vald tid → `expo-image-manipulator` skalar längsta kanten till ≤ 1280 px (`frameResize`) och kodar JPEG 0.8 med base64. Webbens canvas tak bara bredden; i appen gav det porträttklipp i full höjd, 37 MB för 32 rutor och 413 från Workern (Eriks iPhone-prov 2026-10-25).
 
 Kända begränsningar (`// OSÄKER` i koden):
 - Ingen pose → ingen fasstyrd urvalslogik (`selectEnvelopeFrames`) och ingen beskärning. Jämn fördelning ger färre bilder i downswing/impact; obeskurna bilder kostar ~5× input-tokens per sving.
