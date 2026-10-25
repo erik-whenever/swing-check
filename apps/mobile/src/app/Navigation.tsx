@@ -13,7 +13,7 @@ import { textStyle, useTheme } from '../ui';
 import {
   AnalysisContainer,
   HistoryContainer,
-  LiveSessionPlaceholder,
+  LiveSessionContainer,
   ResultContainer,
   RulesContainer,
   UploadContainer,
@@ -52,7 +52,7 @@ function Tabs() {
       })}
     >
       <Tab.Screen name="Swing" component={UploadContainer} />
-      <Tab.Screen name="Session" component={LiveSessionPlaceholder} />
+      <Tab.Screen name="Session" component={LiveSessionContainer} />
       <Tab.Screen name="Rules" component={RulesContainer} />
       <Tab.Screen
         name="History"

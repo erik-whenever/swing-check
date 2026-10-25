@@ -98,8 +98,11 @@ function drillText(r: RuleResult): string {
   return (r.drill_suggestion || r.suggestion || '').trim();
 }
 
+/** The parts of an analysis the script reads — a stored HistoryEntry can supply these. */
+export type SpeechSource = Pick<SwingAnalysis, 'rules' | 'focus_rule' | 'overall_assessment'>;
+
 /** Build the ordered utterances for one analysis. Empty texts are never emitted. */
-export function buildSpeechScript(analysis: SwingAnalysis, opts: ScriptOptions): Utterance[] {
+export function buildSpeechScript(analysis: SpeechSource, opts: ScriptOptions): Utterance[] {
   const p = PHRASES[opts.language];
   const out: Utterance[] = [];
   const push = (kind: UtteranceKind, text: string | undefined) => {
