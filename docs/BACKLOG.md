@@ -245,7 +245,13 @@ Ny 2026-10-25. Branch: `stream-native`. **Inget Claude-anrop körs förrän Erik
 (antal anrop, modell, uppskattad kostnad) för varje körning. Bygger vidare på S-48:s mätskript
 ([vision-max-tokens/README.md](vision-max-tokens/README.md)): appens egen `analyzeSwing` via Workern, märkta anrop.
 
-### [ ] V-1 — Facit för domkvalitet
+### [~] V-1 — Facit för domkvalitet
+2026-10-25 (dirigent): förberedelsen klar, inga anrop. `scripts/eval/`: eval-regler (biblioteket + 9 skaftregler,
+DTL 13 / face-on 12), extract/freeze/verify (sha256 per bildruta + `rulesHash`), facit-mall (CSV) + validering,
+`run` med budgetspärr (dry-run standard), `score` (alla mätvärden, 38 tester). Metod och budget: [eval/v1-facit.md](eval/v1-facit.md).
+**📱 Kvar (Erik):** 1) `extract` lokalt (testa ett klipp först) och välj 30–50 svingar; 2) `freeze` + fyll i
+`facit.csv` blint tills `facit-check` är grön; 3) committa manifest + facit. **[?]** Budget: 120 anrop (40 × 3,
+`claude-sonnet-4-5`, quick) ≈ $3,9–6,6, tak `--approved-budget=8` — godkänns?
 **Mål:** ett fryst facit som modell-, prompt- och regelval mäts mot, och som avgör om skaftmått behövs i domarna.
 - **Material:** 30–50 svingar ur befintliga klipp (DTL och face-on, olika spelare och nivåer), extraherade med
   produktionens kedja så att bildrutorna är de appen skickar. Fryst urval med id och sha256 per bildruta.
