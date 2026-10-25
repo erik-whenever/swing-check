@@ -27,9 +27,10 @@ dev-klienten måste byggas om.**
 | Stack | `Tabs` | flikarna nedan | startrutt |
 | Stack | `Analysis` | `AnalysisContainer` | Analys pågår; svep-tillbaka avstängt, "Avbryt" = tillbaka |
 | Stack | `Result` `{ entryId, fromHistory? }` | `ResultContainer` | från Historik: "Nästa sving" dold |
+| Stack | `RuleLibrary` | `RuleLibraryContainer` | modal på iOS; från Regler ("+" / "Egna") |
 | Stack | `Dev` | `DevScreen` | registreras bara i `__DEV__` |
 | Flik | `Swing` "Sving" | `UploadContainer` | Uppladdning |
-| Flik | `Session` "Session" | `LiveSessionPlaceholder` | platshållartext tills `LiveSessionScreen` kopplas |
+| Flik | `Session` "Session" | `LiveSessionContainer` | `LiveSessionScreen` med lokalt sessions-tillstånd |
 | Flik | `Rules` "Regler" | `RulesContainer` | |
 | Flik | `History` "Historik" | `HistoryContainer` | |
 
@@ -51,13 +52,21 @@ I release-byggen finns rutten inte.
 - **Analys:** visar stubbens viloläge (inga steg klara, 0 %).
 - **Regler:** `useRuleSelection` + `useActiveRules`. Att slå av en rekommenderad regel gör om setet
   till "Egna" med rekommendationen minus regeln (`// OSÄKER`, produktbeslut). "+" är TODO.
-  "Använd N regler" går till Sving.
+  "Använd N regler" går till Sving. "+" och byte till "Egna" öppnar `RuleLibrary`.
+- **Regelbiblioteket** (`RuleLibrary`, modal på iOS): sök/fas/vinkel i lokal state (vinkel startar på
+  `settings.defaultAngle`); bocka → `toggleRule` + `ruleMode='custom'`; `validatedIds` ur
+  `accuracyVerdict` (tom tills V-1); Klar → tillbaka.
 - **Historik:** varje `HistoryEntry` blir en uppladdad-sving-rad (`historySwingView`); sessioner
   grupperas inte än. Trendkort utelämnas. Tryck → `Result`.
 - **Resultat:** `useHistoryEntry(entryId)`; regeltitlar/drill från `RULE_LIBRARY` (engelska i core,
-  `// OSÄKER`). "Läs upp" är TODO tills `src/tts` kopplas.
+  `// OSÄKER`). "Läs upp" → `useSpeech().readAloud` (variant `full`, barge-in); tystnar när skärmen lämnas.
+- **Livesession:** `liveSessionState.ts` (ren reducer, testad): status Redo/Analyserar/Pausad, klocka
+  (går medan fliken är i fokus, pausar när man lämnar den), svingräknare, senaste domar. Skärmen hålls
+  vaken (`expo-keep-awake`) medan fliken är i fokus. Kameran = mörk platshållare; ljudvägschip dolt.
+  TODO(N-3.4): livepipelinen dispatchar `swingCaptured`/`swingAnalyzed` och anropar `enqueueLive`.
+  Paus/Avsluta tystar talet; Avsluta nollställer och går till Sving.
 
 ## Kvar
 
-Klippval + pipeline (uppladdning → analys → `addSwing` → `Result`), koppla `LiveSessionScreen` och
-TTS, sessionsrader och trend i Historik, egen-regel-väljare.
+Klippval + pipeline (uppladdning → analys → `addSwing` → `Result`), livepipeline (kamera + svingdetektion
+→ reducer + `enqueueLive`), sessionsrader och trend i Historik.

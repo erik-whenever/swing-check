@@ -153,3 +153,23 @@ Alltid mörk (nästlad `ThemeProvider scheme="dark"`) med `live`-tokens; volt ba
 Ren härledning i `screens/liveSessionLogic.ts` (test: `liveSessionLogic.test.ts`): `toLiveVerdict`, `liveScore`, `focusTrendBlocks` (sju senaste, tomma fyller ut till höger), `trendCountLabel`, `liveStatusText`, `elapsedLabel`.
 
 Kända förenklingar (`// OSÄKER` i koden): kameran tonas bara ned, ingen blur (kräver expo-blur = nytt beroende); "Redo"-pulsen är statisk (animation hör till ägaren/egen ui-komponent, med Reducera rörelse); streckat block för "ingen dom" använder RN:s `borderStyle: 'dashed'` (iOS först).
+
+## Regelbiblioteket — `RuleLibraryScreen.tsx`
+
+**Designkälla:** ingen egen skiss. Vägen in är "Egna"/"+" i Regler (d1 README "Regler"; biblioteket = kärnprodukten G2). Radmönstret är Reglers (`regler-*.png`): titel, vikt-prickar, fas, "Ej validerad", nedtonad med "Kräver vinkel …" i guld.
+
+| Prop | Typ | Not |
+|---|---|---|
+| `library` | `readonly LibraryRule[]` | `RULE_LIBRARY` från core; titlar visas som de är. |
+| `query`, `onQueryChange` | `string`, `(q) => void` | Kontrollerat sökfält. Alla ord måste träffa titel, beskrivning eller fasens svenska namn; skiftläges- och diakritikokänsligt. |
+| `phase`, `onPhaseChange` | `PhaseFilter` = `'all' \| fas` | Chip-rad "Alla" + sex faser med antal; tom fas är inaktiv. |
+| `angle`, `onAngleChange` | `CameraAngle` | Segmented Längs linjen/Framifrån. **Filtrerar inte** — regler som inte kan bedömas tonas ned och läggs sist i sin grupp. |
+| `selectedIds`, `onToggle` | `ReadonlySet<string>`, `(ruleId) => void` | Hela raden växlar; rund bock till höger (`accessibilityRole="checkbox"`). |
+| `validatedIds?` | `ReadonlySet<string>` | V-1-godkända; utelämnad → alla "Ej validerad" (F-1/ADR-0005). |
+| `onDone` | `() => void` | "Klar" i flytande fot bredvid räknaren "3 valda" / "Inga valda". |
+
+Grupperas per fas i svingens ordning (Uppställning → Avslut), rubrik "N av M" valda. Inom gruppen: bedömbara först, sedan vikt fallande, sedan bibliotekets ordning. Nedtonade regler går att välja (ett eget set får innehålla dem; `rulesModel.analysableRules` lämnar dem utanför analysen) — som i Regler-skärmen.
+
+Ren logik i `screens/ruleLibraryLogic.ts` (test: `ruleLibraryLogic.test.ts`): `normalizeSearch`, `matchesQuery`, `groupLibrary`, `phaseCounts`, `selectedCount`, `selectedLabel`, `resultLabel`. Fas-/vinkeletiketter och `weightDots`/`requiredAngleText` återanvänds från `reviewLogic.ts`.
+
+Kända förenklingar (`// OSÄKER` i koden): core-titlarna är engelska tills biblioteket översätts — svensk fritext träffar då bara fasnamnet. Ägaren kopplar `onToggle` till `toggleCustomRule` och byter `ruleMode` till `custom` vid behov; ingen navigation här.

@@ -1,26 +1,38 @@
 // Containers (N-3.6 del 6): connect the pure screens in src/screens to the state hooks and
 // navigation. Screens stay presentation-only; everything stateful lives here.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { Platform, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, type CompositeNavigationProp, type RouteProp } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
-import type { PlayerLevel, RulePhase } from '@swingcheck/core/lib/recommendRules';
+import {
+  accuracyVerdict,
+  NO_ACCURACY_DATA,
+  type PlayerLevel,
+  type RuleAccuracyMap,
+  type RulePhase,
+} from '@swingcheck/core/lib/recommendRules';
 import { RULE_LIBRARY } from '@swingcheck/core/data/ruleLibrary';
 
 import { AnalysisScreen, PHASE_ORDER } from '../screens/AnalysisScreen';
 import { HistoryScreen, type HistoryItem } from '../screens/HistoryScreen';
+import { LiveSessionScreen, type LiveRuleVerdict } from '../screens/LiveSessionScreen';
 import { ResultScreen, type ResultRuleInfo } from '../screens/ResultScreen';
+import { RuleLibraryScreen } from '../screens/RuleLibraryScreen';
+import type { PhaseFilter } from '../screens/ruleLibraryLogic';
 import { RulesScreen } from '../screens/RulesScreen';
 import { UploadScreen, type SwingWindow } from '../screens/UploadScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { clock, dayLabel, historySwingView } from '../screens/reviewLogic';
 import { useActiveRules, useHistory, useHistoryEntry, useRuleSelection, useSettings } from '../state';
-import { greetingFor, Text, useTheme } from '../ui';
+import { useSpeech, type SpeechSource } from '../tts';
+import { greetingFor, live, useTheme } from '../ui';
+import { initialLiveSession, liveElapsedMs, liveSessionReducer } from './liveSessionState';
 import type { RootStackParamList, TabParamList } from './routes';
 import { idleProgress, startUploadAnalysis, UPLOAD_PIPELINE_AVAILABLE, type PipelineProgress } from './uploadPipeline';
 
@@ -144,17 +156,82 @@ export function AnalysisContainer() {
   );
 }
 
-// ── Livesession (platshållare) ───────────────────────────────────────────────
+// ── Livesession ──────────────────────────────────────────────────────────────
 
-/** Placeholder until src/screens/LiveSessionScreen.tsx is wired in (built separately). */
-export function LiveSessionPlaceholder() {
-  const { colors, space } = useTheme();
+const KEEP_AWAKE_TAG = 'live-session';
+
+/** Dark stand-in for the camera preview until the live pipeline (N-3.4) exists. */
+function CameraPlaceholder() {
+  return <View style={{ flex: 1, backgroundColor: '#05070A' }} />;
+}
+
+export function LiveSessionContainer() {
+  const navigation = useNavigation<TabNav<'Session'>>();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const { stop: stopSpeech } = useSpeech();
+  const [session, dispatch] = useReducer(liveSessionReducer, undefined, initialLiveSession);
+  const [now, setNow] = useState(() => Date.now());
+
+  // The session runs while the tab is in front: clock starts, screen stays awake (phone on a
+  // tripod 2–4 m away, G1). Leaving the tab pauses — nothing is analysed behind the user's back.
+  useFocusEffect(
+    useCallback(() => {
+      dispatch({ type: 'start', now: Date.now() });
+      void activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+      return () => {
+        dispatch({ type: 'pause', now: Date.now() });
+        void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+      };
+    }, []),
+  );
+
+  const running = session.runningSince != null;
+  useEffect(() => {
+    if (!running) return;
+    // First tick after ≤1 s; until then liveElapsedMs clamps a stale `now` to the accumulated time.
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // TODO(N-3.4 livepipeline): mount the VisionCamera preview as `camera` and feed swing
+  // detection into the reducer: on a detected swing dispatch `swingCaptured`; when its analysis
+  // returns, dispatch `swingAnalyzed` and call `useSpeech().enqueueLive(result, { swingNumber,
+  // focusRuleId, ruleTitle })` — enqueue (not say) so swing N finishes before N+1 is read.
+  // OSÄKER: no focus-rule source for a live session yet (settings has none; Regler shows the
+  // latest history entry's). The trend row stays hidden until the pipeline decides. Risk: low.
+  const latest = useMemo<LiveRuleVerdict[]>(
+    () =>
+      session.latest.map((r) => ({
+        id: r.id,
+        title: r.short_verdict?.trim() || RULE_INFO[r.id]?.title || r.id,
+        verdict: r.verdict,
+      })),
+    [session.latest],
+  );
+
   return (
-    <View style={[{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: space.xxl }, useTopInset()]}>
-      <Text variant="title2" style={{ textAlign: 'center' }}>Livesession</Text>
-      <Text variant="callout" color="muted" style={{ textAlign: 'center', marginTop: space.sm }}>
-        Kommer snart – handsfri bedömning på rangen.
-      </Text>
+    <View style={{ flex: 1, backgroundColor: live.bg, paddingTop: insets.top, paddingBottom: tabBarHeight }}>
+      <LiveSessionScreen
+        camera={<CameraPlaceholder />}
+        status={session.status}
+        swingNumber={session.swingCount > 0 ? session.swingCount : null}
+        elapsedMs={liveElapsedMs(session, now)}
+        latest={latest}
+        // OSÄKER: audio route (AirPods etc.) needs a native route query — not in expo-speech.
+        // Chip hidden until then. Risk: low — informational.
+        audioRouteLabel={undefined}
+        onPause={() => {
+          stopSpeech();
+          dispatch({ type: 'pause', now: Date.now() });
+        }}
+        onResume={() => dispatch({ type: 'resume', now: Date.now() })}
+        onEnd={() => {
+          stopSpeech();
+          dispatch({ type: 'end' });
+          navigation.navigate('Swing');
+        }}
+      />
     </View>
   );
 }
@@ -188,17 +265,65 @@ export function RulesContainer() {
     <RulesScreen
       style={useTopInset()}
       mode={mode}
-      onModeChange={(m) => void setMode(m)}
+      onModeChange={(m) => {
+        void setMode(m);
+        // OSÄKER: every switch to "Egna" opens the library (also when the own set already has
+        // rules) — the d1 entry point. Risk: low — one tap "Klar" back if unwanted.
+        if (m === 'custom') navigation.navigate('RuleLibrary');
+      }}
       rules={active.rules}
       angle={active.angle}
       levelLabel={LEVEL_LABEL[settings.level]}
       focusRuleId={entries[0]?.focusRuleId}
       enabledIds={enabledIds}
       onToggle={onToggle}
-      onAdd={() => {
-        // TODO(N-3.x): rule picker from the full library (own rules).
-      }}
+      onAdd={() => navigation.navigate('RuleLibrary')}
       onApply={() => navigation.navigate('Swing')}
+    />
+  );
+}
+
+// ── Regelbiblioteket ─────────────────────────────────────────────────────────
+
+// TODO(V-1): feed measured accuracy here; until then no rule is validated.
+const LIBRARY_ACCURACY: RuleAccuracyMap = NO_ACCURACY_DATA;
+const VALIDATED_IDS: ReadonlySet<string> = new Set(
+  RULE_LIBRARY.filter((r) => accuracyVerdict(LIBRARY_ACCURACY[r.id]) === 'pass').map((r) => r.id),
+);
+
+export function RuleLibraryContainer() {
+  const navigation = useNavigation<StackNav>();
+  const { settings } = useSettings();
+  const { mode, customRuleIds, setMode, toggleRule } = useRuleSelection();
+  const [query, setQuery] = useState('');
+  const [phase, setPhase] = useState<PhaseFilter>('all');
+  const [angle, setAngle] = useState<CameraAngle>(settings.defaultAngle);
+  const insets = useSafeAreaInsets();
+  const selectedIds = useMemo(() => new Set(customRuleIds), [customRuleIds]);
+  const onToggle = useCallback(
+    (id: string) => {
+      void toggleRule(id);
+      // OSÄKER: picking in the library from "Rekommenderat" (via "+") starts "Egna" from the
+      // stored custom list, not seeded with the recommendation. Risk: low — matches "Egna".
+      if (mode !== 'custom') void setMode('custom');
+    },
+    [mode, toggleRule, setMode],
+  );
+  return (
+    <RuleLibraryScreen
+      // iOS modal sheet sits below the status bar already; elsewhere it is a full card.
+      style={{ paddingTop: Platform.OS === 'ios' ? 0 : insets.top }}
+      library={RULE_LIBRARY}
+      query={query}
+      onQueryChange={setQuery}
+      phase={phase}
+      onPhaseChange={setPhase}
+      angle={angle}
+      onAngleChange={setAngle}
+      selectedIds={selectedIds}
+      onToggle={onToggle}
+      validatedIds={VALIDATED_IDS}
+      onDone={() => navigation.goBack()}
     />
   );
 }
@@ -243,26 +368,36 @@ export function ResultContainer() {
   const { colors } = useTheme();
   const top = useTopInset();
   const now = useNowOnFocus();
+  const speech = useSpeech();
+  // Leaving the result screen silences "Läs upp" — it is tied to what is on screen.
+  // OSÄKER: also stops a live job if one were queued; today the two cannot overlap (Result is
+  // not reachable from a running session). Risk: low.
+  const { stop } = speech;
+  useFocusEffect(useCallback(() => stop, [stop]));
   if (!entry) return <View style={[{ flex: 1, backgroundColor: colors.bg }, top]} />;
+  const analysis: SpeechSource = {
+    rules: entry.results,
+    focus_rule: entry.results.find((r) => r.id === entry.focusRuleId),
+    overall_assessment: entry.overallAssessment,
+  };
   return (
     <ResultScreen
       style={top}
       title={`${dayLabel(entry.timestamp, now)} ${clock(entry.timestamp)}`}
       backLabel={params.fromHistory ? 'Historik' : 'Tillbaka'}
       onBack={() => navigation.goBack()}
-      analysis={{
-        rules: entry.results,
-        focus_rule: entry.results.find((r) => r.id === entry.focusRuleId),
-        overall_assessment: entry.overallAssessment,
-      }}
+      analysis={analysis}
       ruleInfo={RULE_INFO}
       angle={entry.cameraAngle}
       posterUri={entry.framesPurged ? null : (entry.frameUris[0] ?? null)}
       phase={phase}
       onPhaseChange={setPhase}
-      onReadAloud={() => {
-        // TODO(N-3.6): connect src/tts when it lands (built separately).
-      }}
+      onReadAloud={() =>
+        void speech.readAloud(analysis, {
+          focusRuleId: entry.focusRuleId,
+          ruleTitle: (id) => RULE_INFO[id]?.title,
+        })
+      }
       onNext={params.fromHistory ? undefined : () => navigation.navigate('Tabs', { screen: 'Swing' })}
     />
   );

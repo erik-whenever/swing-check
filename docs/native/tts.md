@@ -1,4 +1,4 @@
-# TTS-lagret (N-3.6 del 8)
+# TTS-lagret (N-3.6 del 8–9)
 
 `apps/mobile/src/tts/` — talad feedback för resultatskärmens **"Läs upp"** och **livesessionen** (hörlursläge, G1). Samma lager för båda; bara manusvarianten skiljer. Rent TS, inga expo-importer → vitest från roten (`tts.test.ts`).
 
@@ -31,7 +31,9 @@ interface Speaker {
 // SpeakRequest = { text, language, locale, voiceId? }
 ```
 
-`loggingSpeaker()` loggar och löser direkt — **standard nu** (`createDefaultSpeaker()`). En instans per app (en ljudutgång).
+`expoSpeechSpeaker(engine)` — adapter över expo-speech; motorn injiceras (`SpeechEngine`) så `speaker.ts` aldrig importerar native-kod och testas med falsk motor. `speak` → `Speech.speak(text, { language: locale, voice: voiceId, onDone, onStopped, onError })`; löses på `onDone`/`onStopped`, rejectas på `onError`. `stop()` löser pågående `speak` direkt (väntar inte på `onStopped`, som iOS kan tappa); sena callbacks rör bara sin egen closure.
+
+`createDefaultSpeaker()` i `device.ts` (enda filen som importerar `expo-speech`) = `expoSpeechSpeaker(Speech)`. `loggingSpeaker()` finns kvar för förhandsvisningar/test. En instans per app (en ljudutgång).
 
 ## Kö — `queue.ts`
 
@@ -44,17 +46,17 @@ interface Speaker {
 - **Watchdog** per yttrande (≈10 tecken/s, golv 5 s, tak 120 s): en motor som tappar sin klar-signal stoppas och kön går vidare i stället för att tystna resten av sessionen. `// OSÄKER`: budgeten är webbens Web Speech-trimning.
 - Motorfel → `onError`, kön fortsätter.
 
-## Koppla in expo-speech (ej gjort)
+## App-koppling — `SpeechProvider.tsx` (del 9)
 
-Medvetet uppskjutet: ett nytt native-beroende parallellt med navigationsarbetet krockar i `apps/mobile/package-lock.json`. När navigationen är mergad:
+`<SpeechProvider>` (i `App.tsx`, innanför `AppStateProvider`) äger **en** `SpeechQueue` över `createDefaultSpeaker()`. `useSpeech()` ger `{ queue, language, readAloud, enqueueLive, stop }`; språket kommer från `settings.language` (core `AnalysisLanguage` → `ttsConfigFor().locale`).
 
-1. `cd apps/mobile && npx expo install expo-speech` (egen commit; ny dev-build krävs).
-2. I `speaker.ts` (markerat `TODO(N-3.6 TTS-motor)`): `expoSpeechSpeaker()` som mappar `speak` → `Speech.speak(text, { language: locale, voice: voiceId, onDone, onStopped, onError })` (promise löses på `onDone`/`onStopped`, rejectas på `onError`) och `stop` → `Speech.stop()`.
-3. `createDefaultSpeaker()` returnerar den. Röstval: `Speech.getAvailableVoicesAsync()` filtrerat på `ttsConfigFor(language).langPrefix`.
-4. Verifiera på iOS-enhet: hörlurar, tyst-läge-omkopplaren (AVAudioSession-kategori — `// OSÄKER`, kan kräva inställning för att höras i tyst läge), skärm låst under session.
+- Resultat "Läs upp" → `readAloud(analys, { focusRuleId, ruleTitle })` = `say` med variant `full`. Lämnar man skärmen tystnar uppläsningen.
+- Livesession → `enqueueLive(analys, { swingNumber, … })` = `enqueue` med variant `live`. **Inte kopplad än** — TODO i `LiveSessionContainer` tills livepipelinen (N-3.4) finns. Paus/Avsluta anropar `stop()`.
+
+`buildSpeechScript` tar `SpeechSource` (`rules`, `focus_rule`, `overall_assessment`) så en sparad `HistoryEntry` räcker.
+
+## Kvar att verifiera på enhet
+
+expo-speech `~58.0.3` installerad (ny dev-build krävs). Röstval (`getAvailableVoicesAsync()` filtrerat på `langPrefix`) ej gjort — motorns standardröst för locale används. Verifiera på iOS: hörlurar, tyst-läge-omkopplaren (AVAudioSession-kategori — `// OSÄKER` i `device.ts`, standard-ljudsession används), skärm låst under session.
 
 Ingen gesture-unlock behövs (det är en Web Speech/iOS Safari-begränsning, inte native).
-
-## Inte här
-
-Ingen container kopplar in lagret ännu — resultatskärmen och livesessionen ägs av andra delar (`src/screens/`, navigation). De tar `buildSpeechScript` + en delad `SpeechQueue`.

@@ -2,7 +2,7 @@
 // First launch (settings.welcomeSeen false) shows Välkommen instead of the navigator.
 
 import { useMemo } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer, type Theme as NavTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,8 +13,9 @@ import { textStyle, useTheme } from '../ui';
 import {
   AnalysisContainer,
   HistoryContainer,
-  LiveSessionPlaceholder,
+  LiveSessionContainer,
   ResultContainer,
+  RuleLibraryContainer,
   RulesContainer,
   UploadContainer,
   WelcomeContainer,
@@ -52,7 +53,7 @@ function Tabs() {
       })}
     >
       <Tab.Screen name="Swing" component={UploadContainer} />
-      <Tab.Screen name="Session" component={LiveSessionPlaceholder} />
+      <Tab.Screen name="Session" component={LiveSessionContainer} />
       <Tab.Screen name="Rules" component={RulesContainer} />
       <Tab.Screen
         name="History"
@@ -89,6 +90,11 @@ export function Navigation() {
         <Stack.Screen name="Tabs" component={Tabs} />
         <Stack.Screen name="Analysis" component={AnalysisContainer} options={{ gestureEnabled: false }} />
         <Stack.Screen name="Result" component={ResultContainer} />
+        <Stack.Screen
+          name="RuleLibrary"
+          component={RuleLibraryContainer}
+          options={{ presentation: Platform.OS === 'ios' ? 'modal' : 'card' }}
+        />
         {__DEV__ && <Stack.Screen name="Dev" component={DevScreen} options={{ headerShown: true, title: 'Dev' }} />}
       </Stack.Navigator>
     </NavigationContainer>
