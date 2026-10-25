@@ -308,8 +308,8 @@ Ny 2026-10-25. Inte samma som öppna frågor F1–F9 i [oppna-fragor.md](oppna-f
 2026-10-25 (dirigent): [ADR-0005](adr/0005-rekommenderat-regelset.md) (Föreslagen) och ren `recommendRules()` i core
 (vinkel + nivå + valfri målfas + V-1-karta → ordnade biblioteks-id, valideringsstatus, motiveringskoder; 12 tester).
 Används ännu inte av appen. **Beslut Erik 2026-10-25:** nivåerna (nybörjare/medel/avancerad, max 3/5/6 regler)
-godkända; omätta regler visas som "ej validerad" tills V-1 är kört; ADR-numret 0005 bekräftat (ADR-0005 kan sättas
-till Accepterad). Kvar: V-1-gränser mot baslinjen, UI (D-1).
+godkända; omätta regler visas som "ej validerad" tills V-1 är kört; ADR-numret 0005 bekräftat. ADR-0005 satt till
+Accepterad (körning 3). Kvar: V-1-gränser mot baslinjen (väntar på V-1), UI (väntar på D-1).
 Användaren väljer regler själv **eller** får ett rekommenderat regelset. Skriv ADR för hur rekommendationen
 görs (utgångsläge, kameravinkel, nivå, vad som visas och varför). **ADR-numret:** Erik skrev "ADR-004", men
 0004 är native-pipelinen ([ADR-0004](adr/0004-native-pipeline-nitro-modules.md)); nästa lediga är **0005**
