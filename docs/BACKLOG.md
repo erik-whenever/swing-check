@@ -326,7 +326,8 @@ headern, `swingcheck://se.swingcheck.app` i `ALLOWED_ORIGINS` (N-3.5). **D1-bind
 (fel sedan `619e586`: D1-loggar och globala taket har varit avstängda i prod; slås på vid deploy). 18 nya tester.
 **📱 Erik:** 1) `cd worker`, följ [identitet-w2.md → Deploy](native/identitet-w2.md#deploy-erik-kör-lokalt) (migrering + deploy);
 2) kör röktesterna där; 3) bygg om dev-klienten och kör en analys på iPhone. Kvar därefter: App Attest före öppen release,
-begriplig text i appen för `install_cap_reached`/`daily_cap_reached`.
+UI för taket i appen (N-3.6). Core kastar sedan körning 3 `UsageCapReachedError` (`scope` install/daily, Workerns
+text som `message`) i stället för rå JSON; 3 tester.
 2026-10-25 (dirigent): klientdel + spec. Core `lib/installId.ts` (UUID v4, validering, testad); appen läser/skapar
 identiteten i Keychain (`expo-secure-store`, `THIS_DEVICE_ONLY`) och skickar `X-SwingCheck-Install`. Webben skickar
 den inte (CORS). Spec + Worker-kodskiss: [identitet-w2.md](native/identitet-w2.md). **Beslut Erik 2026-10-25:** ja —

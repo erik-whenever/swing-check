@@ -276,3 +276,8 @@ den nya koden.
 2. Bygg om dev-klienten (nya native-moduler) och verifiera på enhet att headern når Workern (`wrangler tail` →
    `[usage]`-raden med en UUID, inte `anon`).
 3. App Attest före öppen release.
+
+## Klienten vid 429
+`analyzeSwing` kastar `UsageCapReachedError` (`packages/core/src/lib/api.ts`) när Workern svarar 429 med
+`install_cap_reached` eller `daily_cap_reached`: `scope` = `install`/`daily`, `message` = Workerns text (svensk
+standardtext om den saknas). Övriga fel är oförändrade. Appens UI för det kommer i N-3.6.
