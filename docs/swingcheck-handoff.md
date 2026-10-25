@@ -15,6 +15,9 @@
   Huvudmisstanke: Java-API:ts CPU-väg kör XNNPACK med en tråd. **Nästa:** Erik kör §9.4, sedan rotorsak med
   siffror. Fixen görs i N-8, inte nu.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
+- **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
+  F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
+  lagring efter MB. **Inget V-körs mot Claude utan Eriks budgetgodkännande.**
 
 ## Arkitektur i en rad
 `apps/mobile` (Expo 58 / RN 0.88 / VisionCamera 5 / Nitro 0.37) med egna Nitro-moduler `pose`, `shaft`
@@ -32,5 +35,6 @@
 ## Öppna frågor och horisont
 - **F7–F9** (skaftets svikt, `hosel` som `occluded`, `club` som attribut) från batch-03: otriagerade, ingen
   implementering nu ([oppna-fragor.md](oppna-fragor.md)).
+- **ADR-numret för F-1:** Erik skrev "ADR-004", men 0004 är native-pipelinen; föreslaget 0005.
 - Paketnamn `swingcheck-temp` / version `0.0.0` — städa inför TestFlight.
 - [ROADMAP.md](ROADMAP.md) (2026-07) beskriver webbens ordning och är inaktuell för ström N.

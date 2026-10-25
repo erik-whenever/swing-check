@@ -171,6 +171,14 @@ Faller den, blir det väg 1 (rå ring i 540p).
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.
+**Tillägg 2026-10-25 (spec, Erik):**
+- **Språk som parameter** i cores prompt (svarsspråk för `observation`, `short_verdict`, `suggestion`) och i
+  TTS (röst och uttal). Ett ställe bestämmer språket; prompten och TTS läser samma värde. Det statiska
+  cacheprefixet ska vara språkoberoende eller cachas per språk — mät cache-träffarna innan och efter.
+- **Lagring efter storlek (MB) i stället för `MAX_RECORDS = 10`** (webbens `src/hooks/useHistory.ts`): ett tak i
+  MB för video och bildrutor. När taket nås rensas **video** (och sedan bildrutor) från de äldsta svingarna
+  först; **resultat och metadata behålls alltid**. Historiken visar en sving utan video som "video rensad".
+  Taket är en inställning med ett försiktigt standardvärde; storleken räknas på faktiska bytes, inte uppskattat.
 
 #### [ ] N-3.6 — Kärn-UI
 Kamera/session, resultat, regler, historik, TTS. Club Cream-tokens.
@@ -195,7 +203,7 @@ I betan räcker iPhone; Android-delen följer N-8.
 ### [ ] N-5 — Handsfree med taligenkänning på enheten
 
 ### [ ] N-6 — TestFlight och Play
-TestFlight är betan. Play är utanför betan.
+TestFlight är betan. Play är utanför betan. **Kräver W-2** (identitet per installation) innan första externa testare.
 
 ### [ ] N-8 — Android-prestanda (efter iOS-beta) — *utanför betan*
 Pausad till iOS når beta (Eriks beslut 2026-10-25). Utgångsläge: N-3.2 mätning 1 och diagnosen där.
@@ -212,6 +220,69 @@ full `5134a3aa…011b1`). Om Google byter `latest`, får webben och appen olika 
 och webbens trösklar (`poseEnvelope`, `poseSegments`) gäller inte längre för appen. Lås båda vägarna mot samma
 versionsadress och samma sha256, och låt nedladdningen fallera vid avvikelse. Appens modul (`modules/pose`,
 N-3.2) läser samma tabell. Hittat i [pose-android.md](native/pose-android.md) §4. Rör webbkod, så den görs utanför N-3.
+
+---
+
+## Ström V — Domkvalitet och kostnad (beta-punkt 5)
+
+Ny 2026-10-25. Branch: `stream-native`. **Inget Claude-anrop körs förrän Erik har godkänt budgeten**
+(antal anrop, modell, uppskattad kostnad) för varje körning. Bygger vidare på S-48:s mätskript
+([vision-max-tokens/README.md](vision-max-tokens/README.md)): appens egen `analyzeSwing` via Workern, märkta anrop.
+
+### [ ] V-1 — Facit för domkvalitet
+**Mål:** ett fryst facit som modell-, prompt- och regelval mäts mot, och som avgör om skaftmått behövs i domarna.
+- **Material:** 30–50 svingar ur befintliga klipp (DTL och face-on, olika spelare och nivåer), extraherade med
+  produktionens kedja så att bildrutorna är de appen skickar. Fryst urval med id och sha256 per bildruta.
+- **Regler:** regelbiblioteket plus **avsiktligt många skaftberoende regler** (skaftplan, skaftlutning vid
+  adress/topp/impact, across-the-line/laid-off), så att facit kan visa var Vision brister utan skaftmått.
+- **Facit:** per sving och regel `pass`/`fail`/`cannot_determine`, satt av Erik (eller tränare) blint mot
+  modellens svar. Facit och urval förregistreras i en commit innan första körningen.
+- **Körning:** 3 körningar per sving med samma modell, prompt och bildrutor.
+- **Mätvärden:** träffsäkerhet per regel (och totalt, med `cannot_determine` redovisat separat);
+  **självsäkra fel** = fel dom med `confidence` ≥ 0,8, per regel; **konsistens** = andel sving × regel med samma
+  dom i alla 3 körningar; **kostnad** (input/output/cachade tokens → USD) och **tid** (vägg-tid per analys,
+  median och p95) per analys.
+- **Budget:** antal anrop (svingar × 3) och uppskattad kostnad läggs fram för Erik; **godkänns innan något körs**.
+- **Utdata:** `docs/eval/v1-facit.md` (metod, urval, resultat per regel), rådata lokalt (gitignorerat).
+- **Klart när:** facit är fryst och första baslinjen (nuvarande `claude-sonnet-4-5`, nuvarande prompt) är
+  mätt och rapporterad per regel.
+
+### [ ] V-2 — Modellval för tid och kostnad
+Mot V-1:s facit: jämför kandidatmodeller (och ev. `max_tokens`, bildstorlek, antal bildrutor) på
+träffsäkerhet, självsäkra fel, konsistens, kostnad och tid per analys. Rekommendation med en siffra för
+"skälig kostnad och tid" som betan lovar. Budget per körning godkänns av Erik. Beror på V-1.
+
+## Ström D — Design för betan (beta-punkt 1)
+
+Ny 2026-10-25. **Namnkrock:** arkivets pose-ström hette också D (D-1–D-5); de refereras som "arkivets D-x".
+
+### [ ] D-1 — Designspår för betan
+**Skisser före kod.** Ta fram en visuell riktning för betans flöden: uppladdning, analys pågår, resultat per
+regel (med skaftets tracer), regelval/rekommenderat regelset, livesession (hörlursläge) och historik.
+Leverans: skisser/mockups som Erik godkänner, sedan tokens och komponenter i `apps/mobile`. Club Cream
+([design-system.md](design-system.md)) är utgångsläge, inte krav. Ingen produktkod före godkända skisser.
+
+## Ström F — Regelset (beta-punkt 3)
+
+Ny 2026-10-25. Inte samma som öppna frågor F1–F9 i [oppna-fragor.md](oppna-fragor.md).
+
+### [ ] F-1 — Rekommenderat regelset
+Användaren väljer regler själv **eller** får ett rekommenderat regelset. Skriv ADR för hur rekommendationen
+görs (utgångsläge, kameravinkel, nivå, vad som visas och varför). **ADR-numret:** Erik skrev "ADR-004", men
+0004 är native-pipelinen ([ADR-0004](adr/0004-native-pipeline-nitro-modules.md)); nästa lediga är **0005**
+— bekräftas av Erik. Rekommendationen bör bara innehålla regler med godtagbar träffsäkerhet i V-1.
+
+## Ström W — Worker
+
+W-1 ligger i [arkivet](archive/backlog-strommar.md).
+
+### [ ] W-2 — Identitet per installation + tak per identitet
+**Före N-6.** Inget inloggat konto i betan. Appen skapar en anonym identitet per installation (slumpad,
+lagrad i Keychain) och skickar den till Workern. Workern begränsar per identitet (anrop och/eller tokens per
+dygn) och loggar förbrukningen, så att kostnaden per analys går att följa. Native-anrop har ingen `Origin`,
+som Workerns allowlist i dag avvisar: specen ska ange hur appens anrop autentiseras utan att nyckeln eller en
+delad hemlighet hamnar i klienten i klartext (t.ex. App Attest), och vad som gäller tills det finns.
+Webbens flöde får inte brytas.
 
 ---
 
