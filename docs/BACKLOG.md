@@ -200,6 +200,7 @@ V-1:s facit visar att det förbättrar domarna.
   Taket är en inställning med ett försiktigt standardvärde; storleken räknas på faktiska bytes, inte uppskattat.
 
 #### [~] N-3.6 — Kärn-UI
+**PRIORITET (Erik 2026-10-25): uppladdningspipelinen först** (uppladdning → analys via Workern → Resultat → Historik, på riktigt), så att en intern TestFlight-build kan tas till rangen. Livepipelinen och sessionsrader efter det.
 2026-10-25 (dirigent, körning 4): **del 1** `apps/mobile/src/ui/` — tokens ljust/mörkt ur d1-v2, `ThemeProvider`/`useTheme`,
 Outfit via `expo-font`, `Text`, `Card`, `Button`, `Segmented`, `Chip`, `SectionLabel`, `VerdictMark` (tre former), `ConfidenceBar`,
 `BrandHeader`; nya native-beroenden (`expo-font`, `react-native-svg`) → dev-klienten måste byggas om. **del 2** `apps/mobile/src/state/`:
@@ -247,8 +248,9 @@ på `stream-native`; 2) kör S-49:s uppställning (§6 (a)–(e)) med 30 fps-sam
 ### [📱] N-5 — Handsfree med taligenkänning på enheten
 **📱 Kräver Mac + iPhone** (taligenkänning på enheten är native och provas med hörlurar); görs efter N-3.4.
 
-### [📱] N-6 — TestFlight och Play
-**📱 Kräver Mac/Apple-konto** (signering, uppladdning till TestFlight) och W-2:s Worker-del.
+### [ ] N-6 — TestFlight och Play
+**Steg 1 (Erik 2026-10-25): intern TestFlight för Erik** så snart N-3.6:s uppladdningspipeline fungerar — via EAS (`eas build -p ios --profile production` + `eas submit`), ingen Mac krävs. Dirigenten förbereder `eas.json`-profil, `runtimeVersion`/EAS Update-kanal (så JS-ändringar når telefonen på rangen utan nytt bygge) och exakta kommandon; **📱 Erik kör build + submit** (Apple-inloggning).
+**Steg 2: extern beta** — kräver W-2 (deployad 2026-10-25), N-3.7/N-3.8 (Mac) och V-1.
 TestFlight är betan. Play är utanför betan. **Kräver W-2** (identitet per installation) innan första externa testare.
 
 ### [ ] N-8 — Android-prestanda (efter iOS-beta) — *utanför betan*
