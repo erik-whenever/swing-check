@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwingCheck Betaskisser</title>
+<meta name="description" content="D-1: förslag till visuell riktning för SwingCheck-betan, sex flöden i iPhone-ram.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Tokens — förslag "Fairway Night / Cream Day". Inte implementerade
+   i apps/mobile; de skrivs dit först efter Eriks godkännande.
+   ============================================================ */
+:root, [data-theme="light"] {
+  --bg: #F4F0E6;
+  --surface: #FFFCF5;
+  --raised: #ECE6D8;
+  --line: rgba(22, 33, 27, .09);
+  --line-strong: rgba(22, 33, 27, .16);
+  --fg: #15201A;
+  --fg-dim: #34413A;
+  --muted: #69736C;
+  --faint: #9BA39C;
+  --accent: #1C6644;
+  --accent-tint: #DDEADF;
+  --on-accent: #FFFFFF;
+  --pass: #1E8350;
+  --pass-tint: #DCEFE2;
+  --fail: #C04E2C;
+  --fail-tint: #F7E2D8;
+  --unk: #7E847C;
+  --unk-tint: #E9E6DD;
+  --gold: #A97C22;
+  --gold-tint: #F3E8CF;
+  --volt: #D6F03A;
+  --shadow: 0 1px 0 rgba(22,33,27,.04), 0 8px 24px -12px rgba(22,33,27,.18);
+  --chrome: rgba(244, 240, 230, .82);
+  --seg-on: #FFFCF5;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg: #0B110E;
+  --surface: #141C18;
+  --raised: #1D2722;
+  --line: rgba(240, 236, 226, .08);
+  --line-strong: rgba(240, 236, 226, .15);
+  --fg: #F1EDE3;
+  --fg-dim: #D2CEC4;
+  --muted: #98A29B;
+  --faint: #66706A;
+  --accent: #56C38A;
+  --accent-tint: #18352A;
+  --on-accent: #08150F;
+  --pass: #52C98A;
+  --pass-tint: #173326;
+  --fail: #F2845F;
+  --fail-tint: #3A1E15;
+  --unk: #A5AAA2;
+  --unk-tint: #262B27;
+  --gold: #E3B95C;
+  --gold-tint: #352B16;
+  --volt: #D9F23F;
+  --shadow: 0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
+  --chrome: rgba(11, 17, 14, .82);
+  --seg-on: #34413A;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B110E; --surface: #141C18; --raised: #1D2722;
+    --line: rgba(240,236,226,.08); --line-strong: rgba(240,236,226,.15);
+    --fg: #F1EDE3; --fg-dim: #D2CEC4; --muted: #98A29B; --faint: #66706A;
+    --accent: #56C38A; --accent-tint: #18352A; --on-accent: #08150F;
+    --pass: #52C98A; --pass-tint: #173326; --fail: #F2845F; --fail-tint: #3A1E15;
+    --unk: #A5AAA2; --unk-tint: #262B27; --gold: #E3B95C; --gold-tint: #352B16;
+    --volt: #D9F23F; --shadow: 0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
+    --chrome: rgba(11,17,14,.82); --seg-on: #34413A; color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: Inter, -apple-system, "SF Pro Text", system-ui, sans-serif;
+  background: var(--page-bg, #E6E1D5);
+  color: var(--fg);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+[data-theme="dark"] body, body[data-theme="dark"] { --page-bg: #050806; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body { --page-bg: #050806; } }
+
+/* ---------- Presentationssida ---------- */
+.page { max-width: 1760px; margin: 0 auto; padding: 48px 16px 80px; }
+.intro { max-width: 760px; margin: 0 auto 40px; text-align: left; padding: 0 8px; }
+.intro .kicker { font: 600 12px/1 Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.intro h1 { font: 600 40px/1.08 Outfit, sans-serif; letter-spacing: -.02em; margin: 10px 0 12px; }
+.intro p { color: var(--muted); font-size: 16px; line-height: 1.55; }
+.theme-switch { display: inline-flex; gap: 4px; margin-top: 18px; padding: 4px; border-radius: 99px; background: var(--raised); }
+.theme-switch button { border: 0; background: transparent; color: var(--fg-dim); font: 500 14px Inter, sans-serif; padding: 8px 16px; border-radius: 99px; cursor: pointer; min-height: 36px; }
+.theme-switch button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+.grid { display: flex; flex-wrap: wrap; gap: 48px 40px; justify-content: center; }
+.shot { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.shot figcaption { max-width: 393px; width: 100%; }
+.shot .num { font: 600 12px/1 Inter, sans-serif; letter-spacing: .12em; color: var(--accent); text-transform: uppercase; }
+.shot h2 { font: 600 20px/1.2 Outfit, sans-serif; margin-top: 6px; }
+.shot p { color: var(--muted); font-size: 14px; line-height: 1.5; margin-top: 4px; }
+.scale { width: 393px; max-width: calc(100vw - 32px); }
+/* Telefonbredd: skala ned hela ramen i stället för att låta sidan scrolla i sidled. */
+@media (max-width: 440px) { .scale > .phone { zoom: calc((100vw - 32px) / 417px); } }
+
+/* ---------- iPhone-ram (393×852 pt) ---------- */
+.phone {
+  position: relative; width: 393px; height: 852px; overflow: hidden;
+  border-radius: 55px; background: var(--bg); color: var(--fg);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18), 0 0 0 11px #121413, 0 0 0 12px #2B2E2C, 0 40px 80px -20px rgba(0,0,0,.45);
+  margin: 12px;
+  isolation: isolate;
+}
+.island { position: absolute; top: 11px; left: 50%; width: 126px; height: 37px; margin-left: -63px; background: #000; border-radius: 20px; z-index: 50; }
+.status { position: absolute; top: 0; left: 0; right: 0; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 6px 34px 0 46px; z-index: 40; font: 600 17px/1 Inter, sans-serif; letter-spacing: -.01em; color: var(--fg); }
+.status.on-dark { color: #fff; }
+.status .sys { display: flex; gap: 6px; align-items: center; }
+.home { position: absolute; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--fg); opacity: .9; z-index: 60; }
+.home.on-dark { background: #fff; }
+.content { position: absolute; inset: 0; padding-top: 54px; overflow: hidden; }
+
+/* ---------- Typografi ---------- */
+.display { font-family: Outfit, Inter, sans-serif; }
+.large-title { font: 700 34px/41px Outfit, Inter, sans-serif; letter-spacing: -.02em; }
+.title2 { font: 600 22px/28px Outfit, Inter, sans-serif; letter-spacing: -.01em; }
+.headline { font: 600 17px/22px Inter, sans-serif; letter-spacing: -.01em; }
+.body { font: 400 17px/22px Inter, sans-serif; letter-spacing: -.01em; }
+.callout { font: 400 16px/21px Inter, sans-serif; letter-spacing: -.01em; }
+.subhead { font: 400 15px/20px Inter, sans-serif; letter-spacing: -.005em; }
+.footnote { font: 400 13px/18px Inter, sans-serif; }
+.caption { font: 500 12px/16px Inter, sans-serif; }
+.eyebrow { font: 600 12px/16px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+.dim { color: var(--fg-dim); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ---------- Primitiver ---------- */
+.card { background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.pill-btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; border-radius: 99px; font: 600 17px/22px Inter, sans-serif; letter-spacing: -.01em; }
+.pill-btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent); }
+.pill-btn.ghost { color: var(--accent); min-height: 44px; }
+.seg { display: flex; padding: 3px; border-radius: 12px; background: var(--raised); }
+.seg > div { flex: 1; min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 9px; font: 500 15px/20px Inter, sans-serif; color: var(--fg-dim); }
+.seg > div.on { background: var(--seg-on); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 2px 8px -2px rgba(0,0,0,.12); }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 99px; background: var(--raised); font: 500 13px/1 Inter, sans-serif; color: var(--fg-dim); white-space: nowrap; }
+.chip.accent { background: var(--accent-tint); color: var(--accent); }
+.chip.glass { background: rgba(10,14,12,.5); color: #fff; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.nav { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.nav .back { display: flex; align-items: center; gap: 2px; color: var(--accent); font: 400 17px/22px Inter, sans-serif; min-height: 44px; }
+.nav .center { font: 600 17px/22px Inter, sans-serif; }
+.icon-btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--accent); }
+.round-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--raised); display: grid; place-items: center; color: var(--fg-dim); }
+
+/* Domtecken — form + färg (färgseende kan inte antas) */
+.v { flex: none; display: grid; place-items: center; border-radius: 50%; width: 30px; height: 30px; }
+.v svg { width: 16px; height: 16px; }
+.v.pass { background: var(--pass-tint); color: var(--pass); }
+.v.fail { background: var(--fail-tint); color: var(--fail); border-radius: 9px; }
+.v.unk { background: transparent; color: var(--unk); border: 1.5px dashed var(--unk); }
+
+.conf { display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1 Inter, sans-serif; color: var(--muted); font-variant-numeric: tabular-nums; }
+.conf i { display: inline-block; width: 28px; height: 4px; border-radius: 2px; background: var(--line-strong); position: relative; overflow: hidden; }
+.conf i b { position: absolute; inset: 0 auto 0 0; background: currentColor; border-radius: 2px; color: var(--fg-dim); }
+
+/* Tabbrad */
+.tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 83px; padding-bottom: 34px; display: flex; background: var(--chrome); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); border-top: 0.5px solid var(--line-strong); z-index: 30; }
+.tabbar > div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--faint); font: 500 10.5px/12px Inter, sans-serif; letter-spacing: .01em; }
+.tabbar > div.on { color: var(--accent); }
+.tabbar svg { width: 26px; height: 26px; }
+
+/* Videoruta */
+.frame { position: relative; overflow: hidden; border-radius: 22px; background: #23302A; }
+.frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.32)); }
+.frame > :not(svg) { z-index: 2; }
+.frame > svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ---------- Skärm 1: Ny sving ---------- */
+.s1 .scroll { padding: 4px 16px 0; }
+.s1 .clip { height: 330px; margin-top: 14px; }
+.s1 .clip .top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; }
+.timeline { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 54px; border-radius: 14px; background: rgba(8,12,10,.55); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding: 8px 10px; }
+.timeline .lbl { display: flex; justify-content: space-between; color: rgba(255,255,255,.75); font: 500 11.5px/14px Inter, sans-serif; font-variant-numeric: tabular-nums; }
+.timeline .lbl b { color: var(--volt); font-weight: 600; }
+.timeline .track { position: relative; margin-top: 7px; height: 18px; border-radius: 5px; background: repeating-linear-gradient(90deg, rgba(255,255,255,.22) 0 2px, transparent 2px 7px); }
+.timeline .win { position: absolute; top: -3px; bottom: -3px; left: 30%; width: 22%; border: 2.5px solid var(--volt); border-radius: 6px; background: rgba(214,240,58,.18); }
+.timeline .win::before, .timeline .win::after { content: ""; position: absolute; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: #10160F; }
+.timeline .win::before { left: 2px; } .timeline .win::after { right: 2px; }
+.timeline .ph { position: absolute; top: 0; bottom: 0; width: 2px; left: 41%; background: #fff; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.row-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; min-height: 64px; }
+.row-card .grow { flex: 1; min-width: 0; }
+.chev { color: var(--faint); flex: none; }
+.s1 .angle { margin-top: 18px; }
+.s1 .angle .hd { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; padding: 0 4px; }
+.s1 .ruleset { margin-top: 14px; }
+.s1 .ruleset .ico { width: 40px; height: 40px; border-radius: 12px; background: var(--accent-tint); color: var(--accent); display: grid; place-items: center; flex: none; }
+.s1 .cta { position: absolute; left: 16px; right: 16px; bottom: 97px; }
+.s1 .cta .sub { text-align: center; margin-top: 8px; }
+
+/* ---------- Skärm 2: Analys pågår ---------- */
+.s2 .hero { margin: 6px 16px 0; height: 262px; }
+.s2 .scan { position: absolute; left: 0; right: 0; top: 58%; height: 90px; background: linear-gradient(180deg, transparent, rgba(214,240,58,.20) 85%, rgba(214,240,58,.75) 100%); border-bottom: 1.5px solid var(--volt); mix-blend-mode: screen; }
+.s2 .badge { position: absolute; left: 12px; top: 12px; }
+.s2 .head { padding: 18px 20px 0; }
+.s2 .head .big { font: 600 28px/34px Outfit, Inter, sans-serif; letter-spacing: -.02em; }
+.progress { margin-top: 14px; height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.progress b { display: block; height: 100%; width: 68%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--volt))); }
+.strip { display: flex; gap: 6px; padding: 18px 16px 0; }
+.strip .k { flex: 1; }
+.strip .k .t { height: 74px; border-radius: 10px; position: relative; overflow: hidden; background: #23302A; }
+.strip .k .t svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.strip .k .n { text-align: center; margin-top: 6px; font: 500 10.5px/12px Inter, sans-serif; color: var(--muted); }
+.strip .k.on .t { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.steps { margin: 18px 16px 0; padding: 4px 16px; }
+.step { display: flex; align-items: center; gap: 12px; min-height: 46px; }
+.step + .step { border-top: 0.5px solid var(--line-strong); }
+.step .dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.step .dot.done { background: var(--accent); color: var(--on-accent); }
+.step .dot.run { border: 2.5px solid var(--accent-tint); border-top-color: var(--accent); }
+.step .dot.todo { border: 1.5px solid var(--line-strong); }
+.step .txt { flex: 1; font: 400 16px/21px Inter, sans-serif; }
+.step .txt.todo { color: var(--faint); }
+.step .meta { font: 400 14px/1 Inter, sans-serif; color: var(--muted); font-variant-numeric: tabular-nums; }
+.s2 .foot { position: absolute; bottom: 40px; left: 24px; right: 24px; text-align: center; }
+
+/* ---------- Skärm 3: Resultat ---------- */
+.s3 .hero { margin: 0 16px; height: 318px; }
+.s3 .hero .tl { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; }
+.s3 .phases { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(8,12,10,.55); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.s3 .phases > div { flex: 1; min-height: 36px; border-radius: 10px; display: grid; place-items: center; font: 500 12.5px/1 Inter, sans-serif; color: rgba(255,255,255,.72); }
+.s3 .phases > div.on { background: rgba(255,255,255,.95); color: #111; font-weight: 600; }
+.s3 .sum { display: flex; gap: 16px; align-items: center; padding: 18px 20px 4px; }
+.ring { position: relative; width: 72px; height: 72px; flex: none; }
+.ring svg { width: 72px; height: 72px; transform: rotate(-90deg); }
+.ring .val { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 22px/1 Outfit, Inter, sans-serif; letter-spacing: -.02em; }
+.ring .val small { font-size: 14px; color: var(--muted); font-weight: 500; }
+.s3 .list { margin: 14px 16px 0; }
+.focus { border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent); box-shadow: 0 0 0 3px var(--gold-tint), var(--shadow); }
+.rule { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; }
+.rule .grow { flex: 1; min-width: 0; }
+.rule .ttl { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.rule .sv { margin-top: 2px; }
+.rule + .rule { border-top: 0.5px solid var(--line-strong); }
+.detail { margin-top: 12px; display: grid; gap: 10px; }
+.tip { border-radius: 14px; background: var(--raised); padding: 12px 14px; }
+.tip .eyebrow { font-size: 11px; margin-bottom: 3px; }
+.drill { display: flex; gap: 12px; align-items: center; border-radius: 14px; padding: 10px 12px; background: var(--accent-tint); color: var(--accent); min-height: 56px; }
+.drill .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; flex: none; }
+.drill .grow { flex: 1; }
+.drill .t { font: 600 15px/20px Inter, sans-serif; }
+.drill .d { font: 400 13px/17px Inter, sans-serif; opacity: .85; }
+.evid { display: flex; justify-content: space-between; align-items: center; }
+.link { color: var(--accent); font: 500 14px/20px Inter, sans-serif; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; }
+.s3 .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; background: linear-gradient(180deg, transparent, var(--bg) 70%); z-index: 5; }
+.s3 .listen { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; gap: 10px; padding: 12px 16px 34px; background: var(--chrome); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); border-top: 0.5px solid var(--line-strong); }
+.s3 .listen .pill-btn { flex: 1; }
+.pill-btn.tonal { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); border: 1px solid var(--line); }
+
+/* ---------- Skärm 4: Regler ---------- */
+.s4 .scroll { padding: 0 16px; }
+.s4 .rec { margin-top: 12px; padding: 14px 16px 16px; position: relative; overflow: hidden; }
+.s4 .rec::after { content: ""; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--volt) 45%, transparent), transparent 70%); opacity: .55; pointer-events: none; }
+.s4 .rec .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.group-h { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 4px 8px; }
+.toggle { width: 51px; height: 31px; border-radius: 99px; background: var(--line-strong); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+.toggle.on { background: var(--accent); }
+.toggle.on::after { left: 22px; }
+.toggle.off-dis { opacity: .45; }
+.rrow { display: flex; align-items: center; gap: 12px; padding: 8px 16px; min-height: 56px; }
+.rrow + .rrow { border-top: 0.5px solid var(--line-strong); }
+.rrow .grow { flex: 1; min-width: 0; }
+.rrow .meta { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+.weight { display: inline-flex; gap: 3px; }
+.weight i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); }
+.weight i.f { background: var(--fg-dim); }
+.star { color: var(--gold); }
+.rrow.dis .headline, .rrow.dis .weight { opacity: .45; }
+.need { color: var(--gold); font: 500 13px/18px Inter, sans-serif; display: inline-flex; align-items: center; gap: 4px; }
+.s4 .apply { position: absolute; left: 16px; right: 16px; bottom: 97px; z-index: 8; }
+.s4 .fade { position: absolute; left: 0; right: 0; bottom: 83px; height: 110px; background: linear-gradient(180deg, transparent, var(--bg) 60%); z-index: 7; }
+
+/* ---------- Skärm 5: Livesession (stativ, 2–4 m) ---------- */
+.s5 { background: #050806; }
+.s5 .cam { position: absolute; inset: -12px; filter: blur(5px) saturate(.8); }
+.s5 .cam svg { width: 100%; height: 100%; display: block; }
+.s5 .veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,8,6,.78) 0%, rgba(5,8,6,.74) 30%, rgba(5,8,6,.9) 62%, rgba(5,8,6,.98) 100%); }
+.s5 .topbar { position: absolute; top: 58px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+.s5 .live { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 99px; background: rgba(214,240,58,.14); color: var(--volt); font: 700 17px/1 Inter, sans-serif; letter-spacing: .04em; }
+.s5 .live i { width: 10px; height: 10px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 0 5px rgba(214,240,58,.22); }
+.s5 .hp { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 99px; background: rgba(255,255,255,.1); color: #fff; font: 600 15px/1 Inter, sans-serif; }
+.s5 .count { position: absolute; top: 116px; left: 24px; right: 24px; color: rgba(255,255,255,.62); font: 600 20px/24px Inter, sans-serif; letter-spacing: .02em; display: flex; justify-content: space-between; }
+.s5 .count b { color: #fff; }
+.s5 .score { position: absolute; top: 152px; left: 22px; right: 22px; color: #fff; }
+.s5 .score .n { font: 600 120px/0.95 Outfit, Inter, sans-serif; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+.s5 .score .n small { font-size: 64px; color: rgba(255,255,255,.45); letter-spacing: -.03em; font-weight: 500; }
+.s5 .verdicts { position: absolute; top: 300px; left: 22px; right: 22px; display: grid; gap: 14px; }
+.s5 .vrow { display: flex; align-items: center; gap: 16px; color: #fff; font: 600 30px/34px Outfit, Inter, sans-serif; letter-spacing: -.015em; }
+.s5 .vrow .v { width: 52px; height: 52px; }
+.s5 .vrow .v svg { width: 28px; height: 28px; }
+.s5 .vrow .v.pass { background: rgba(82,201,138,.2); color: #63D69A; }
+.s5 .vrow .v.fail { background: rgba(242,132,95,.2); color: #FF9572; border-radius: 15px; }
+.s5 .vrow.fail { color: #FFD9CB; }
+.s5 .trend { position: absolute; top: 528px; left: 22px; right: 22px; }
+.s5 .trend .lbl { color: rgba(255,255,255,.62); font: 600 17px/22px Inter, sans-serif; display: flex; justify-content: space-between; }
+.s5 .trend .lbl b { color: var(--gold); font-weight: 600; }
+.s5 .dots { display: flex; gap: 8px; margin-top: 10px; }
+.s5 .dots i { flex: 1; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+.s5 .dots i.p { background: #52C98A; }
+.s5 .dots i.f { background: transparent; border: 3px solid #F2845F; }
+.s5 .dots i.u { border: 2px dashed rgba(255,255,255,.35); }
+.s5 .dots i.now { box-shadow: 0 0 0 3px #050806, 0 0 0 5px #fff; }
+.s5 .state { position: absolute; left: 16px; right: 16px; bottom: 132px; display: flex; align-items: center; gap: 18px; padding: 18px 20px; border-radius: 28px; background: rgba(214,240,58,.1); border: 1.5px solid rgba(214,240,58,.35); }
+.s5 .state .pulse { position: relative; width: 56px; height: 56px; flex: none; }
+.s5 .state .pulse i { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--volt); }
+.s5 .state .pulse i:nth-child(2) { inset: -8px; opacity: .4; }
+.s5 .state .pulse i:nth-child(3) { inset: 14px; background: var(--volt); border: 0; }
+.s5 .state .t { color: var(--volt); font: 700 36px/38px Outfit, Inter, sans-serif; letter-spacing: -.02em; }
+.s5 .state .s { color: rgba(255,255,255,.7); font: 500 17px/22px Inter, sans-serif; margin-top: 3px; }
+.s5 .controls { position: absolute; left: 16px; right: 16px; bottom: 42px; display: flex; gap: 12px; }
+.s5 .controls > div { height: 76px; border-radius: 26px; display: flex; align-items: center; justify-content: center; gap: 10px; font: 600 20px/1 Inter, sans-serif; }
+.s5 .controls .pause { flex: 1; background: rgba(255,255,255,.12); color: #fff; }
+.s5 .controls .end { flex: 1; background: #fff; color: #0B110E; }
+
+/* ---------- Skärm 6: Historik ---------- */
+.s6 .scroll { padding: 0 16px; }
+.trendcard { margin-top: 14px; padding: 16px; }
+.trendcard .top { display: flex; justify-content: space-between; align-items: flex-start; }
+.trendcard .big { font: 600 40px/1 Outfit, Inter, sans-serif; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.trendcard .delta { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 99px; background: var(--pass-tint); color: var(--pass); font: 600 13px/1 Inter, sans-serif; }
+.trendcard svg.chart { display: block; width: 100%; height: 92px; margin-top: 10px; }
+.trendcard .axis { display: flex; justify-content: space-between; font: 500 11px/1 Inter, sans-serif; color: var(--faint); margin-top: 6px; }
+.sec-h { padding: 22px 4px 8px; display: flex; justify-content: space-between; align-items: baseline; }
+.sess { padding: 14px 16px; }
+.sess .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.bars { display: flex; gap: 3px; align-items: flex-end; height: 34px; margin-top: 12px; }
+.bars i { flex: 1; border-radius: 3px; }
+.bars i.p { background: var(--pass); }
+.bars i.f { background: var(--fail); opacity: .9; }
+.bars i.u { background: transparent; border: 1.5px dashed var(--unk); }
+.swing { display: flex; gap: 12px; align-items: center; padding: 10px 16px; min-height: 72px; }
+.swing + .swing { border-top: 0.5px solid var(--line-strong); }
+.swing .th { width: 52px; height: 52px; border-radius: 12px; overflow: hidden; position: relative; flex: none; background: #23302A; }
+.swing .th svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.swing .grow { flex: 1; min-width: 0; }
+.mini { display: inline-flex; gap: 3px; }
+.mini i { width: 8px; height: 8px; border-radius: 50%; }
+.mini i.p { background: var(--pass); }
+.mini i.f { background: var(--fail); border-radius: 2px; }
+.mini i.u { border: 1.5px dashed var(--unk); }
+</style>
+</head>
+<body>
+
+<!-- ============ Delade SVG-symboler: scen, poser, tracer ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9FB9C4"/><stop offset=".55" stop-color="#C9D3C9"/><stop offset="1" stop-color="#DCD9C6"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5F8A4C"/><stop offset="1" stop-color="#3D6634"/>
+    </linearGradient>
+    <linearGradient id="trees" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#36553A"/><stop offset="1" stop-color="#2A4430"/>
+    </linearGradient>
+    <linearGradient id="mat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3E7A47"/><stop offset="1" stop-color="#2F6338"/>
+    </linearGradient>
+    <radialGradient id="vig" cx=".5" cy=".45" r=".75">
+      <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".38"/>
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Rangen, sedd längs linjen (DTL). viewBox 0 0 360 480 -->
+    <symbol id="range" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <rect x="-300" y="-300" width="960" height="560" fill="url(#sky)"/>
+      <path d="M-300 190 L-200 176 L-100 188 L0 196 C40 170 70 182 100 172 C130 160 150 178 186 168 C220 158 250 176 290 166 C320 158 340 170 360 164 L460 180 L560 168 L660 178 L660 236 L-300 236 Z" fill="url(#trees)"/>
+      <path d="M-300 210 L0 214 C60 204 120 212 180 206 C240 200 300 210 360 204 L660 208 L660 240 L-300 240Z" fill="#2E4A33" opacity=".7"/>
+      <rect x="-300" y="226" width="960" height="800" fill="url(#grass)"/>
+      <g opacity=".18" fill="#DDE8C8">
+        <path d="M150 226 L118 480 L72 480 L138 226Z"/><path d="M190 226 L236 480 L292 480 L204 226Z"/>
+      </g>
+      <g fill="#F4F1E4" opacity=".75"><circle cx="70" cy="262" r="1.6"/><circle cx="250" cy="250" r="1.4"/><circle cx="300" cy="276" r="1.8"/><circle cx="120" cy="246" r="1.2"/><circle cx="206" cy="238" r="1.1"/></g>
+      <rect x="215" y="230" width="2" height="16" fill="#E8E2CF" opacity=".8"/><path d="M217 230 l10 3 -10 3z" fill="#D6513A" opacity=".8"/>
+      <path d="M20 520 L104 380 L330 380 L380 430 L380 520 Z" fill="url(#mat)"/>
+      <path d="M104 380 L330 380" stroke="#6FA16A" stroke-width="1.5" opacity=".6"/>
+      <ellipse cx="200" cy="434" rx="96" ry="8" fill="#000" opacity=".22"/>
+      
+    </symbol>
+
+    <!-- Golfare — förenklad siluett, DTL, högerfattad. Poserna delar proportioner. -->
+    <symbol id="g-address" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M186 312 L170 372 L166 432" stroke="#2B2F3A" stroke-width="24"/>
+        <path d="M200 312 L222 370 L224 432" stroke="#343947" stroke-width="24"/>
+        <path d="M160 434 h22 M214 434 h24" stroke="#F1EFE8" stroke-width="10"/>
+        <path d="M192 304 L208 226" stroke="#1F3A5C" stroke-width="44"/>
+        <path d="M211 230 L232 290 L240 322" stroke="#1A3352" stroke-width="14"/>
+        <path d="M203 236 L226 292 L238 322" stroke="#24456C" stroke-width="13"/>
+        <path d="M240 326 L292 432" stroke="#C9CCD1" stroke-width="3.5"/>
+        <path d="M288 428 l12 6" stroke="#2D3136" stroke-width="7"/>
+        <circle cx="240" cy="324" r="8" fill="#F1EFE8" stroke="none"/>
+      </g>
+      <circle cx="222" cy="196" r="19" fill="#C99A78"/>
+      <path d="M203 192 a19 19 0 0 1 38 -6 l6 2 -6 3 a19 19 0 0 0 -38 1z" fill="#F2F0EA"/>
+      <circle cx="298" cy="436" r="4.5" fill="#fff"/>
+    </symbol>
+
+    <symbol id="g-top" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M186 312 L176 372 L166 432" stroke="#2B2F3A" stroke-width="24"/>
+        <path d="M200 312 L214 372 L224 432" stroke="#343947" stroke-width="24"/>
+        <path d="M160 434 h22 M214 434 h24" stroke="#F1EFE8" stroke-width="10"/>
+        <path d="M192 304 L202 226" stroke="#1F3A5C" stroke-width="46"/>
+        <path d="M216 236 L178 188 L158 140" stroke="#24456C" stroke-width="13"/>
+        <path d="M194 232 L170 184 L156 142" stroke="#1A3352" stroke-width="14"/>
+        <path d="M156 138 L252 116" stroke="#C9CCD1" stroke-width="3.5"/>
+        <path d="M250 114 l10 -6" stroke="#2D3136" stroke-width="7"/>
+        <circle cx="156" cy="140" r="8" fill="#F1EFE8" stroke="none"/>
+      </g>
+      <circle cx="218" cy="196" r="19" fill="#C99A78"/>
+      <path d="M199 192 a19 19 0 0 1 38 -6 l6 2 -6 3 a19 19 0 0 0 -38 1z" fill="#F2F0EA"/>
+      <circle cx="298" cy="436" r="4.5" fill="#fff"/>
+    </symbol>
+
+    <symbol id="g-impact" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M194 310 L180 370 L166 432" stroke="#2B2F3A" stroke-width="24"/>
+        <path d="M208 310 L226 368 L226 428" stroke="#343947" stroke-width="24"/>
+        <path d="M160 434 h22 M216 430 h24" stroke="#F1EFE8" stroke-width="10"/>
+        <path d="M200 302 L210 226" stroke="#1F3A5C" stroke-width="44"/>
+        <path d="M214 232 L238 292 L250 324" stroke="#1A3352" stroke-width="14"/>
+        <path d="M204 238 L232 294 L248 324" stroke="#24456C" stroke-width="13"/>
+        <path d="M250 328 L296 432" stroke="#C9CCD1" stroke-width="3.5"/>
+        <path d="M292 428 l12 6" stroke="#2D3136" stroke-width="7"/>
+        <circle cx="250" cy="326" r="8" fill="#F1EFE8" stroke="none"/>
+      </g>
+      <circle cx="224" cy="196" r="19" fill="#C99A78"/>
+      <path d="M205 192 a19 19 0 0 1 38 -6 l6 2 -6 3 a19 19 0 0 0 -38 1z" fill="#F2F0EA"/>
+    </symbol>
+
+    <symbol id="g-finish" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M200 304 L196 368 L184 426" stroke="#2B2F3A" stroke-width="24"/>
+        <path d="M212 304 L226 368 L232 432" stroke="#343947" stroke-width="24"/>
+        <path d="M178 424 l10 -8 M226 434 h24" stroke="#F1EFE8" stroke-width="10"/>
+        <path d="M206 300 L208 212" stroke="#1F3A5C" stroke-width="46"/>
+        <path d="M212 222 L240 176 L214 140" stroke="#24456C" stroke-width="13"/>
+        <path d="M200 222 L228 172 L212 142" stroke="#1A3352" stroke-width="14"/>
+        <path d="M212 140 L140 186" stroke="#C9CCD1" stroke-width="3.5"/>
+        <path d="M142 184 l-10 8" stroke="#2D3136" stroke-width="7"/>
+        <circle cx="212" cy="142" r="8" fill="#F1EFE8" stroke="none"/>
+      </g>
+      <circle cx="212" cy="180" r="19" fill="#C99A78"/>
+      <path d="M193 176 a19 19 0 0 1 38 -6 l6 2 -6 3 a19 19 0 0 0 -38 1z" fill="#F2F0EA"/>
+    </symbol>
+
+    <!-- Skaftets tracer (handens/klubbhuvudets bana) — volt, med glöd -->
+    <symbol id="tracer" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <path d="M296 434 C 262 360, 186 330, 152 252 C 128 196, 140 150, 174 120 C 196 102, 236 98, 256 112" fill="none" stroke="#D6F03A" stroke-width="3" stroke-linecap="round" opacity=".55" stroke-dasharray="2 7"/>
+      <path d="M256 112 C 222 128, 168 176, 176 252 C 184 318, 252 372, 296 434 C 318 470, 340 470, 360 452" fill="none" stroke="#D6F03A" stroke-width="5" stroke-linecap="round" filter="url(#glow)"/>
+      <g fill="#0E140F" stroke="#D6F03A" stroke-width="3">
+        <circle cx="256" cy="112" r="7"/><circle cx="176" cy="252" r="6"/><circle cx="296" cy="434" r="7"/>
+      </g>
+    </symbol>
+
+    <!-- Poseskelett (MediaPipe-landmärken) för analysvyn -->
+    <symbol id="skeleton" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" overflow="visible">
+      <g stroke="#D6F03A" stroke-width="2" fill="none" opacity=".9" stroke-linecap="round">
+        <path d="M222 196 L214 228 L192 304 L170 372 L166 432 M192 304 L222 370 L224 432 M214 228 L232 290 L240 322 M214 228 L226 292 L238 322 M196 228 L232 228"/>
+      </g>
+      <g fill="#0E140F" stroke="#D6F03A" stroke-width="2.2">
+        <circle cx="222" cy="196" r="4"/><circle cx="214" cy="228" r="4"/><circle cx="196" cy="228" r="3.5"/><circle cx="232" cy="228" r="3.5"/><circle cx="232" cy="290" r="3.5"/><circle cx="240" cy="322" r="4"/><circle cx="192" cy="304" r="4"/><circle cx="170" cy="372" r="3.5"/><circle cx="222" cy="370" r="3.5"/><circle cx="166" cy="432" r="3.5"/><circle cx="224" cy="432" r="3.5"/>
+      </g>
+    </symbol>
+
+    <!-- Ikoner -->
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.2 8.4 6.4 11.4 12.8 4.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M4.5 4.5 11.5 11.5 M11.5 4.5 4.5 11.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-q" viewBox="0 0 16 16"><path d="M5.6 6.1a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2.9-1.2 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="12.6" r="1.15" fill="currentColor"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-back" viewBox="0 0 16 16"><path d="M10.5 2.5 5 8l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-star" viewBox="0 0 16 16"><path d="M8 1.6 9.9 5.6l4.3.5-3.2 2.9.9 4.3L8 11.1l-3.9 2.2.9-4.3L1.8 6.1l4.3-.5Z" fill="currentColor"/></symbol>
+    <symbol id="i-phones" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="3" y="14" width="5" height="7" rx="2" fill="currentColor"/><rect x="16" y="14" width="5" height="7" rx="2" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5Z" fill="currentColor"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4M6 11v8.5h12V11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4.5" cy="6.5" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="17.5" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3c.6 3.9 2.1 5.4 6 6-3.9.6-5.4 2.1-6 6-.6-3.9-2.1-5.4-6-6 3.9-.6 5.4-2.1 6-6Z" fill="currentColor"/><path d="M18.5 14.5c.3 1.8 1 2.5 2.8 2.8-1.8.3-2.5 1-2.8 2.8-.3-1.8-1-2.5-2.8-2.8 1.8-.3 2.5-1 2.8-2.8Z" fill="currentColor" opacity=".7"/></symbol>
+    <symbol id="i-drill" viewBox="0 0 24 24"><path d="M6 19 17 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="6.5" cy="19" r="2.2" fill="currentColor"/><path d="M14 4.5h4.5V9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="13" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 10.5 6-3.5v10l-6-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.5" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <!-- Tabbikoner -->
+    <symbol id="t-swing" viewBox="0 0 26 26"><path d="M7 21.5 15.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 22h5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="19" cy="20.5" r="2.3" fill="currentColor"/></symbol>
+    <symbol id="t-session" viewBox="0 0 26 26"><path d="M5 15v-2.5a8 8 0 0 1 16 0V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="3.5" y="14" width="5" height="7.5" rx="2" fill="currentColor"/><rect x="17.5" y="14" width="5" height="7.5" rx="2" fill="currentColor"/></symbol>
+    <symbol id="t-rules" viewBox="0 0 26 26"><rect x="4.5" y="3.5" width="17" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="m8.5 9.5 1.5 1.5 3-3M8.5 16.5l1.5 1.5 3-3M15.5 10h2.5M15.5 17h2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="t-history" viewBox="0 0 26 26"><path d="M4 20.5h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5.5" y="12" width="3.6" height="6.5" rx="1.4" fill="currentColor"/><rect x="11.2" y="7.5" width="3.6" height="11" rx="1.4" fill="currentColor"/><rect x="16.9" y="4" width="3.6" height="14.5" rx="1.4" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<template id="statusbar">
+  <span class="tnum">9:41</span>
+  <span class="sys">
+    <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>
+    <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.2 2.5l1.2-1.2A10.4 10.4 0 0 0 .6 3.5l1.2 1.2A8.7 8.7 0 0 1 8 2.2Zm0 3.5c1.4 0 2.7.5 3.7 1.5l1.2-1.2a7 7 0 0 0-9.8 0l1.2 1.2c1-1 2.3-1.5 3.7-1.5Zm0 3.4c-.5 0-1 .2-1.3.6L8 11.1l1.3-1.4c-.3-.4-.8-.6-1.3-.6Z" fill="currentColor"/></svg>
+    <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.8" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="17" height="9" rx="2.5" fill="currentColor"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2Z" fill="currentColor" opacity=".45"/></svg>
+  </span>
+</template>
+
+<template id="tabbar">
+  <div data-tab="sving"><svg><use href="#t-swing"/></svg>Sving</div>
+  <div data-tab="session"><svg><use href="#t-session"/></svg>Session</div>
+  <div data-tab="regler"><svg><use href="#t-rules"/></svg>Regler</div>
+  <div data-tab="historik"><svg><use href="#t-history"/></svg>Historik</div>
+</template>
+
+<main class="page">
+  <header class="intro">
+    <div class="kicker">D-1 · Förslag för godkännande</div>
+    <h1>SwingCheck, betan</h1>
+    <p>Sex flöden i iPhone-ram (393 × 852 pt). Riktningen heter <em>Cream Day / Fairway Night</em>: Club Creams varma ytor och gröna accent, plus en elektrisk volt-färg som bara används för det maskinen ser (tracer, pose, live). Inga tokens är implementerade än.</p>
+    <div class="theme-switch" role="group" aria-label="Tema">
+      <button type="button" data-set="light">Ljust</button>
+      <button type="button" data-set="dark">Mörkt</button>
+      <button type="button" data-set="auto" aria-pressed="true">Auto</button>
+    </div>
+  </header>
+
+  <div class="grid">
+
+  <!-- =============== 1. UPPLADDNING =============== -->
+  <figure class="shot" id="shot-1">
+    <figcaption><div class="num">1 · Uppladdning</div><h2>Ny sving</h2><p>Klippet väljs, svingen hittas automatiskt och markeras i tidslinjen. Ett tryck till bedömning.</p></figcaption>
+    <div class="scale"><div class="phone s1" data-screen="uppladdning">
+      <div class="island"></div><div class="status" data-tpl="statusbar"></div>
+      <div class="content">
+        <div class="scroll">
+          <div class="eyebrow" style="padding:6px 4px 0">Lördag 25 oktober</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px">
+            <div class="large-title">Ny sving</div>
+            <div class="round-btn" aria-label="Filma i stället"><svg width="20" height="20"><use href="#i-cam"/></svg></div>
+          </div>
+
+          <div class="frame clip" data-vb="-25 128 470 373">
+            <svg class="scene"><use href="#range"/></svg>
+            <svg class="scene"><use href="#g-address"/></svg>
+            <div class="top"><span class="chip glass tnum">IMG_4127 · 0:08</span><span class="chip glass">Byt klipp</span></div>
+            <div class="timeline">
+              <div class="lbl"><span><b>● Sving hittad</b>&nbsp; 2,4–4,1 s</span><span>0:08</span></div>
+              <div class="track"><div class="win"></div><div class="ph"></div></div>
+            </div>
+          </div>
+
+          <div class="angle">
+            <div class="hd"><span class="headline">Kameravinkel</span><span class="footnote muted">Upptäckt automatiskt</span></div>
+            <div class="seg"><div class="on">Längs linjen</div><div>Framifrån</div></div>
+          </div>
+
+          <div class="card row-card ruleset">
+            <div class="ico"><svg width="22" height="22"><use href="#i-sparkle"/></svg></div>
+            <div class="grow">
+              <div class="headline">Rekommenderat regelset</div>
+              <div class="subhead muted">5 regler · fokus på viktöverföring</div>
+            </div>
+            <svg class="chev" width="16" height="16"><use href="#i-chev"/></svg>
+          </div>
+        </div>
+
+        <div class="cta">
+          <div class="pill-btn primary">Bedöm svingen</div>
+          <div class="sub footnote muted">Tar ungefär 20 sekunder</div>
+        </div>
+        <div class="tabbar" data-tpl="tabbar" data-on="sving"></div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+  </figure>
+
+  <!-- =============== 2. ANALYS PÅGÅR =============== -->
+  <figure class="shot" id="shot-2">
+    <figcaption><div class="num">2 · Analys pågår</div><h2>Analyserar</h2><p>Visar vad som faktiskt händer: pose, nyckelbilder, regler. Väntan känns kortare när man ser arbetet.</p></figcaption>
+    <div class="scale"><div class="phone s2" data-screen="analys">
+      <div class="island"></div><div class="status" data-tpl="statusbar"></div>
+      <div class="content">
+        <div class="nav"><span class="back" style="padding-left:4px">Avbryt</span><span class="center">Analyserar</span><span style="width:56px"></span></div>
+        <div class="frame hero" data-vb="-30 118 480 400">
+          <svg class="scene"><use href="#range"/></svg>
+          <svg class="scene" style="opacity:.82"><use href="#g-address"/></svg>
+          <svg class="scene"><use href="#skeleton"/></svg>
+          <div class="scan"></div>
+          <span class="chip glass badge tnum">Bild 4 av 6 · Nedsving</span>
+        </div>
+        <div class="head">
+          <div class="big">Bedömer 5 regler</div>
+          <div class="subhead muted tnum" style="margin-top:4px">Ungefär 8 sekunder kvar</div>
+          <div class="progress"><b></b></div>
+        </div>
+        <div class="strip">
+          <div class="k"><div class="t" data-vb="100 104 230 316"><svg><use href="#range"/></svg><svg><use href="#g-address"/></svg></div><div class="n">Uppställn.</div></div>
+          <div class="k"><div class="t" data-vb="100 104 230 316"><svg><use href="#range"/></svg><svg><use href="#g-top"/></svg></div><div class="n">Baksving</div></div>
+          <div class="k"><div class="t" data-vb="100 104 230 316"><svg><use href="#range"/></svg><svg><use href="#g-top"/></svg></div><div class="n">Topp</div></div>
+          <div class="k on"><div class="t" data-vb="100 104 230 316"><svg><use href="#range"/></svg><svg><use href="#g-impact"/></svg></div><div class="n" style="color:var(--accent);font-weight:600">Nedsving</div></div>
+          <div class="k"><div class="t" data-vb="100 104 230 316"><svg><use href="#range"/></svg><svg><use href="#g-impact"/></svg></div><div class="n">Träff</div></div>
+          <div class="k"><div class="t" data-vb="100 104 230 316"><svg><use href="#range"/></svg><svg><use href="#g-finish"/></svg></div><div class="n">Avslut</div></div>
+        </div>
+        <div class="card steps">
+          <div class="step"><span class="dot done"><svg width="13" height="13"><use href="#i-check"/></svg></span><span class="txt">Svingen hittad</span><span class="meta">2,4–4,1 s</span></div>
+          <div class="step"><span class="dot done"><svg width="13" height="13"><use href="#i-check"/></svg></span><span class="txt">Nyckelbilder valda</span><span class="meta">6 st</span></div>
+          <div class="step"><span class="dot run"></span><span class="txt">Bedömer reglerna</span><span class="meta">3 / 5</span></div>
+          <div class="step"><span class="dot todo"></span><span class="txt todo">Ritar skaftets bana</span><span class="meta"></span></div>
+        </div>
+        <div class="foot footnote muted">Du kan lämna appen. Vi säger till när det är klart.</div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+  </figure>
+
+  <!-- =============== 3. RESULTAT =============== -->
+  <figure class="shot" id="shot-3">
+    <figcaption><div class="num">3 · Resultat per regel</div><h2>Resultat</h2><p>Skaftets bana ovanpå klippet. Fokusregeln leder, missar är öppna, "kan inte avgöras" säger varför.</p></figcaption>
+    <div class="scale"><div class="phone s3" data-screen="resultat">
+      <div class="island"></div><div class="status" data-tpl="statusbar"></div>
+      <div class="content">
+        <div class="nav"><span class="back"><svg width="18" height="18"><use href="#i-back"/></svg>Historik</span><span class="center tnum">Idag 10:42</span><span class="icon-btn" style="margin-right:-10px"><svg width="22" height="22"><use href="#i-share"/></svg></span></div>
+        <div class="frame hero" data-vb="20 78 400 352">
+          <svg class="scene"><use href="#range"/></svg>
+          <svg class="scene"><use href="#g-impact"/></svg>
+          <svg class="scene"><use href="#tracer"/></svg>
+          <div class="tl"><span class="chip glass">Längs linjen</span><span class="chip glass"><svg width="12" height="12"><use href="#i-play"/></svg>0,25×</span></div>
+          <div class="phases"><div>Uppst.</div><div>Topp</div><div>Nedsv.</div><div class="on">Träff</div><div>Avslut</div></div>
+        </div>
+
+        <div class="sum">
+          <div class="ring">
+            <svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="31" fill="none" stroke="var(--raised)" stroke-width="7"/><circle cx="36" cy="36" r="31" fill="none" stroke="var(--pass)" stroke-width="7" stroke-linecap="round" stroke-dasharray="116.9 194.8"/></svg>
+            <div class="val tnum"><span>3<small>/5</small></span></div>
+          </div>
+          <div>
+            <div class="title2">Stark rotation</div>
+            <div class="subhead muted" style="margin-top:2px">Vikten stannar bak i träffen. Det är där slaget tappar.</div>
+          </div>
+        </div>
+
+        <div class="card focus list">
+          <div class="rule">
+            <span class="v fail"><svg><use href="#i-x"/></svg></span>
+            <div class="grow">
+              <div class="ttl"><span class="eyebrow" style="color:var(--gold);display:inline-flex;gap:4px;align-items:center"><svg width="11" height="11"><use href="#i-star"/></svg>Fokus</span><span class="conf">84 %<i><b style="width:84%"></b></i></span></div>
+              <div class="headline" style="margin-top:2px">Viktöverföring</div>
+              <div class="subhead dim sv">Vikten kvar på höger fot</div>
+              <div class="detail">
+                <div class="tip"><div class="eyebrow">Gör så här</div><div class="subhead">Låt höger häl lyfta tidigt i nedsvingen, så att bältesspännet pekar mot målet i träffen.</div></div>
+                <div class="drill"><span class="ic"><svg width="20" height="20"><use href="#i-drill"/></svg></span><div class="grow"><div class="t" data-vb="100 104 230 316">Lyft höger fot</div><div class="d">10 halvsvingar, lyft foten i avslutet</div></div><svg class="chev" width="16" height="16" style="color:var(--accent)"><use href="#i-chev"/></svg></div>
+                <div class="evid"><span class="link">Se i bild 5 och 6 <svg width="12" height="12"><use href="#i-chev"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card list" style="margin-top:12px">
+          <div class="rule"><span class="v pass"><svg><use href="#i-check"/></svg></span><div class="grow"><div class="ttl"><span class="headline">Axelrotation</span><span class="conf">92 %<i><b style="width:92%"></b></i></span></div><div class="subhead muted sv">Full axelvridning i toppen</div></div></div>
+          <div class="rule"><span class="v pass"><svg><use href="#i-check"/></svg></span><div class="grow"><div class="ttl"><span class="headline">Höfterna startar</span><span class="conf">78 %<i><b style="width:78%"></b></i></span></div><div class="subhead muted sv">Höfterna leder nedsvingen</div></div></div>
+          <div class="rule"><span class="v unk"><svg><use href="#i-q"/></svg></span><div class="grow"><div class="ttl"><span class="headline">Höger knä stabilt</span></div><div class="subhead muted sv">Kan inte avgöras: knät skyms av vänster ben från den här vinkeln.</div></div></div>
+        </div>
+
+        <div class="listen">
+          <div class="pill-btn tonal"><svg width="20" height="20"><use href="#i-speaker"/></svg>Läs upp</div>
+          <div class="pill-btn primary">Nästa sving</div>
+        </div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+  </figure>
+
+  <!-- =============== 4. REGELVAL =============== -->
+  <figure class="shot" id="shot-4">
+    <figcaption><div class="num">4 · Regelval</div><h2>Regler</h2><p>Rekommenderat är förvalt och förklarar sig. Regler som inte går att bedöma från vinkeln säger vad som krävs.</p></figcaption>
+    <div class="scale"><div class="phone s4" data-screen="regler">
+      <div class="island"></div><div class="status" data-tpl="statusbar"></div>
+      <div class="content">
+        <div class="scroll">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px 10px">
+            <div class="large-title">Regler</div>
+            <div class="round-btn"><svg width="20" height="20"><use href="#i-plus"/></svg></div>
+          </div>
+          <div class="seg"><div class="on"><svg width="15" height="15" style="color:var(--accent)"><use href="#i-sparkle"/></svg>Rekommenderat</div><div>Egna</div></div>
+
+          <div class="card rec">
+            <div class="eyebrow" style="color:var(--accent)">Valt för dig</div>
+            <div class="title2" style="margin-top:4px">5 regler för din vinkel</div>
+            <div class="chips"><span class="chip accent">Längs linjen</span><span class="chip">Medelnivå</span><span class="chip">Jämnare träff</span></div>
+          </div>
+          <div class="group-h"><span class="eyebrow">I ditt regelset</span><span class="footnote muted">Bedöms säkert längs linjen</span></div>
+          <div class="card">
+            <div class="rrow focusrow"><div class="grow"><div class="headline">Viktöverföring</div><div class="meta"><span class="need"><svg width="12" height="12"><use href="#i-star"/></svg>Fokus</span><span class="weight"><i class="f"></i><i class="f"></i><i class="f"></i></span><span class="footnote muted">Avslut</span></div></div><div class="toggle on"></div></div>
+            <div class="rrow"><div class="grow"><div class="headline">Höfterna startar</div><div class="meta"><span class="weight"><i class="f"></i><i class="f"></i><i class="f"></i></span><span class="footnote muted">Nedsving</span></div></div><div class="toggle on"></div></div>
+            <div class="rrow"><div class="grow"><div class="headline">Axelrotation</div><div class="meta"><span class="weight"><i class="f"></i><i class="f"></i><i class="f"></i></span><span class="footnote muted">Topp</span></div></div><div class="toggle on"></div></div>
+            <div class="rrow"><div class="grow"><div class="headline">Sammanhållen baksving</div><div class="meta"><span class="weight"><i class="f"></i><i class="f"></i><i></i></span><span class="footnote muted">Baksving</span></div></div><div class="toggle on"></div></div>
+            <div class="rrow"><div class="grow"><div class="headline">Ryggvinkel</div><div class="meta"><span class="weight"><i class="f"></i><i class="f"></i><i></i></span><span class="footnote muted">Uppställning</span></div></div><div class="toggle on"></div></div>
+            <div class="rrow dis"><div class="grow"><div class="headline">Framåtlutat skaft</div><div class="meta"><span class="need">Kräver vinkel framifrån</span></div></div><div class="toggle off-dis"></div></div>
+          </div>
+        </div>
+        <div class="fade"></div>
+        <div class="apply"><div class="pill-btn primary">Använd 5 regler</div></div>
+        <div class="tabbar" data-tpl="tabbar" data-on="regler"></div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+  </figure>
+
+  <!-- =============== 5. LIVESESSION =============== -->
+  <figure class="shot" id="shot-5">
+    <figcaption><div class="num">5 · Livesession (hörlursläge)</div><h2>Session, telefon på stativ</h2><p>Byggd för 2–4 m avstånd. Alltid mörk. Siffran och domarna läses utan att gå fram; rösten i hörlurarna bär resten.</p></figcaption>
+    <div class="scale"><div class="phone s5" data-theme="dark" data-screen="livesession">
+      <div class="cam" data-vb="30 60 340 740"><svg><use href="#range"/><use href="#g-finish"/></svg></div>
+      <div class="veil"></div>
+      <div class="island"></div><div class="status on-dark" data-tpl="statusbar"></div>
+      <div class="topbar">
+        <span class="live"><i></i>LIVE</span>
+        <span class="hp"><svg width="20" height="20"><use href="#i-phones"/></svg>AirPods</span>
+      </div>
+      <div class="count tnum"><span>Sving <b>7</b> · senaste</span><span>14 min</span></div>
+      <div class="score tnum"><div class="n">2<small>/3</small></div></div>
+      <div class="verdicts">
+        <div class="vrow"><span class="v pass"><svg><use href="#i-check"/></svg></span>Höfterna startar</div>
+        <div class="vrow fail"><span class="v fail"><svg><use href="#i-x"/></svg></span>Vikten kvar bak</div>
+        <div class="vrow"><span class="v pass"><svg><use href="#i-check"/></svg></span>Full rotation</div>
+      </div>
+      <div class="trend">
+        <div class="lbl"><span>Fokus · Viktöverföring</span><b class="tnum">4 av 7</b></div>
+        <div class="dots"><i class="f"></i><i class="p"></i><i class="f"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="f now"></i></div>
+      </div>
+      <div class="state">
+        <div class="pulse"><i></i><i></i><i></i></div>
+        <div><div class="t" data-vb="100 104 230 316">Redo</div><div class="s">Slå när du vill</div></div>
+      </div>
+      <div class="controls">
+        <div class="pause"><svg width="24" height="24"><use href="#i-pause"/></svg>Paus</div>
+        <div class="end"><svg width="22" height="22"><use href="#i-stop"/></svg>Avsluta</div>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:22px;text-align:center;color:rgba(255,255,255,.5);font:500 13px/16px Inter,sans-serif;display:none"></div>
+      <div class="home on-dark"></div>
+    </div></div>
+  </figure>
+
+  <!-- =============== 6. HISTORIK =============== -->
+  <figure class="shot" id="shot-6">
+    <figcaption><div class="num">6 · Historik</div><h2>Historik</h2><p>Trenden för fokusregeln överst, sedan sessioner och enskilda svingar per dag.</p></figcaption>
+    <div class="scale"><div class="phone s6" data-screen="historik">
+      <div class="island"></div><div class="status" data-tpl="statusbar"></div>
+      <div class="content">
+        <div class="scroll">
+          <div class="large-title" style="padding:8px 4px 0">Historik</div>
+          <div class="card trendcard">
+            <div class="top">
+              <div>
+                <div class="eyebrow" style="display:flex;gap:5px;align-items:center;color:var(--gold)"><svg width="11" height="11"><use href="#i-star"/></svg>Viktöverföring</div>
+                <div style="display:flex;align-items:baseline;gap:10px;margin-top:8px"><span class="big">71 %</span><span class="delta tnum">▲ 33 p.e.</span></div>
+                <div class="footnote muted" style="margin-top:4px">godkända de senaste 3 veckorna</div>
+              </div>
+            </div>
+            <svg class="chart" viewBox="0 0 330 92" preserveAspectRatio="none">
+              <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pass)" stop-opacity=".28"/><stop offset="1" stop-color="var(--pass)" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0 22.5H330M0 46H330M0 69.5H330" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="2 4"/>
+              <path d="M6 64 L52 58 L98 66 L144 46 L190 50 L236 34 L282 30 L324 24 L324 92 L6 92Z" fill="url(#area)"/>
+              <path d="M6 64 L52 58 L98 66 L144 46 L190 50 L236 34 L282 30 L324 24" fill="none" stroke="var(--pass)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+              <circle cx="324" cy="24" r="5" fill="var(--surface)" stroke="var(--pass)" stroke-width="2.5"/>
+            </svg>
+            <div class="axis"><span>4 okt</span><span>11 okt</span><span>18 okt</span><span>Idag</span></div>
+          </div>
+
+          <div class="sec-h"><span class="headline">Idag</span><span class="footnote muted">2 sessioner</span></div>
+          <div class="card sess">
+            <div class="top">
+              <div><div class="headline">Livesession · Range</div><div class="subhead muted tnum">12 svingar · 10:15–10:48</div></div>
+              <div style="text-align:right"><div class="title2 tnum">58 %</div><div class="caption muted">godkända</div></div>
+            </div>
+            <div class="bars">
+              <i class="f" style="height:40%"></i><i class="p" style="height:70%"></i><i class="f" style="height:40%"></i><i class="p" style="height:100%"></i><i class="u" style="height:30%"></i><i class="p" style="height:70%"></i><i class="p" style="height:100%"></i><i class="f" style="height:40%"></i><i class="p" style="height:70%"></i><i class="p" style="height:100%"></i><i class="f" style="height:40%"></i><i class="p" style="height:70%"></i>
+            </div>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <div class="swing"><div class="th" data-vb="120 150 200 200"><svg><use href="#range"/></svg><svg><use href="#g-impact"/></svg></div><div class="grow"><div class="headline">Uppladdat klipp</div><div class="subhead muted tnum">10:42 · Längs linjen</div></div><div style="text-align:right"><div class="headline tnum">3/5</div><span class="mini"><i class="f"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="u"></i></span></div></div>
+          </div>
+
+          <div class="sec-h"><span class="headline">Torsdag 23 okt</span><span class="footnote muted">1 session</span></div>
+          <div class="card sess">
+            <div class="top">
+              <div><div class="headline">Livesession · Range</div><div class="subhead muted tnum">18 svingar · 17:02–17:51</div></div>
+              <div style="text-align:right"><div class="title2 tnum">44 %</div><div class="caption muted">godkända</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar" data-tpl="tabbar" data-on="historik"></div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+  </figure>
+
+  </div>
+</main>
+
+<script>
+  // Fyll mallar (statusrad, tabbrad) så att varje skärm delar exakt samma krom.
+  document.querySelectorAll('[data-tpl]').forEach(function (el) {
+    var tpl = document.getElementById(el.getAttribute('data-tpl'));
+    el.appendChild(tpl.content.cloneNode(true));
+    var on = el.getAttribute('data-on');
+    if (on) { var t = el.querySelector('[data-tab="' + on + '"]'); if (t) t.classList.add('on'); }
+  });
+  // Videorutor: samma 360×480-scen, olika utsnitt per ruta (data-vb).
+  document.querySelectorAll('[data-vb]').forEach(function (c) {
+    c.querySelectorAll('svg').forEach(function (s) {
+      s.setAttribute('viewBox', c.getAttribute('data-vb'));
+      s.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+      s.querySelectorAll('use').forEach(function (u) { u.setAttribute('width', 360); u.setAttribute('height', 480); });
+    });
+  });
+  // Temaväxlare (per besökare, inte persistent).
+  var root = document.documentElement;
+  document.querySelectorAll('.theme-switch button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-set');
+      if (v === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', v);
+      document.querySelectorAll('.theme-switch button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+  var q = new URLSearchParams(location.search).get('theme');
+  if (q === 'light' || q === 'dark') root.setAttribute('data-theme', q);
+</script>
+</body>
+</html>

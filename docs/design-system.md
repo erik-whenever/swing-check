@@ -4,6 +4,9 @@
 > **varför** delarna ser ut som de gör. Källan är `src/index.css` (tokens) och
 > `src/components/ui/` (primitiver) — den här filen förklarar dem, den definierar dem inte.
 
+> **Betan (D-1):** ett förslag till ny riktning för `apps/mobile` finns i [design/d1/](design/d1/README.md)
+> och väntar på godkännande. Tills det är godkänt gäller den här filen. Inga nya tokens är införda.
+
 ## Riktning
 
 Varma krämiga ytor, fairway-grön primärfärg, mjuka pillerformer, geometrisk sans (Outfit).
