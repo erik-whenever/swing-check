@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { detectLanguage } from '../lib/languages';
 import type { Language } from '../lib/languages';
 import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
+import { DEFAULT_MEDIA_CAP_MB } from '@swingcheck/core/lib/mediaRetention';
 
 export type TtsMode = 'quick' | 'detailed';
 export type { Language };
@@ -67,6 +68,13 @@ interface SettingsState {
    */
   requireImpact: boolean;
   setRequireImpact: (v: boolean) => void;
+  /**
+   * Storage cap (MB) for swing video + frames in the local history (N-3.5). Over it, the
+   * oldest swings lose their video first, then their frames; results are always kept.
+   * Default from core, shared with the app. No UI control yet — persisted setting only.
+   */
+  mediaCapMb: number;
+  setMediaCapMb: (mb: number) => void;
 }
 
 export const COUNTDOWN_MIN = 0;
@@ -110,6 +118,9 @@ export const useSettingsStore = create<SettingsState>()(
       setWideAngle: (wideAngle) => set({ wideAngle }),
       requireImpact: true,
       setRequireImpact: (requireImpact) => set({ requireImpact }),
+      mediaCapMb: DEFAULT_MEDIA_CAP_MB,
+      setMediaCapMb: (mb) =>
+        set({ mediaCapMb: Number.isFinite(mb) && mb > 0 ? Math.round(mb) : DEFAULT_MEDIA_CAP_MB }),
     }),
     { name: 'swingcheck-settings' }
   )

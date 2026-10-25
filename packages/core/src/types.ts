@@ -56,6 +56,14 @@ export interface SwingRecord {
   cameraAngle?: CameraAngle;
   /** Groups swings recorded within the same hands-free session. */
   sessionId?: string;
+  /**
+   * Set when media retention (lib/mediaRetention) dropped the video to stay under the
+   * storage cap; `videoBlob` is then empty. The history shows "video rensad". Absent on
+   * swings that never stored a video (session swings).
+   */
+  videoPurged?: boolean;
+  /** Set when media retention dropped the frames; `frames` is then empty. */
+  framesPurged?: boolean;
 }
 
 export const PHASES = [
