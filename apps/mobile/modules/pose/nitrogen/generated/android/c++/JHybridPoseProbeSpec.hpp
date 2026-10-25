@@ -57,7 +57,13 @@ namespace margelo::nitro::swingcheck::pose {
     PoseDeviceInfo deviceInfo() override;
     PoseThermal thermal() override;
     PoseClock clock() override;
-    PoseImageResult detectImage(const std::string& path, const PoseConfig& config, bool viaYuv) override;
+    PoseImageResult detectImage(const std::string& path, const PoseConfig& config, bool viaYuv, double runs) override;
+    void setDiagnostics(const std::string& inferenceThread, double cpuThreads) override;
+    PoseFrameDiag lastFrame() override;
+    void resetThreadSamples() override;
+    void sampleThreads() override;
+    std::string threadReport() override;
+    std::string logcat(double maxLines) override;
 
   private:
     jni::global_ref<JHybridPoseProbeSpec::JavaPart> _javaPart;

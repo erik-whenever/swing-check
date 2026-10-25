@@ -56,7 +56,10 @@ data class PoseDeviceInfo(
   val modelSha256Full: String,
   @DoNotStrip
   @Keep
-  val modelLoad: String
+  val modelLoad: String,
+  @DoNotStrip
+  @Keep
+  val cpuClusters: String
 ) {
   /* primary constructor */
 
@@ -76,6 +79,7 @@ data class PoseDeviceInfo(
       && Objects.deepEquals(this.modelSha256Lite, other.modelSha256Lite)
       && Objects.deepEquals(this.modelSha256Full, other.modelSha256Full)
       && Objects.deepEquals(this.modelLoad, other.modelLoad)
+      && Objects.deepEquals(this.cpuClusters, other.cpuClusters)
   }
 
   override fun hashCode(): Int {
@@ -92,7 +96,8 @@ data class PoseDeviceInfo(
       libyuvVersion,
       modelSha256Lite,
       modelSha256Full,
-      modelLoad
+      modelLoad,
+      cpuClusters
     ).contentDeepHashCode()
   }
 
@@ -104,8 +109,8 @@ data class PoseDeviceInfo(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(manufacturer: String, model: String, socManufacturer: String, socModel: String, androidRelease: String, sdkInt: Double, glRenderer: String, timestampSources: String, mediapipeVersion: String, libyuvVersion: Double, modelSha256Lite: String, modelSha256Full: String, modelLoad: String): PoseDeviceInfo {
-      return PoseDeviceInfo(manufacturer, model, socManufacturer, socModel, androidRelease, sdkInt, glRenderer, timestampSources, mediapipeVersion, libyuvVersion, modelSha256Lite, modelSha256Full, modelLoad)
+    private fun fromCpp(manufacturer: String, model: String, socManufacturer: String, socModel: String, androidRelease: String, sdkInt: Double, glRenderer: String, timestampSources: String, mediapipeVersion: String, libyuvVersion: Double, modelSha256Lite: String, modelSha256Full: String, modelLoad: String, cpuClusters: String): PoseDeviceInfo {
+      return PoseDeviceInfo(manufacturer, model, socManufacturer, socModel, androidRelease, sdkInt, glRenderer, timestampSources, mediapipeVersion, libyuvVersion, modelSha256Lite, modelSha256Full, modelLoad, cpuClusters)
     }
   }
 }

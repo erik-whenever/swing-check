@@ -41,7 +41,11 @@ export interface ParityRun {
   delegate: string;
   viaYuv: boolean;
   status: string;
+  /** The first detect on a fresh landmarker (warm-up included). */
+  firstMs: number;
+  /** Median of the warm runs after it. */
   inferenceMs: number;
+  inferenceCpu: number;
   /** Largest |Δx|, |Δy| over all 33, normalized, and in pixels of the still. */
   maxXY: number;
   maxXYPx: number;
@@ -64,6 +68,9 @@ export interface ParityResult {
   limits: { xy: number; visibility: number };
   runs: ParityRun[];
 }
+
+/** Detects per configuration: the first is warm-up, the median of the rest is the time. */
+export const PARITY_RUNS = 10;
 
 const RUNS: { delegate: PoseConfig['delegate']; viaYuv: boolean }[] = [
   { delegate: 'cpu', viaYuv: false },
@@ -89,7 +96,7 @@ export async function runParity(probe: PoseProbe): Promise<ParityResult> {
   for (const model of ['lite', 'full'] as const) {
     const ref = REFERENCE.models[model];
     for (const { delegate, viaYuv } of RUNS) {
-      const r = probe.detectImage(path, { model, delegate }, viaYuv);
+      const r = probe.detectImage(path, { model, delegate }, viaYuv, PARITY_RUNS);
       const lms = unpack(r);
       let maxXY = 0;
       let maxXYPx = 0;
@@ -121,7 +128,9 @@ export async function runParity(probe: PoseProbe): Promise<ParityResult> {
         delegate: r.delegate,
         viaYuv,
         status: r.status,
+        firstMs: round(r.firstMs, 1),
         inferenceMs: round(r.inferenceMs, 1),
+        inferenceCpu: r.inferenceCpu,
         maxXY: round(maxXY, 6),
         maxXYPx: round(maxXYPx, 2),
         maxXYCore: round(maxXYCore, 6),

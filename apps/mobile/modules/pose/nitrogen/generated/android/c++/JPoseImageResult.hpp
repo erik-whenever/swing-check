@@ -44,8 +44,12 @@ namespace margelo::nitro::swingcheck::pose {
       double width = this->getFieldValue(fieldWidth);
       static const auto fieldHeight = clazz->getField<double>("height");
       double height = this->getFieldValue(fieldHeight);
+      static const auto fieldFirstMs = clazz->getField<double>("firstMs");
+      double firstMs = this->getFieldValue(fieldFirstMs);
       static const auto fieldInferenceMs = clazz->getField<double>("inferenceMs");
       double inferenceMs = this->getFieldValue(fieldInferenceMs);
+      static const auto fieldInferenceCpu = clazz->getField<double>("inferenceCpu");
+      double inferenceCpu = this->getFieldValue(fieldInferenceCpu);
       static const auto fieldDelegate = clazz->getField<JPoseDelegate>("delegate");
       jni::local_ref<JPoseDelegate> delegate = this->getFieldValue(fieldDelegate);
       return PoseImageResult(
@@ -53,7 +57,9 @@ namespace margelo::nitro::swingcheck::pose {
         landmarks->cthis()->getArrayBuffer(),
         width,
         height,
+        firstMs,
         inferenceMs,
+        inferenceCpu,
         delegate->toCpp()
       );
     }
@@ -64,7 +70,7 @@ namespace margelo::nitro::swingcheck::pose {
      */
     [[maybe_unused]]
     static jni::local_ref<JPoseImageResult::javaobject> fromCpp(const PoseImageResult& value) {
-      using JSignature = JPoseImageResult(jni::alias_ref<JPoseStatus>, jni::alias_ref<JArrayBuffer::javaobject>, double, double, double, jni::alias_ref<JPoseDelegate>);
+      using JSignature = JPoseImageResult(jni::alias_ref<JPoseStatus>, jni::alias_ref<JArrayBuffer::javaobject>, double, double, double, double, double, jni::alias_ref<JPoseDelegate>);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -73,7 +79,9 @@ namespace margelo::nitro::swingcheck::pose {
         JArrayBuffer::wrap(value.landmarks),
         value.width,
         value.height,
+        value.firstMs,
         value.inferenceMs,
+        value.inferenceCpu,
         JPoseDelegate::fromCpp(value.delegate)
       );
     }

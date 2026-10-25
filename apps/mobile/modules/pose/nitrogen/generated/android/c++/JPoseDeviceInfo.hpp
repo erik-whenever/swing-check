@@ -57,6 +57,8 @@ namespace margelo::nitro::swingcheck::pose {
       jni::local_ref<jni::JString> modelSha256Full = this->getFieldValue(fieldModelSha256Full);
       static const auto fieldModelLoad = clazz->getField<jni::JString>("modelLoad");
       jni::local_ref<jni::JString> modelLoad = this->getFieldValue(fieldModelLoad);
+      static const auto fieldCpuClusters = clazz->getField<jni::JString>("cpuClusters");
+      jni::local_ref<jni::JString> cpuClusters = this->getFieldValue(fieldCpuClusters);
       return PoseDeviceInfo(
         manufacturer->toStdString(),
         model->toStdString(),
@@ -70,7 +72,8 @@ namespace margelo::nitro::swingcheck::pose {
         libyuvVersion,
         modelSha256Lite->toStdString(),
         modelSha256Full->toStdString(),
-        modelLoad->toStdString()
+        modelLoad->toStdString(),
+        cpuClusters->toStdString()
       );
     }
 
@@ -80,7 +83,7 @@ namespace margelo::nitro::swingcheck::pose {
      */
     [[maybe_unused]]
     static jni::local_ref<JPoseDeviceInfo::javaobject> fromCpp(const PoseDeviceInfo& value) {
-      using JSignature = JPoseDeviceInfo(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>);
+      using JSignature = JPoseDeviceInfo(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -97,7 +100,8 @@ namespace margelo::nitro::swingcheck::pose {
         value.libyuvVersion,
         jni::make_jstring(value.modelSha256Lite),
         jni::make_jstring(value.modelSha256Full),
-        jni::make_jstring(value.modelLoad)
+        jni::make_jstring(value.modelLoad),
+        jni::make_jstring(value.cpuClusters)
       );
     }
   };

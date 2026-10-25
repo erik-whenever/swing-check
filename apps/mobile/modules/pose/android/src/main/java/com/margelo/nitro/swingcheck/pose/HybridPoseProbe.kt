@@ -39,8 +39,31 @@ class HybridPoseProbe : HybridPoseProbeSpec() {
       modelSha256Lite = BuildConfig.POSE_LITE_SHA256,
       modelSha256Full = BuildConfig.POSE_FULL_SHA256,
       modelLoad = PoseModels.loadMode(PoseModel.LITE),
+      cpuClusters = PoseDiag.cpuClusters(),
     )
   }
+
+  override fun setDiagnostics(inferenceThread: String, cpuThreads: Double) {
+    PoseDiag.set(inferenceThread, cpuThreads.toInt())
+  }
+
+  override fun lastFrame(): PoseFrameDiag =
+    PoseFrameDiag(
+      wrapMs = PoseDiag.wrapMs,
+      detectMs = PoseDiag.detectMs,
+      packMs = PoseDiag.packMs,
+      callerCpu = PoseDiag.callerCpu.toDouble(),
+      inferenceCpu = PoseDiag.inferenceCpu.toDouble(),
+      inferenceNice = PoseDiag.inferenceNice.toDouble(),
+    )
+
+  override fun resetThreadSamples() = PoseDiag.resetThreadSamples()
+
+  override fun sampleThreads() = PoseDiag.sampleThreads()
+
+  override fun threadReport(): String = PoseDiag.threadReport()
+
+  override fun logcat(maxLines: Double): String = PoseDiag.logcat(maxLines.toInt())
 
   override fun thermal(): PoseThermal {
     val pm = PoseModels.context().getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -70,7 +93,11 @@ class HybridPoseProbe : HybridPoseProbeSpec() {
       uptimeSec = SystemClock.uptimeMillis() / 1e3,
     )
 
-  override fun detectImage(path: String, config: PoseConfig, viaYuv: Boolean): PoseImageResult {
+  override fun detectImage(path: String, config: PoseConfig, viaYuv: Boolean, runs: Double): PoseImageResult =
+    // The same thread and CPU threads as the live detector, so a still and the camera compare.
+    PoseDiag.runOn(PoseDiag.inferenceThread) { detectImageHere(path, config, viaYuv, maxOf(1, runs.toInt())) }
+
+  private fun detectImageHere(path: String, config: PoseConfig, viaYuv: Boolean, runs: Int): PoseImageResult {
     val file = path.removePrefix("file://")
     val bitmap = BitmapFactory.decodeFile(
       file,
@@ -104,18 +131,29 @@ class HybridPoseProbe : HybridPoseProbeSpec() {
     }
 
     var delegate = config.delegate
+    val cpuThreads = PoseDiag.cpuThreads
     val landmarker = try {
-      PoseModels.build(config.model, config.delegate, RunningMode.IMAGE)
+      PoseModels.build(config.model, config.delegate, RunningMode.IMAGE, cpuThreads)
     } catch (e: Throwable) {
       if (config.delegate != PoseDelegate.GPU) throw e
       delegate = PoseDelegate.CPU
-      PoseModels.build(config.model, PoseDelegate.CPU, RunningMode.IMAGE)
+      PoseModels.build(config.model, PoseDelegate.CPU, RunningMode.IMAGE, cpuThreads)
     }
     try {
       val image = ByteBufferImageBuilder(rgba, w, h, MPImage.IMAGE_FORMAT_RGBA).build()
-      val t0 = System.nanoTime()
+      // The first run on a fresh landmarker carries the warm-up (XNNPACK packing, GPU shader
+      // compilation); the N-3.2 parity times were that run alone.
+      val times = DoubleArray(runs)
+      var t0 = System.nanoTime()
       val result = landmarker.detect(image)
-      val inferenceMs = (System.nanoTime() - t0) / 1e6
+      times[0] = (System.nanoTime() - t0) / 1e6
+      for (i in 1 until runs) {
+        t0 = System.nanoTime()
+        landmarker.detect(image)
+        times[i] = (System.nanoTime() - t0) / 1e6
+      }
+      val warm = times.drop(1).sorted()
+      val inferenceMs = if (warm.isEmpty()) times[0] else warm[warm.size / 2]
       image.close()
       val landmarks = PoseModels.pack(result)
       return PoseImageResult(
@@ -123,7 +161,9 @@ class HybridPoseProbe : HybridPoseProbeSpec() {
         landmarks = landmarks ?: PoseModels.empty(),
         width = w.toDouble(),
         height = h.toDouble(),
+        firstMs = times[0],
         inferenceMs = inferenceMs,
+        inferenceCpu = PoseDiag.cpuOf(android.os.Process.myTid()).toDouble(),
         delegate = delegate,
       )
     } finally {

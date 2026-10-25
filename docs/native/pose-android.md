@@ -498,6 +498,118 @@ Det påverkar inte resultatet.
 **Inte gjort:** körning 5 (ingen nedskalning) kräver en inställning för långsidan, som inte finns i specen.
 Den görs om körning 1–4 visar att upplösningen behöver prövas.
 
+## 9. Diagnos: varför lite tar ~180 ms på Galaxy A16 4G (2026-10-25)
+
+**Utgångsläge (mätning 1, BACKLOG N-3.2):** lite · gpu · yuv, `inferMs` 183 ms i median, `convertMs` 5,7 ms.
+Stillbilden: lite cpu 117 ms, lite gpu 308 ms, full cpu 131 ms. Helio G99 har 2× A76 (2,2 GHz) och 6× A55
+(2,0 GHz), så lite borde ta 20–40 ms. Konverteringen är 3 % av tiden och är inte problemet.
+
+**Ingen optimering är gjord.** Avsnittet beskriver vad källkoden visar, och vilka mätningar som skiljer
+hypoteserna åt. Grindens definition (§7) är oförändrad.
+
+### 9.1 Vad källkoden visar (MediaPipe v0.10.35)
+
+1. **Java-API:ts CPU-delegat är inte XNNPACK med trådpool.** `Delegate.CPU` blir
+   `acceleration { tflite {} }` (`TaskOptions.convertBaseOptionsToProto`, kontrollerat med `javap` på
+   `tasks-core-0.10.35.aar`). I `inference_calculator_cpu.cc` (`MaybeCreateDelegate`) betyder `tflite` att
+   MediaPipe inte lägger till någon delegat. Tolken byggs med `cpu_num_thread`, som har standardvärdet −1
+   (`inference_calculator.proto`). Tasks använder `MediaPipeBuiltinOpResolver`, som ärver
+   `BuiltinOpResolver`, alltså TFLite:s standard-XNNPACK med tolkens trådantal.
+   // OSÄKER: att −1 ger **en** tråd i TFLite:s standard-XNNPACK är min läsning av TFLite (trådpoolen skapas
+   bara när `num_threads > 1`), inte uppmätt. Trådrapporten i 9.2 visar det direkt: en tråd nära 100 % av
+   en kärna under inferensen.
+   MediaPipes egen XNNPACK-väg (`acceleration { xnnpack {} }`) väljer i stället `clamp(kärnor/2, 1, 4)` = 4
+   trådar på G99 (`inference_calculator_utils.cc`, `GetCpuDefaultNumThreads`). Den vägen går inte att välja
+   från Java: `BaseOptions.DelegateOptions.CpuOptions` har inga fält.
+2. **GPU-vägen** sätter `use_advanced_gpu_api: true`. Om OpenCL eller OpenGL ES används, och om delar av
+   grafen ligger kvar på CPU, syns bara i logcat (TFLite skriver `Initialized OpenCL-based API` eller
+   `…OpenGL-based API`, och `Created TensorFlow Lite XNNPACK delegate for CPU` om en del körs på CPU).
+   Mali-G57 MC2 är en GPU med två kärnor. Där är det inte självklart att GPU slår fyra CPU-trådar.
+3. **Paritetens tider var kalla.** `detectImage` byggde en ny landmarker och körde en enda gång, så
+   117 och 308 ms innehåller uppvärmningen (XNNPACK-packning och shaderkompilering). De är inte jämförbara
+   med livevärdet. Nu körs 10 varv: det första rapporteras som `firstMs`, och medianen av resten som tiden.
+4. **Var inferensen körs:** `detectForVideo` är synkront, men MediaPipe-grafen kör sina kalkylatorer på sin
+   egen exekutor. De trådarna och XNNPACK:s pool skapas av den tråd som bygger landmarkern, och de ärver
+   dess nice-värde (Linux-trådar ärver skaparens). Kameratrådens kärna säger därför inte allt. Trådrapporten
+   visar alla trådar i processen.
+
+**Hypoteser, i den ordning mätningarna skiljer dem åt:**
+- **H1, en tråd på en liten kärna:** CPU-vägen kör en tråd, och schemaläggaren lägger den på en A55. Då
+  ger XNNPACK med 2–4 trådar, eller en tråd med högre prioritet, en stor sänkning. Det är en avgränsad fix.
+- **H2, GPU-vägen är långsam på Mali-G57 MC2** eller faller delvis tillbaka. Logcat visar det. Fixen är
+  då att använda CPU (med H1:s trådval) på den här telefonen.
+- **H3, telefonen klarar inte mer:** Googles eget exempel (9.3) visar ungefär samma tid, och XNNPACK med
+  4 trådar på stora kärnor ger inte under ~33 ms. Då är det telefonens golv.
+
+### 9.2 Instrumenteringen (dev-skärmen och loggen)
+
+- **Delad tid per ruta:** `wrapMs` (MPImage-bygget), `detectMs` (`detectForVideo` ensamt), `packMs`
+  (resultatet till `ArrayBuffer`). `inferMs` behåller sin betydelse från mätning 1 (wrap + detect), så att
+  körningarna går att jämföra.
+- **Kärna per ruta:** `callerCpu` (kameratråden när `detect` börjar) och `inferenceCpu` (tråden som körde
+  `detectForVideo`, direkt efteråt), ur fält 39 i `/proc/self/task/<tid>/stat`, plus trådens nice-värde.
+  Sammanfattningen ger andelen rutor per kärna. `deviceInfo.cpuClusters` ger vilka kärnor som är stora
+  (`cpuinfo_max_freq`, t.ex. `0-5:2000,6-7:2200`).
+- **Trådrapport:** 1 Hz under körningen samplas alla trådar i processen (CPU-tid, nice, kärna när tråden
+  körde). Loggen får `threads`: de trådar som använde ≥ 1 % av en kärna, med `cpuPct` (100 = en hel kärna)
+  och kärnfördelning.
+- **Logcat:** processens egna rader om TFLite, delegater och MediaPipe (en app får läsa sin egen logg utan
+  `READ_LOGS`). Följer med loggen och visas med knappen **Logcat**.
+- **Inferenstråd** (`camera` · `urgent-display` · `video`): `camera` är som förut. De andra kör hela
+  `detect`, inklusive bygget av landmarkern, på en egen tråd med `THREAD_PRIORITY_URGENT_DISPLAY` (−8) eller
+  `THREAD_PRIORITY_VIDEO` (−10). Kameratråden väntar på den. **Paritet** körs på samma tråd (med `camera`
+  körs den på JS-tråden, som förut).
+- **CPU-trådar** (`def` · `1` · `2` · `4`, bara med `cpu`): `def` är Java-API:ts väg. Siffran byter till
+  MediaPipes XNNPACK-delegat med det trådantalet, via `XnnpackPoseLandmarkerOptions`. Den klassen ligger i
+  MediaPipes paket, eftersom getterna den vidarebefordrar är paketprivata, och skriver bara om
+  `acceleration` i grafens alternativ. C++-grafen kopierar den till detektor- och landmark-subgraferna.
+  // OSÄKER: beror på `PoseLandmarkerOptions` form i 0.10.35. En uppgradering kan bryta bygget, men inte
+  körningen i det tysta. Bara för diagnosen tills vidare.
+- Byte av tråd eller trådantal bygger om landmarkern vid nästa ruta (`rebuild: … diag=true` i logcat).
+
+### 9.3 Baslinjen: Googles exempel
+
+`google-ai-edge/mediapipe-samples`, `examples/pose_landmarker/android` (commit `1675dd30`, 2026-10-19),
+byggt oförändrat i samma Docker-miljö. Exemplet kör tasks-vision **1.0.0** (vi kör 0.10.35), CPU och
+modellen full som standard, LIVE_STREAM, och CameraX `RGBA_8888` i 4:3 (640×480). Det visar
+**Inference Time** i bottenpanelen. Den tiden räknas från `uptimeMillis()` före bitmap-rotationen till
+resultatet, alltså rotation + inferens.
+Två APK:er byggdes, debug, alla ABI och tre modeller:
+`mediapipe-sample-pose-tasks-vision-1.0.0.apk` (oförändrat) och `…-0.10.35.apk` (bara versionen bytt, och
+`applicationIdSuffix ".v01035"` så att båda kan installeras samtidigt). Exemplets egen kod är oförändrad
+utöver det, och därför kör det också Java-API:ts CPU-väg (9.1 punkt 1). Det visar alltså vad telefonen
+klarar med MediaPipe som Google levererar det, inte vad den klarar med XNNPACK och fyra trådar.
+Byggändringen utöver versionen: `gradle.properties` fick `org.gradle.jvmargs=-Xmx4g`.
+
+### 9.4 Mätstegen (Erik, Galaxy A16 4G)
+
+Ny `development`-build krävs, eftersom native-koden är ändrad: `eas build -p android --profile development` i
+`apps/mobile`, eller det lokala Docker-bygget (`:app:assembleDebug`, arm64, samma dev-klient). Kall telefon, person i bild och samma ljus
+som i mätning 1. Varje livekörning kan stoppas efter 60 s med **Stopp**, och loggen skrivs ändå.
+Grinden mäts inte här.
+
+1. **Baslinjen** (före appen, så att telefonen är kall): installera båda exemplen. I bottenpanelen väljer
+   du Model `Pose landmarker lite` och Delegate `CPU`. Låt den gå i 30 s och läs av **Inference Time**
+   (ett typvärde, och ungefärligt min–max). Gör samma sak med `GPU`, och sedan `full` + `CPU`. Det blir sex
+   värden (två versioner × tre inställningar).
+2. **Appen, start:** välj lite · gpu · yuv · camera. Vänta 10 s och tryck **Logcat**. Skriv av eller
+   fotografera raderna om OpenCL/OpenGL/XNNPACK/delegate. Raden med `kluster` visar vilka kärnor som är stora.
+3. **Paritet ×3:** tryck **Paritet** med `camera` (den körs på JS-tråden), sedan med `urgent-display`, och
+   sedan med `cpu` + `4`. Varje rad visar nu `ms (första …, kärna …)`.
+4. **Live, 60 s var (Stopp, Dela logg efter varje):**
+   a. lite · gpu · camera
+   b. lite · cpu · camera · def
+   c. lite · cpu · urgent-display · def
+   d. lite · cpu · camera · 4
+   e. lite · cpu · urgent-display · 4
+   f. lite · cpu · urgent-display · 2
+   Panelen visar `wrap · detect · pack` och `kärnor kamera … · inferens …`. Loggen har dessutom `threads`
+   och `logcat`.
+
+**Läsning:** b mot d/e visar H1 (trådantalet). b mot c visar om prioriteten flyttar arbetet till de stora
+kärnorna (`threads[].cores`). a mot b med logcat visar H2. Baslinjen mot b visar om vår integration kostar
+något utöver MediaPipe självt, och baslinjen mot d/e visar om H3 gäller.
+
 ---
 
 ## Källor

@@ -51,6 +51,14 @@ export interface FrameRow {
   ageUptimeMs: number;
   /** 1 when the frame was kept for core (15 fps). */
   core: number;
+  /** N-3.2 diagnosis (PoseProbe.lastFrame): inferMs = wrapMs + detectMs. */
+  wrapMs: number;
+  detectMs: number;
+  packMs: number;
+  /** Cores of the camera thread at detect() and of the inference thread after it, -1 unknown. */
+  callerCpu: number;
+  inferenceCpu: number;
+  inferenceNice: number;
 }
 
 export const ROW_COLUMNS = [
@@ -65,7 +73,22 @@ export const ROW_COLUMNS = [
   'ageRealtimeMs',
   'ageUptimeMs',
   'core',
+  'wrapMs',
+  'detectMs',
+  'packMs',
+  'callerCpu',
+  'inferenceCpu',
+  'inferenceNice',
 ] as const;
+
+/** {core: share of frames} for the frames that had a known core. */
+function coreShare(values: number[]): Record<string, number> {
+  const known = values.filter((v) => v >= 0);
+  const out: Record<string, number> = {};
+  for (const v of known) out[v] = (out[v] ?? 0) + 1;
+  for (const k of Object.keys(out)) out[k] = round(out[k] / known.length, 3);
+  return out;
+}
 
 export interface ThermalSample {
   t: number;
@@ -118,6 +141,12 @@ export function summarize(rows: FrameRow[], thermal: ThermalSample[], fps: numbe
     convertMs: spread(timed.map((r) => r.convertMs)),
     inferMs: spread(timed.map((r) => r.inferMs)),
     noPoseInferMs: spread(rows.filter((r) => r.status === 1).map((r) => r.inferMs)),
+    wrapMs: spread(timed.map((r) => r.wrapMs)),
+    detectMs: spread(timed.map((r) => r.detectMs)),
+    packMs: spread(timed.map((r) => r.packMs)),
+    callerCpu: coreShare(timed.map((r) => r.callerCpu)),
+    inferenceCpu: coreShare(timed.map((r) => r.inferenceCpu)),
+    inferenceNice: [...new Set(timed.map((r) => r.inferenceNice))],
     totalMsPerMinute: minutes.map((m) => (m ? m.median : null)),
     delegates: [...new Set(rows.map((r) => (r.delegate === 0 ? 'gpu' : 'cpu')))],
     rotations: [...new Set(rows.map((r) => r.rotation))],

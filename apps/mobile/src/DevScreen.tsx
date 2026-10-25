@@ -28,6 +28,12 @@ import { SkeletonOverlay, type BufferToView, type OverlayPose } from './Skeleton
 
 const TARGET_FPS = 30;
 const RUN_SECONDS = 180;
+// N-3.2 diagnosis (PoseProbe.setDiagnostics): where detect runs, and XNNPACK's thread count.
+const INFERENCE_THREADS = ['camera', 'urgent-display', 'video'] as const;
+type InferenceThread = (typeof INFERENCE_THREADS)[number];
+const CPU_THREADS = ['def', '1', '2', '4'] as const;
+type CpuThreads = (typeof CPU_THREADS)[number];
+const LOGCAT_KEY = /OpenCL|OpenGL|XNNPACK|delegate|Delegate|fallback|Fallback|SwingPose/;
 const IS_ANDROID = Platform.OS === 'android';
 type CameraPixelFormat = 'yuv' | 'rgb';
 
@@ -50,8 +56,13 @@ function nativeInfo(label: string, read: () => string): string {
 }
 
 function toRow(a: number[]): FrameRow {
-  const [t, status, convertMs, inferMs, totalMs, rotation, delegate, rebuilds, ageRealtimeMs, ageUptimeMs, core] = a;
-  return { t, status, convertMs, inferMs, totalMs, rotation, delegate, rebuilds, ageRealtimeMs, ageUptimeMs, core };
+  const [t, status, convertMs, inferMs, totalMs, rotation, delegate, rebuilds, ageRealtimeMs, ageUptimeMs, core, wrapMs, detectMs, packMs, callerCpu, inferenceCpu, inferenceNice] = a;
+  return { t, status, convertMs, inferMs, totalMs, rotation, delegate, rebuilds, ageRealtimeMs, ageUptimeMs, core, wrapMs, detectMs, packMs, callerCpu, inferenceCpu, inferenceNice };
+}
+
+function fmtCores(share: Record<string, number>): string {
+  const e = Object.entries(share).sort((a, b) => b[1] - a[1]);
+  return e.length ? e.map(([c, f]) => `${c}:${Math.round(f * 100)}%`).join(' ') : '–';
 }
 
 function Chip<T extends string>({ value, current, onPress, disabled }: { value: T; current: T; onPress: (v: T) => void; disabled?: boolean }) {
@@ -79,6 +90,9 @@ export default function DevScreen() {
   const [model, setModel] = useState<PoseModel>('lite');
   const [delegate, setDelegate] = useState<PoseDelegate>('gpu');
   const [pixelFormat, setPixelFormat] = useState<CameraPixelFormat>('yuv');
+  const [inferenceThread, setInferenceThread] = useState<InferenceThread>('camera');
+  const [cpuThreads, setCpuThreads] = useState<CpuThreads>('def');
+  const [logcat, setLogcat] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [live, setLive] = useState('');
@@ -86,7 +100,7 @@ export default function DevScreen() {
   const [parity, setParity] = useState<ParityResult | null>(null);
   const [parityBusy, setParityBusy] = useState(false);
   const [overlay, setOverlay] = useState<{ pose: OverlayPose | null; map: BufferToView | null }>({ pose: null, map: null });
-  const [stats, setStats] = useState({ fps: 0, frames: 0, coreFps: 0, status: '–', convertMs: 0, inferMs: 0, totalMs: 0, rotation: -1, delegate: '–', rebuilds: 0, width: 0, height: 0 });
+  const [stats, setStats] = useState({ fps: 0, frames: 0, coreFps: 0, status: '–', convertMs: 0, inferMs: 0, totalMs: 0, rotation: -1, delegate: '–', rebuilds: 0, width: 0, height: 0, detectMs: 0, callerCpu: -1, inferenceCpu: -1, inferenceNice: 0 });
 
   const core = useMemo(() => runCoreCheck(), []);
   const runtimes = useMemo(
@@ -108,6 +122,10 @@ export default function DevScreen() {
     pose.configure({ model, delegate });
   }, [model, delegate]);
 
+  useEffect(() => {
+    probe?.setDiagnostics(inferenceThread, cpuThreads === 'def' ? 0 : Number(cpuThreads));
+  }, [inferenceThread, cpuThreads]);
+
   // Written on the frame thread, read here.
   const shared = useMemo(
     () => ({
@@ -122,6 +140,10 @@ export default function DevScreen() {
       rebuilds: createSynchronizable(0, { fixedType: true }),
       width: createSynchronizable(0, { fixedType: true }),
       height: createSynchronizable(0, { fixedType: true }),
+      detectMs: createSynchronizable(0, { fixedType: true }),
+      callerCpu: createSynchronizable(-1, { fixedType: true }),
+      inferenceCpu: createSynchronizable(-1, { fixedType: true }),
+      inferenceNice: createSynchronizable(0, { fixedType: true }),
       measuring: createSynchronizable(false, { fixedType: true }),
       /** [rotation, x0, y0, …, x32, y32] of the latest frame with a pose, [] otherwise. */
       overlay: createSynchronizable<number[]>([]),
@@ -165,6 +187,10 @@ export default function DevScreen() {
         rebuilds: shared.rebuilds.getDirty(),
         width: shared.width.getDirty(),
         height: shared.height.getDirty(),
+        detectMs: shared.detectMs.getDirty(),
+        callerCpu: shared.callerCpu.getDirty(),
+        inferenceCpu: shared.inferenceCpu.getDirty(),
+        inferenceNice: shared.inferenceNice.getDirty(),
       });
       last = { frames, core: coreSamples, at };
     }, 1000);
@@ -205,6 +231,7 @@ export default function DevScreen() {
       'worklet';
       try {
         const r = pose.detect(frame);
+        const d = probe?.lastFrame();
         const ok = r.status === 'ok';
         // N-3.4: t comes from capture.append(frame), called first (poseFrames.ts).
         const t = sessionTime(shared.clock, r.frameTimeSec);
@@ -224,6 +251,12 @@ export default function DevScreen() {
         shared.delegate.setDirty(r.delegate === 'gpu' ? 0 : 1);
         const rebuilds = pose.rebuilds;
         shared.rebuilds.setDirty(rebuilds);
+        if (d != null) {
+          shared.detectMs.setDirty(d.detectMs);
+          shared.callerCpu.setDirty(d.callerCpu);
+          shared.inferenceCpu.setDirty(d.inferenceCpu);
+          shared.inferenceNice.setDirty(d.inferenceNice);
+        }
 
         if (shared.measuring.getDirty()) {
           const c = probe?.clock();
@@ -239,6 +272,12 @@ export default function DevScreen() {
             c ? (c.elapsedRealtimeSec - r.frameTimeSec) * 1000 : -1,
             c ? (c.uptimeSec - r.frameTimeSec) * 1000 : -1,
             toCore ? 1 : 0,
+            d?.wrapMs ?? -1,
+            d?.detectMs ?? -1,
+            d?.packMs ?? -1,
+            d?.callerCpu ?? -1,
+            d?.inferenceCpu ?? -1,
+            d?.inferenceNice ?? 0,
           ]);
         } else {
           if (ok) {
@@ -279,6 +318,7 @@ export default function DevScreen() {
     const id = setInterval(() => {
       const t = (Date.now() - startedAt.current) / 1000;
       const th = probe?.thermal() ?? { status: 'unknown', headroom: -1 };
+      probe?.sampleThreads();
       thermal.current.push({ t: round(t, 0), status: th.status, headroom: round(th.headroom, 3) });
       setElapsed(t);
       const s = summary();
@@ -288,6 +328,8 @@ export default function DevScreen() {
             `fps ${s.actualFps ?? '–'} · tappade ${s.droppedAfterWarmup} efter ${2} s (${s.droppedPctAfterWarmup ?? '–'} %) · träff ${s.hitRate}`,
             s.totalMs ? `total ${s.totalMs.median} / p95 ${s.totalMs.p95} / p99 ${s.totalMs.p99} ms` : '',
             s.convertMs && s.inferMs ? `convert ${s.convertMs.median} · infer ${s.inferMs.median} ms (median)` : '',
+            s.wrapMs && s.detectMs && s.packMs ? `wrap ${s.wrapMs.median} · detect ${s.detectMs.median} · pack ${s.packMs.median} ms (median)` : '',
+            `kärnor kamera ${fmtCores(s.callerCpu)} · inferens ${fmtCores(s.inferenceCpu)} · nice ${s.inferenceNice.join('/')}`,
             `thermal ${th.status} headroom ${th.headroom.toFixed(2)} (max ${s.thermalMax})`,
           ]
             .filter(Boolean)
@@ -301,6 +343,14 @@ export default function DevScreen() {
 
   const writeLog = useCallback(() => {
     const s = summary();
+    let threads: unknown = null;
+    let logLines: string[] = [];
+    try {
+      threads = probe ? JSON.parse(probe.threadReport()) : null;
+      logLines = probe ? probe.logcat(400).split('\n') : [];
+    } catch (e) {
+      threads = { error: e instanceof Error ? e.message : String(e) };
+    }
     const log = {
       kind: 'swingcheck-n3.2-pose',
       writtenAt: new Date().toISOString(),
@@ -315,6 +365,8 @@ export default function DevScreen() {
         frameOutputResolution: frameOutput.currentResolution ?? null,
         poseInputLongSide: pixelFormat === 'yuv' ? 1280 : null,
         runSeconds: RUN_SECONDS,
+        inferenceThread,
+        cpuThreads: cpuThreads === 'def' ? 0 : Number(cpuThreads),
         overlayDuringRun: false,
         runtime: runtimes.pose,
       },
@@ -322,6 +374,9 @@ export default function DevScreen() {
       gate: s ? gate(s, RUN_SECONDS) : null,
       parity,
       thermal: thermal.current,
+      // Process threads that used >= 1 % of a core during the run (cpuPct 100 = one full core).
+      threads,
+      logcat: logLines,
       // One row per frame. status 0 ok / 1 no-pose / 2 error, delegate 0 gpu / 1 cpu, core 1 = kept for core (15 fps).
       columns: ROW_COLUMNS,
       rows: rows.current.map((r) => [
@@ -336,13 +391,20 @@ export default function DevScreen() {
         round(r.ageRealtimeMs, 1),
         round(r.ageUptimeMs, 1),
         r.core,
+        round(r.wrapMs, 2),
+        round(r.detectMs, 2),
+        round(r.packMs, 2),
+        r.callerCpu,
+        r.inferenceCpu,
+        r.inferenceNice,
       ]),
     };
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const file = new File(Paths.document, `pose-${Platform.OS}-${model}-${delegate}-${pixelFormat}-${stamp}.json`);
+    const threadTag = `${inferenceThread}-t${cpuThreads}`;
+    const file = new File(Paths.document, `pose-${Platform.OS}-${model}-${delegate}-${pixelFormat}-${threadTag}-${stamp}.json`);
     file.write(JSON.stringify(log));
     setLastLog(file);
-  }, [summary, deviceInfo, model, delegate, pixelFormat, selectedFps, frameOutput, runtimes, parity]);
+  }, [summary, deviceInfo, model, delegate, pixelFormat, selectedFps, frameOutput, runtimes, parity, inferenceThread, cpuThreads]);
 
   // Write the log when a run ends (auto-stop or Stopp).
   const wasRunning = useRef(false);
@@ -359,6 +421,8 @@ export default function DevScreen() {
     setLive('');
     setElapsed(0);
     resetSessionClock(shared.clock); // a run is a session: its first frame is t = 0
+    probe?.resetThreadSamples();
+    probe?.sampleThreads();
     shared.measuring.setBlocking(true);
     setRunning(true);
   };
@@ -378,6 +442,12 @@ export default function DevScreen() {
     } finally {
       setParityBusy(false);
     }
+  };
+
+  const showLogcat = () => {
+    if (probe == null) return;
+    const lines = probe.logcat(400).split('\n').filter((l) => LOGCAT_KEY.test(l));
+    setLogcat(lines.length ? lines.slice(-12).join('\n') : '(inga rader om delegat/MediaPipe)');
   };
 
   const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -410,6 +480,10 @@ export default function DevScreen() {
           {stats.totalMs.toFixed(1)} ms · ombyggen {stats.rebuilds}
         </Text>
         <Text style={styles.line}>
+          detect {stats.detectMs.toFixed(1)} ms · kärna kamera {stats.callerCpu} / inferens {stats.inferenceCpu} · nice {stats.inferenceNice}
+          {deviceInfo != null ? ` · kluster ${deviceInfo.cpuClusters}` : ''}
+        </Text>
+        <Text style={styles.line}>
           ruta {stats.width}×{stats.height} rot {stats.rotation}° · UI-rotation {uiRotation}°
           {uiRotation !== 0 ? ' ⚠ slå på autorotation, annars hamnar skelettet fel' : ''}
         </Text>
@@ -432,6 +506,17 @@ export default function DevScreen() {
             <Chip key={v} value={v} current={pixelFormat} onPress={setPixelFormat} disabled={running || !IS_ANDROID} />
           ))}
         </View>
+        {IS_ANDROID && (
+          <View style={styles.row}>
+            {INFERENCE_THREADS.map((v) => (
+              <Chip key={v} value={v} current={inferenceThread} onPress={setInferenceThread} disabled={running} />
+            ))}
+            <View style={styles.gap} />
+            {CPU_THREADS.map((v) => (
+              <Chip key={v} value={v} current={cpuThreads} onPress={setCpuThreads} disabled={running || delegate !== 'cpu'} />
+            ))}
+          </View>
+        )}
         <View style={styles.row}>
           <Pressable style={[styles.button, running && styles.buttonStop]} onPress={running ? stop : start}>
             <Text style={styles.buttonText}>{running ? `Stopp ${mmss(elapsed)}` : `${TARGET_FPS} · Starta ${RUN_SECONDS / 60} min`}</Text>
@@ -442,6 +527,9 @@ export default function DevScreen() {
           <Pressable style={[styles.button, (running || parityBusy || !IS_ANDROID) && styles.chipDisabled]} onPress={checkParity} disabled={running || parityBusy || !IS_ANDROID}>
             <Text style={styles.buttonText}>{parityBusy ? 'Paritet …' : 'Paritet'}</Text>
           </Pressable>
+          <Pressable style={[styles.button, !IS_ANDROID && styles.chipDisabled]} onPress={showLogcat} disabled={!IS_ANDROID}>
+            <Text style={styles.buttonText}>Logcat</Text>
+          </Pressable>
         </View>
         {live !== '' && <Text style={styles.line}>{live}</Text>}
         {parity != null && (
@@ -449,7 +537,7 @@ export default function DevScreen() {
             paritet: {parity.message}
             {parity.runs.map(
               (r) =>
-                `\n  ${r.model} ${r.delegate}${r.viaYuv ? '+yuv' : ''}: ${r.status} max ${r.maxXY.toExponential(1)} (${r.maxXYPx} px, punkt ${r.worstIndex}) vis ${r.maxVisibility.toExponential(1)} · ${r.inferenceMs} ms${r.gated ? (r.pass ? ' ✔' : ' ✘') : ''}`,
+                `\n  ${r.model} ${r.delegate}${r.viaYuv ? '+yuv' : ''}: ${r.status} max ${r.maxXY.toExponential(1)} (${r.maxXYPx} px, punkt ${r.worstIndex}) vis ${r.maxVisibility.toExponential(1)} · ${r.inferenceMs} ms (första ${r.firstMs}, kärna ${r.inferenceCpu})${r.gated ? (r.pass ? ' ✔' : ' ✘') : ''}`,
             )}
           </Text>
         )}
@@ -457,6 +545,7 @@ export default function DevScreen() {
         <Text style={styles.line}>
           shaft: {runtimes.shaft} · core: {core.rules} regler, {core.matchesNode ? 'samma som Node ✔' : 'AVVIKER från Node ✘'}
         </Text>
+        {logcat != null && <Text style={styles.line}>logcat:{'\n'}{logcat}</Text>}
         {lastLog != null && <Text style={styles.line}>logg: {lastLog.name}</Text>}
         {error != null && <Text style={[styles.line, styles.error]}>kamera: {error}</Text>}
       </View>

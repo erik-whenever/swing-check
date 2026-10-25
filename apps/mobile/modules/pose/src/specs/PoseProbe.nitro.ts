@@ -23,6 +23,24 @@ export interface PoseDeviceInfo {
   modelSha256Full: string
   /** 'mmap' when the .task is stored uncompressed in the APK, otherwise 'buffer'. */
   modelLoad: string
+  /** Cores grouped by cpuinfo_max_freq in MHz, e.g. "0-5:2000,6-7:2200" (the big cores last). */
+  cpuClusters: string
+}
+
+/** The latest detect()'s split and where it ran (N-3.2 diagnosis). Read right after detect(), same thread. */
+export interface PoseFrameDiag {
+  /** ByteBufferImageBuilder → MPImage, ms. */
+  wrapMs: number
+  /** detectForVideo alone, ms. */
+  detectMs: number
+  /** Result → Float32 ArrayBuffer, ms. */
+  packMs: number
+  /** The core the calling (camera) thread was on when detect() started, -1 if unknown. */
+  callerCpu: number
+  /** The core the thread that ran detectForVideo was on right after it, -1 if unknown. */
+  inferenceCpu: number
+  /** That thread's nice value (-8 = URGENT_DISPLAY, -10 = VIDEO, 0 = default). */
+  inferenceNice: number
 }
 
 export interface PoseThermal {
@@ -45,7 +63,12 @@ export interface PoseImageResult {
   landmarks: ArrayBuffer
   width: number
   height: number
+  /** The first detect on the fresh landmarker (includes warm-up), ms. */
+  firstMs: number
+  /** Median of the runs after the first, ms (= firstMs when runs is 1). */
   inferenceMs: number
+  /** The core the inference thread was on after the last run. */
+  inferenceCpu: number
   delegate: PoseDelegate
 }
 
@@ -57,7 +80,24 @@ export interface PoseProbe extends HybridObject<{ android: 'kotlin' }> {
    * Runs the image file (PNG/JPEG, already upright) through a fresh landmarker in IMAGE mode,
    * on the calling thread. viaYuv = true first converts the RGBA to full-range I420 and back
    * through the same libyuv code the camera path uses (rotation 0, same size), so the
-   * conversion's effect on the landmarks shows up next to the plain run.
+   * conversion's effect on the landmarks shows up next to the plain run. Runs `runs` times on
+   * one landmarker (landmarks from the first) on the thread and CPU threads setDiagnostics chose.
    */
-  detectImage(path: string, config: PoseConfig, viaYuv: boolean): PoseImageResult
+  detectImage(path: string, config: PoseConfig, viaYuv: boolean, runs: number): PoseImageResult
+  /**
+   * N-3.2 diagnosis. inferenceThread: 'camera' (VisionCamera's frame thread, the default),
+   * 'default', 'urgent-display' or 'video' (a dedicated thread at that Process priority).
+   * cpuThreads: 0 = MediaPipe's Java default (TFLite CPU), n > 0 = XNNPACK with n threads (CPU
+   * delegate only). The detector rebuilds on its next frame.
+   */
+  setDiagnostics(inferenceThread: string, cpuThreads: number): void
+  lastFrame(): PoseFrameDiag
+  /** Clears the per-thread CPU samples. */
+  resetThreadSamples(): void
+  /** One sample of every thread in the process (CPU time, nice, current core). Call at 1 Hz. */
+  sampleThreads(): void
+  /** JSON {spanS, threads: [{tid, name, cpuPct, nice, cores: {core: samples}}]}, busiest first. */
+  threadReport(): string
+  /** This process's logcat lines about TFLite, delegates and MediaPipe, the last maxLines. */
+  logcat(maxLines: number): string
 }

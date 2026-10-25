@@ -32,7 +32,13 @@ data class PoseImageResult(
   val height: Double,
   @DoNotStrip
   @Keep
+  val firstMs: Double,
+  @DoNotStrip
+  @Keep
   val inferenceMs: Double,
+  @DoNotStrip
+  @Keep
+  val inferenceCpu: Double,
   @DoNotStrip
   @Keep
   val delegate: PoseDelegate
@@ -46,7 +52,9 @@ data class PoseImageResult(
       && Objects.deepEquals(this.landmarks, other.landmarks)
       && Objects.deepEquals(this.width, other.width)
       && Objects.deepEquals(this.height, other.height)
+      && Objects.deepEquals(this.firstMs, other.firstMs)
       && Objects.deepEquals(this.inferenceMs, other.inferenceMs)
+      && Objects.deepEquals(this.inferenceCpu, other.inferenceCpu)
       && Objects.deepEquals(this.delegate, other.delegate)
   }
 
@@ -56,7 +64,9 @@ data class PoseImageResult(
       landmarks,
       width,
       height,
+      firstMs,
       inferenceMs,
+      inferenceCpu,
       delegate
     ).contentDeepHashCode()
   }
@@ -69,8 +79,8 @@ data class PoseImageResult(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(status: PoseStatus, landmarks: ArrayBuffer, width: Double, height: Double, inferenceMs: Double, delegate: PoseDelegate): PoseImageResult {
-      return PoseImageResult(status, landmarks, width, height, inferenceMs, delegate)
+    private fun fromCpp(status: PoseStatus, landmarks: ArrayBuffer, width: Double, height: Double, firstMs: Double, inferenceMs: Double, inferenceCpu: Double, delegate: PoseDelegate): PoseImageResult {
+      return PoseImageResult(status, landmarks, width, height, firstMs, inferenceMs, inferenceCpu, delegate)
     }
   }
 }

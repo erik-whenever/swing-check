@@ -3676,6 +3676,23 @@ lite cpu 117 ms, lite gpu 308 ms, full cpu 131 ms. GPU avviker 1,9e-2 mot Python
 Inferensen är ~5× långsammare än väntat för två A76 (20–40 ms). Rotorsaken utreds innan något optimeras
 (diagnosen nedan). Konverteringen är inte problemet.
 
+**Diagnos 2026-10-25 (instrumentering klar, Eriks mätning återstår):** [pose-android.md §9](native/pose-android.md).
+- **Ur källkoden (MediaPipe v0.10.35):** Java-API:ts `Delegate.CPU` blir `acceleration { tflite {} }`. MediaPipe
+  lägger då ingen XNNPACK-delegat och lämnar `cpu_num_thread = -1`, och TFLite:s standard-XNNPACK kör då
+  (enligt min läsning, ej uppmätt) **en tråd**. MediaPipes egen XNNPACK-väg hade valt 4 trådar på G99, men den går inte att
+  välja från Java (`CpuOptions` saknar fält). Paritetens 117/308 ms var en enda kall körning (uppvärmning ingår).
+- **Hypoteser:** H1 en tråd på en A55, H2 GPU-vägen långsam eller delvis CPU på Mali-G57 MC2, H3 telefonens golv.
+- **Instrumentering:** `wrapMs`/`detectMs`/`packMs`, kärna per ruta (kameratråd och inferenstråd, `/proc/.../stat`
+  fält 39) och nice, trådrapport (alla processens trådar, 1 Hz), logcat (egna rader om TFLite/delegat),
+  `cpuClusters`. Val i dev-skärmen: inferenstråd `camera`/`urgent-display`/`video` (egen tråd, landmarkern byggs
+  där) och CPU-trådar `def`/1/2/4 (XNNPACK via `XnnpackPoseLandmarkerOptions` i MediaPipes paket, `// OSÄKER`).
+  Paritet körs 10 varv (första + median) på vald tråd. Grindens definition är oförändrad.
+- **Baslinje:** Googles `mediapipe-samples` pose_landmarker/android (`1675dd30`), byggd i samma Docker-miljö
+  med tasks-vision 1.0.0 (oförändrat) och 0.10.35 (installeras bredvid). Mätsteg i §9.4.
+- **Verifierat lokalt:** `:app:assembleDebug` (arm64) i Docker går igenom, och båda nya klasserna finns i dex.
+  tsc och eslint är rena i `apps/mobile`. **Inte verifierat:** körning på telefon. Att XNNPACK-omskrivningen tas
+  emot av C++-grafen syns först i logcat (`Created TensorFlow Lite XNNPACK delegate`) och i trådrapporten.
+
 **Kvar (Erik, Galaxy A16 4G):** bygg `development` för Android, kontrollera overlayn stående och liggande
 (test O), kör Paritet, och kör grinden: lite GPU, lite CPU, full GPU, full CPU (3 min var, kall telefon), samt
 körning 6 (`rgb`). Grinden är N-2:s: p99 `totalMs` < 33 ms, tappade rutor < 1 % efter 2 s, thermal aldrig
@@ -3726,6 +3743,9 @@ fp32 och fp16, samma vikter. Konverteringen görs utan Mac, pariteten mäts på 
 
 ### [ ] N-8 — Android-prestanda (efter iOS-beta)
 Pausad till iOS når beta (Eriks beslut 2026-10-25). Utgångsläge: N-3.2 mätning 1 och diagnosen där.
+Om diagnosen visar att fixen är avgränsad (t.ex. XNNPACK med 2–4 trådar eller en inferenstråd med hög prioritet),
+görs den här och inte i N-3.2. `XnnpackPoseLandmarkerOptions` är då ett diagnosverktyg som ska ersättas eller
+göras robust mot MediaPipe-uppgraderingar.
 Målet är N-2-grinden på Galaxy A16 4G (golvet för Android), alternativt ett belagt besked om att telefonen
 inte klarar den och vad produkten då gör på Android (lägre fps till core, annan modell, annan miljö).
 

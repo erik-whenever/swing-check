@@ -6,6 +6,7 @@ import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
+import com.google.mediapipe.tasks.vision.poselandmarker.XnnpackPoseLandmarkerOptions
 import com.margelo.nitro.NitroModules
 import com.margelo.nitro.core.ArrayBuffer
 import java.nio.ByteBuffer
@@ -38,8 +39,11 @@ internal object PoseModels {
   /**
    * MediaPipe's defaults: confidence 0.5/0.5/0.5, as the web (poseDetector.ts sets none). The
    * spike's plugin used 0.3, which gives other misses than the web. One pose.
+   *
+   * cpuThreads > 0 (CPU only, N-3.2 diagnosis) swaps the Java API's TFLite CPU path for
+   * MediaPipe's XNNPACK delegate with that many threads (XnnpackPoseLandmarkerOptions).
    */
-  fun build(model: PoseModel, delegate: PoseDelegate, mode: RunningMode): PoseLandmarker {
+  fun build(model: PoseModel, delegate: PoseDelegate, mode: RunningMode, cpuThreads: Int = 0): PoseLandmarker {
     val ctx = context()
     val base = BaseOptions.builder()
       .setDelegate(if (delegate == PoseDelegate.GPU) Delegate.GPU else Delegate.CPU)
@@ -53,6 +57,9 @@ internal object PoseModels {
       .setRunningMode(mode)
       .setNumPoses(1)
       .build()
+    if (delegate == PoseDelegate.CPU && cpuThreads > 0) {
+      return PoseLandmarker.createFromOptions(ctx, XnnpackPoseLandmarkerOptions(options, cpuThreads))
+    }
     return PoseLandmarker.createFromOptions(ctx, options)
   }
 

@@ -23,6 +23,8 @@ namespace margelo::nitro::swingcheck::pose { struct PoseClock; }
 namespace margelo::nitro::swingcheck::pose { struct PoseImageResult; }
 // Forward declaration of `PoseConfig` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
+// Forward declaration of `PoseFrameDiag` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseFrameDiag; }
 
 #include "PoseDeviceInfo.hpp"
 #include "PoseThermal.hpp"
@@ -30,6 +32,7 @@ namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
 #include "PoseImageResult.hpp"
 #include <string>
 #include "PoseConfig.hpp"
+#include "PoseFrameDiag.hpp"
 
 namespace margelo::nitro::swingcheck::pose {
 
@@ -65,7 +68,13 @@ namespace margelo::nitro::swingcheck::pose {
       virtual PoseDeviceInfo deviceInfo() = 0;
       virtual PoseThermal thermal() = 0;
       virtual PoseClock clock() = 0;
-      virtual PoseImageResult detectImage(const std::string& path, const PoseConfig& config, bool viaYuv) = 0;
+      virtual PoseImageResult detectImage(const std::string& path, const PoseConfig& config, bool viaYuv, double runs) = 0;
+      virtual void setDiagnostics(const std::string& inferenceThread, double cpuThreads) = 0;
+      virtual PoseFrameDiag lastFrame() = 0;
+      virtual void resetThreadSamples() = 0;
+      virtual void sampleThreads() = 0;
+      virtual std::string threadReport() = 0;
+      virtual std::string logcat(double maxLines) = 0;
 
     protected:
       // Hybrid Setup

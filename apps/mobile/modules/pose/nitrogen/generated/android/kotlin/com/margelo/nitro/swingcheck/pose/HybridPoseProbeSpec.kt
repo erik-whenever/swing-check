@@ -43,7 +43,31 @@ abstract class HybridPoseProbeSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
-  abstract fun detectImage(path: String, config: PoseConfig, viaYuv: Boolean): PoseImageResult
+  abstract fun detectImage(path: String, config: PoseConfig, viaYuv: Boolean, runs: Double): PoseImageResult
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setDiagnostics(inferenceThread: String, cpuThreads: Double): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun lastFrame(): PoseFrameDiag
+  
+  @DoNotStrip
+  @Keep
+  abstract fun resetThreadSamples(): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun sampleThreads(): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun threadReport(): String
+  
+  @DoNotStrip
+  @Keep
+  abstract fun logcat(maxLines: Double): String
 
   // Default implementation of `HybridObject.toString()`
   override fun toString(): String {

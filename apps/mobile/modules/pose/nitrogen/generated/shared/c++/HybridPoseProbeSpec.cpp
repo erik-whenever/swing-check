@@ -18,6 +18,12 @@ namespace margelo::nitro::swingcheck::pose {
       prototype.registerHybridMethod("thermal", &HybridPoseProbeSpec::thermal);
       prototype.registerHybridMethod("clock", &HybridPoseProbeSpec::clock);
       prototype.registerHybridMethod("detectImage", &HybridPoseProbeSpec::detectImage);
+      prototype.registerHybridMethod("setDiagnostics", &HybridPoseProbeSpec::setDiagnostics);
+      prototype.registerHybridMethod("lastFrame", &HybridPoseProbeSpec::lastFrame);
+      prototype.registerHybridMethod("resetThreadSamples", &HybridPoseProbeSpec::resetThreadSamples);
+      prototype.registerHybridMethod("sampleThreads", &HybridPoseProbeSpec::sampleThreads);
+      prototype.registerHybridMethod("threadReport", &HybridPoseProbeSpec::threadReport);
+      prototype.registerHybridMethod("logcat", &HybridPoseProbeSpec::logcat);
     });
   }
 

@@ -52,10 +52,11 @@ namespace margelo::nitro::swingcheck::pose {
     std::string modelSha256Lite     SWIFT_PRIVATE;
     std::string modelSha256Full     SWIFT_PRIVATE;
     std::string modelLoad     SWIFT_PRIVATE;
+    std::string cpuClusters     SWIFT_PRIVATE;
 
   public:
     PoseDeviceInfo() = default;
-    explicit PoseDeviceInfo(std::string manufacturer, std::string model, std::string socManufacturer, std::string socModel, std::string androidRelease, double sdkInt, std::string glRenderer, std::string timestampSources, std::string mediapipeVersion, double libyuvVersion, std::string modelSha256Lite, std::string modelSha256Full, std::string modelLoad): manufacturer(manufacturer), model(model), socManufacturer(socManufacturer), socModel(socModel), androidRelease(androidRelease), sdkInt(sdkInt), glRenderer(glRenderer), timestampSources(timestampSources), mediapipeVersion(mediapipeVersion), libyuvVersion(libyuvVersion), modelSha256Lite(modelSha256Lite), modelSha256Full(modelSha256Full), modelLoad(modelLoad) {}
+    explicit PoseDeviceInfo(std::string manufacturer, std::string model, std::string socManufacturer, std::string socModel, std::string androidRelease, double sdkInt, std::string glRenderer, std::string timestampSources, std::string mediapipeVersion, double libyuvVersion, std::string modelSha256Lite, std::string modelSha256Full, std::string modelLoad, std::string cpuClusters): manufacturer(manufacturer), model(model), socManufacturer(socManufacturer), socModel(socModel), androidRelease(androidRelease), sdkInt(sdkInt), glRenderer(glRenderer), timestampSources(timestampSources), mediapipeVersion(mediapipeVersion), libyuvVersion(libyuvVersion), modelSha256Lite(modelSha256Lite), modelSha256Full(modelSha256Full), modelLoad(modelLoad), cpuClusters(cpuClusters) {}
 
   public:
     friend bool operator==(const PoseDeviceInfo& lhs, const PoseDeviceInfo& rhs) = default;
@@ -83,7 +84,8 @@ namespace margelo::nitro {
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "libyuvVersion"))),
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelSha256Lite"))),
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelSha256Full"))),
-        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelLoad")))
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelLoad"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "cpuClusters")))
       );
     }
     static inline jsi::Value toJSI(jsi::Runtime& runtime, const margelo::nitro::swingcheck::pose::PoseDeviceInfo& arg) {
@@ -101,6 +103,7 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "modelSha256Lite"), JSIConverter<std::string>::toJSI(runtime, arg.modelSha256Lite));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "modelSha256Full"), JSIConverter<std::string>::toJSI(runtime, arg.modelSha256Full));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "modelLoad"), JSIConverter<std::string>::toJSI(runtime, arg.modelLoad));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "cpuClusters"), JSIConverter<std::string>::toJSI(runtime, arg.cpuClusters));
       return obj;
     }
     static inline bool canConvert(jsi::Runtime& runtime, const jsi::Value& value) {
@@ -124,6 +127,7 @@ namespace margelo::nitro {
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelSha256Lite")))) return false;
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelSha256Full")))) return false;
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "modelLoad")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "cpuClusters")))) return false;
       return true;
     }
   };

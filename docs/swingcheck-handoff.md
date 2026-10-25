@@ -8,6 +8,12 @@
 > N-3.2-diagnosen → N-3.5 + N-3.6 (ren JS, båda dev-klienterna) → N-3.7 + N-3.8 (Mac) → N-3.4 och resten av
 > iOS-kedjan → N-8. **Första Android-mätningen** (lite · gpu · yuv, Galaxy A16 4G): 4,55 fps, 84,8 % tappade,
 > `inferMs` 183 ms i median, `convertMs` 5,7 ms. Paritet klarad på CPU (1,1e-5). Siffrorna står under N-3.2.
+> - **Diagnosen ([pose-android.md §9](native/pose-android.md)):** instrumenteringen är klar, Eriks mätning återstår.
+>   Huvudmisstanke ur källkoden: Java-API:ts CPU-väg kör TFLite:s standard-XNNPACK med en tråd (`cpu_num_thread -1`),
+>   och trådval saknas i API:t. Dev-skärmen har nu inferenstråd (`camera`/`urgent-display`/`video`), CPU-trådar
+>   (`def`/1/2/4 via `XnnpackPoseLandmarkerOptions`), uppdelad tid, kärna per ruta, trådrapport och logcat.
+>   Baslinjen: Googles exempel, byggt med tasks-vision 1.0.0 och 0.10.35. Mätsteg i §9.4.
+> - **Nästa:** Erik kör §9.4. Sedan rotorsak med siffror. En avgränsad fix görs i N-8, inte nu. Därefter N-3.5.
 >
 > **Före det (2026-10-24, stream-native):** **N-3.2 (pose Android) är `[~]`: koden är klar, Eriks mätning på
 > Galaxy A16 4G återstår.** Allt som avgjordes står i [pose-android.md §8](native/pose-android.md), och

@@ -1,6 +1,8 @@
 package com.margelo.nitro.swingcheck.pose
 
+import android.os.Process
 import android.util.Log
+import androidx.camera.core.ImageProxy
 import com.google.mediapipe.framework.image.ByteBufferImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -26,6 +28,7 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
     val generation: Int,
     val delegate: PoseDelegate,
     val thread: Thread,
+    val diagGeneration: Int,
   )
 
   @Volatile private var config: PoseConfig? = null
@@ -56,6 +59,29 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
     val config = config ?: throw Error("PoseDetector.configure() must be called before detect()")
     val generation = generation
     val image = (frame as NativeFrame).image
+    // N-3.2 diagnosis: 'camera' runs here as before; otherwise the whole detect, including the
+    // landmarker build, runs on a dedicated thread at that priority while this one waits.
+    val mode = PoseDiag.inferenceThread
+    PoseDiag.callerCpu = PoseDiag.cpuOf(Process.myTid())
+    return try {
+      PoseDiag.runOn(mode) { detectHere(image, config, generation, t0) }
+    } catch (e: Throwable) {
+      Log.e(TAG, "detect on the $mode thread failed", e)
+      val info = image.imageInfo
+      PoseResult(
+        status = PoseStatus.ERROR,
+        frameTimeSec = info.timestamp / 1e9,
+        landmarks = PoseModels.empty(),
+        convertMs = 0.0,
+        inferenceMs = 0.0,
+        totalMs = (System.nanoTime() - t0) / 1e6,
+        delegate = config.delegate,
+        rotationDegrees = info.rotationDegrees.toDouble(),
+      )
+    }
+  }
+
+  private fun detectHere(image: ImageProxy, config: PoseConfig, generation: Int, t0: Long): PoseResult {
     val info = image.imageInfo
     val ns = info.timestamp
     // imageInfo, not frame.orientation: VC #4096 has LEFT/RIGHT swapped on Android.
@@ -81,6 +107,7 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
       val ti = System.nanoTime()
       convertMs = (ti - tc) / 1e6
       val mpImage = ByteBufferImageBuilder(input.buffer, input.width, input.height, MPImage.IMAGE_FORMAT_RGBA).build()
+      val td = System.nanoTime()
       val result = try {
         b.landmarker.detectForVideo(mpImage, ms)
       } catch (e: Throwable) {
@@ -89,8 +116,16 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
       } finally {
         mpImage.close()
       }
-      inferenceMs = (System.nanoTime() - ti) / 1e6
+      val tp = System.nanoTime()
+      // inferenceMs keeps its N-3.2 meaning (MPImage + detectForVideo) so runs stay comparable;
+      // the split is in PoseDiag.
+      inferenceMs = (tp - ti) / 1e6
       val landmarks = PoseModels.pack(result)
+      PoseDiag.wrapMs = (td - ti) / 1e6
+      PoseDiag.detectMs = (tp - td) / 1e6
+      PoseDiag.packMs = (System.nanoTime() - tp) / 1e6
+      PoseDiag.inferenceCpu = PoseDiag.cpuOf(Process.myTid())
+      PoseDiag.inferenceNice = Process.getThreadPriority(Process.myTid())
       PoseResult(
         status = if (landmarks != null) PoseStatus.OK else PoseStatus.NO_POSE,
         frameTimeSec = frameTimeSec,
@@ -121,8 +156,9 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
     val current = built
     val thread = Thread.currentThread()
     val gpuFailed = current != null && current.delegate == PoseDelegate.GPU && gpuFailedFor == current.generation
+    val diagGeneration = PoseDiag.generation
     if (current != null && !resetRequested && !backwards && !gpuFailed &&
-      current.generation == generation && current.thread === thread
+      current.generation == generation && current.thread === thread && current.diagGeneration == diagGeneration
     ) {
       return current
     }
@@ -131,7 +167,7 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
       Log.i(
         TAG,
         "rebuild: config=${current.generation != generation} thread=${current.thread !== thread} " +
-          "backwards=$backwards gpuFailed=$gpuFailed",
+          "backwards=$backwards gpuFailed=$gpuFailed diag=${current.diagGeneration != diagGeneration}",
       )
       // OSÄKER: en GPU-landmarker stängs här på den nya tråden när den gamla har tagits ur bruk
       // (#4213). Det är inte prövat att MediaPipe tål det; ett fel loggas och ignoreras, och då
@@ -144,6 +180,7 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
       built = null
     }
     val t0 = System.nanoTime()
+    val cpuThreads = PoseDiag.cpuThreads
     val wantGpu = config.delegate == PoseDelegate.GPU && gpuFailedFor != generation
     val (landmarker, delegate) = if (wantGpu) {
       try {
@@ -153,15 +190,19 @@ class HybridPoseDetector : HybridPoseDetectorSpec() {
         // measurement what ran.
         Log.w(TAG, "GPU landmarker failed, falling back to CPU", e)
         gpuFailedFor = generation
-        PoseModels.build(config.model, PoseDelegate.CPU, RunningMode.VIDEO) to PoseDelegate.CPU
+        PoseModels.build(config.model, PoseDelegate.CPU, RunningMode.VIDEO, cpuThreads) to PoseDelegate.CPU
       }
     } else {
-      PoseModels.build(config.model, PoseDelegate.CPU, RunningMode.VIDEO) to PoseDelegate.CPU
+      PoseModels.build(config.model, PoseDelegate.CPU, RunningMode.VIDEO, cpuThreads) to PoseDelegate.CPU
     }
     buildCount++
     lastTimestampMs = Long.MIN_VALUE
-    Log.i(TAG, "built ${config.model} on $delegate in ${(System.nanoTime() - t0) / 1_000_000} ms (${thread.name})")
-    return Built(landmarker, config, generation, delegate, thread).also { built = it }
+    Log.i(
+      TAG,
+      "built ${config.model} on $delegate (cpuThreads $cpuThreads) in ${(System.nanoTime() - t0) / 1_000_000} ms " +
+        "(${thread.name}, nice ${Process.getThreadPriority(Process.myTid())})",
+    )
+    return Built(landmarker, config, generation, delegate, thread, diagGeneration).also { built = it }
   }
 
   override fun runtimeInfo(): String {

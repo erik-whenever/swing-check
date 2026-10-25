@@ -19,6 +19,8 @@ namespace margelo::nitro::swingcheck::pose { struct PoseImageResult; }
 namespace margelo::nitro::swingcheck::pose { enum class PoseStatus; }
 // Forward declaration of `PoseDelegate` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { enum class PoseDelegate; }
+// Forward declaration of `PoseFrameDiag` to properly resolve imports.
+namespace margelo::nitro::swingcheck::pose { struct PoseFrameDiag; }
 // Forward declaration of `PoseConfig` to properly resolve imports.
 namespace margelo::nitro::swingcheck::pose { struct PoseConfig; }
 // Forward declaration of `PoseModel` to properly resolve imports.
@@ -39,6 +41,8 @@ namespace margelo::nitro::swingcheck::pose { enum class PoseModel; }
 #include <NitroModules/JArrayBuffer.hpp>
 #include "PoseDelegate.hpp"
 #include "JPoseDelegate.hpp"
+#include "PoseFrameDiag.hpp"
+#include "JPoseFrameDiag.hpp"
 #include "PoseConfig.hpp"
 #include "JPoseConfig.hpp"
 #include "PoseModel.hpp"
@@ -92,10 +96,37 @@ namespace margelo::nitro::swingcheck::pose {
     auto __result = method(_javaPart);
     return __result->toCpp();
   }
-  PoseImageResult JHybridPoseProbeSpec::detectImage(const std::string& path, const PoseConfig& config, bool viaYuv) {
-    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPoseImageResult>(jni::alias_ref<jni::JString> /* path */, jni::alias_ref<JPoseConfig> /* config */, jboolean /* viaYuv */)>("detectImage");
-    auto __result = method(_javaPart, jni::make_jstring(path), JPoseConfig::fromCpp(config), viaYuv);
+  PoseImageResult JHybridPoseProbeSpec::detectImage(const std::string& path, const PoseConfig& config, bool viaYuv, double runs) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPoseImageResult>(jni::alias_ref<jni::JString> /* path */, jni::alias_ref<JPoseConfig> /* config */, jboolean /* viaYuv */, double /* runs */)>("detectImage");
+    auto __result = method(_javaPart, jni::make_jstring(path), JPoseConfig::fromCpp(config), viaYuv, runs);
     return __result->toCpp();
+  }
+  void JHybridPoseProbeSpec::setDiagnostics(const std::string& inferenceThread, double cpuThreads) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* inferenceThread */, double /* cpuThreads */)>("setDiagnostics");
+    method(_javaPart, jni::make_jstring(inferenceThread), cpuThreads);
+  }
+  PoseFrameDiag JHybridPoseProbeSpec::lastFrame() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPoseFrameDiag>()>("lastFrame");
+    auto __result = method(_javaPart);
+    return __result->toCpp();
+  }
+  void JHybridPoseProbeSpec::resetThreadSamples() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("resetThreadSamples");
+    method(_javaPart);
+  }
+  void JHybridPoseProbeSpec::sampleThreads() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("sampleThreads");
+    method(_javaPart);
+  }
+  std::string JHybridPoseProbeSpec::threadReport() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("threadReport");
+    auto __result = method(_javaPart);
+    return __result->toStdString();
+  }
+  std::string JHybridPoseProbeSpec::logcat(double maxLines) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>(double /* maxLines */)>("logcat");
+    auto __result = method(_javaPart, maxLines);
+    return __result->toStdString();
   }
 
 } // namespace margelo::nitro::swingcheck::pose

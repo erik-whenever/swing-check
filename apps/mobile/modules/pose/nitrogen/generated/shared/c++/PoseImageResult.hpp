@@ -48,12 +48,14 @@ namespace margelo::nitro::swingcheck::pose {
     std::shared_ptr<ArrayBuffer> landmarks     SWIFT_PRIVATE;
     double width     SWIFT_PRIVATE;
     double height     SWIFT_PRIVATE;
+    double firstMs     SWIFT_PRIVATE;
     double inferenceMs     SWIFT_PRIVATE;
+    double inferenceCpu     SWIFT_PRIVATE;
     PoseDelegate delegate     SWIFT_PRIVATE;
 
   public:
     PoseImageResult() = default;
-    explicit PoseImageResult(PoseStatus status, std::shared_ptr<ArrayBuffer> landmarks, double width, double height, double inferenceMs, PoseDelegate delegate): status(status), landmarks(landmarks), width(width), height(height), inferenceMs(inferenceMs), delegate(delegate) {}
+    explicit PoseImageResult(PoseStatus status, std::shared_ptr<ArrayBuffer> landmarks, double width, double height, double firstMs, double inferenceMs, double inferenceCpu, PoseDelegate delegate): status(status), landmarks(landmarks), width(width), height(height), firstMs(firstMs), inferenceMs(inferenceMs), inferenceCpu(inferenceCpu), delegate(delegate) {}
 
   public:
     friend bool operator==(const PoseImageResult& lhs, const PoseImageResult& rhs) = default;
@@ -73,7 +75,9 @@ namespace margelo::nitro {
         JSIConverter<std::shared_ptr<ArrayBuffer>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "landmarks"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "width"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "height"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "firstMs"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "inferenceMs"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "inferenceCpu"))),
         JSIConverter<margelo::nitro::swingcheck::pose::PoseDelegate>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "delegate")))
       );
     }
@@ -83,7 +87,9 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "landmarks"), JSIConverter<std::shared_ptr<ArrayBuffer>>::toJSI(runtime, arg.landmarks));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "width"), JSIConverter<double>::toJSI(runtime, arg.width));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "height"), JSIConverter<double>::toJSI(runtime, arg.height));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "firstMs"), JSIConverter<double>::toJSI(runtime, arg.firstMs));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "inferenceMs"), JSIConverter<double>::toJSI(runtime, arg.inferenceMs));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "inferenceCpu"), JSIConverter<double>::toJSI(runtime, arg.inferenceCpu));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "delegate"), JSIConverter<margelo::nitro::swingcheck::pose::PoseDelegate>::toJSI(runtime, arg.delegate));
       return obj;
     }
@@ -99,7 +105,9 @@ namespace margelo::nitro {
       if (!JSIConverter<std::shared_ptr<ArrayBuffer>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "landmarks")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "width")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "height")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "firstMs")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "inferenceMs")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "inferenceCpu")))) return false;
       if (!JSIConverter<margelo::nitro::swingcheck::pose::PoseDelegate>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "delegate")))) return false;
       return true;
     }
