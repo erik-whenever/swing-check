@@ -199,7 +199,8 @@ V-1:s facit visar att det förbättrar domarna.
   först; **resultat och metadata behålls alltid**. Historiken visar en sving utan video som "video rensad".
   Taket är en inställning med ett försiktigt standardvärde; storleken räknas på faktiska bytes, inte uppskattat.
 
-#### [~] N-3.6 — Kärn-UI
+#### [📱] N-3.6 — Kärn-UI
+**Status 2026-10-25 (körning 6):** allt som går utan native är gjort; resten (pose-fönster/fasurval, skaft, livepipeline) väntar på N-3.4/N-3.8 (Mac). Nästa steg = Eriks 📱-prov nedan.
 **PRIORITET (Erik 2026-10-25): uppladdningspipelinen först** (uppladdning → analys via Workern → Resultat → Historik, på riktigt), så att en intern TestFlight-build kan tas till rangen. Livepipelinen och sessionsrader efter det.
 2026-10-25 (dirigent, körning 4): **del 1** `apps/mobile/src/ui/` — tokens ljust/mörkt ur d1-v2, `ThemeProvider`/`useTheme`,
 Outfit via `expo-font`, `Text`, `Card`, `Button`, `Segmented`, `Chip`, `SectionLabel`, `VerdictMark` (tre former), `ConfidenceBar`,
