@@ -1,4 +1,5 @@
 import type { Rule } from '../types';
+import { LANGUAGE_PROFILES, type AnalysisLanguage } from './language';
 
 export const SYSTEM_PROMPT = `You are a golf swing analysis assistant. You analyze sequences of video frames showing a golfer's swing and evaluate specific coaching rules provided by the user.
 
@@ -20,7 +21,7 @@ CRITICAL INSTRUCTIONS FOR ACCURACY:
 
 6. DRILL SUGGESTIONS: When a rule has predefined drills provided, reference and recommend those drills on failure rather than inventing new ones. You may expand on the drill with additional tips.
 
-7. LANGUAGE — SWEDISH PROSE: Every free-text field must be written in Swedish: visual_evidence, observation, suggestion, correction, drill_suggestion, overall_assessment, frame_quality_notes and every entry in cannot_determine_reasons. JSON keys and enum values stay in English exactly as the schema specifies ("pass", "fail", "cannot_determine", "face-on", "down-the-line", "unknown", "good", "acceptable", "poor", and the phase names). Rule ids are copied verbatim.
+7. LANGUAGE — RESPONSE LANGUAGE: Every free-text field must be written in the RESPONSE LANGUAGE stated in the user message, right after the rules: visual_evidence, observation, suggestion, correction, drill_suggestion, short_verdict, overall_assessment, frame_quality_notes and every entry in cannot_determine_reasons. JSON keys and enum values stay in English exactly as the schema specifies ("pass", "fail", "cannot_determine", "face-on", "down-the-line", "unknown", "good", "acceptable", "poor", and the phase names). Rule ids are copied verbatim.
 
 Respond ONLY with valid JSON matching the schema provided. No prose before or after.`;
 
@@ -42,12 +43,26 @@ interface SwingPromptOptions {
  * The one piece of frame information that varies per swing. Belongs AFTER the cache
  * breakpoint, next to the images themselves.
  */
+/**
+ * The response language. Belongs AFTER the cache breakpoint, like the frame count: the
+ * system prompt and the rules block never name a language, so one cached prefix serves
+ * every language (proven byte-identical in prompt.test.ts).
+ */
+export function buildLanguageNote(language: AnalysisLanguage): string {
+  const p = LANGUAGE_PROFILES[language];
+  const [a, b] = p.shortVerdictExamples;
+  return `RESPONSE LANGUAGE: ${p.promptName}. Write every free-text field in ${p.promptName} (short_verdict e.g. "${a}" or "${b}"). JSON keys, enum values and rule ids stay exactly as the schema specifies.`;
+}
+
 export function buildFrameCountNote(frameCount: number): string {
   return `The ${frameCount} frames of this swing follow, numbered 1-${frameCount} in chronological order.`;
 }
 
+// Language-neutral on purpose: this text sits in the cached prefix, and the prefix must be
+// byte-identical across languages. The language and its examples come after the breakpoint
+// in `buildLanguageNote`.
 const SHORT_VERDICT_INSTRUCTION =
-  'Also return a short_verdict field: maximum 6 words summarizing the verdict in Swedish, e.g. Händerna för lågt i toppen or Bra axelrotation';
+  'Also return a short_verdict field: maximum 6 words summarizing the verdict in the response language';
 
 // Quick mode is read aloud, not read on screen: TTS speaks short_verdict and the
 // drill/suggestion, never visual_evidence or observation. Generating those two
@@ -106,7 +121,7 @@ ${
     "id": "${focusRule.id}",
     "verdict": "pass" | "fail" | "cannot_determine",
     "confidence": 0.0-1.0,
-    "short_verdict": "<=6 word Swedish summary",
+    "short_verdict": "<=6 word summary in the response language",
     "suggestion": "max one sentence, ONLY when verdict is fail — otherwise omit the field",
     "relevant_frames": [1, 3]
   },
@@ -118,7 +133,7 @@ ${
       "id": "rule-id",
       "verdict": "pass" | "fail" | "cannot_determine",
       "confidence": 0.0-1.0,
-      "short_verdict": "<=6 word Swedish summary",
+      "short_verdict": "<=6 word summary in the response language",
       "suggestion": "max one sentence, ONLY when verdict is fail — otherwise omit the field",
       "relevant_frames": [2, 3]
     }

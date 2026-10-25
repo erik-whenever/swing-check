@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Rule } from '../types';
-import { analyzeSwing, maxTokensFor, TruncatedResponseError } from './api';
+import {
+  analyzeSwing,
+  ApiNotConfiguredError,
+  configureApi,
+  isApiConfigured,
+  maxTokensFor,
+  TruncatedResponseError,
+} from './api';
+import { setAnalysisLanguage, DEFAULT_ANALYSIS_LANGUAGE } from './language';
 
 const rule = (i: number): Rule => ({
   id: `r${i}`,
@@ -27,7 +35,15 @@ function mockResponse(stop_reason: string, text: string) {
   );
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  configureApi({ url: '/api/analyze', headers: {} });
+  setAnalysisLanguage(DEFAULT_ANALYSIS_LANGUAGE);
+});
+
+function sentBody() {
+  return JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string);
+}
 
 describe('maxTokensFor', () => {
   it('grows with the rule count and keeps quick below detailed', () => {
@@ -59,5 +75,56 @@ describe('analyzeSwing on a truncated answer', () => {
     await analyzeSwing(['x'], [rule(1), rule(2), rule(3)], { quickMode: true });
     const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string);
     expect(body.max_tokens).toBe(maxTokensFor(true, 3));
+  });
+});
+
+describe('analyzeSwing language', () => {
+  // Everything up to and including the last cache_control block is the cached prefix.
+  function cachedPrefix(body: { system: unknown; messages: { content: { cache_control?: unknown }[] }[] }) {
+    const content = body.messages[0].content;
+    const lastCached = content.map((c) => !!c.cache_control).lastIndexOf(true);
+    return JSON.stringify({ system: body.system, prefix: content.slice(0, lastCached + 1) });
+  }
+
+  it('keeps the cached prefix byte-identical across languages and sends the language after it', async () => {
+    mockResponse('end_turn', '{"rules": []}');
+    await analyzeSwing(['x'], [rule(1)], { quickMode: true, language: 'sv' });
+    const sv = sentBody();
+    vi.unstubAllGlobals();
+    mockResponse('end_turn', '{"rules": []}');
+    await analyzeSwing(['x'], [rule(1)], { quickMode: true, language: 'en' });
+    const en = sentBody();
+
+    expect(cachedPrefix(en)).toBe(cachedPrefix(sv));
+    const after = (b: typeof sv) => JSON.stringify(b.messages[0].content.slice(1));
+    expect(after(sv)).toContain('RESPONSE LANGUAGE: Swedish');
+    expect(after(en)).toContain('RESPONSE LANGUAGE: English');
+  });
+
+  it('defaults to the app-wide language', async () => {
+    setAnalysisLanguage('en');
+    mockResponse('end_turn', '{"rules": []}');
+    await analyzeSwing(['x'], [rule(1)], {});
+    expect(JSON.stringify(sentBody().messages)).toContain('RESPONSE LANGUAGE: English');
+  });
+});
+
+describe('analyzeSwing configuration', () => {
+  it('throws before any request when no endpoint is configured', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    configureApi({ url: '' });
+    expect(isApiConfigured()).toBe(false);
+    await expect(analyzeSwing(['x'], [rule(1)], {})).rejects.toBeInstanceOf(ApiNotConfiguredError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('forwards configured headers (the native Origin) and keeps the JSON content type', async () => {
+    configureApi({ url: 'https://worker.example/api/analyze', headers: { Origin: 'swingcheck://app' } });
+    mockResponse('end_turn', '{"rules": []}');
+    await analyzeSwing(['x'], [rule(1)], {});
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://worker.example/api/analyze');
+    expect(init.headers).toEqual({ Origin: 'swingcheck://app', 'Content-Type': 'application/json' });
   });
 });
