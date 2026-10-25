@@ -27,7 +27,8 @@
 - **W-2 `[~]`:** appen skickar `X-SwingCheck-Install` (UUID v4 i Keychain); Workern ignorerar den tills
   Worker-delen i [identitet-w2.md](native/identitet-w2.md) är deployad. Nya native-deps (`expo-secure-store`,
   `expo-crypto`) → dev-klienten måste byggas om.
-- **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac), N-3.6 `[?]` (väntar på D-1-godkännande).
+- **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac), N-3.6 `[?]` (väntar på D-1-godkännande),
+  N-4 `[📱]` (posedatan finns bara lokalt). Dirigenten 2026-10-25: inget oblockerat kvar i N/V/D/F/W-2.
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
 - **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
   F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
