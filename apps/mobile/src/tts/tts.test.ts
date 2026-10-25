@@ -3,7 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuleResult, SwingAnalysis } from '@swingcheck/core/types';
 import { buildSpeechScript, firstSentence, phraseUtterance, type Utterance } from './script';
 import { SpeechQueue, WATCHDOG_FLOOR_MS, watchdogMs } from './queue';
-import { loggingSpeaker, type SpeakRequest, type Speaker } from './speaker';
+import {
+  expoSpeechSpeaker,
+  loggingSpeaker,
+  type SpeakRequest,
+  type Speaker,
+  type SpeechEngine,
+  type SpeechEngineOptions,
+} from './speaker';
 
 function rule(id: string, verdict: RuleResult['verdict'], extra: Partial<RuleResult> = {}): RuleResult {
   return { id, verdict, confidence: 0.8, relevant_frames: [], ...extra };
@@ -227,5 +234,62 @@ describe('SpeechQueue', () => {
     const q = new SpeechQueue(loggingSpeaker({ log: (l) => lines.push(l) }));
     await expect(q.enqueue(u('Hej'), { language: 'sv' })).resolves.toBe('done');
     expect(lines).toEqual(['[tts sv-SE] Hej']);
+  });
+});
+
+describe('expoSpeechSpeaker', () => {
+  function fakeEngine(autoDone = false) {
+    const calls: { text: string; opts: SpeechEngineOptions }[] = [];
+    const engine: SpeechEngine = {
+      speak: vi.fn((text: string, opts: SpeechEngineOptions = {}) => {
+        calls.push({ text, opts });
+        if (autoDone) queueMicrotask(() => opts.onDone?.());
+      }),
+      stop: vi.fn(() => Promise.resolve()),
+    };
+    return { engine, calls };
+  }
+
+  it('passes locale/voice and resolves on onDone', async () => {
+    const { engine, calls } = fakeEngine();
+    const p = expoSpeechSpeaker(engine).speak({ text: 'Hej', language: 'sv', locale: 'sv-SE', voiceId: 'v1' });
+    expect(calls[0]).toMatchObject({ text: 'Hej', opts: { language: 'sv-SE', voice: 'v1' } });
+    calls[0].opts.onDone?.();
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it('rejects on onError', async () => {
+    const { engine, calls } = fakeEngine();
+    const p = expoSpeechSpeaker(engine).speak({ text: 'x', language: 'sv', locale: 'sv-SE' });
+    calls[0].opts.onError?.(new Error('engine'));
+    await expect(p).rejects.toThrow('engine');
+  });
+
+  it('stop() settles the pending speak at once; a late callback cannot settle the next one', async () => {
+    const { engine, calls } = fakeEngine();
+    const s = expoSpeechSpeaker(engine);
+    const first = s.speak({ text: 'a', language: 'sv', locale: 'sv-SE' });
+    s.stop();
+    await expect(first).resolves.toBeUndefined();
+    expect(engine.stop).toHaveBeenCalledTimes(1);
+    const second = s.speak({ text: 'b', language: 'sv', locale: 'sv-SE' });
+    let secondDone = false;
+    void second.then(() => (secondDone = true));
+    calls[0].opts.onStopped?.(); // stale callback from the first utterance
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(secondDone).toBe(false);
+    calls[1].opts.onDone?.();
+    await expect(second).resolves.toBeUndefined();
+  });
+
+  it('drives the queue end to end with the language from core', async () => {
+    const { engine, calls } = fakeEngine(true);
+    const q = new SpeechQueue(expoSpeechSpeaker(engine));
+    await expect(q.enqueue(u('ett', 'två'), { language: 'en' })).resolves.toBe('done');
+    expect(calls.map((c) => [c.text, c.opts.language])).toEqual([
+      ['ett', 'en-US'],
+      ['två', 'en-US'],
+    ]);
   });
 });
