@@ -45,6 +45,7 @@ export function SwingCard({ record }: Props) {
         </p>
         <p className="mt-1 text-[10.5px] text-muted">
           {t('history.passOf', { pass: passCount, total: assessed })}
+          {record.videoPurged && <span> · {t('history.videoPurged')}</span>}
         </p>
         {record.overallAssessment && (
           <p className="mt-1 text-[10.5px] leading-[1.4] text-faint line-clamp-2">

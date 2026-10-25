@@ -1,40 +1,51 @@
 import { useState, useEffect, useCallback } from 'react';
-import { get, set, del, keys } from 'idb-keyval';
+import { set, del } from 'idb-keyval';
 import type { SwingRecord } from '@swingcheck/core/types';
 import {
   isSupabaseEnabled,
   saveSwingToSupabase,
   loadSwingsFromSupabase,
 } from '../lib/supabase';
+import {
+  enforceHistoryMediaCap,
+  historyKey,
+  readHistoryRecords,
+} from '../lib/historyRetention';
+import { useSettingsStore } from '../store/settings';
+import { createLogger } from '../lib/logger';
 
-const HISTORY_PREFIX = 'swing-';
-const MAX_RECORDS = 10;
+const log = createLogger('History');
 
-/** Read all cached swing records from IndexedDB, newest first, keyed by id for hydration. */
-async function readLocalRecords(): Promise<SwingRecord[]> {
-  const allKeys = await keys();
-  const swingKeys = (allKeys as string[])
-    .filter((k) => k.startsWith(HISTORY_PREFIX))
-    .sort()
-    .reverse()
-    .slice(0, MAX_RECORDS);
-  const items = await Promise.all(swingKeys.map((k) => get<SwingRecord>(k)));
-  return items.filter(Boolean) as SwingRecord[];
-}
+/**
+ * How many swings to fetch from Supabase per load. History is capped by media bytes
+ * locally (N-3.5), so this only bounds one metadata query: rows are results + text, a few
+ * KB each, so 500 is ~1–2 MB — a full season of range sessions without pagination UI.
+ */
+// OSÄKER: chosen without a measured row size (Supabase is off until auth lands). Risk: low —
+// older swings than the page just don't show while Supabase is the source; local is unbounded.
+const REMOTE_PAGE_LIMIT = 500;
 
 /** Supabase when configured (hydrated with local video/frames), otherwise IndexedDB. */
 async function readRecords(): Promise<SwingRecord[]> {
-  const local = await readLocalRecords();
+  const local = await readHistoryRecords();
 
   // Prefer Supabase when configured; otherwise IndexedDB is the source of truth.
   if (isSupabaseEnabled()) {
-    const remote = await loadSwingsFromSupabase(MAX_RECORDS);
+    const remote = await loadSwingsFromSupabase(REMOTE_PAGE_LIMIT);
     if (remote) {
       // Hydrate remote metadata with locally cached video/frames where available.
       const localById = new Map(local.map((r) => [r.id, r]));
       return remote.map((r) => {
         const cached = localById.get(r.id);
-        return cached ? { ...r, videoBlob: cached.videoBlob, frames: cached.frames } : r;
+        return cached
+          ? {
+              ...r,
+              videoBlob: cached.videoBlob,
+              frames: cached.frames,
+              videoPurged: cached.videoPurged,
+              framesPurged: cached.framesPurged,
+            }
+          : r;
       });
     }
     // Supabase unavailable/failed → fall through to IndexedDB.
@@ -65,22 +76,20 @@ export function useHistory() {
 
   const saveRecord = useCallback(
     async (record: SwingRecord) => {
-      const key = `${HISTORY_PREFIX}${record.timestamp}-${record.id}`;
-      await set(key, record);
+      await set(historyKey(record), record);
 
       // Mirror metadata + results to Supabase when configured (non-blocking, never throws).
       void saveSwingToSupabase(record);
 
-      // Prune old records
-      const allKeys = await keys();
-      const swingKeys = (allKeys as string[])
-        .filter((k) => k.startsWith(HISTORY_PREFIX))
-        .sort()
-        .reverse();
-
-      if (swingKeys.length > MAX_RECORDS) {
-        const toDelete = swingKeys.slice(MAX_RECORDS);
-        await Promise.all(toDelete.map((k) => del(k)));
+      // Keep media under the byte cap: oldest video first, then frames. Records and their
+      // results are never deleted. A failure here must not lose the save above.
+      try {
+        const purged = await enforceHistoryMediaCap(useSettingsStore.getState().mediaCapMb);
+        if (purged > 0) log.info('History media purged to stay under cap', { records: purged });
+      } catch (err) {
+        log.warn('History media retention failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
 
       await loadRecords();
@@ -90,8 +99,7 @@ export function useHistory() {
 
   const deleteRecord = useCallback(
     async (record: SwingRecord) => {
-      const key = `${HISTORY_PREFIX}${record.timestamp}-${record.id}`;
-      await del(key);
+      await del(historyKey(record));
       await loadRecords();
     },
     [loadRecords]

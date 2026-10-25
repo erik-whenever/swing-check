@@ -312,8 +312,9 @@ export function useSessionCapture({
         // The materialized window carries every lead-in chunk back to the last
         // keyframe so the fragment decodes standalone, which makes its size a
         // function of the ring, not of the swing: ~28 MB in production and up to
-        // ~55 MB at full 30 s retention. Times MAX_RECORDS that is half a gigabyte
-        // in IndexedDB for bytes nothing reads — SwingCard renders `record.frames`,
+        // ~55 MB at full 30 s retention. Under the history's media byte cap
+        // (lib/historyRetention, N-3.5) a handful of those would evict the real clip
+        // videos for bytes nothing reads — SwingCard renders `record.frames`,
         // and ShareButton/FramePreview take `currentVideoBlob` from the session
         // store, never the history record (supabase.ts likewise hydrates an empty
         // blob). The clip path still saves its real recording.

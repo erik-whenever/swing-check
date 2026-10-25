@@ -97,6 +97,7 @@ const translations = {
     'history.today': 'Idag',
     'history.yesterday': 'Igår',
     'history.passOf': '{pass} av {total} godkända',
+    'history.videoPurged': 'video rensad',
     'history.trend': 'Trend, {count} senaste',
 
     // Statistics
@@ -306,6 +307,7 @@ const translations = {
     'history.today': 'Today',
     'history.yesterday': 'Yesterday',
     'history.passOf': '{pass} of {total} passed',
+    'history.videoPurged': 'video cleared',
     'history.trend': 'Trend, last {count}',
 
     // Statistics

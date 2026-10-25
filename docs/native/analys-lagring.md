@@ -43,11 +43,30 @@ direkt som 403 vid första riktiga analysen. Plan B kräver en Worker-ändring (
 - **Regeltexterna förblir svenska oavsett svarsspråk.** De är indata; modellen översätter vid `en`.
 - **Standardtaket 300 MB.** Ett svingfönster är högst 10 s 1080p ([rututtag.md](rututtag.md)), cirka 10–30 MB
   hårdvarukodat → 10–30 svingar med video, i nivå med dagens `MAX_RECORDS = 10` men aldrig med förlorade resultat.
-- **Webben lämnas.** `src/hooks/useHistory.ts` raderar fortfarande hela poster vid 10. Att byta kräver att
-  `SwingRecord.videoBlob` blir valfri (rör många filer och IndexedDB-formatet) — eget arbete, inte N-3.5. Webbens TTS
-  har fortfarande `sv-SE` hårdkodat; den följer standardspråket `sv` och behöver ändras först när webben får en
-  språkinställning.
+- **Webben följer samma policy** (se *Webben* nedan). Webbens TTS har fortfarande `sv-SE` hårdkodat; den följer
+  standardspråket `sv` och behöver ändras först när webben får en språkinställning.
 - **Skaftmått i prompten är utanför betan**; `core/measure` är inte inkopplat.
+
+## Webben (useHistory)
+
+`MAX_RECORDS = 10` är borta. `src/lib/historyRetention.ts` är webbens adapter mot samma `planMediaRetention`:
+
+- **Mätning:** video = `videoBlob.size`; bildrutor = base64-strängarnas längd som de ligger i IndexedDB (ASCII,
+  1 byte/tecken, ≈ 4/3 av JPEG-bytes). Faktiskt lagrat, inte uppskattat.
+- **Efter varje sparning** (`useHistory.saveRecord`): alla poster läses, planen körs, de berörda posterna skrivs
+  tillbaka under samma nyckel med `videoBlob` = tom Blob + `videoPurged`, resp. `frames = []` + `framesPurged`.
+  Ingen post raderas. Fel i rensningen loggas och fäller inte sparningen.
+- **`SwingRecord`** fick de additiva fälten `videoPurged?`/`framesPurged?` (core). `videoBlob` förblir obligatorisk —
+  tom Blob var redan konventionen för "ingen video" (sessionssvingar, Supabase-hydrering). Sessionssvingar sparar
+  aldrig video och märks därför inte "video rensad".
+- **Taket** är inställningen `mediaCapMb` i `useSettingsStore` (persisterad), standard `DEFAULT_MEDIA_CAP_MB`. Ingen
+  UI-kontroll ännu.
+- **Historik-UI:** `SwingCard` visar "· video rensad" i raden med godkända regler när `videoPurged`.
+- **Supabase:** `loadSwingsFromSupabase(500)` — bara metadata (några KB/rad), en säsong utan paginerings-UI.
+  Supabase är fortfarande avstängt (no-op).
+
+`// OSÄKER:` alla poster läses in i minnet för mätningen; upp till 300 MB bildrutor (sessionssvingar utan video) kan
+pressa en äldre iPhone-flik. Bedömt låg–medel; åtgärd vid behov: media under egna nycklar.
 
 ## Kvar
 
