@@ -216,9 +216,12 @@ Välkommen vid första start (`welcomeSeen`), uppladdningspipeline som stubb; [n
 **del 9** `expo-speech` + `expoSpeechSpeaker` (motor injicerad, `tts/device.ts`), `SpeechProvider`/`useSpeech` (språk ur settings),
 "Läs upp" på Resultat, `LiveSessionContainer` på fliken Session (Redo/Analyserar/Pausad, keep-awake, ingen pipeline); 8 tester.
 **del 10–11** `RuleLibraryScreen` + `ruleLibraryLogic` (sök, fas/vinkel, val; 10 tester), modal-rutt `RuleLibrary` från "+"/Egna.
-**Kvar:** klippval + pipeline (uppladdning → analys → `addSwing` → Resultat; rututtaget beror på
-N-3.4/N-3.8), livepipeline → `enqueueLive` (N-3.4), sessionsrader/trend i Historik. **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
-(nya native-moduler); 2) gå igenom Välkommen → flikarna, öppna Resultat och tryck "Läs upp" med AirPods; 3) notera fel/fula skärmar.
+**del 12** (körning 6) uppladdningspipeline på riktigt: klippval (expo-image-picker) → 32 rutor jämnt i svingfönstret (expo-video-thumbnails +
+image-manipulator, ≤1280 px, JPEG 0,8; interim tills `capture`) → core/Workern → `addSwing` (media i `documents/media/<id>/`) → Resultat.
+Ren `runUploadAnalysis` (progress, avbrytbar; 8 tester), `UPLOAD_PIPELINE_AVAILABLE=true`; [uppladdning.md](native/uppladdning.md).
+**Kvar:** pose-baserat svingfönster/fasurval/beskärning (N-3.4/N-3.8 ersätter `FrameSource`/`selectFrameTimes`), skaftsteg och fasbilder på Analys,
+auto-vinkel, livepipeline → `enqueueLive` (N-3.4), sessionsrader/trend i Historik. **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
+(tre nya native-moduler; `EXPO_PUBLIC_API_URL` satt); 2) Sving → "Byt klipp" → kort klipp → "Bedöm svingen"; 3) kontrollera Resultat + Historik med bild, och att Avbryt mitt i inte sparar något.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
 typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
 Kamera/session, resultat, regler, historik, TTS.
