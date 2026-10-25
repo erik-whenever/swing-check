@@ -219,8 +219,10 @@ Välkommen vid första start (`welcomeSeen`), uppladdningspipeline som stubb; [n
 **del 12** (körning 6) uppladdningspipeline på riktigt: klippval (expo-image-picker) → 32 rutor jämnt i svingfönstret (expo-video-thumbnails +
 image-manipulator, ≤1280 px, JPEG 0,8; interim tills `capture`) → core/Workern → `addSwing` (media i `documents/media/<id>/`) → Resultat.
 Ren `runUploadAnalysis` (progress, avbrytbar; 8 tester), `UPLOAD_PIPELINE_AVAILABLE=true`; [uppladdning.md](native/uppladdning.md).
+**del 13** sessionsrader och trend i Historik: `historyLogic.ts` (ren, testad) grupperar på `sessionId` till utfällbar sessionsrad (stapel per sving → Resultat),
+uppladdningar som egna rader; fokusregelns trend (21 dagar, en punkt per session/uppladdningsdag). Sessionsrader syns först när livepipelinen sparar `sessionId`.
 **Kvar:** pose-baserat svingfönster/fasurval/beskärning (N-3.4/N-3.8 ersätter `FrameSource`/`selectFrameTimes`), skaftsteg och fasbilder på Analys,
-auto-vinkel, livepipeline → `enqueueLive` (N-3.4), sessionsrader/trend i Historik. **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
+auto-vinkel, livepipeline → `enqueueLive` (N-3.4). **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
 (tre nya native-moduler; `EXPO_PUBLIC_API_URL` satt); 2) Sving → "Byt klipp" → kort klipp → "Bedöm svingen"; 3) kontrollera Resultat + Historik med bild, och att Avbryt mitt i inte sparar något.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
 typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
