@@ -5,6 +5,7 @@
     { "path": "./tsconfig.node.json" },
     { "path": "./packages/core" },
     { "path": "./packages/core/tsconfig.test.json" },
-    { "path": "./scripts/eval" }
+    { "path": "./scripts/eval" },
+    { "path": "./apps/mobile/tsconfig.test.json" }
   ]
 }
