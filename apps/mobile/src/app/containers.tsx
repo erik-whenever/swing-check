@@ -2,7 +2,7 @@
 // navigation. Screens stay presentation-only; everything stateful lives here.
 
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Alert, Platform, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, type CompositeNavigationProp, type RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight, type BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -17,7 +17,8 @@ import {
   type RuleAccuracyMap,
   type RulePhase,
 } from '@swingcheck/core/lib/recommendRules';
-import { RULE_LIBRARY } from '@swingcheck/core/data/ruleLibrary';
+import { RULE_LIBRARY, type LibraryRule } from '@swingcheck/core/data/ruleLibrary';
+import type { Rule } from '@swingcheck/core/types';
 
 import { AnalysisScreen, PHASE_ORDER } from '../screens/AnalysisScreen';
 import { HistoryScreen, type HistoryItem } from '../screens/HistoryScreen';
@@ -29,12 +30,31 @@ import { RulesScreen } from '../screens/RulesScreen';
 import { UploadScreen, type SwingWindow } from '../screens/UploadScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { clock, dayLabel, historySwingView } from '../screens/reviewLogic';
-import { useActiveRules, useHistory, useHistoryEntry, useRuleSelection, useSettings } from '../state';
+import {
+  analysableRules,
+  analysisErrorView,
+  useActiveRules,
+  useHistory,
+  useHistoryEntry,
+  useRuleSelection,
+  useSettings,
+} from '../state';
 import { useSpeech, type SpeechSource } from '../tts';
 import { greetingFor, live, useTheme } from '../ui';
 import { initialLiveSession, liveElapsedMs, liveSessionReducer } from './liveSessionState';
 import type { RootStackParamList, TabParamList } from './routes';
-import { idleProgress, startUploadAnalysis, UPLOAD_PIPELINE_AVAILABLE, type PipelineProgress } from './uploadPipeline';
+import { createUploadDeps, pickClip } from './uploadAdapters';
+import {
+  clampWindow,
+  defaultSwingWindow,
+  idleProgress,
+  runUploadAnalysis,
+  UploadCancelledError,
+  UPLOAD_PIPELINE_AVAILABLE,
+  type PickedClip,
+  type PipelineProgress,
+  type UploadJob,
+} from './uploadPipeline';
 
 type TabNav<T extends keyof TabParamList> = CompositeNavigationProp<
   BottomTabNavigationProp<TabParamList, T>,
@@ -92,17 +112,48 @@ export function WelcomeContainer() {
 
 // ── Uppladdning ──────────────────────────────────────────────────────────────
 
+/**
+ * The job UploadContainer hands to AnalysisContainer. Held here rather than in route params:
+ * it carries the rule objects, and the Analys route stays parameterless (routes.ts).
+ */
+// OSÄKER: module state is lost if the JS reloads between the two screens; Analys then just
+// goes back. Risk: low — the user taps "Bedöm svingen" again.
+let pendingUpload: UploadJob | null = null;
+
+/** Library rules → core's Rule shape. The id stays the library id (RULE_INFO, history keys). */
+function toCoreRules(rules: readonly LibraryRule[]): Rule[] {
+  return rules.map((rule) => ({ ...rule, active: true, libraryId: rule.id }));
+}
+
+function clipClock(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export function UploadContainer() {
   const navigation = useNavigation<TabNav<'Swing'>>();
   const { settings } = useSettings();
   const [angle, setAngle] = useState<CameraAngle>(settings.defaultAngle);
+  const [clip, setClip] = useState<PickedClip | null>(null);
   const [swingWindow, setSwingWindow] = useState<SwingWindow | null>(null);
   const active = useActiveRules({ angle });
   const count = active.rules.length;
+  const coreRules = useMemo(() => toCoreRules(analysableRules(active)), [active]);
 
-  // TODO(N-3.x): clip picker + poseSegments. No clip yet → duration 0 and no swing window.
-  const duration = 0;
+  const duration = clip?.duration ?? 0;
   const greeting = `${greetingFor(new Date())}\nRedo för dagens `;
+
+  const onChangeClip = useCallback(() => {
+    void pickClip()
+      .then((picked) => {
+        if (!picked) return;
+        setClip(picked);
+        // OSÄKER: no pose (N-3.8) → no detected swing; the window starts as the default and the
+        // user drags it. Risk: medium, see defaultSwingWindow.
+        setSwingWindow(defaultSwingWindow(picked.duration));
+      })
+      .catch((err) => Alert.alert('Kunde inte öppna klippet', String(err instanceof Error ? err.message : err)));
+  }, []);
 
   return (
     <UploadScreen
@@ -110,13 +161,11 @@ export function UploadContainer() {
       greeting={greeting}
       greetingHighlight="svingar?"
       onRecord={() => navigation.navigate('Session')}
-      clipLabel="Inget klipp valt"
-      onChangeClip={() => {
-        // TODO(N-3.x): open the clip picker (uploadPipeline.ts).
-      }}
+      clipLabel={clip ? `${clip.name} · ${clipClock(clip.duration)}` : 'Inget klipp valt'}
+      onChangeClip={onChangeClip}
       duration={duration}
       swingWindow={swingWindow}
-      onSwingWindowChange={setSwingWindow}
+      onSwingWindowChange={(next) => setSwingWindow(clampWindow(next, duration))}
       angle={angle}
       angleDetected={false}
       onAngleChange={setAngle}
@@ -124,10 +173,18 @@ export function UploadContainer() {
       ruleSetSubtitle={`${count} ${count === 1 ? 'regel' : 'regler'}`}
       onOpenRuleSet={() => navigation.navigate('Rules')}
       estimatedSeconds={20}
-      // OSÄKER: in __DEV__ the button opens the (idle) Analys screen so the stack can be checked
-      // before the pipeline exists. Risk: low — dev builds only.
-      canAnalyze={(UPLOAD_PIPELINE_AVAILABLE || __DEV__) && !active.empty}
-      onAnalyze={() => navigation.navigate('Analysis')}
+      canAnalyze={UPLOAD_PIPELINE_AVAILABLE && clip != null && coreRules.length > 0}
+      onAnalyze={() => {
+        if (!clip) return;
+        pendingUpload = {
+          clip,
+          window: clampWindow(swingWindow, clip.duration),
+          angle,
+          rules: coreRules,
+          language: settings.language,
+        };
+        navigation.navigate('Analysis');
+      }}
     />
   );
 }
@@ -137,10 +194,29 @@ export function UploadContainer() {
 export function AnalysisContainer() {
   const navigation = useNavigation<StackNav>();
   const { settings } = useSettings();
-  const active = useActiveRules({ angle: settings.defaultAngle });
+  const { addSwing } = useHistory();
+  const [job] = useState(() => pendingUpload);
   const [state, setState] = useState<PipelineProgress>(idleProgress);
   const [phase, setPhase] = useState<RulePhase>(PHASE_ORDER[0]);
-  useEffect(() => startUploadAnalysis(setState), []);
+  const language = settings.language;
+  useEffect(() => {
+    if (!job) {
+      navigation.goBack();
+      return;
+    }
+    pendingUpload = null;
+    const controller = new AbortController();
+    runUploadAnalysis(job, createUploadDeps(addSwing), setState, controller.signal)
+      .then((entryId) => navigation.replace('Result', { entryId }))
+      .catch((err) => {
+        if (controller.signal.aborted || err instanceof UploadCancelledError) return;
+        const view = analysisErrorView(err, language);
+        Alert.alert(view.title, view.message, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      });
+    return () => controller.abort();
+    // Runs once per mounted job; addSwing/language changes must not restart a paid analysis.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job]);
   return (
     <AnalysisScreen
       style={useTopInset()}
@@ -148,7 +224,7 @@ export function AnalysisContainer() {
       frames={{}}
       activePhase={phase}
       onSelectPhase={setPhase}
-      ruleCount={active.rules.length}
+      ruleCount={job?.rules.length ?? 0}
       remainingSeconds={state.remainingSeconds}
       progress={state.progress}
       onCancel={() => navigation.goBack()}

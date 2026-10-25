@@ -11,6 +11,7 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "SwingCheck filmar din sving för att analysera den.",
+        "NSPhotoLibraryUsageDescription": "SwingCheck öppnar klipp från din kamerarulle så att du kan analysera svingen.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -32,7 +33,15 @@
       "expo-sharing",
       "expo-asset",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SwingCheck öppnar klipp från din kamerarulle så att du kan analysera svingen.",
+          "cameraPermission": "SwingCheck filmar din sving för att analysera den.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {
