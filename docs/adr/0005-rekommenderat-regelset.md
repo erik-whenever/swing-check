@@ -1,7 +1,8 @@
 # ADR-0005 — Rekommenderat regelset
 
-- **Status:** Föreslagen (mekanismen är byggd; produktdelarna — nivåindelning, tak, vad som visas och
-  V-1-grindens gränser — väntar på Eriks godkännande)
+- **Status:** Accepterad 2026-10-25 (Erik: nivåerna nybörjare/medel/avancerad med max 3/5/6 regler och att omätta
+  regler visas som "ej validerad" tills V-1 är kört; numret 0005 bekräftat). V-1-grindens gränser är fortfarande
+  platshållare tills baslinjen finns.
 - **Datum:** 2026-10-25
 
 **Numret:** Erik skrev "ADR-004" i F-1, men 0004 är native-pipelinen

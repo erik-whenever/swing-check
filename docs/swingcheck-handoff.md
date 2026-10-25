@@ -23,7 +23,7 @@
 - **V-1 `[~]`:** verktyg och metod klara ([eval/v1-facit.md](eval/v1-facit.md)); väntar på Eriks urval och facit
   plus budgetgodkännande ($8 för 120 anrop). Inget kört. Live-körning vägrar om manifest/facit inte är committade.
 - **N-7 `[x]`:** webben och appen hämtar pose-modellen från samma versionsadress och sha256 (`modules/pose/models.json`).
-- **F-1 `[~]`:** ADR-0005 föreslagen + `recommendRules` i core (oanvänd i appen). V-1-grinden tom tills facit finns.
+- **F-1 `[~]`:** ADR-0005 accepterad + `recommendRules` i core (oanvänd i appen). V-1-grinden tom tills facit finns.
   `lib-forward-shaft-lean` är taggad DTL fast den syns face-on — noterat, inte ändrat.
 - **W-2 `[📱]`:** Worker-delen klar på `stream-native` men **ej deployad**: tak per installation (40 anrop /
   400 000 tokens/dygn, D1 `install_usage`, migrering 0003) + appens origin i `ALLOWED_ORIGINS`. D1-bindningen var fel
@@ -54,6 +54,5 @@
 ## Öppna frågor och horisont
 - **F7–F9** (skaftets svikt, `hosel` som `occluded`, `club` som attribut) från batch-03: otriagerade, ingen
   implementering nu ([oppna-fragor.md](oppna-fragor.md)).
-- **ADR-numret för F-1:** Erik skrev "ADR-004", men 0004 är native-pipelinen; föreslaget 0005.
 - Paketnamn `swingcheck-temp` / version `0.0.0` — städa inför TestFlight.
 - [ROADMAP.md](ROADMAP.md) (2026-07) beskriver webbens ordning och är inaktuell för ström N.
