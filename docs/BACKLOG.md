@@ -212,8 +212,12 @@ ren logik i `reviewLogic.ts` (13 tester); [skarmar.md](native/skarmar.md). Ej k�
 Välkommen vid första start (`welcomeSeen`), uppladdningspipeline som stubb; [navigation.md](native/navigation.md). Nya native-moduler → dev-klienten byggs om.
 **del 7** `LiveSessionScreen` (alltid mörk, 3 m-läsbar, 7 trendblock) + `liveSessionLogic` (7 tester). **del 8** `src/tts/`: manusbyggare sv/en
 (live/full), `Speaker`-interface, `SpeechQueue` med watchdog, 16 tester, [tts.md](native/tts.md); ingen motor än.
-**Kvar:** `expo-speech`-adapter + koppla TTS till "Läs upp"/livesession, LiveSessionScreen i fliken Session, klippval + pipeline
-(uppladdning → analys → `addSwing` → Resultat, beror på N-3.4/N-3.8 för rututtag), sessionsrader/trend i Historik, "+" egna regler, enhetsprov.
+**del 9** `expo-speech` + `expoSpeechSpeaker` (motor injicerad, `tts/device.ts`), `SpeechProvider`/`useSpeech` (språk ur settings),
+"Läs upp" på Resultat, `LiveSessionContainer` på fliken Session (Redo/Analyserar/Pausad, keep-awake, ingen pipeline); 8 tester.
+**del 10** `RuleLibraryScreen` + `ruleLibraryLogic` (sök, fas/vinkel, val; 10 tester), ej inkopplad.
+**Kvar:** koppla RuleLibraryScreen ("+"/Egna), klippval + pipeline (uppladdning → analys → `addSwing` → Resultat; rututtaget beror på
+N-3.4/N-3.8), livepipeline → `enqueueLive` (N-3.4), sessionsrader/trend i Historik. **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
+(nya native-moduler); 2) gå igenom Välkommen → flikarna, öppna Resultat och tryck "Läs upp" med AirPods; 3) notera fel/fula skärmar.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
 typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
 Kamera/session, resultat, regler, historik, TTS.
