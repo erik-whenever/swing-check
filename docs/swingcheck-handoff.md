@@ -36,7 +36,7 @@
   F-1 rekommenderat regelset, W-2 identitet per installation (före N-6). N-3.5 har fått språk som parameter och
   lagring efter MB. **Inget V-körs mot Claude utan Eriks budgetgodkännande.**
 
-- **N-3.6 `[~]` (körning 4):** `src/ui/` (tokens + baskomponenter) och `src/state/` (rena modeller) klara; kvar: state-hooks, navigation, skärmar. Dev-klienten byggs om (expo-font, react-native-svg).
+- **N-3.6 `[~]` (körning 5):** `src/ui/` (tokens + komponenter), `src/state/` (modeller + `AppStateProvider`/hooks/filpersistens) och `src/screens/` (sex rena presentationsskärmar, ingen `screens/index.ts`) klara; kvar: navigation + containrar, Livesession, TTS. Dev-klienten byggs om (expo-font, react-native-svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`.
 
 ## Arkitektur i en rad
 `apps/mobile` (Expo 58 / RN 0.88 / VisionCamera 5 / Nitro 0.37) med egna Nitro-moduler `pose`, `shaft`
