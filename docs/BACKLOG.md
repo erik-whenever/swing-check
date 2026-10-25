@@ -165,7 +165,8 @@ Innan `capture` finns (N-3.4) matas modulen med paritetsrutan och med rutor lett
 - **Live-förbehandlingen ska verifieras med klubba i bild:** rotation av bufferten och färgordning. Spiken
   kollade bara pariteten på en stillbild, och 3-minutersmätningen hade ingen klubba i bild.
 
-#### [ ] N-3.4 — Fångstkedjan
+#### [📱] N-3.4 — Fångstkedjan
+**📱 Kräver Mac + iPhone:** `capture` är en native-modul (Swift först, iOS först) och värmegrinden mäts på enhet; görs efter N-3.7/N-3.8.
 Live-pose → core (`liveSwingDetector`/`poseSegments`/`poseEnvelope`), matad i 15 fps tills N-4 →
 svingdetektion → rututtag för Vision + 26 skaftrutor. Rututtaget görs av modulen `capture` (väg 3 i
 [rututtag.md](native/rututtag.md); spec i [ADR-0004, tillägget](adr/0004-native-pipeline-nitro-modules.md)). `capture`
@@ -216,9 +217,11 @@ I betan räcker iPhone; Android-delen följer N-8.
 
 ### [ ] N-4 — 30 fps-omkalibrering (S-49 §6)
 
-### [ ] N-5 — Handsfree med taligenkänning på enheten
+### [📱] N-5 — Handsfree med taligenkänning på enheten
+**📱 Kräver Mac + iPhone** (taligenkänning på enheten är native och provas med hörlurar); görs efter N-3.4.
 
-### [ ] N-6 — TestFlight och Play
+### [📱] N-6 — TestFlight och Play
+**📱 Kräver Mac/Apple-konto** (signering, uppladdning till TestFlight) och W-2:s Worker-del.
 TestFlight är betan. Play är utanför betan. **Kräver W-2** (identitet per installation) innan första externa testare.
 
 ### [ ] N-8 — Android-prestanda (efter iOS-beta) — *utanför betan*
