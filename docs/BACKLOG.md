@@ -199,7 +199,12 @@ V-1:s facit visar att det förbättrar domarna.
   först; **resultat och metadata behålls alltid**. Historiken visar en sving utan video som "video rensad".
   Taket är en inställning med ett försiktigt standardvärde; storleken räknas på faktiska bytes, inte uppskattat.
 
-#### [ ] N-3.6 — Kärn-UI
+#### [~] N-3.6 — Kärn-UI
+2026-10-25 (dirigent, körning 4): **del 1** `apps/mobile/src/ui/` — tokens ljust/mörkt ur d1-v2, `ThemeProvider`/`useTheme`,
+Outfit via `expo-font`, `Text`, `Card`, `Button`, `Segmented`, `Chip`, `SectionLabel`, `VerdictMark` (tre former), `ConfidenceBar`,
+`BrandHeader`; nya native-beroenden (`expo-font`, `react-native-svg`) → dev-klienten måste byggas om. **del 2** `apps/mobile/src/state/`:
+rena modeller (inställningar, historik med `planMediaRetention`, regelval via `recommendRules`, feltexter inkl. `UsageCapReachedError`).
+**Kvar:** hooks/persistens (`AppStateProvider`, expo-file-system) + tester för state, `docs/native/ui-komponenter.md`, navigation och de sju skärmarna, TTS.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
 typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
 Kamera/session, resultat, regler, historik, TTS.
