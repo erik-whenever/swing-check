@@ -24,6 +24,9 @@
 - **N-7 `[x]`:** webben och appen hämtar pose-modellen från samma versionsadress och sha256 (`modules/pose/models.json`).
 - **F-1 `[~]`:** ADR-0005 föreslagen + `recommendRules` i core (oanvänd i appen). V-1-grinden tom tills facit finns.
   `lib-forward-shaft-lean` är taggad DTL fast den syns face-on — noterat, inte ändrat.
+- **W-2 `[~]`:** appen skickar `X-SwingCheck-Install` (UUID v4 i Keychain); Workern ignorerar den tills
+  Worker-delen i [identitet-w2.md](native/identitet-w2.md) är deployad. Nya native-deps (`expo-secure-store`,
+  `expo-crypto`) → dev-klienten måste byggas om.
 - **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac), N-3.6 `[?]` (väntar på D-1-godkännande).
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
 - **Nya spår (bara spec, BACKLOG):** V-1 facit för domkvalitet → V-2 modellval, D-1 design (skisser först),
