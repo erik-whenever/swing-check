@@ -181,7 +181,7 @@ ligger efter cache-brytpunkten och ett test visar byte-identiskt prefix sv/en. `
 [analys-lagring.md](native/analys-lagring.md).
 **Beslut Erik 2026-10-25:** ja — `swingcheck://se.swingcheck.app` läggs i `ALLOWED_ORIGINS` i **samma Worker-deploy
 som W-2:s tak** (origin skyddar inte ensam; taket gör det). Cache-mätningen (sv/en, före/efter) får göras med ≤ 10
-riktiga anrop. Dirigenten bygger Worker-ändringen och skriver deploy-kommandon; **📱 Erik kör deploy + mätning lokalt**
+riktiga anrop. Dirigenten bygger Worker-ändringen och skriver deploy-kommandon; **Origin deployad 2026-10-25 (version `228eee42`); 📱 kvar: cache-mätningen (≤ 10 anrop) körs av Erik lokalt**
 (wrangler-uppgifterna finns bara där).
 2026-10-25 (dirigent, körning 3): webbens `MAX_RECORDS` borta — `src/lib/historyRetention.ts` mäter faktiska bytes och kör
 cores `planMediaRetention` (video först, sedan bildrutor, poster behålls); tak `mediaCapMb` (300 MB) i settings, `SwingCard`
@@ -333,7 +333,7 @@ identiteten i Keychain (`expo-secure-store`, `THIS_DEVICE_ONLY`) och skickar `X-
 den inte (CORS). Spec + Worker-kodskiss: [identitet-w2.md](native/identitet-w2.md). **Beslut Erik 2026-10-25:** ja —
 Workern tar emot headern med tak per identitet (40 anrop / 400 000 tokens per dygn, D1-tabell `install_usage`,
 migrering 0003), i samma deploy som N-3.5:s origin. Dirigenten implementerar Worker-delen + migreringen med tester
-och skriver exakta deploy-/migreringskommandon; **📱 Erik kör migrering mot prod-D1 och deploy lokalt.** Kvar därtill: ombyggd dev-klient + enhetsprov, App Attest före öppen release.
+och skriver exakta deploy-/migreringskommandon; **Deployad 2026-10-25 (Erik):** migrering 0003 applicerad, Worker-version `228eee42`, röktest a–c gröna (preflight 204 med `X-SwingCheck-Install`, `invalid_json`, `install_usage` finns). `env.DB`-bindningen fungerar nu (globalt tak + `/api/log` aktiva). Kvar därtill: ombyggd dev-klient + enhetsprov, App Attest före öppen release.
 **Före N-6.** Inget inloggat konto i betan. Appen skapar en anonym identitet per installation (slumpad,
 lagrad i Keychain) och skickar den till Workern. Workern begränsar per identitet (anrop och/eller tokens per
 dygn) och loggar förbrukningen, så att kostnaden per analys går att följa. Native-anrop har ingen `Origin`,
