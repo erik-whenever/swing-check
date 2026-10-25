@@ -10,6 +10,3 @@
 /.env
 /.env.local
 /yt-dlp.exe
-/test.json
-/swingcheck-issues.json
-/swingcheck-issues-readme.md

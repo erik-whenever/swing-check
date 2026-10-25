@@ -32,7 +32,7 @@
 - **`origin/stream-native` har `ee746f9 " ka"`**, som lokalt ersattes av `98017c7` med identiskt träd. Push
   kräver att Erik väljer väg (merge `-s ours` eller `--force-with-lease`); ingen session pushar själv.
 - **Tomma mappar** `C:\SwingCheck-{coreml,grab,pose}` från mergade worktrees kan tas bort när inget låser dem.
-- **Lokala modellfiler och data** (`public/models/*.onnx`, `data/`) är gitignorerade och finns bara på Eriks dator.
+- **Lokala modellfiler och data** (`public/models/*.onnx`, `data/`) och `yt-dlp.exe` (klipphämtningen) är gitignorerade och finns bara på Eriks dator.
 
 ## Öppna frågor och horisont
 - **F7–F9** (skaftets svikt, `hosel` som `occluded`, `club` som attribut) från batch-03: otriagerade, ingen
