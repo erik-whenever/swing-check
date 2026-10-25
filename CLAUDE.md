@@ -1,35 +1,38 @@
 # CLAUDE.md — SwingCheck
 
-Alltid-laddad baslinje. **Läs först, varje session:** [docs/BACKLOG.md](docs/BACKLOG.md) (auktoritativ för gjort/kvar) och [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md) (aktuell kontext). Läs sedan [KONTEXT.md](KONTEXT.md) för arkitektur/varför **innan** du börjar koda.
+Alltid-laddad baslinje. **Orientering, varje session (≈ 300 rader totalt):**
+1. [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md) — nuläget (≤ 60 rader).
+2. [KONTEXT.md](KONTEXT.md) — arkitektur, betan och varför, **innan** du börjar koda.
+3. [docs/BACKLOG.md](docs/BACKLOG.md) — bara *Arbetsregeln* och den uppgift du ska göra, inte hela filen.
+
+Läs inte arkivet ([docs/archive/](docs/archive/)) för att orientera dig; slå upp i det när en uppgift hänvisar dit.
 
 ## Pekare
 - **Gjort/kvar — auktoritativ källa:** [docs/BACKLOG.md](docs/BACKLOG.md)
-- **Aktuell kontext / överlämning:** [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md)
-- **Vad/varför:** [KONTEXT.md](KONTEXT.md)
-- **Levande status (gjort/pågår/horisont):** [STATUS.md](STATUS.md)
+- **Nuläge / överlämning (ersätter STATUS.md):** [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md)
+- **Vad/varför + betadefinitionen:** [KONTEXT.md](KONTEXT.md)
 - **Beslut & öppna frågor (numrerade):** [docs/oppna-fragor.md](docs/oppna-fragor.md)
-- **Arkitekturbeslut:** [docs/adr/](docs/adr/)
+- **Arkitekturbeslut:** [docs/adr/](docs/adr/) + [docs/decisions/](docs/decisions/) (delad nummerserie)
+- **Arkiv (klara strömmar, handoff-historik):** [docs/archive/](docs/archive/)
 - **Nattliga fynd (otriagerade):** [docs/inbox/](docs/inbox/)
 
 ## Backlog-driven workflow
-Sanningen om vad som är gjort och kvar bor i [docs/BACKLOG.md](docs/BACKLOG.md) — den är auktoritativ. Hela arbetsregeln står där under *"Arbetsregel för Claude Code"*; duplicera den inte här. Sammanfattning:
+Sanningen om vad som är gjort och kvar bor i [docs/BACKLOG.md](docs/BACKLOG.md). Hela arbetsregeln står där under *"Arbetsregel för Claude Code"*; duplicera den inte här. Sammanfattning:
 
-- **Jobba ström för ström, uppifrån och ned.** Ta nästa obockade uppgift i den ström du ombetts arbeta i; uppgifter inom en ström är ordnade och oftast beroende av varandra.
-- **Vid varje avklarad uppgift, i samma arbete:** bocka av i `docs/BACKLOG.md` (`[ ]`→`[x]` med en rad om vad som gjordes), uppdatera `docs/swingcheck-handoff.md` och den `docs/`-fil uppgiften anger, och committa fokuserat.
+- **Jobba ström för ström, uppifrån och ned.** Ta nästa obockade uppgift i den ström du ombetts arbeta i.
+- **Vid varje avklarad uppgift, i samma arbete:** bocka av i `docs/BACKLOG.md`, uppdatera `docs/swingcheck-handoff.md` (håll den ≤ 60 rader, flytta ut äldre till arkivet) och den `docs/`-fil uppgiften anger, och committa fokuserat.
 - **Halvgjort markeras `[~]`** med vad som återstår. Lämna aldrig BACKLOG osynkad med verkligheten.
 
 ### Branch-konvention
-En arbetsbranch per ström: `stream-a`, `stream-b`, `stream-c`. Committa löpande på strömmens branch; PR mot `main` när strömmen (eller en meningsfull delmängd) är klar.
-
-### Parallellitet
-Ström A/B/C är isolerade och körs i **separata git-worktrees** (en session per worktree). Enda korsningspunkten: **A-3 och B-3 rör båda `SwingRecord`** — håll fälten **additiva** (`swingStartTimestamp` resp. `user_id`), merga den som blir klar först och rebasa den andra.
+Aktiv arbetsbranch: **`stream-native`** (ström N och de nya strömmarna V, D, F, W-2). Parallella sessioner körs i egna git-worktrees på `stream-native-<ämne>` och mergas in i `stream-native`. PR mot `main` när Erik ber om det. Äldre strömbrancher (`stream-a`…`stream-shaft`, `stream-ui`) är frysta.
 
 ## Hårda gränser
-- **Commits per uppgift på rätt ström-branch är förgodkända** av backlog-workflowen ovan. **Committa aldrig direkt på `main`** utan att jag ber om det — skapa/använd `stream-a/b/c`.
+- **Commits per uppgift på rätt branch är förgodkända** av backlog-workflowen ovan. **Committa aldrig direkt på `main`** utan att jag ber om det — skapa/använd rätt branch.
 - **API-nyckeln (`ANTHROPIC_API_KEY`) når aldrig klienten** — all Anthropic-trafik via Workern.
 - **Bryt inte den lokalt-först-garantin:** appen måste fungera utan Supabase/auth (env-varabler kan saknas → no-op).
-- **Eskalera före:** permanent radering, skrivning mot prod, kostnadsmedförande API-anrop (t.ex. riktiga Claude-anrop i test).
-- **Verifiera frame-/SW-ändringar via `npm run dev`** — service worker-cache serverar annars gammal kod.
+- **Eskalera före:** permanent radering, skrivning mot prod, kostnadsmedförande API-anrop (t.ex. riktiga Claude-anrop i test eller V-1-körningar).
+- **Verifiera webbens frame-/SW-ändringar via `npm run dev`** — service worker-cache serverar annars gammal kod.
+- **Kör bara en Metro åt gången** när du jobbar i `apps/mobile`.
 
 ## Arbetsströmsdisciplin
 - **En arbetsström per commit**, ärlig commit-titel. Funktionalitet göms aldrig under en refaktoreringsetikett.
@@ -43,7 +46,9 @@ Ström A/B/C är isolerade och körs i **separata git-worktrees** (en session pe
 - Konsekvens framför smarthet i verktyg och struktur.
 
 ## Kommandon
-- `npm run dev` — lokal utveckling (använd alltid detta för att verifiera, ej en build).
+- `npm test` — vitest (rot + `packages/core`).
+- `npm run lint` — eslint (ignorerar `apps/mobile`, som har egen config).
+- `npx tsc -b` — typkontroll av webben och core; `npx tsc --noEmit` i `apps/mobile` för appen.
+- `npm run dev` — webbens lokala utveckling (använd detta för att verifiera webben, ej en build).
 - `npm run build` — `tsc -b && vite build`.
-- `npm run lint` — eslint.
 - `npm run deploy` — bygger och `wrangler deploy`.

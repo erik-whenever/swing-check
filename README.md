@@ -5,7 +5,7 @@ låter Claude bedöma dem mot dina coaching-regler. Resultatet visas per regel (
 med visuell evidens, förslag och drills — och kan läsas upp med röst för handsfri träning på range.
 
 - **Vad/varför (arkitektur, domänmodell, designbeslut):** [KONTEXT.md](KONTEXT.md)
-- **Aktuellt läge (gjort/pågår/horisont):** [STATUS.md](STATUS.md)
+- **Aktuellt läge:** [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md) · gjort/kvar: [docs/BACKLOG.md](docs/BACKLOG.md)
 - **Beslut & öppna frågor:** [docs/oppna-fragor.md](docs/oppna-fragor.md)
 - **Arkitekturbeslut:** [docs/adr/](docs/adr/)
 
