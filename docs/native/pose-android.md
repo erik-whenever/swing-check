@@ -205,10 +205,11 @@ kalibrerar om. Konfidensgränserna lämnas på MediaPipes standardvärde 0,5/0,5
   // OSÄKER: om `noCompress` i ett bibliotek respekteras när appen paketeras. Om inte, behåller modulens
   Expo-konfigplugin raden i appen. Alternativet är att läsa assetet till en direkt `ByteBuffer` och
   använda `setModelAssetBuffer` (fungerar även komprimerat, men kostar 5–9 MB heap).
-- **Webbens nedladdningsskript (`scripts/download-pose-model.mjs`) hämtar `…/float16/latest/…`**, medan
-  spiken låser `…/float16/1/…` och kontrollerar sha256. Om Google byter `latest`, får webben och appen
-  olika modeller tyst. Det rättas i
-  [BACKLOG N-7](../BACKLOG.md).
+- ~~Webbens nedladdningsskript (`scripts/download-pose-model.mjs`) hämtar `…/float16/latest/…`~~
+  **Löst i N-7 (2026-10-25):** skriptet läser `modules/pose/models.json`, alltså samma versionsadress
+  (`float16/1`) och sha256 som Gradle och `training/pose_parity.py`. Fel hash eller en `latest`-adress
+  i tabellen avbryter med exit ≠ 0, och varken `.part` eller en avvikande gammal fil blir kvar.
+  Testat med mockad nedladdning (`scripts/download-pose-model.test.mjs`).
 
 **Gradle:** `implementation 'com.google.mediapipe:tasks-vision:0.10.35'`, låst och samma version som
 webbens npm-paket. Spiken körde 0.10.29.
@@ -457,7 +458,7 @@ ospeglade bilden, och en återspegling hade spegelvänt utdata. Med bakre kamera
 
 **Modellerna** står i `modules/pose/models.json` (versionsadress `float16/1` och sha256, samma värden som
 spikens tabell). Gradle laddar ned dem till `android/build/generated/pose-models/assets` före bygget och
-avbryter vid fel hash. `training/pose_parity.py` läser samma tabell. N-7 kan peka webbens nedladdning hit.
+avbryter vid fel hash. `training/pose_parity.py` läser samma tabell, och sedan N-7 även webbens `scripts/download-pose-model.mjs`.
 **noCompress:** biblioteket sätter `noCompress += "task"`, men det når **inte** appens APK: i det lokala
 bygget ligger båda `.task` deflaterade. Modulen provar därför `AssetManager.openFd` vid körning. Går det, laddas
 modellen med `setModelAssetPath` (minnesmappad), annars med `setModelAssetBuffer` från en direkt buffert (5,8 MB

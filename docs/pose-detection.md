@@ -19,6 +19,9 @@ vid sidan om tills den bevisat sig; efter checkpoint 2 + enhetstest är envelope
 ## Modell- & WASM-assets *(självhostade — offline-först, D-2 (a))*
 - **Modell:** `public/models/pose_landmarker_lite.task` (~5.5 MB, float16 lite).
   Hämtas med `npm run pose:model` (`scripts/download-pose-model.mjs`, idempotent, `--force`).
+  URL och sha256 läses ur `apps/mobile/modules/pose/models.json`, samma tabell som appens
+  Gradle-bygge och `training/pose_parity.py` (N-7). Versionsadress `float16/1`, aldrig `latest`.
+  Fel hash avbryter med exit ≠ 0 och lämnar ingen fil kvar.
 - **WASM-runtime:** `public/wasm/` — kopieras från `node_modules/@mediapipe/tasks-vision/wasm`
   med `npm run pose:wasm` (`scripts/copy-pose-wasm.mjs`). `FilesetResolver.forVisionTasks('/wasm')`
   pekar på egen origin — **inga jsDelivr-requests**. Kopierar SIMD-bygget (används på alla
