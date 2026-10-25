@@ -16,7 +16,10 @@
    - Uppdatera/skapa den `docs/`-fil som uppgiften anger.
 5. **Committa** på strömmens branch (nedan). Fokuserade commits.
 6. **Lämna aldrig BACKLOG osynkad.** Halvgjort = `[~]` med vad som återstår. `[-]` = struken/ersatt, med
-   hänvisning. `[?]` = väntar på Eriks beslut.
+   hänvisning. `[?]` = blockerad av beslut från Erik (skriv frågan på raden, en mening). `[📱]` = kräver
+   Erik fysiskt (telefontest, frames, CVAT, GPU-träning) — skriv vad som ska testas i max 3 steg.
+7. **Autonoma körningar** fattar beslut enligt [PRINCIPER.md](PRINCIPER.md), hoppar över `[?]`/`[📱]` och tar
+   nästa oblockerade uppgift.
 
 **Branch:** `stream-native` för ström N och de nya strömmarna V, D, F och W-2, tills Erik säger annat.
 Parallella sessioner körs i egna worktrees på egna brancher (`stream-native-<ämne>`) som mergas in i

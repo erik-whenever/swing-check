@@ -11,6 +11,7 @@ Läs inte arkivet ([docs/archive/](docs/archive/)) för att orientera dig; slå 
 - **Gjort/kvar — auktoritativ källa:** [docs/BACKLOG.md](docs/BACKLOG.md)
 - **Nuläge / överlämning (ersätter STATUS.md):** [docs/swingcheck-handoff.md](docs/swingcheck-handoff.md)
 - **Vad/varför + betadefinitionen:** [KONTEXT.md](KONTEXT.md)
+- **Beslutsgrund för autonomt arbete:** [docs/PRINCIPER.md](docs/PRINCIPER.md)
 - **Beslut & öppna frågor (numrerade):** [docs/oppna-fragor.md](docs/oppna-fragor.md)
 - **Arkitekturbeslut:** [docs/adr/](docs/adr/) + [docs/decisions/](docs/decisions/) (delad nummerserie)
 - **Arkiv (klara strömmar, handoff-historik):** [docs/archive/](docs/archive/)
