@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/outfit": "^0.4.3",
     "@swingcheck/core": "file:../../packages/core",
     "@swingcheck/native-pose": "file:./modules/pose",
     "@swingcheck/native-shaft": "file:./modules/shaft",
@@ -11,6 +12,7 @@
     "expo-crypto": "~58.0.7",
     "expo-dev-client": "~58.0.14",
     "expo-file-system": "~58.0.11",
+    "expo-font": "~58.0.9",
     "expo-keep-awake": "~58.0.3",
     "expo-secure-store": "~58.0.2",
     "expo-sharing": "~58.0.20",
@@ -18,6 +20,7 @@
     "react-native": "0.88.0",
     "react-native-nitro-image": "0.15.2",
     "react-native-nitro-modules": "0.37.1",
+    "react-native-svg": "15.16.0",
     "react-native-vision-camera": "5.2.3",
     "react-native-vision-camera-worklets": "5.2.3",
     "react-native-worklets": "0.13.0"
