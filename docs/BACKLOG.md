@@ -272,7 +272,11 @@ träffsäkerhet, självsäkra fel, konsistens, kostnad och tid per analys. Rekom
 
 Ny 2026-10-25. **Namnkrock:** arkivets pose-ström hette också D (D-1–D-5); de refereras som "arkivets D-x".
 
-### [ ] D-1 — Designspår för betan
+### [📱] D-1 — Designspår för betan
+2026-10-25 (dirigent): skissförslaget "Cream Day / Fairway Night" — sex flöden i [design/d1/](design/d1/README.md)
+(`index.html` + PNG ljust/mörkt, riktning, avvikelser från Club Cream, granskningslista med 8 punkter).
+**📱 Granska (Erik):** 1) öppna `docs/design/d1/png/` (eller `index.html` lokalt); 2) visa `livesession.png` på
+telefonen 3 m bort; 3) svara ja/nej på granskningslistan i README:n. Kvar efter ja: tokens och komponenter i `apps/mobile`.
 **Skisser före kod.** Ta fram en visuell riktning för betans flöden: uppladdning, analys pågår, resultat per
 regel (med skaftets tracer), regelval/rekommenderat regelset, livesession (hörlursläge) och historik.
 Leverans: skisser/mockups som Erik godkänner, sedan tokens och komponenter i `apps/mobile`. Club Cream
