@@ -27,6 +27,7 @@ dev-klienten måste byggas om.**
 | Stack | `Tabs` | flikarna nedan | startrutt |
 | Stack | `Analysis` | `AnalysisContainer` | Analys pågår; svep-tillbaka avstängt, "Avbryt" = tillbaka |
 | Stack | `Result` `{ entryId, fromHistory? }` | `ResultContainer` | från Historik: "Nästa sving" dold |
+| Stack | `RuleLibrary` | `RuleLibraryContainer` | modal på iOS; från Regler ("+" / "Egna") |
 | Stack | `Dev` | `DevScreen` | registreras bara i `__DEV__` |
 | Flik | `Swing` "Sving" | `UploadContainer` | Uppladdning |
 | Flik | `Session` "Session" | `LiveSessionContainer` | `LiveSessionScreen` med lokalt sessions-tillstånd |
@@ -51,7 +52,10 @@ I release-byggen finns rutten inte.
 - **Analys:** visar stubbens viloläge (inga steg klara, 0 %).
 - **Regler:** `useRuleSelection` + `useActiveRules`. Att slå av en rekommenderad regel gör om setet
   till "Egna" med rekommendationen minus regeln (`// OSÄKER`, produktbeslut). "+" är TODO.
-  "Använd N regler" går till Sving.
+  "Använd N regler" går till Sving. "+" och byte till "Egna" öppnar `RuleLibrary`.
+- **Regelbiblioteket** (`RuleLibrary`, modal på iOS): sök/fas/vinkel i lokal state (vinkel startar på
+  `settings.defaultAngle`); bocka → `toggleRule` + `ruleMode='custom'`; `validatedIds` ur
+  `accuracyVerdict` (tom tills V-1); Klar → tillbaka.
 - **Historik:** varje `HistoryEntry` blir en uppladdad-sving-rad (`historySwingView`); sessioner
   grupperas inte än. Trendkort utelämnas. Tryck → `Result`.
 - **Resultat:** `useHistoryEntry(entryId)`; regeltitlar/drill från `RULE_LIBRARY` (engelska i core,
@@ -65,4 +69,4 @@ I release-byggen finns rutten inte.
 ## Kvar
 
 Klippval + pipeline (uppladdning → analys → `addSwing` → `Result`), livepipeline (kamera + svingdetektion
-→ reducer + `enqueueLive`), sessionsrader och trend i Historik, egen-regel-väljare.
+→ reducer + `enqueueLive`), sessionsrader och trend i Historik.

@@ -2,7 +2,7 @@
 // First launch (settings.welcomeSeen false) shows Välkommen instead of the navigator.
 
 import { useMemo } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer, type Theme as NavTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -15,6 +15,7 @@ import {
   HistoryContainer,
   LiveSessionContainer,
   ResultContainer,
+  RuleLibraryContainer,
   RulesContainer,
   UploadContainer,
   WelcomeContainer,
@@ -89,6 +90,11 @@ export function Navigation() {
         <Stack.Screen name="Tabs" component={Tabs} />
         <Stack.Screen name="Analysis" component={AnalysisContainer} options={{ gestureEnabled: false }} />
         <Stack.Screen name="Result" component={ResultContainer} />
+        <Stack.Screen
+          name="RuleLibrary"
+          component={RuleLibraryContainer}
+          options={{ presentation: Platform.OS === 'ios' ? 'modal' : 'card' }}
+        />
         {__DEV__ && <Stack.Screen name="Dev" component={DevScreen} options={{ headerShown: true, title: 'Dev' }} />}
       </Stack.Navigator>
     </NavigationContainer>
