@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, type CompositeNavigationProp, type RouteProp } from '@react-navigation/native';
-import { useBottomTabBarHeight, type BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -168,7 +168,6 @@ function CameraPlaceholder() {
 export function LiveSessionContainer() {
   const navigation = useNavigation<TabNav<'Session'>>();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { stop: stopSpeech } = useSpeech();
   const [session, dispatch] = useReducer(liveSessionReducer, undefined, initialLiveSession);
   const [now, setNow] = useState(() => Date.now());
@@ -211,7 +210,7 @@ export function LiveSessionContainer() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: live.bg, paddingTop: insets.top, paddingBottom: tabBarHeight }}>
+    <View style={{ flex: 1, backgroundColor: live.bg, paddingTop: insets.top, paddingBottom: 0 }}>
       <LiveSessionScreen
         camera={<CameraPlaceholder />}
         status={session.status}

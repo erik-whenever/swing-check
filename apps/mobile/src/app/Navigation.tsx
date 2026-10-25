@@ -48,7 +48,7 @@ function Tabs() {
         // d1-v2 .tabbar: chrome surface, hairline top border, 10.5 pt Outfit 600 labels.
         // OSÄKER: no backdrop blur (would need expo-blur); chrome is already 82 % opaque.
         // Risk: low — visual only.
-        tabBarStyle: { backgroundColor: colors.chrome, borderTopColor: colors.lineStrong, borderTopWidth: 0.5, position: 'absolute' },
+        tabBarStyle: { backgroundColor: colors.chrome, borderTopColor: colors.lineStrong, borderTopWidth: 0.5 }, // inte absolute: skärmarna slutar ovanför tabbraden så att knappar aldrig skyms
         tabBarLabelStyle: { ...label, fontSize: 10.5, lineHeight: 12, letterSpacing: 0.1 },
       })}
     >
