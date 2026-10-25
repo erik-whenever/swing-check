@@ -22,6 +22,13 @@ function entry(id: string, timestamp: number, extra: Partial<HistoryEntry> = {})
 }
 
 describe('settingsModel', () => {
+  it('welcomeSeen: false by default, only literal true counts, survives a patch', () => {
+    expect(defaultSettings().welcomeSeen).toBe(false);
+    expect(parseSettings('{"welcomeSeen":"yes"}').welcomeSeen).toBe(false);
+    expect(parseSettings('{"welcomeSeen":true}').welcomeSeen).toBe(true);
+    expect(applySettingsPatch(defaultSettings(), { welcomeSeen: true }).welcomeSeen).toBe(true);
+  });
+
   it('missing, empty or corrupt file → defaults', () => {
     expect(parseSettings(null)).toEqual(defaultSettings());
     expect(parseSettings('')).toEqual(defaultSettings());

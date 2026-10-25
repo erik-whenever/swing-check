@@ -208,7 +208,12 @@ rena modeller (inställningar, historik med `planMediaRetention`, regelval via `
 (expo-file-system bakom filinterface, tmp+flytt, korrupt fil kopieras undan, medietak efter varje sparning), 42 tester, [ui-komponenter.md](native/ui-komponenter.md).
 **del 4–5** `src/screens/`: rena presentationsskärmar Välkommen, Uppladdning, Analys pågår, Resultat, Regler, Historik (props in, inga hooks/nät),
 ren logik i `reviewLogic.ts` (13 tester); [skarmar.md](native/skarmar.md). Ej körda på enhet.
-**Kvar:** navigation + containrar (koppla skärmar till state/pipeline), Livesession-skärmen, TTS, enhetsprov.
+**del 6** `src/app/`: React Navigation v7 (native-stack + bottom-tabs; flikar Sving/Session/Regler/Historik, stack Analys/Resultat/Dev),
+Välkommen vid första start (`welcomeSeen`), uppladdningspipeline som stubb; [navigation.md](native/navigation.md). Nya native-moduler → dev-klienten byggs om.
+**del 7** `LiveSessionScreen` (alltid mörk, 3 m-läsbar, 7 trendblock) + `liveSessionLogic` (7 tester). **del 8** `src/tts/`: manusbyggare sv/en
+(live/full), `Speaker`-interface, `SpeechQueue` med watchdog, 16 tester, [tts.md](native/tts.md); ingen motor än.
+**Kvar:** `expo-speech`-adapter + koppla TTS till "Läs upp"/livesession, LiveSessionScreen i fliken Session, klippval + pipeline
+(uppladdning → analys → `addSwing` → Resultat, beror på N-3.4/N-3.8 för rututtag), sessionsrader/trend i Historik, "+" egna regler, enhetsprov.
 **Avblockerad 2026-10-25:** D-1 v2 godkänd av Erik. Bygg efter [design/d1-v2/](design/d1-v2/README.md) (tokens,
 typografi, komponenter och de sju skärmarna inkl. Välkommen); riktningen och avvikelserna i [design/d1/README.md](design/d1/README.md) gäller.
 Kamera/session, resultat, regler, historik, TTS.
