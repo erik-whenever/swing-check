@@ -35,7 +35,7 @@
 
 - **N-3.5/N-3.6 del 14 (körning 7):** Inställningar (kugghjulet i Historik): språk, nivå, standardvinkel, medietak med lagringsstapel; lägre tak som rensar media bekräftas. Inga nya native-beroenden.
 - **N-6 steg 1 (körning 6):** EAS production-profil + expo-updates klara (runtimeVersion bytt fingerprint → appVersion 2026-10-25 efter fingerprint-mismatch Windows/EAS; bumpa `version` vid native-ändring), guide [testflight.md](native/testflight.md); `eas update` behöver `EXPO_PUBLIC_API_URL` inline. `swingcheck-temp` (rot + wrangler) lämnad — byte påverkar prod-PWA:ns Worker. 📱 Erik kör build + submit.
-- **N-3.6 iPhone-prov (Erik 2026-10-26):** uppladdning → Resultat/Läs upp/Historik/Avbryt ✓. #47: rutor på längsta kanten (413 vid porträtt). Del 15: klippkortet (tomläge, 3:4, filmremsa, dragbart fönster). 📱 Kvar: omprov av avslutsdomen med eget fönster, N-3.5-proven.
+- **N-3.6 iPhone-prov (Erik 2026-10-26):** uppladdning → Resultat/Läs upp/Historik/Avbryt ✓. #47: rutor på längsta kanten (413 vid porträtt). Del 15: klippkortet (tomläge, 3:4, filmremsa, dragbart fönster). Avslutsdomen bakifrån = V-1-fall (#51). N-3.5 på enhet ✓ (#52 Läs upp följer resultatets språk); kvar: cache-mätningen.
 - **N-3.6 del 13 (körning 6):** Historik har utfällbara sessionsrader + fokusregelns trend (`screens/historyLogic.ts`); syns när livepipelinen skriver `sessionId` (ingen kod gör det än).
 
 ## Arkitektur i en rad

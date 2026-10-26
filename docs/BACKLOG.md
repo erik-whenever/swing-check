@@ -174,7 +174,7 @@ svingdetektion → rututtag för Vision + 26 skaftrutor. Rututtaget görs av mod
 Faller den, blir det väg 1 (rå ring i 540p).
 
 #### [📱] N-3.5 — Analys + lagring
-**📱 Test (Erik):** 1) kör cache-mätningen lokalt (≤ 10 anrop, sv/en, före/efter) enligt [analys-lagring.md](native/analys-lagring.md); 2) på iPhone: Historik → kugghjulet → byt språk och kör "Läs upp"; 3) sänk medietaket och kontrollera dialogen och "video rensad". Ingen kod kvar (dirigent körning 8).
+**📱 Test (Erik):** 1) kör cache-mätningen lokalt (≤ 10 anrop, sv/en, före/efter) enligt [analys-lagring.md](native/analys-lagring.md); ~~2) språk + Läs upp; 3) medietak~~ klara 2026-10-26. Ingen kod kvar (dirigent körning 8).
 2026-10-25 (dirigent): språket är en parameter (`core/language.ts`), prompten och TTS läser samma värde; språket
 ligger efter cache-brytpunkten och ett test visar byte-identiskt prefix sv/en. `core/mediaRetention`: tak i bytes
 (standard 300 MB), video rensas äldst först, sedan bildrutor, resultat aldrig. Appen: `coreSetup`
@@ -190,7 +190,7 @@ visar "video rensad", Supabase-sidtak 500 (`OSÄKER`); 8 tester.
 2026-10-25 (dirigent, körning 7): UI klart — Inställningar (modal från kugghjulet i Historik): språk, nivå, standardvinkel, medietak
 som förval 150/300/600/1000 MB med lagringsstapel av faktiska bytes; ett tak som rensar media bekräftas först ("video rensad" fanns redan i Historik). 6 tester, [skarmar.md](native/skarmar.md).
 **Kvar:** cache-mätningen (📱 Erik, ≤ 10 anrop) och prov på enhet (öppna Historik → kugghjulet → byt språk och tak).
-📱 Prov Erik 2026-10-26: språkbyte styr bara analysens text och rösten (gränssnittet är bara svenska — avsett). Fynd: "Läs upp" på ett sparat svenskt resultat läste svensk text med engelsk röst → uppläsningen följer nu resultatets eget språk (`entry.language`).
+📱 Prov Erik 2026-10-26: språkbyte styr bara analysens text och rösten (gränssnittet är bara svenska — avsett). Fynd: "Läs upp" på ett sparat svenskt resultat läste svensk text med engelsk röst → uppläsningen följer nu resultatets eget språk (`entry.language`). Medietak ✓: sänkt 300→150 MB med 238 MB sparat gav bekräftelsedialog, rensning, "video rensad" i Historik och resultaten kvar. **Enhetsprovet klart; kvar för N-3.5: endast cache-mätningen (📱 Erik, ≤ 10 anrop).**
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.
