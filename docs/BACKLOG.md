@@ -190,6 +190,7 @@ visar "video rensad", Supabase-sidtak 500 (`OSÄKER`); 8 tester.
 2026-10-25 (dirigent, körning 7): UI klart — Inställningar (modal från kugghjulet i Historik): språk, nivå, standardvinkel, medietak
 som förval 150/300/600/1000 MB med lagringsstapel av faktiska bytes; ett tak som rensar media bekräftas först ("video rensad" fanns redan i Historik). 6 tester, [skarmar.md](native/skarmar.md).
 **Kvar:** cache-mätningen (📱 Erik, ≤ 10 anrop) och prov på enhet (öppna Historik → kugghjulet → byt språk och tak).
+📱 Prov Erik 2026-10-26: språkbyte styr bara analysens text och rösten (gränssnittet är bara svenska — avsett). Fynd: "Läs upp" på ett sparat svenskt resultat läste svensk text med engelsk röst → uppläsningen följer nu resultatets eget språk (`entry.language`).
 `core/api.ts` mot Workern; kontrollera Workerns CORS för anrop utan `Origin`. Lokalt först, Supabase no-op
 utan env. **Skaftmått i prompten är utanför betan** (skär-listan 2026-10-25); `core/measure` kopplas in först om
 V-1:s facit visar att det förbättrar domarna.

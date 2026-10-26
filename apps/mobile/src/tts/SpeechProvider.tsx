@@ -12,7 +12,13 @@ import { SpeechQueue, type JobOutcome } from './queue';
 import { buildSpeechScript, type ScriptOptions, type SpeechSource } from './script';
 import type { Speaker } from './speaker';
 
-type CallerScriptOptions = Omit<ScriptOptions, 'variant' | 'language'>;
+type CallerScriptOptions = Omit<ScriptOptions, 'variant' | 'language'> & {
+  /**
+   * The language the analysis was written in. A saved result keeps its own language, so reading
+   * it with the current setting gave an English voice over Swedish text. Omitted → the setting.
+   */
+  language?: AnalysisLanguage;
+};
 
 export interface SpeechApi {
   queue: SpeechQueue;
@@ -48,10 +54,14 @@ export function SpeechProvider({ speaker, children }: SpeechProviderProps) {
     () => ({
       queue,
       language,
-      readAloud: (analysis, opts) =>
-        queue.say(buildSpeechScript(analysis, { ...opts, variant: 'full', language }), { language }),
-      enqueueLive: (analysis, opts) =>
-        queue.enqueue(buildSpeechScript(analysis, { ...opts, variant: 'live', language }), { language }),
+      readAloud: (analysis, opts) => {
+        const lang = opts?.language ?? language;
+        return queue.say(buildSpeechScript(analysis, { ...opts, variant: 'full', language: lang }), { language: lang });
+      },
+      enqueueLive: (analysis, opts) => {
+        const lang = opts?.language ?? language;
+        return queue.enqueue(buildSpeechScript(analysis, { ...opts, variant: 'live', language: lang }), { language: lang });
+      },
       stop: () => queue.stop(),
     }),
     [queue, language],

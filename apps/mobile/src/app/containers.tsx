@@ -535,6 +535,7 @@ export function ResultContainer() {
       onPhaseChange={setPhase}
       onReadAloud={() =>
         void speech.readAloud(analysis, {
+          language: entry.language,
           focusRuleId: entry.focusRuleId,
           ruleTitle: (id) => RULE_INFO[id]?.title,
         })
