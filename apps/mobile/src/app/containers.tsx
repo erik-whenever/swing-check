@@ -1,7 +1,7 @@
 // Containers (N-3.6 del 6): connect the pure screens in src/screens to the state hooks and
 // navigation. Screens stay presentation-only; everything stateful lives here.
 
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, Platform, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, type CompositeNavigationProp, type RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -47,7 +47,8 @@ import { useSpeech, type SpeechSource } from '../tts';
 import { greetingFor, live, useTheme } from '../ui';
 import { initialLiveSession, liveElapsedMs, liveSessionReducer } from './liveSessionState';
 import type { RootStackParamList, TabParamList } from './routes';
-import { createUploadDeps, pickClip } from './uploadAdapters';
+import { createUploadDeps, grabStrip, pickClip } from './uploadAdapters';
+import { stripTimes } from '../screens/uploadLogic';
 import {
   clampWindow,
   defaultSwingWindow,
@@ -140,6 +141,8 @@ export function UploadContainer() {
   const [angle, setAngle] = useState<CameraAngle>(settings.defaultAngle);
   const [clip, setClip] = useState<PickedClip | null>(null);
   const [swingWindow, setSwingWindow] = useState<SwingWindow | null>(null);
+  const [stripUris, setStripUris] = useState<string[]>([]);
+  const pickedUri = useRef<string | null>(null);
   const active = useActiveRules({ angle });
   const count = active.rules.length;
   const coreRules = useMemo(() => toCoreRules(analysableRules(active)), [active]);
@@ -155,6 +158,12 @@ export function UploadContainer() {
         // OSÄKER: no pose (N-3.8) → no detected swing; the window starts as the default and the
         // user drags it. Risk: medium, see defaultSwingWindow.
         setSwingWindow(defaultSwingWindow(picked.duration));
+        setStripUris([]);
+        // The strip loads after the card shows; a newer pick wins if two overlap.
+        pickedUri.current = picked.uri;
+        void grabStrip(picked.uri, stripTimes(picked.duration)).then((uris) => {
+          if (pickedUri.current === picked.uri) setStripUris(uris);
+        });
       })
       .catch((err) => Alert.alert('Kunde inte öppna klippet', String(err instanceof Error ? err.message : err)));
   }, []);
@@ -165,6 +174,8 @@ export function UploadContainer() {
       greeting={greeting}
       greetingHighlight="svingar?"
       onRecord={() => navigation.navigate('Session')}
+      hasClip={clip != null}
+      stripUris={stripUris}
       clipLabel={clip ? `${clip.name} · ${clipClock(clip.duration)}` : 'Inget klipp valt'}
       onChangeClip={onChangeClip}
       duration={duration}

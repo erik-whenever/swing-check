@@ -1,15 +1,12 @@
-import type { ReactNode } from 'react';
-import { Pressable, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import type { CameraAngle } from '@swingcheck/core/lib/cameraAngle';
 
 import { BrandHeader, Button, Card, Chip, Segmented, Text, live, useTheme, type SegmentOption } from '../ui';
+import { moveEdge, nearestEdge, stripIndexAt, timeAtX, type SwingWindow, type WindowEdge } from './uploadLogic';
 
-/** Svingfönster i sekunder inom klippet. */
-export interface SwingWindow {
-  start: number;
-  end: number;
-}
+export type { SwingWindow } from './uploadLogic';
 
 export interface UploadScreenProps {
   /** Hälsning, t.ex. `greetingFor()` + "\nRedo för dagens ". Utelämnad = bara varumärkesraden. */
@@ -19,8 +16,13 @@ export interface UploadScreenProps {
   /** Rund kameraknapp uppe till höger (gå till inspelning). Utelämnad = ingen knapp. */
   onRecord?: () => void;
 
-  /** Klippets förhandsvisning (videospelare eller affischbild) som containern renderar. */
-  preview?: ReactNode;
+  /** false = inget klipp valt: kortet blir en uppmaning att välja ett. */
+  hasClip: boolean;
+  /**
+   * Filmremsa: stillbilder jämnt över klippet (`stripTimes`). Tom tills containern tagit fram dem.
+   * Förhandsvisningen visar bilden vid den kant som senast drogs.
+   */
+  stripUris?: readonly string[];
   /** Klippets namn och längd, t.ex. "IMG_4127 · 0:08". */
   clipLabel: string;
   onChangeClip: () => void;
@@ -56,8 +58,6 @@ const ANGLE_OPTIONS: readonly SegmentOption<CameraAngle>[] = [
   { value: 'face-on', label: 'Framifrån' },
 ];
 
-/** Antal streck i tidslinjen (skissen: ~40). Varje streck är en tryckyta. */
-const TICKS = 40;
 /** Steg för skärmläsarens öka/minska på fönstret. */
 const NUDGE_S = 0.1;
 
@@ -79,7 +79,8 @@ export function UploadScreen({
   greeting,
   greetingHighlight,
   onRecord,
-  preview,
+  hasClip,
+  stripUris = [],
   clipLabel,
   onChangeClip,
   duration,
@@ -106,29 +107,18 @@ export function UploadScreen({
           trailing={onRecord ? <RecordButton onPress={onRecord} /> : undefined}
         />
 
-        {/* Klippkort med tidslinje ovanpå videon. */}
-        <View
-          style={{
-            marginTop: space.xl,
-            aspectRatio: 820 / 575,
-            borderRadius: radius.card,
-            borderCurve: 'continuous',
-            overflow: 'hidden',
-            backgroundColor: colors.raised,
-            borderWidth: 1,
-            borderColor: colors.line,
-          }}
-        >
-          <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>{preview}</View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: space.md }}>
-            <Chip label={clipLabel} tone="glass" tnum />
-            <Pressable accessibilityRole="button" accessibilityLabel="Byt klipp" onPress={onChangeClip} hitSlop={8}>
-              <Chip label="Byt klipp" tone="glass" />
-            </Pressable>
-          </View>
-          <View style={{ flex: 1 }} />
-          <Timeline duration={duration} window={swingWindow} onChange={onSwingWindowChange} />
-        </View>
+        {hasClip ? (
+          <ClipCard
+            clipLabel={clipLabel}
+            onChangeClip={onChangeClip}
+            duration={duration}
+            swingWindow={swingWindow}
+            onSwingWindowChange={onSwingWindowChange}
+            stripUris={stripUris}
+          />
+        ) : (
+          <EmptyClipCard onPickClip={onChangeClip} />
+        )}
 
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.xxl, marginBottom: space.sm, paddingHorizontal: 4 }}>
           <Text variant="headline">Kameravinkel</Text>
@@ -168,34 +158,128 @@ export function UploadScreen({
   );
 }
 
+/** Kortets mått: stående som klippen från telefonen, hela bredden. */
+const CLIP_ASPECT = 3 / 4;
+
+/** Inget klipp valt: hela kortet är en uppmaning att välja ett. */
+function EmptyClipCard({ onPickClip }: { onPickClip: () => void }) {
+  const { colors, space, radius } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Välj ett svingklipp"
+      onPress={onPickClip}
+      style={({ pressed }) => ({
+        marginTop: space.xl,
+        aspectRatio: CLIP_ASPECT,
+        borderRadius: radius.card,
+        borderCurve: 'continuous',
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        borderColor: colors.line,
+        backgroundColor: colors.raised,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: space.xxl,
+        gap: space.md,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accentTint, alignItems: 'center', justifyContent: 'center' }}>
+        <ClipIcon color={colors.accent} />
+      </View>
+      <Text variant="title2" style={{ textAlign: 'center' }}>
+        Ladda upp en sving
+      </Text>
+      <Text variant="body" color="muted" style={{ textAlign: 'center' }}>
+        Välj ett klipp från kamerarullen. Hela svingen ska synas, från uppställning till avslut.
+      </Text>
+      <Button title="Välj klipp" onPress={onPickClip} style={{ marginTop: space.sm, alignSelf: 'stretch' }} />
+    </Pressable>
+  );
+}
+
+interface ClipCardProps {
+  clipLabel: string;
+  onChangeClip: () => void;
+  duration: number;
+  swingWindow: SwingWindow | null;
+  onSwingWindowChange: (next: SwingWindow) => void;
+  stripUris: readonly string[];
+}
+
+/** Valt klipp: stillbild vid den kant som dras, filmremsa med dragbart fönster under. */
+function ClipCard({ clipLabel, onChangeClip, duration, swingWindow, onSwingWindowChange, stripUris }: ClipCardProps) {
+  const { space, radius } = useTheme();
+  // Kanten som senast drogs styr stillbilden, så att man ser uppställningen resp. avslutet.
+  const [edge, setEdge] = useState<WindowEdge>('start');
+  const previewTime = swingWindow ? (edge === 'start' ? swingWindow.start : swingWindow.end) : 0;
+  const previewUri = stripUris.length ? stripUris[stripIndexAt(previewTime, duration, stripUris.length)] : null;
+
+  return (
+    <View
+      style={{
+        marginTop: space.xl,
+        aspectRatio: CLIP_ASPECT,
+        borderRadius: radius.card,
+        borderCurve: 'continuous',
+        overflow: 'hidden',
+        backgroundColor: '#0B110E',
+      }}
+    >
+      {previewUri ? (
+        <Image source={{ uri: previewUri }} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} resizeMode="contain" />
+      ) : null}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: space.md }}>
+        <Chip label={clipLabel} tone="glass" tnum />
+        <Pressable accessibilityRole="button" accessibilityLabel="Byt klipp" onPress={onChangeClip} hitSlop={8}>
+          <Chip label="Byt klipp" tone="glass" />
+        </Pressable>
+      </View>
+      <View style={{ flex: 1 }} />
+      <Timeline
+        duration={duration}
+        window={swingWindow}
+        onChange={onSwingWindowChange}
+        onEdge={setEdge}
+        stripUris={stripUris}
+      />
+    </View>
+  );
+}
+
 interface TimelineProps {
   duration: number;
   window: SwingWindow | null;
   onChange: (next: SwingWindow) => void;
+  /** Kanten som dras just nu. */
+  onEdge: (edge: WindowEdge) => void;
+  stripUris: readonly string[];
 }
 
 /**
- * Tidslinje i glas ovanpå videon. Fönstret ritas i volt (maskinseende: det är poseSegments fynd).
- * Justering: tryck på ett streck → närmaste kant flyttas dit. Skärmläsare: öka/minska flyttar
- * hela fönstret 0,1 s.
+ * Filmremsa i glas längst ner i klippkortet med svingfönstret i volt. Dra (eller tryck) nära en kant
+ * för att flytta den; stillbilden ovanför följer kanten. Skärmläsare: öka/minska flyttar hela
+ * fönstret 0,1 s.
  */
-function Timeline({ duration, window, onChange }: TimelineProps) {
+function Timeline({ duration, window, onChange, onEdge, stripUris }: TimelineProps) {
   const { space, colors } = useTheme();
   const volt = colors.volt;
   const safeDur = duration > 0 ? duration : 1;
-  const tickTime = (i: number) => ((i + 0.5) / TICKS) * safeDur;
+  const [width, setWidth] = useState(0);
 
-  // OSÄKER: kanterna dras inte (drag kräver gesthantering/state i containern); tryck-för-att-flytta
-  // är en ren ersättning. Risk låg — dragbara handtag kan läggas till i containern utan att props ändras.
-  const moveNearestEdge = (t: number) => {
-    if (!window) {
-      onChange({ start: Math.max(0, t - 0.8), end: Math.min(safeDur, t + 0.8) });
-      return;
+  // Kanten som dras just nu (null = inget drag). Den första flytten kan komma före omritningen,
+  // därför faller draget tillbaka på närmaste kant.
+  const [dragEdge, setDragEdge] = useState<WindowEdge | null>(null);
+  const dragTo = (x: number, grant: boolean) => {
+    if (!window || width <= 0) return;
+    const t = timeAtX(x, width, safeDur);
+    const edge = grant || !dragEdge ? nearestEdge(window, t) : dragEdge;
+    if (grant) {
+      setDragEdge(edge);
+      onEdge(edge);
     }
-    const toStart = Math.abs(t - window.start);
-    const toEnd = Math.abs(t - window.end);
-    if (toStart <= toEnd) onChange({ start: Math.min(t, window.end - NUDGE_S), end: window.end });
-    else onChange({ start: window.start, end: Math.max(t, window.start + NUDGE_S) });
+    onChange(moveEdge(window, edge, t, safeDur));
   };
 
   const nudge = (delta: number) => {
@@ -205,15 +289,17 @@ function Timeline({ duration, window, onChange }: TimelineProps) {
     onChange({ start, end: start + len });
   };
 
-  const inWindow = (i: number) => !!window && tickTime(i) >= window.start && tickTime(i) <= window.end;
   const label = window ? `${formatSeconds(window.start)}–${formatSeconds(window.end)} s` : null;
+  const left = window ? (window.start / safeDur) * width : 0;
+  const right = window ? (window.end / safeDur) * width : 0;
+  const STRIP_H = 48;
 
   return (
-    <View style={{ margin: space.md, marginTop: 0, padding: space.md, paddingBottom: space.sm, borderRadius: 18, backgroundColor: live.glass }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: space.sm }}>
-        <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: window ? volt : live.unk }} />
-        <Text variant="subhead" weight={600} color={window ? volt : live.fgDim}>
-          {window ? 'Sving hittad' : 'Ingen sving hittad'}
+    <View style={{ margin: space.md, marginTop: 0, padding: space.md, paddingBottom: space.md, borderRadius: 18, backgroundColor: live.glass }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: space.xs }}>
+        <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: volt }} />
+        <Text variant="subhead" weight={600} color={volt}>
+          Svingen
         </Text>
         {label ? (
           <Text variant="subhead" color={live.fgDim} tnum>
@@ -225,6 +311,9 @@ function Timeline({ duration, window, onChange }: TimelineProps) {
           {formatClock(duration)}
         </Text>
       </View>
+      <Text variant="footnote" color={live.fgDim} style={{ marginBottom: space.sm }}>
+        Dra kanterna så att rutan täcker uppställning till avslut.
+      </Text>
       <View
         accessible
         accessibilityRole="adjustable"
@@ -232,39 +321,68 @@ function Timeline({ duration, window, onChange }: TimelineProps) {
         accessibilityValue={label ? { text: label } : undefined}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={(e) => nudge(e.nativeEvent.actionName === 'increment' ? NUDGE_S : -NUDGE_S)}
-        style={{ flexDirection: 'row', height: 28, alignItems: 'stretch' }}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        style={{ height: STRIP_H }}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        // Låt inte ScrollView ta över ett pågående drag.
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={(e) => dragTo(e.nativeEvent.locationX, true)}
+        onResponderMove={(e) => dragTo(e.nativeEvent.locationX, false)}
+        onResponderRelease={() => setDragEdge(null)}
+        onResponderTerminate={() => setDragEdge(null)}
       >
-        {Array.from({ length: TICKS }, (_, i) => {
-          const on = inWindow(i);
-          const first = on && !inWindow(i - 1);
-          const last = on && !inWindow(i + 1);
-          return (
-            <Pressable
-              key={i}
-              onPress={() => moveNearestEdge(tickTime(i))}
-              hitSlop={{ top: 8, bottom: 8 }}
-              style={{
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-                // Volt-ram runt fönstret, byggd av strecken.
-                borderColor: volt,
-                borderTopWidth: on ? 2 : 0,
-                borderBottomWidth: on ? 2 : 0,
-                borderLeftWidth: first ? 2 : 0,
-                borderRightWidth: last ? 2 : 0,
-                borderTopLeftRadius: first ? 6 : 0,
-                borderBottomLeftRadius: first ? 6 : 0,
-                borderTopRightRadius: last ? 6 : 0,
-                borderBottomRightRadius: last ? 6 : 0,
-                backgroundColor: on ? 'rgba(255, 255, 255, 0.06)' : undefined,
-              }}
-            >
-              <View style={{ width: 2, height: 16, borderRadius: 1, backgroundColor: on ? live.fg : 'rgba(255, 255, 255, 0.28)' }} />
-            </Pressable>
-          );
-        })}
+        {/* Barnen tar inga tryck, så att locationX alltid mäts mot remsan. */}
+        <View pointerEvents="none" style={{ flex: 1 }}>
+          <View style={{ flex: 1, flexDirection: 'row', borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255, 255, 255, 0.08)' }}>
+            {stripUris.map((uri) => (
+              <Image key={uri} source={{ uri }} style={{ flex: 1, height: STRIP_H }} resizeMode="cover" />
+            ))}
+          </View>
+          {window && width > 0 ? (
+            <>
+              {/* Dämpa det som ligger utanför fönstret. */}
+              <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: left, backgroundColor: 'rgba(0, 0, 0, 0.55)', borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }} />
+              <View style={{ position: 'absolute', top: 0, bottom: 0, left: right, right: 0, backgroundColor: 'rgba(0, 0, 0, 0.55)', borderTopRightRadius: 8, borderBottomRightRadius: 8 }} />
+              <View
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  bottom: -2,
+                  left: left - 2,
+                  width: Math.max(4, right - left + 4),
+                  borderWidth: 2,
+                  borderColor: volt,
+                  borderRadius: 8,
+                }}
+              />
+              <Handle x={left} color={volt} />
+              <Handle x={right} color={volt} />
+            </>
+          ) : null}
+        </View>
       </View>
+    </View>
+  );
+}
+
+/** Greppbart handtag på en kant (visuellt; draget hanteras av remsan). */
+function Handle({ x, color }: { x: number; color: string }) {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: 8,
+        bottom: 8,
+        left: x - 6,
+        width: 12,
+        borderRadius: 6,
+        backgroundColor: color,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View style={{ width: 2, height: 14, borderRadius: 1, backgroundColor: '#0B110E' }} />
     </View>
   );
 }
@@ -283,6 +401,15 @@ function RecordButton({ onPress }: { onPress: () => void }) {
         <Path d="M15.5 10.5 21 7.5v9l-5.5-3" stroke={colors.fg} strokeWidth={1.8} strokeLinejoin="round" />
       </Svg>
     </Pressable>
+  );
+}
+
+function ClipIcon({ color }: { color: string }) {
+  return (
+    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+      <Rect x={3} y={5} width={18} height={14} rx={3} stroke={color} strokeWidth={1.8} />
+      <Path d="M10 9.5v5l4.5-2.5z" fill={color} />
+    </Svg>
   );
 }
 
