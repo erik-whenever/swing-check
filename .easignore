@@ -1,14 +1,16 @@
 # EAS-uppladdningen för apps/spike (N-2). När den här filen finns läser EAS CLI den I STÄLLET
 # för .gitignore, så .gitignore står kopierad här nedanför. Håll dem i synk.
 # Tillägg: ospårat och lokalt som inte ska lämna datorn eller som inte behövs för bygget.
-data/
-.claude/
-yt-dlp.exe
-jq.exe
-training/
-docs/
-dev-dist/
-dist/
+# Förankrade med / : ett oförankrat data/ uteslöt även packages/core/src/data (ruleLibrary)
+# och fällde produktionsbygget i Bundle JavaScript.
+/data/
+/.claude/
+/yt-dlp.exe
+/jq.exe
+/training/
+/docs/
+/dev-dist/
+/dist/
 
 # --- kopia av .gitignore ---
 # Env
