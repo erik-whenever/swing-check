@@ -226,6 +226,12 @@ Ren `runUploadAnalysis` (progress, avbrytbar; 8 tester), `UPLOAD_PIPELINE_AVAILA
 **del 13** sessionsrader och trend i Historik: `historyLogic.ts` (ren, testad) grupperar på `sessionId` till utfällbar sessionsrad (stapel per sving → Resultat),
 uppladdningar som egna rader; fokusregelns trend (21 dagar, en punkt per session/uppladdningsdag). Sessionsrader syns först när livepipelinen sparar `sessionId`.
 **del 14** (körning 7) Inställningar (`SettingsScreen` + `settingsLogic`, route `Settings`), se N-3.5.
+**📱 Prov Erik 2026-10-25/26 (iPhone, dev-klient):** uppladdning → Worker → Resultat ✓, domar med text per regel ✓, Läs upp ✓, Historik ✓, Avbryt sparar inget ✓.
+Fynd: (a) 413 — porträttklipp gick i full höjd (37 MB) → rutor skalas på längsta kanten (#47); (b) fasbilderna visar samma bild i alla faser — känd lucka, fasval kräver pose (N-3.4);
+(c) avslutsdomen "bröstet inte fullt roterat" fel på två klipp — troligen standardfönstret (mittersta 4 s) som klipper bort avslutet; omprov med eget fönster efter del 15;
+(d) fönstret gick inte att justera och tomläget var otydligt → del 15.
+**del 15** (2026-10-26) Uppladdningens klippkort: tomläge som uppmaning ("Ladda upp en sving" + "Välj klipp"), stående kort 3:4 i full bredd, filmremsa (12 bilder, `grabStrip`)
+med dragbart fönster och stillbild vid kanten som dras; ren logik i `screens/uploadLogic.ts` (5 tester), [skarmar.md](native/skarmar.md). Ren JS, inget nytt bygge.
 **Kvar:** pose-baserat svingfönster/fasurval/beskärning (N-3.4/N-3.8 ersätter `FrameSource`/`selectFrameTimes`), skaftsteg och fasbilder på Analys,
 auto-vinkel, livepipeline → `enqueueLive` (N-3.4). **📱 Prov (Erik, iPhone):** 1) bygg om dev-klienten
 (tre nya native-moduler; `EXPO_PUBLIC_API_URL` satt); 2) Sving → "Byt klipp" → kort klipp → "Bedöm svingen"; 3) kontrollera Resultat + Historik med bild, och att Avbryt mitt i inte sparar något.

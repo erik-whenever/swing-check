@@ -50,6 +50,31 @@ export const thumbnailFrameSource: FrameSource = {
   },
 };
 
+/** Filmremsans bilder: bredd 480 px räcker både för remsan och kortets stillbild. */
+const STRIP_WIDTH = 480;
+
+/**
+ * Stillbilder vid givna tider för Uppladdningens filmremsa (inte till analysen).
+ * Misslyckas en bild hoppas den över hellre än att hela remsan faller.
+ */
+export async function grabStrip(clipUri: string, times: readonly number[]): Promise<string[]> {
+  const uris: string[] = [];
+  for (const t of times) {
+    try {
+      const thumb = await getThumbnailAsync(clipUri, { time: Math.round(t * 1000), quality: 0.7 });
+      const ctx = ImageManipulator.manipulate(thumb.uri);
+      if (thumb.width > STRIP_WIDTH) ctx.resize({ width: STRIP_WIDTH });
+      const ref = await ctx.renderAsync();
+      const saved = await ref.saveAsync({ compress: 0.7, format: SaveFormat.JPEG });
+      deleteQuietly(thumb.uri);
+      uris.push(saved.uri);
+    } catch (err) {
+      console.warn('[upload] strip frame failed', String(err));
+    }
+  }
+  return uris;
+}
+
 function deleteQuietly(uri: string) {
   try {
     const f = new File(uri);

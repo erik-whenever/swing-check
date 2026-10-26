@@ -26,16 +26,17 @@ Varumärkessplash: tvingar ljust schema (nästlad `ThemeProvider scheme="light"`
 |---|---|---|
 | `greeting?`, `greetingHighlight?` | `string` | `BrandHeader`-hälsning (t.ex. `greetingFor()`); containern väljer tid. |
 | `onRecord?` | `() => void` | Rund kameraknapp i varumärkesraden. |
-| `preview?` | `ReactNode` | Videospelare/affisch som fyller klippkortet. |
-| `clipLabel`, `onChangeClip` | | "IMG_4127 · 0:08", "Byt klipp". |
+| `hasClip` | `boolean` | `false` → hela kortet är en uppmaning ("Ladda upp en sving" + "Välj klipp"), ingen tidslinje. |
+| `stripUris?` | `string[]` | Filmremsa, 12 stillbilder jämnt över klippet (`uploadLogic.stripTimes`). Kortets stillbild = remsans bild vid kanten som senast drogs. |
+| `clipLabel`, `onChangeClip` | | "IMG_4127 · 0:08", "Byt klipp"/"Välj klipp". |
 | `duration` | `number` (s) | Klippets längd. |
 | `swingWindow` | `{ start, end } \| null` (s) | Från `poseSegments`; `null` = "Ingen sving hittad". |
-| `onSwingWindowChange` | `(next) => void` | Tryck på tidslinjen flyttar närmaste kant; skärmläsare öka/minska flyttar fönstret 0,1 s. |
+| `onSwingWindowChange` | `(next) => void` | Dra (eller tryck) på remsan flyttar närmaste kant, minst 0,3 s fönster (`uploadLogic.moveEdge`); skärmläsare öka/minska flyttar fönstret 0,1 s. |
 | `angle`, `angleDetected`, `onAngleChange` | `CameraAngle` (`core`) | Segmented "Längs linjen"/"Framifrån"; "Upptäckt automatiskt" när förifylld. |
 | `ruleSetTitle`, `ruleSetSubtitle`, `onOpenRuleSet` | | Regelsetet som en rad. |
 | `estimatedSeconds`, `onAnalyze`, `canAnalyze?` | | "Bedöm svingen" + "Tar ungefär N sekunder". |
 
-Tidslinjen ritas i volt (maskinseende). Fliksfältet ingår inte — det hör till navigationsskalet. Exporterar även `formatSeconds` ("2,4").
+Klippkortet är stående (3:4) och fyller bredden; stillbilden centreras (`contain`). Ändrat 2026-10-26 efter Eriks iPhone-prov: tryck på 40 smala streck gick inte att använda och utan bild syntes inte var svingen låg. Tidslinjen ritas i volt (maskinseende). Fliksfältet ingår inte — det hör till navigationsskalet. Exporterar även `formatSeconds` ("2,4").
 
 ## Analys pågår — `AnalysisScreen.tsx`
 
