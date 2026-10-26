@@ -209,7 +209,13 @@ export const RULE_LIBRARY: LibraryRule[] = [
   {
     id: 'lib-full-rotation-finish',
     title: 'Full rotation finish',
-    description: 'Chest pointing at target in finish.',
+    // The bare "chest at target" was failed on correct finishes filmed down the line (Erik's
+    // iPhone test 2026-10-26): from behind, a full turn shows the golfer's back, not the chest.
+    description:
+      'Chest pointing at target in finish. Down-the-line (camera behind the golfer, looking toward the target): ' +
+      'a full turn shows the golfer\'s back to the camera with the chest and belt buckle facing the target — seeing ' +
+      'the back is a pass, not missing rotation; fail only if the chest still faces the ball or the camera side. ' +
+      'Face-on: the chest and belt buckle face the target side of the frame, torso seen in profile.',
     phase: 'follow',
     weight: 2,
     angles: ['face-on', 'dtl'],
