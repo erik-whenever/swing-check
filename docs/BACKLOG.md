@@ -257,7 +257,9 @@ I betan ritar skaftet bara en visuell tracer i resultatet; inga skaftmått till 
 - **Gör förberedelsen av skaftrutorna natively** (som N-3.3).
 - **Live-förbehandlingen ska verifieras med klubba i bild** på iPhone (rotation, färgordning).
 
-#### [ ] N-3.9 — Helflöde på iPhone + Android, ta bort `apps/spike`
+#### [📱] N-3.9 — Helflöde på iPhone + Android, ta bort `apps/spike`
+**📱 Kräver iPhone + Mac** (dirigent 2026-10-26, körning 11): helflödet beror på N-3.4 och N-3.8. 1) när N-3.4/N-3.8 är klara, bygg dev-klienten på Macen;
+2) kör en livesession och en uppladdning på iPhone hela vägen till Historik; 3) säg till — dirigenten tar då bort `apps/spike` i en egen PR.
 I betan räcker iPhone; Android-delen följer N-8.
 
 ### [📱] N-4 — 30 fps-omkalibrering (S-49 §6)
