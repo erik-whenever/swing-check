@@ -213,7 +213,11 @@ function ClipCard({ clipLabel, onChangeClip, duration, swingWindow, onSwingWindo
   const { space, radius } = useTheme();
   // Kanten som senast drogs styr stillbilden, så att man ser uppställningen resp. avslutet.
   const [edge, setEdge] = useState<WindowEdge>('start');
-  const previewTime = swingWindow ? (edge === 'start' ? swingWindow.start : swingWindow.end) : 0;
+  // Under ett drag lever fönstret här och bara kortet ritas om; skärmen får det först vid släpp.
+  // Annars ritade varje fingerrörelse om hela Uppladdning (upplevdes ryckigt på enhet).
+  const [draft, setDraft] = useState<SwingWindow | null>(null);
+  const shown = draft ?? swingWindow;
+  const previewTime = shown ? (edge === 'start' ? shown.start : shown.end) : 0;
   const previewUri = stripUris.length ? stripUris[stripIndexAt(previewTime, duration, stripUris.length)] : null;
 
   return (
@@ -239,8 +243,12 @@ function ClipCard({ clipLabel, onChangeClip, duration, swingWindow, onSwingWindo
       <View style={{ flex: 1 }} />
       <Timeline
         duration={duration}
-        window={swingWindow}
-        onChange={onSwingWindowChange}
+        window={shown}
+        onDrag={setDraft}
+        onChange={(next) => {
+          setDraft(null);
+          onSwingWindowChange(next);
+        }}
         onEdge={setEdge}
         stripUris={stripUris}
       />
@@ -251,7 +259,10 @@ function ClipCard({ clipLabel, onChangeClip, duration, swingWindow, onSwingWindo
 interface TimelineProps {
   duration: number;
   window: SwingWindow | null;
+  /** Slutligt fönster (släpp, tryck eller skärmläsare). */
   onChange: (next: SwingWindow) => void;
+  /** Fönstret under ett pågående drag. */
+  onDrag: (next: SwingWindow) => void;
   /** Kanten som dras just nu. */
   onEdge: (edge: WindowEdge) => void;
   stripUris: readonly string[];
@@ -262,7 +273,7 @@ interface TimelineProps {
  * för att flytta den; stillbilden ovanför följer kanten. Skärmläsare: öka/minska flyttar hela
  * fönstret 0,1 s.
  */
-function Timeline({ duration, window, onChange, onEdge, stripUris }: TimelineProps) {
+function Timeline({ duration, window, onChange, onDrag, onEdge, stripUris }: TimelineProps) {
   const { space, colors } = useTheme();
   const volt = colors.volt;
   const safeDur = duration > 0 ? duration : 1;
@@ -279,7 +290,14 @@ function Timeline({ duration, window, onChange, onEdge, stripUris }: TimelinePro
       setDragEdge(edge);
       onEdge(edge);
     }
-    onChange(moveEdge(window, edge, t, safeDur));
+    const next = moveEdge(window, edge, t, safeDur);
+    // Hoppa över rörelser under ~1 bildruta — de ändrar inget man ser men kostar en omritning.
+    if (Math.abs(next.start - window.start) < 0.02 && Math.abs(next.end - window.end) < 0.02) return;
+    onDrag(next);
+  };
+  const endDrag = () => {
+    setDragEdge(null);
+    if (window) onChange(window);
   };
 
   const nudge = (delta: number) => {
@@ -329,8 +347,8 @@ function Timeline({ duration, window, onChange, onEdge, stripUris }: TimelinePro
         onResponderTerminationRequest={() => false}
         onResponderGrant={(e) => dragTo(e.nativeEvent.locationX, true)}
         onResponderMove={(e) => dragTo(e.nativeEvent.locationX, false)}
-        onResponderRelease={() => setDragEdge(null)}
-        onResponderTerminate={() => setDragEdge(null)}
+        onResponderRelease={endDrag}
+        onResponderTerminate={endDrag}
       >
         {/* Barnen tar inga tryck, så att locationX alltid mäts mot remsan. */}
         <View pointerEvents="none" style={{ flex: 1 }}>

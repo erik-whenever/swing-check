@@ -230,6 +230,8 @@ uppladdningar som egna rader; fokusregelns trend (21 dagar, en punkt per session
 Fynd: (a) 413 — porträttklipp gick i full höjd (37 MB) → rutor skalas på längsta kanten (#47); (b) fasbilderna visar samma bild i alla faser — känd lucka, fasval kräver pose (N-3.4);
 (c) avslutsdomen "bröstet inte fullt roterat" fel på två klipp — troligen standardfönstret (mittersta 4 s) som klipper bort avslutet; omprov med eget fönster efter del 15;
 (d) fönstret gick inte att justera och tomläget var otydligt → del 15.
+Omprov 2026-10-26 med eget fönster: avslutsdomen fortfarande fel — klippet är filmat bakifrån (DTL) och visar ryggen i ett korrekt avslut.
+Regeln `lib-full-rotation-finish` hade bara "Chest pointing at target in finish"; beskrivningen säger nu vad ett fullt avslut ser ut som per vinkel (core, gäller även webben). 📱 omprov.
 **del 15** (2026-10-26) Uppladdningens klippkort: tomläge som uppmaning ("Ladda upp en sving" + "Välj klipp"), stående kort 3:4 i full bredd, filmremsa (12 bilder, `grabStrip`)
 med dragbart fönster och stillbild vid kanten som dras; ren logik i `screens/uploadLogic.ts` (5 tester), [skarmar.md](native/skarmar.md). Ren JS, inget nytt bygge.
 **Kvar:** pose-baserat svingfönster/fasurval/beskärning (N-3.4/N-3.8 ersätter `FrameSource`/`selectFrameTimes`), skaftsteg och fasbilder på Analys,
