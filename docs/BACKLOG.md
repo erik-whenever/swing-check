@@ -231,7 +231,8 @@ Fynd: (a) 413 — porträttklipp gick i full höjd (37 MB) → rutor skalas på 
 (c) avslutsdomen "bröstet inte fullt roterat" fel på två klipp — troligen standardfönstret (mittersta 4 s) som klipper bort avslutet; omprov med eget fönster efter del 15;
 (d) fönstret gick inte att justera och tomläget var otydligt → del 15.
 Omprov 2026-10-26 med eget fönster: avslutsdomen fortfarande fel — klippet är filmat bakifrån (DTL) och visar ryggen i ett korrekt avslut.
-Regeln `lib-full-rotation-finish` hade bara "Chest pointing at target in finish"; beskrivningen säger nu vad ett fullt avslut ser ut som per vinkel (core, gäller även webben). 📱 omprov.
+Regeln `lib-full-rotation-finish` hade bara "Chest pointing at target in finish"; beskrivningen säger nu vad ett fullt avslut ser ut som per vinkel (core, gäller även webben).
+Omprov efter #50: fortfarande fail (90 %), hänvisar till bild 30–32, alltså avslutet. Inte rututtaget utan domen. Trolig orsak: oskurna rutor där spelaren är liten (beskärning kommer med N-3.8). **Beslut:** inga fler blinda promptändringar; klippet blir ett V-1-fall (känd falsk underkänning DTL bakifrån).
 **del 15** (2026-10-26) Uppladdningens klippkort: tomläge som uppmaning ("Ladda upp en sving" + "Välj klipp"), stående kort 3:4 i full bredd, filmremsa (12 bilder, `grabStrip`)
 med dragbart fönster och stillbild vid kanten som dras; ren logik i `screens/uploadLogic.ts` (5 tester), [skarmar.md](native/skarmar.md). Ren JS, inget nytt bygge.
 **Kvar:** pose-baserat svingfönster/fasurval/beskärning (N-3.4/N-3.8 ersätter `FrameSource`/`selectFrameTimes`), skaftsteg och fasbilder på Analys,
