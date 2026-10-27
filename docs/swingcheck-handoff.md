@@ -2,7 +2,7 @@
 
 > Nuläge för en ny session, **max 60 rader**. Gjort/kvar: [BACKLOG.md](BACKLOG.md). Vad/varför: [../KONTEXT.md](../KONTEXT.md).
 > Det som trängs ut härifrån flyttas till [archive/handoff-historik.md](archive/handoff-historik.md) (allt t.o.m.
-> 2026-10-25 ligger där, inklusive webbappens tekniska kontext). Senast uppdaterad: 2026-10-26.
+> 2026-10-25 ligger där, inklusive webbappens tekniska kontext). Senast uppdaterad: 2026-10-27.
 
 ## Nu (2026-10-25, `stream-native`)
 - **Betan är definierad och är iOS** (Erik 2026-10-25): design, uppladdning → bedömning, egna eller
@@ -18,7 +18,7 @@
   (300 MB, video först), appens `coreSetup`/`mediaStore`. Workern ger 403 utan `Origin`; appen skickar
   `swingcheck://se.swingcheck.app`, som finns i `ALLOWED_ORIGINS` sedan W-2-deployen.
   Webbens historik följer nu samma MB-policy (`src/lib/historyRetention.ts`, `videoPurged`/`framesPurged` additivt i `SwingRecord`).
-- **V-1 `[~]`:** verktyg och metod klara ([eval/v1-facit.md](eval/v1-facit.md)); väntar på Eriks urval och facit
+- **V-1 `[📱]`** (omärkt från `[~]` 2026-10-27, ingen kod kvar)**:** verktyg och metod klara ([eval/v1-facit.md](eval/v1-facit.md)); väntar på Eriks urval och facit
   plus budgetgodkännande ($8 för 120 anrop). Inget kört. Live-körning vägrar om manifest/facit inte är committade.
 - **N-7 `[x]`:** webben och appen hämtar pose-modellen från samma versionsadress och sha256 (`modules/pose/models.json`).
 - **F-1 `[~]`:** ADR-0005 accepterad + `recommendRules` i core, används i appens Regler (Rekommenderat). V-1-grinden tom tills facit finns.
@@ -27,7 +27,7 @@
   tak per installation (40 anrop / 400 000 tokens/dygn, D1 `install_usage`), appens origin i `ALLOWED_ORIGINS`, `env.DB`
   aktiv (globalt tak + `/api/log`). Kvar: ombyggd dev-klient + enhetsprov, App Attest före öppen release ([identitet-w2.md](native/identitet-w2.md)).
 - **Blockerat:** N-3.2 `[📱]` (Eriks mätning), N-3.7/N-3.8 `[📱]` (Mac),
-  N-4 `[📱]` (posedatan finns bara lokalt), N-3.9 `[📱]` (iPhone + Mac, efter N-3.4/N-3.8). Dirigenten 2026-10-26 (körning 11): inget oblockerat kvar i N/V/D/F/W-2;
+  N-4 `[📱]` (posedatan finns bara lokalt), N-3.9 `[📱]` (iPhone + Mac, efter N-3.4/N-3.8). Dirigenten 2026-10-26/27 (körning 11–12): inget oblockerat kvar i N/V/D/F/W-2;
   allt väntar på Eriks prov, Mac eller V-1:s facit. N-3.3 och N-8 är Android, pausade till iOS-betan (Eriks beslut 2026-10-25).
 - **N-3.7 `[~]`:** `.mlpackage` fp32/fp16 klara ([coreml-export.md](shaft/coreml-export.md)); pariteten väntar på Mac.
 - **N-3.6 `[~]` (körning 5):** `src/ui/`, `src/state/`, `src/screens/` (sju rena skärmar inkl. Livesession), `src/app/` (React Navigation v7, entry `src/app/App`; DevScreen = långtryck på Historik i dev) och `src/tts/` (expo-speech, gemensam kö, "Läs upp" kopplad; Livesession på fliken Session utan pipeline) klara; regelbiblioteket som modal från "+"/Egna. Kvar: uppladdningspipeline, livepipeline (N-3.4). **Dev-klienten måste byggas om** (screens, safe-area, expo-font, svg). Rotens `npm ci` i molnet kräver `PUPPETEER_SKIP_DOWNLOAD=1`; CI installerar `apps/mobile` före vitest.
