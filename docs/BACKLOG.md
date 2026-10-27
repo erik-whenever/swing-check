@@ -301,7 +301,8 @@ Ny 2026-10-25. Branch: `stream-native`. **Inget Claude-anrop körs förrän Erik
 (antal anrop, modell, uppskattad kostnad) för varje körning. Bygger vidare på S-48:s mätskript
 ([vision-max-tokens/README.md](vision-max-tokens/README.md)): appens egen `analyzeSwing` via Workern, märkta anrop.
 
-### [~] V-1 — Facit för domkvalitet
+### [📱] V-1 — Facit för domkvalitet
+**📱 (dirigent 2026-10-27, körning 12):** ingen kod kvar; resten är Eriks urval, facit och körning (steg 1–3 nedan). V-2 och F-1:s rest väntar på detta.
 2026-10-25 (dirigent): förberedelsen klar, inga anrop. `scripts/eval/`: eval-regler (biblioteket + 9 skaftregler,
 DTL 13 / face-on 12), extract/freeze/verify (sha256 per bildruta + `rulesHash`), facit-mall (CSV) + validering,
 `run` med budgetspärr (dry-run standard), `score` (alla mätvärden, 38 tester). Metod och budget: [eval/v1-facit.md](eval/v1-facit.md).
